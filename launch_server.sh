@@ -2,10 +2,10 @@
 # Launch dedicated server
 
 # World configuration (edit these to customize your server)
-WORLD_NAME="${WORLD_NAME:-world}"        # Default world name
-WORLD_SEED="${WORLD_SEED:-}"             # Default seed (empty = random)
-GAME_PORT="${GAME_PORT:-7777}"           # Server port
-MAX_PLAYERS="${MAX_PLAYERS:-10}"         # Max players
+WORLD_NAME="hamberg"        # Default world name
+WORLD_SEED="676767"             # Default seed (empty = random)
+GAME_PORT="7777"           # Server port
+MAX_PLAYERS="10"         # Max players
 
 echo "Starting dedicated server..."
 echo "  World: $WORLD_NAME"
