@@ -226,7 +226,7 @@ func rpc_register_player(player_name: String) -> void:
 	print("[NetworkManager] Received registration from peer %d: %s" % [peer_id, player_name])
 	register_player(peer_id, player_name)
 
-## CLIENT -> SERVER: Send player input
+## CLIENT -> SERVER: Send player input (deprecated - use rpc_send_player_position)
 @rpc("any_peer", "call_remote", "unreliable_ordered")
 func rpc_send_player_input(input_data: Dictionary) -> void:
 	if not is_server:
@@ -237,6 +237,18 @@ func rpc_send_player_input(input_data: Dictionary) -> void:
 	var server_node := get_node_or_null("/root/Main/Server")
 	if server_node and server_node.has_method("receive_player_input"):
 		server_node.receive_player_input(peer_id, input_data)
+
+## CLIENT -> SERVER: Send player position (client-authoritative)
+@rpc("any_peer", "call_remote", "unreliable_ordered")
+func rpc_send_player_position(position_data: Dictionary) -> void:
+	if not is_server:
+		return
+
+	var peer_id := multiplayer.get_remote_sender_id()
+	# Forward to server's player management
+	var server_node := get_node_or_null("/root/Main/Server")
+	if server_node and server_node.has_method("receive_player_position"):
+		server_node.receive_player_position(peer_id, position_data)
 
 ## CLIENT -> SERVER: Report hit (trust-based)
 @rpc("any_peer", "call_remote", "reliable")

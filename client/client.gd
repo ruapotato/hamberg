@@ -252,7 +252,6 @@ func _setup_camera_follow(player: Node3D) -> void:
 
 ## Receive environmental objects from server
 func receive_environmental_objects(chunk_pos: Vector2i, objects_data: Array) -> void:
-	print("[Client] Receiving %d objects for chunk %s" % [objects_data.size(), chunk_pos])
 
 	# Create chunk entry if it doesn't exist
 	if not environmental_chunks.has(chunk_pos):

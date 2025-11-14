@@ -131,11 +131,9 @@ func _load_chunk(chunk_pos: Vector2i) -> void:
 		# Load from saved data
 		var chunk_data = database.get_chunk(chunk_pos)
 		objects = _load_chunk_from_saved_data(chunk_pos, chunk_data)
-		print("[ChunkManager] Loaded chunk %s from database with %d objects" % [chunk_pos, objects.size()])
 	else:
 		# Generate procedurally
 		objects = spawner.spawn_chunk_objects(chunk_pos, voxel_world, objects_container)
-		print("[ChunkManager] Generated chunk %s with %d objects" % [chunk_pos, objects.size()])
 
 	loaded_chunks[chunk_pos] = objects
 
@@ -184,9 +182,6 @@ func _unload_chunk(chunk_pos: Vector2i) -> void:
 
 	loaded_chunks.erase(chunk_pos)
 	chunk_unloaded.emit(chunk_pos)
-
-	if objects.size() > 0:
-		print("[ChunkManager] Unloaded chunk %s (%d objects)" % [chunk_pos, objects.size()])
 
 ## Update visibility and LOD for all objects based on nearest player distance
 func _update_object_visibility() -> void:

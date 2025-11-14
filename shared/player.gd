@@ -63,22 +63,18 @@ func _physics_process(delta: float) -> void:
 	# Apply movement prediction
 	_apply_movement(input_data, delta)
 
-	# Store input in history for reconciliation
-	input_data["sequence"] = input_sequence
-	input_data["timestamp"] = Time.get_ticks_msec()
-	input_history.append(input_data)
-	input_sequence += 1
-
-	# Limit input history size
-	if input_history.size() > MAX_INPUT_HISTORY:
-		input_history.pop_front()
-
-	# Send input to server through NetworkManager
-	if NetworkManager.is_client:
-		NetworkManager.rpc_send_player_input.rpc_id(1, input_data)
-
 	# Update animation state
 	_update_animation_state()
+
+	# Send position update to server (client-authoritative)
+	if NetworkManager.is_client:
+		var position_data := {
+			"position": global_position,
+			"rotation": rotation.y,
+			"velocity": velocity,
+			"animation_state": current_animation_state
+		}
+		NetworkManager.rpc_send_player_position.rpc_id(1, position_data)
 
 func _process(delta: float) -> void:
 	if not is_local_player:

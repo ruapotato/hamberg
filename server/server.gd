@@ -154,12 +154,10 @@ func _on_chunk_loaded(chunk_pos: Vector2i) -> void:
 	# Broadcast to all clients
 	if objects_data.size() > 0:
 		NetworkManager.rpc_spawn_environmental_objects.rpc([chunk_pos.x, chunk_pos.y], objects_data)
-		print("[Server] Broadcasting %d objects for chunk %s" % [objects_data.size(), chunk_pos])
 
 func _on_chunk_unloaded(chunk_pos: Vector2i) -> void:
 	# When server unloads a chunk, tell clients to despawn it
 	NetworkManager.rpc_despawn_environmental_objects.rpc([chunk_pos.x, chunk_pos.y])
-	print("[Server] Broadcasting chunk unload for %s" % chunk_pos)
 
 ## Send all currently loaded chunks to a specific player (for when they join)
 func _send_loaded_chunks_to_player(peer_id: int) -> void:
@@ -306,13 +304,43 @@ func _get_spawn_point() -> Vector3:
 # SERVER METHODS - Called by NetworkManager RPC relay
 # ============================================================================
 
-## Receive player input from NetworkManager (already has peer_id)
+## Receive player input from NetworkManager (already has peer_id) - DEPRECATED
 func receive_player_input(peer_id: int, input_data: Dictionary) -> void:
 	# Forward input to the player's entity
 	if spawned_players.has(peer_id):
 		var player = spawned_players[peer_id]
 		if player.has_method("apply_server_input"):
 			player.apply_server_input(input_data)
+
+## Receive player position from NetworkManager (client-authoritative)
+func receive_player_position(peer_id: int, position_data: Dictionary) -> void:
+	if not spawned_players.has(peer_id):
+		return
+
+	var player: Node3D = spawned_players[peer_id]
+	if not player or not is_instance_valid(player):
+		return
+
+	var new_position: Vector3 = position_data.get("position", player.global_position)
+	var old_position: Vector3 = player.global_position
+
+	# Validate: Check if movement is reasonable (prevent teleporting)
+	var distance_moved := old_position.distance_to(new_position)
+	const MAX_MOVEMENT_PER_TICK: float = 15.0  # ~8 m/s sprint * 2 = 16m margin
+
+	if distance_moved > MAX_MOVEMENT_PER_TICK:
+		# Reject invalid movement
+		push_warning("[Server] Player %d attempted invalid movement: %.2fm in one tick" % [peer_id, distance_moved])
+		return
+
+	# Accept position update
+	player.global_position = new_position
+	player.rotation.y = position_data.get("rotation", player.rotation.y)
+
+	# Store velocity and animation state for broadcasting
+	if player.has_method("set"):
+		player.set("velocity", position_data.get("velocity", Vector3.ZERO))
+		player.set("current_animation_state", position_data.get("animation_state", "idle"))
 
 ## Handle hit report from NetworkManager (already has peer_id)
 func handle_hit_report(peer_id: int, target_id: int, damage: float, hit_position: Vector3) -> void:
