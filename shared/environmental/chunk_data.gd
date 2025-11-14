@@ -78,9 +78,9 @@ func to_dict() -> Dictionary:
 	}
 
 ## Deserialize from dictionary
-static func from_dict(data: Dictionary) -> ChunkData:
+static func from_dict(data: Dictionary):
 	var chunk_pos_arr = data.get("chunk_pos", [0, 0])
-	var chunk_data := ChunkData.new(Vector2i(chunk_pos_arr[0], chunk_pos_arr[1]))
+	var chunk_data = new(Vector2i(chunk_pos_arr[0], chunk_pos_arr[1]))
 	chunk_data.is_generated = data.get("generated", false)
 
 	var objects_data = data.get("objects", [])
