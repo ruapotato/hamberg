@@ -97,13 +97,18 @@ func _broadcast_player_states() -> void:
 	for peer_id in spawned_players:
 		var player: Node3D = spawned_players[peer_id]
 		if player and is_instance_valid(player):
+			var pos = player.global_position
 			states.append({
 				"peer_id": peer_id,
-				"position": player.global_position,
+				"position": pos,
 				"rotation": player.rotation.y,
 				"velocity": player.get("velocity") if player.has_method("get") else Vector3.ZERO,
 				"animation_state": player.get("current_animation_state") if player.has_method("get") else "idle"
 			})
+
+			# Debug: Log player position occasionally
+			if server_tick % 90 == 0:  # Every 3 seconds
+				print("[Server DEBUG] Player %d at %s" % [peer_id, pos])
 
 	# Broadcast to all clients through NetworkManager
 	if states.size() > 0:

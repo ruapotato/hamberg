@@ -151,6 +151,7 @@ func _update_hud() -> void:
 ## Spawn a player on the client (called by NetworkManager)
 func spawn_player(peer_id: int, player_name: String, spawn_pos: Vector3) -> void:
 	print("[Client] Spawning player: %s (ID: %d)" % [player_name, peer_id])
+	print("[Client DEBUG] Spawn position for player %d: %s" % [peer_id, spawn_pos])
 
 	var is_local := peer_id == NetworkManager.get_local_player_id()
 
@@ -172,6 +173,7 @@ func spawn_player(peer_id: int, player_name: String, spawn_pos: Vector3) -> void
 
 	# Set spawn position AFTER adding to tree
 	player.global_position = spawn_pos
+	print("[Client DEBUG] Player %d actual position after spawn: %s" % [peer_id, player.global_position])
 
 	if is_local:
 		# This is our local player
