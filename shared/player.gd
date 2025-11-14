@@ -56,6 +56,8 @@ func _ready() -> void:
 	# Create inventory
 	var Inventory = preload("res://shared/inventory.gd")
 	inventory = Inventory.new(get_multiplayer_authority())
+	inventory.name = "Inventory"
+	add_child(inventory)
 	# Determine if this is the local player
 	is_local_player = is_multiplayer_authority()
 
