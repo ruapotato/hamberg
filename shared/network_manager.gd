@@ -261,6 +261,18 @@ func rpc_report_hit(target_id: int, damage: float, hit_position: Vector3) -> voi
 	if server_node and server_node.has_method("handle_hit_report"):
 		server_node.handle_hit_report(peer_id, target_id, damage, hit_position)
 
+## CLIENT -> SERVER: Damage environmental object
+@rpc("any_peer", "call_remote", "reliable")
+func rpc_damage_environmental_object(chunk_pos: Array, object_id: int, damage: float, hit_position: Vector3) -> void:
+	if not is_server:
+		return
+
+	var peer_id := multiplayer.get_remote_sender_id()
+	var server_node := get_node_or_null("/root/Main/Server")
+	if server_node and server_node.has_method("handle_environmental_damage"):
+		var chunk_pos_v2i := Vector2i(chunk_pos[0], chunk_pos[1])
+		server_node.handle_environmental_damage(peer_id, chunk_pos_v2i, object_id, damage, hit_position)
+
 # ============================================================================
 # UTILITY FUNCTIONS
 # ============================================================================
@@ -347,3 +359,15 @@ func rpc_destroy_environmental_object(chunk_pos: Array, object_id: int) -> void:
 	if client_node and client_node.has_method("destroy_environmental_object"):
 		var chunk_pos_v2i := Vector2i(chunk_pos[0], chunk_pos[1])
 		client_node.destroy_environmental_object(chunk_pos_v2i, object_id)
+
+## SERVER → CLIENT: Send world configuration (seed, name)
+@rpc("authority", "call_remote", "reliable")
+func rpc_send_world_config(world_data: Dictionary) -> void:
+	print("[NetworkManager] RPC received: send_world_config(%s)" % [world_data])
+
+	# Forward to client node if it exists
+	var client_node := get_node_or_null("/root/Main/Client")
+	if client_node and client_node.has_method("receive_world_config"):
+		client_node.receive_world_config(world_data)
+	else:
+		print("[NetworkManager] WARNING: Client node not found or doesn't have receive_world_config method")

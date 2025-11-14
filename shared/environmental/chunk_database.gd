@@ -9,17 +9,33 @@ const ChunkDataScript = preload("res://shared/environmental/chunk_data.gd")
 # In-memory storage
 var chunks: Dictionary = {}  # Vector2i -> ChunkData reference
 
-# Save path
-const SAVE_DIR: String = "user://world/chunks/"
+# Save path (configured per world)
+var save_dir: String = "user://worlds/default/chunks/"
+var world_name: String = "default"
 
 func _ready() -> void:
+	# Save directory will be set when world is initialized
+	pass
+
+## Initialize database for a specific world
+func initialize_for_world(new_world_name: String) -> void:
+	world_name = new_world_name
+	save_dir = "user://worlds/" + world_name + "/chunks/"
+
 	# Ensure save directory exists
 	var dir := DirAccess.open("user://")
-	if not dir.dir_exists("world"):
-		dir.make_dir("world")
-	dir = DirAccess.open("user://world")
+	if not dir.dir_exists("worlds"):
+		dir.make_dir("worlds")
+
+	dir = DirAccess.open("user://worlds")
+	if not dir.dir_exists(world_name):
+		dir.make_dir(world_name)
+
+	dir = DirAccess.open("user://worlds/" + world_name)
 	if not dir.dir_exists("chunks"):
 		dir.make_dir("chunks")
+
+	print("[ChunkDatabase] Initialized for world '%s' at %s" % [world_name, save_dir])
 
 ## Get chunk data, creating new if doesn't exist
 func get_chunk(chunk_pos: Vector2i):
@@ -107,7 +123,7 @@ func save_all() -> void:
 
 ## Get file path for a chunk
 func _get_chunk_file_path(chunk_pos: Vector2i) -> String:
-	return SAVE_DIR + "chunk_%d_%d.json" % [chunk_pos.x, chunk_pos.y]
+	return save_dir + "chunk_%d_%d.json" % [chunk_pos.x, chunk_pos.y]
 
 ## Get stats for debugging
 func get_stats() -> Dictionary:

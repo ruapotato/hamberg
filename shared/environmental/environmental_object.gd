@@ -8,10 +8,19 @@ extends Node3D
 @export var fade_in_duration: float = 0.3  ## How long to fade in when spawning (seconds)
 @export var fade_in_distance: float = 150.0  ## Objects closer than this spawn instantly
 
+# Resource system
+@export var max_health: float = 100.0  ## Health points (trees ~100, rocks ~150, grass ~10)
+@export var resource_drops: Dictionary = {}  ## Resources dropped when destroyed {"wood": 3, "stone": 0}
+
 var chunk_position: Vector2i  ## Which chunk this object belongs to
 var object_type: String = ""  ## Type identifier (tree, rock, grass, etc.)
+var object_id: int = -1  ## ID within the chunk (set by chunk manager)
 var is_visible_in_range: bool = true
 var current_lod: int = 0
+
+# Health state
+var current_health: float = 100.0
+var is_destroyed: bool = false
 
 # Fade-in state
 var is_fading_in: bool = false
@@ -25,6 +34,9 @@ var skip_fade_in: bool = false  # Set to true to spawn instantly
 var lod_nodes: Array = []
 
 func _ready() -> void:
+	# Initialize health
+	current_health = max_health
+
 	# Find LOD nodes if they exist
 	for child in get_children():
 		if child.name.begins_with("LOD"):
@@ -113,3 +125,45 @@ func get_object_type() -> String:
 	if object_type.is_empty():
 		return name.split("@")[0]  # Fallback: Remove instance suffix from node name
 	return object_type
+
+## Set the object ID within its chunk
+func set_object_id(id: int) -> void:
+	object_id = id
+
+## Get the object ID
+func get_object_id() -> int:
+	return object_id
+
+## Take damage (SERVER-SIDE ONLY)
+## Returns true if object was destroyed
+func take_damage(damage: float) -> bool:
+	if is_destroyed:
+		return false
+
+	current_health -= damage
+	print("[EnvironmentalObject] %s took %.1f damage (%.1f/%.1f HP)" % [get_object_type(), damage, current_health, max_health])
+
+	if current_health <= 0.0:
+		_on_destroyed()
+		return true
+
+	return false
+
+## Called when object is destroyed
+func _on_destroyed() -> void:
+	is_destroyed = true
+	print("[EnvironmentalObject] %s destroyed! Dropping resources: %s" % [get_object_type(), resource_drops])
+
+	# Visual destruction effect (simple for now)
+	_play_destruction_effect()
+
+## Play destruction visual effect
+func _play_destruction_effect() -> void:
+	# Simple scale-down animation
+	var tween := create_tween()
+	tween.tween_property(self, "scale", Vector3.ZERO, 0.3).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_IN)
+	tween.tween_callback(queue_free)
+
+## Get resource drops for this object
+func get_resource_drops() -> Dictionary:
+	return resource_drops

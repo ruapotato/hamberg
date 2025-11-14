@@ -10,7 +10,8 @@ extends Node3D
 var chunk_manager
 
 # World generation settings
-const WORLD_SEED: int = 42  # TODO: Make this configurable
+var world_seed: int = 42  # Will be set by WorldConfig
+var world_name: String = "default"  # Will be set by WorldConfig
 const SEA_LEVEL: float = 0.0
 const TERRAIN_HEIGHT: float = 60.0
 const TERRAIN_SCALE: float = 0.01  # Controls how "zoomed out" the noise is
@@ -47,19 +48,14 @@ func _ready() -> void:
 	# If we found a Server parent, we're the server. Otherwise we're a client.
 	is_server = is_under_server
 
+	# Note: Generator will be setup later after world config is received
+	# This allows server to send seed to clients
+
 	# Configure terrain based on role
 	if is_server:
 		_setup_server()
 	else:
 		_setup_client()
-
-	# Setup the generator (both server and client need this)
-	_setup_generator()
-
-	# Setup environmental object spawning (SERVER-SIDE for authority)
-	# Server owns all objects and broadcasts to clients
-	if is_server:
-		_setup_chunk_manager()
 
 	is_initialized = true
 	print("[VoxelWorld] Voxel terrain initialized (Server: %s)" % is_server)
@@ -87,13 +83,33 @@ func _setup_client() -> void:
 
 	# Client will receive terrain data from server via multiplayer sync
 
+## Initialize world with a specific seed and name
+## Must be called after _ready() to configure the world
+func initialize_world(config_seed: int, config_world_name: String) -> void:
+	world_seed = config_seed
+	world_name = config_world_name
+
+	print("[VoxelWorld] Initializing world '%s' with seed %d (is_server: %s)" % [world_name, world_seed, is_server])
+
+	# Setup the generator with the world seed
+	_setup_generator()
+
+	# Setup environmental object spawning (SERVER-SIDE for authority)
+	# Server owns all objects and broadcasts to clients
+	if is_server:
+		_setup_chunk_manager()
+	else:
+		print("[VoxelWorld] Client mode - skipping chunk manager setup")
+
+	print("[VoxelWorld] World initialized")
+
 func _setup_generator() -> void:
 	# Create custom biome-based generator (Valheim-style)
-	print("[VoxelWorld] Setting up biome generator...")
+	print("[VoxelWorld] Setting up biome generator with seed %d..." % world_seed)
 
 	# Load the biome generator script
 	var BiomeGenerator := preload("res://shared/biome_generator.gd")
-	var generator := BiomeGenerator.new()
+	var generator := BiomeGenerator.new(world_seed)
 
 	# Assign to terrain
 	terrain.generator = generator

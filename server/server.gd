@@ -3,11 +3,18 @@ extends Node
 ## Server - Server-side game logic and player management
 ## This handles all server-authoritative systems
 
+# Preload WorldConfig
+const WorldConfig = preload("res://shared/world_config.gd")
+
 # Player management
 var player_scene := preload("res://shared/player.tscn")
 var spawned_players: Dictionary = {} # peer_id -> Player node
 var player_viewers: Dictionary = {} # peer_id -> VoxelViewer node
 var player_spawn_area_center: Vector2 = Vector2(0, 0) # Center of spawn area
+
+# World configuration
+var world_config = null  # Will be WorldConfig instance
+const DEFAULT_WORLD_NAME: String = "world"
 
 # Server state
 var is_running: bool = false
@@ -30,20 +37,53 @@ func _ready() -> void:
 	# Wait for voxel_world to finish initialization
 	await get_tree().process_frame
 
-	# Connect to chunk manager signals for environmental objects
-	if voxel_world and voxel_world.chunk_manager:
-		voxel_world.chunk_manager.chunk_loaded.connect(_on_chunk_loaded)
-		voxel_world.chunk_manager.chunk_unloaded.connect(_on_chunk_unloaded)
-		print("[Server] Connected to chunk manager signals")
-
 	# Set up console input (for dedicated servers)
 	if DisplayServer.get_name() == "headless":
 		_setup_console_input()
+
+## Load or create world configuration
+func _load_or_create_world() -> void:
+	# Check environment variable for custom world name
+	var env_world_name := OS.get_environment("WORLD_NAME")
+	var world_name := env_world_name if env_world_name else DEFAULT_WORLD_NAME
+
+	# Try to load existing world
+	world_config = WorldConfig.load_from_file(world_name)
+
+	if world_config:
+		print("[Server] Loaded existing world: %s (seed: %d)" % [world_config.world_name, world_config.seed])
+	else:
+		# Create new world with random seed
+		var env_world_seed := OS.get_environment("WORLD_SEED")
+		var seed_value := env_world_seed.to_int() if env_world_seed else -1
+
+		world_config = WorldConfig.create_new(world_name, seed_value)
+		world_config.save_to_file()
+		print("[Server] Created new world: %s (seed: %d)" % [world_config.world_name, world_config.seed])
+
+	# Wait for voxel_world to be fully initialized
+	if voxel_world:
+		# Wait until voxel_world's _ready() has completed
+		while not voxel_world.is_initialized:
+			await get_tree().process_frame
+
+		# Now initialize world with config
+		voxel_world.initialize_world(world_config.seed, world_config.world_name)
+
+		# Connect to chunk manager signals after world is initialized
+		await get_tree().process_frame
+		if voxel_world.chunk_manager:
+			voxel_world.chunk_manager.chunk_loaded.connect(_on_chunk_loaded)
+			voxel_world.chunk_manager.chunk_unloaded.connect(_on_chunk_unloaded)
+			print("[Server] Connected to chunk manager signals")
 
 func start_server(port: int = 7777, max_players: int = 10) -> void:
 	if is_running:
 		push_warning("[Server] Server already running")
 		return
+
+	# Load or create world configuration
+	_load_or_create_world()
 
 	if NetworkManager.start_server(port, max_players):
 		is_running = true
@@ -51,6 +91,7 @@ func start_server(port: int = 7777, max_players: int = 10) -> void:
 		print("[Server] Server is now running!")
 		print("[Server] Port: %d" % port)
 		print("[Server] Max players: %d" % max_players)
+		print("[Server] World: %s (seed: %d)" % [world_config.world_name, world_config.seed])
 		print("[Server] ===========================================")
 		print("[Server] Available commands: save, kick <id>, shutdown, players")
 	else:
@@ -201,6 +242,12 @@ func _send_loaded_chunks_to_player(peer_id: int) -> void:
 func _on_player_joined(peer_id: int, player_name: String) -> void:
 	print("[Server] Player joined: %s (ID: %d)" % [player_name, peer_id])
 
+	# Send world config to the new client first
+	if world_config:
+		var world_data: Dictionary = world_config.to_dict()
+		NetworkManager.rpc_send_world_config.rpc_id(peer_id, world_data)
+		print("[Server] Sent world config to player %d" % peer_id)
+
 	# Spawn player entity
 	_spawn_player(peer_id, player_name)
 
@@ -349,6 +396,72 @@ func handle_hit_report(peer_id: int, target_id: int, damage: float, hit_position
 	# TODO: Apply damage to target
 	# For now, just broadcast the hit to all clients through NetworkManager
 	NetworkManager.rpc_broadcast_hit.rpc(target_id, damage, hit_position)
+
+## Handle environmental object damage from NetworkManager
+func handle_environmental_damage(peer_id: int, chunk_pos: Vector2i, object_id: int, damage: float, hit_position: Vector3) -> void:
+	print("[Server] Player %d damaged object %d in chunk %s (damage: %.1f)" % [peer_id, object_id, chunk_pos, damage])
+
+	if not voxel_world or not voxel_world.chunk_manager:
+		push_error("[Server] Cannot handle damage - voxel_world not initialized!")
+		return
+
+	var chunk_manager = voxel_world.chunk_manager
+
+	# Check if chunk is loaded
+	if not chunk_manager.loaded_chunks.has(chunk_pos):
+		push_warning("[Server] Chunk %s not loaded, ignoring damage" % chunk_pos)
+		return
+
+	var objects: Array = chunk_manager.loaded_chunks[chunk_pos]
+
+	# Validate object ID
+	if object_id < 0 or object_id >= objects.size():
+		push_error("[Server] Invalid object ID %d in chunk %s" % [object_id, chunk_pos])
+		return
+
+	var obj = objects[object_id]
+	if not is_instance_valid(obj):
+		push_warning("[Server] Object %d in chunk %s is not valid" % [object_id, chunk_pos])
+		return
+
+	# Apply damage
+	if obj.has_method("take_damage"):
+		var was_destroyed: bool = obj.take_damage(damage)
+
+		if was_destroyed:
+			print("[Server] Object %d in chunk %s destroyed!" % [object_id, chunk_pos])
+
+			# Get resource drops before object is destroyed
+			var resource_drops: Dictionary = obj.get_resource_drops() if obj.has_method("get_resource_drops") else {}
+
+			# Broadcast destruction to all clients
+			NetworkManager.rpc_destroy_environmental_object.rpc([chunk_pos.x, chunk_pos.y], object_id)
+
+			# Spawn resource drops
+			_spawn_resource_drops(resource_drops, hit_position)
+
+			# Mark chunk as modified
+			chunk_manager.modified_chunks[chunk_pos] = true
+		else:
+			# Object took damage but not destroyed
+			# TODO: Could broadcast damage effect to clients
+			pass
+	else:
+		push_warning("[Server] Object doesn't have take_damage method")
+
+## Spawn resource item drops at a position
+func _spawn_resource_drops(resources: Dictionary, position: Vector3) -> void:
+	if resources.is_empty():
+		print("[Server] No resources to drop")
+		return
+
+	print("[Server] Spawning resources: %s at %s" % [resources, position])
+
+	# TODO: Implement actual resource item spawning
+	# For now, just log what would be spawned
+	for resource_type in resources:
+		var amount: int = resources[resource_type]
+		print("[Server] Would spawn %d x %s" % [amount, resource_type])
 
 # ============================================================================
 # CONSOLE COMMANDS (for dedicated server)

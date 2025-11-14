@@ -60,9 +60,13 @@ func initialize(voxel_world_ref: Node3D) -> void:
 	# Wait a frame to ensure database is fully ready
 	await get_tree().process_frame
 
+	# Initialize database for this world
+	if database and is_instance_valid(database):
+		database.initialize_for_world(voxel_world.world_name)
+
 	# Sync settings with spawner
 	if spawner and is_instance_valid(spawner):
-		spawner.set_world_seed(voxel_world.WORLD_SEED)
+		spawner.set_world_seed(voxel_world.world_seed)
 		spawner.set_chunk_size(chunk_size)
 
 	print("[ChunkManager] Initialized with voxel world")
@@ -137,14 +141,21 @@ func _load_chunk(chunk_pos: Vector2i) -> void:
 
 	loaded_chunks[chunk_pos] = objects
 
-	# Set initial distance for each object to determine fade-in behavior
+	# Assign object IDs and set initial distance for each object
 	var chunk_center := _chunk_to_world(chunk_pos)
 	var chunk_center_3d := Vector3(chunk_center.x, 0, chunk_center.y)
 	var nearest_player_distance := _get_nearest_player_distance(chunk_center_3d)
 
-	for obj in objects:
-		if is_instance_valid(obj) and obj.has_method("set_initial_distance"):
-			obj.set_initial_distance(nearest_player_distance)
+	for i in objects.size():
+		var obj = objects[i]
+		if is_instance_valid(obj):
+			# Assign object ID within chunk
+			if obj.has_method("set_object_id"):
+				obj.set_object_id(i)
+
+			# Set initial distance for fade-in
+			if obj.has_method("set_initial_distance"):
+				obj.set_initial_distance(nearest_player_distance)
 
 	chunk_loaded.emit(chunk_pos)
 

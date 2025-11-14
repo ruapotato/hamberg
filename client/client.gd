@@ -247,6 +247,24 @@ func _setup_camera_follow(player: Node3D) -> void:
 			print("[Client] VoxelViewer attached to local player")
 
 # ============================================================================
+# WORLD CONFIGURATION
+# ============================================================================
+
+## Receive world configuration from server
+func receive_world_config(world_data: Dictionary) -> void:
+	print("[Client] Received world config: %s" % world_data)
+
+	var world_name: String = world_data.get("world_name", "unknown")
+	var world_seed: int = world_data.get("seed", 0)
+
+	# Initialize voxel world with server's seed and name
+	if voxel_world:
+		voxel_world.initialize_world(world_seed, world_name)
+		print("[Client] Initialized world '%s' with seed %d" % [world_name, world_seed])
+	else:
+		push_error("[Client] VoxelWorld not found!")
+
+# ============================================================================
 # ENVIRONMENTAL OBJECT MANAGEMENT (CLIENT-SIDE VISUAL ONLY)
 # ============================================================================
 

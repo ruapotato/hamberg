@@ -38,22 +38,24 @@ var biome_heights := {
 	"hell": {"base": -10.0, "amplitude": 35.0, "roughness": 0.8}
 }
 
-func _init() -> void:
+func _init(world_seed: int = 42) -> void:
 	# Main terrain noise
 	noise = FastNoiseLite.new()
-	noise.seed = 42
+	noise.seed = world_seed
 	noise.noise_type = FastNoiseLite.TYPE_PERLIN
 	noise.frequency = 0.003
 	noise.fractal_octaves = 5
 	noise.fractal_lacunarity = 2.0
 	noise.fractal_gain = 0.5
 
-	# Detail noise for roughness
+	# Detail noise for roughness (use seed + 1 for variation)
 	detail_noise = FastNoiseLite.new()
-	detail_noise.seed = 43
+	detail_noise.seed = world_seed + 1
 	detail_noise.noise_type = FastNoiseLite.TYPE_SIMPLEX
 	detail_noise.frequency = 0.02
 	detail_noise.fractal_octaves = 3
+
+	print("[BiomeGenerator] Initialized with seed: %d" % world_seed)
 
 func _get_used_channels_mask() -> int:
 	return 1 << CHANNEL

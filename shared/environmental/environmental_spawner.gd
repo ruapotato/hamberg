@@ -214,7 +214,29 @@ func _spawn_object(config: SpawnConfig, xz_pos: Vector2, voxel_world: Node3D, pa
 	if obj.has_method("set_object_type"):
 		obj.set_object_type(object_type)
 
+	# Configure health and resource drops based on type
+	_configure_object_properties(obj, object_type)
+
 	return obj
+
+## Configure object-specific properties (health, resource drops)
+func _configure_object_properties(obj: Node3D, object_type: String) -> void:
+	match object_type:
+		"tree":
+			if "max_health" in obj:
+				obj.max_health = 100.0
+			if "resource_drops" in obj:
+				obj.resource_drops = {"wood": 3}
+		"rock":
+			if "max_health" in obj:
+				obj.max_health = 150.0
+			if "resource_drops" in obj:
+				obj.resource_drops = {"stone": 5}
+		"grass":
+			if "max_health" in obj:
+				obj.max_health = 10.0
+			if "resource_drops" in obj:
+				obj.resource_drops = {}  # Grass drops nothing
 
 ## Generate deterministic seed for a chunk
 func _get_chunk_seed(chunk_pos: Vector2i) -> int:

@@ -60,6 +60,10 @@ func _physics_process(delta: float) -> void:
 	# CLIENT: Predict movement locally
 	var input_data := _gather_input()
 
+	# Handle attack input
+	if input_data.get("attack", false):
+		_handle_attack()
+
 	# Apply movement prediction
 	_apply_movement(input_data, delta)
 
@@ -91,11 +95,17 @@ func _gather_input() -> Dictionary:
 	var is_sprinting := Input.is_action_pressed("sprint")
 	var jump_pressed := Input.is_action_just_pressed("jump")
 
+	# Attack input (left mouse button or custom action if defined)
+	var attack_pressed := false
+	if Input.is_action_just_pressed("attack") if InputMap.has_action("attack") else Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
+		attack_pressed = true
+
 	return {
 		"move_x": input_dir.x,
 		"move_z": input_dir.y,
 		"sprint": is_sprinting,
 		"jump": jump_pressed,
+		"attack": attack_pressed,
 		"camera_basis": _get_camera_basis()
 	}
 
@@ -247,3 +257,61 @@ func _interpolate_remote_player(delta: float) -> void:
 
 	# Update animation state
 	current_animation_state = latest_state.get("animation_state", "idle")
+
+# ============================================================================
+# ATTACK/RESOURCE GATHERING
+# ============================================================================
+
+## Handle attack input (CLIENT-SIDE)
+func _handle_attack() -> void:
+	if not is_local_player:
+		return
+
+	# Get camera for raycasting
+	var camera := _get_camera()
+	if not camera:
+		print("[Player] No camera found for attack")
+		return
+
+	# Raycast from camera center
+	var viewport_size := get_viewport().get_visible_rect().size
+	var ray_origin := camera.project_ray_origin(viewport_size / 2)
+	var ray_direction := camera.project_ray_normal(viewport_size / 2)
+	var ray_end := ray_origin + ray_direction * 5.0  # 5 meter reach
+
+	# Perform raycast
+	var space_state := get_world_3d().direct_space_state
+	var query := PhysicsRayQueryParameters3D.create(ray_origin, ray_end)
+	query.collision_mask = 1 | 2  # World and players
+
+	var result := space_state.intersect_ray(query)
+	if result:
+		var hit_object: Object = result.collider
+		print("[Player] Hit object: %s at %s" % [hit_object.name, result.position])
+
+		# Check if it's an environmental object
+		if hit_object.has_method("get_object_type") and hit_object.has_method("get_object_id"):
+			var object_type: String = hit_object.get_object_type()
+			var object_id: int = hit_object.get_object_id()
+			var chunk_pos: Vector2i = hit_object.chunk_position if hit_object.has("chunk_position") else Vector2i.ZERO
+
+			print("[Player] Attacking %s (ID: %d in chunk %s)" % [object_type, object_id, chunk_pos])
+
+			# Send damage request to server
+			_send_damage_request(chunk_pos, object_id, 25.0, result.position)
+		else:
+			print("[Player] Hit non-environmental object")
+	else:
+		print("[Player] Attack missed")
+
+## Get the camera for raycasting
+func _get_camera() -> Camera3D:
+	var camera_controller := get_node_or_null("CameraController")
+	if camera_controller and camera_controller.has_method("get_camera"):
+		return camera_controller.get_camera()
+	return null
+
+## Send damage request to server
+func _send_damage_request(chunk_pos: Vector2i, object_id: int, damage: float, hit_position: Vector3) -> void:
+	# Send RPC to server via NetworkManager
+	NetworkManager.rpc_damage_environmental_object.rpc_id(1, [chunk_pos.x, chunk_pos.y], object_id, damage, hit_position)
