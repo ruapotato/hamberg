@@ -357,12 +357,13 @@ func destroy_environmental_object(chunk_pos: Vector2i, object_id: int) -> void:
 		chunk_objects.erase(object_id)
 		print("[Client] Destroyed environmental object %d in chunk %s" % [object_id, chunk_pos])
 
-## Spawn resource items at a position
-func spawn_resource_drops(resources: Dictionary, position: Vector3) -> void:
+## Spawn resource items at a position with server-provided network IDs
+func spawn_resource_drops(resources: Dictionary, position: Vector3, network_ids: Array) -> void:
 	print("[Client] Spawning resource drops: %s at %s" % [resources, position])
 
 	var resource_scene = preload("res://shared/resource_item.tscn")
 
+	var id_index = 0
 	for resource_type in resources:
 		var amount: int = resources[resource_type]
 
@@ -382,15 +383,16 @@ func spawn_resource_drops(resources: Dictionary, position: Vector3) -> void:
 			var spawn_pos = position + offset
 			spawn_pos.y = position.y - 1.0  # Spawn about 1m below hit point (roughly ground level)
 
-			# Generate unique network ID (position + time + index)
-			var net_id = "%s_%d_%d" % [spawn_pos, Time.get_ticks_msec(), i]
+			# Use server-provided network ID for consistency across all clients
+			var net_id = network_ids[id_index]
 			item.network_id = net_id
 			item.name = "Item_%s" % net_id
 
+			# Add to world first, then set position
+			world.add_child(item)
 			item.global_position = spawn_pos
 
-			# Add to world
-			world.add_child(item)
+			id_index += 1
 
 ## Remove a resource item by network ID (when another player picks it up)
 func remove_resource_item(net_id: String) -> void:

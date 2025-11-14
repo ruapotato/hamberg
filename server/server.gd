@@ -440,7 +440,17 @@ func handle_environmental_damage(peer_id: int, chunk_pos: Vector2i, object_id: i
 			# Broadcast resource drops to all clients (including position)
 			if not resource_drops.is_empty():
 				var pos_array = [hit_position.x, hit_position.y, hit_position.z]
-				NetworkManager.rpc_spawn_resource_drops.rpc(resource_drops, pos_array)
+
+				# Generate network IDs for each item on the server
+				var network_ids: Array = []
+				for resource_type in resource_drops:
+					var amount: int = resource_drops[resource_type]
+					for i in amount:
+						# Use server time and chunk/object info for unique IDs
+						var net_id = "%s_%d_%d_%d" % [chunk_pos, object_id, Time.get_ticks_msec(), i]
+						network_ids.append(net_id)
+
+				NetworkManager.rpc_spawn_resource_drops.rpc(resource_drops, pos_array, network_ids)
 
 			# Mark chunk as modified
 			chunk_manager.modified_chunks[chunk_pos] = true

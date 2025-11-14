@@ -360,14 +360,14 @@ func rpc_destroy_environmental_object(chunk_pos: Array, object_id: int) -> void:
 		var chunk_pos_v2i := Vector2i(chunk_pos[0], chunk_pos[1])
 		client_node.destroy_environmental_object(chunk_pos_v2i, object_id)
 
-## SERVER → CLIENTS: Spawn resource items at a position
+## SERVER → CLIENTS: Spawn resource items at a position with server-generated network IDs
 @rpc("authority", "call_remote", "reliable")
-func rpc_spawn_resource_drops(resources: Dictionary, position: Array) -> void:
+func rpc_spawn_resource_drops(resources: Dictionary, position: Array, network_ids: Array) -> void:
 	# Forward to client node if it exists
 	var client_node := get_node_or_null("/root/Main/Client")
 	if client_node and client_node.has_method("spawn_resource_drops"):
 		var pos_v3 := Vector3(position[0], position[1], position[2])
-		client_node.spawn_resource_drops(resources, pos_v3)
+		client_node.spawn_resource_drops(resources, pos_v3, network_ids)
 
 ## ANY_PEER → ALL: Resource item picked up (broadcast to all clients)
 @rpc("any_peer", "call_remote", "reliable")
