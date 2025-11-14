@@ -67,7 +67,7 @@ func _setup_spawn_configs() -> void:
 	grass_config.allowed_biomes = ["valley", "forest"]
 	spawn_configs["grass"] = grass_config
 
-## Spawn objects for a given chunk
+## Spawn objects for a given chunk (procedural generation)
 ## Returns array of spawned EnvironmentalObject instances
 func spawn_chunk_objects(chunk_pos: Vector2i, voxel_world: Node3D, parent: Node3D) -> Array:
 	var spawned_objects: Array = []
@@ -95,12 +95,44 @@ func spawn_chunk_objects(chunk_pos: Vector2i, voxel_world: Node3D, parent: Node3
 
 			# Check if we should spawn here
 			if _should_spawn_at_position(world_pos, config, voxel_world, rng):
-				var obj = _spawn_object(config, world_pos, voxel_world, parent, rng)
+				var obj = _spawn_object(config, world_pos, voxel_world, parent, rng, object_type)
 				if obj:
 					obj.set_chunk_position(chunk_pos)
 					spawned_objects.append(obj)
 
 	return spawned_objects
+
+## Spawn an object from saved data
+func spawn_saved_object(obj_data, voxel_world: Node3D, parent: Node3D):
+	# Get the appropriate scene for this object type
+	var config: SpawnConfig = spawn_configs.get(obj_data.object_type)
+	if not config:
+		push_error("[EnvironmentalSpawner] Unknown object type: %s" % obj_data.object_type)
+		return null
+
+	# Instance the scene
+	var obj = config.scene.instantiate()
+	if not obj:
+		push_error("[EnvironmentalSpawner] Failed to instantiate object!")
+		return null
+
+	# Set the original scale before adding to tree (so fade-in can use it)
+	if obj.has_method("set_target_scale"):
+		obj.set_target_scale(obj_data.scale)
+
+	# Set object type
+	if obj.has_method("set_object_type"):
+		obj.set_object_type(obj_data.object_type)
+
+	# Add to scene
+	parent.add_child(obj)
+
+	# Restore saved transform
+	obj.global_position = obj_data.position
+	obj.rotation = obj_data.rotation
+	# Note: scale will be set by fade-in animation using target_scale
+
+	return obj
 
 ## Check if an object should spawn at the given position
 func _should_spawn_at_position(xz_pos: Vector2, config: SpawnConfig, voxel_world: Node3D, rng: RandomNumberGenerator) -> bool:
@@ -152,7 +184,7 @@ func _estimate_slope_at(xz_pos: Vector2, voxel_world: Node3D) -> float:
 	return rad_to_deg(atan(max_diff / offset))
 
 ## Actually spawn an object at the given position
-func _spawn_object(config: SpawnConfig, xz_pos: Vector2, voxel_world: Node3D, parent: Node3D, rng: RandomNumberGenerator):
+func _spawn_object(config: SpawnConfig, xz_pos: Vector2, voxel_world: Node3D, parent: Node3D, rng: RandomNumberGenerator, object_type: String):
 	# Find surface height
 	var surface_pos: Vector3 = voxel_world.find_surface_position(xz_pos, 100.0, 200.0)
 
@@ -169,12 +201,18 @@ func _spawn_object(config: SpawnConfig, xz_pos: Vector2, voxel_world: Node3D, pa
 	obj.global_position = surface_pos
 
 	# Apply random rotation (Y axis only for trees/rocks)
+	var rotation_y: float = 0.0
 	if config.rotation_variation:
-		obj.rotation.y = rng.randf_range(0, TAU)
+		rotation_y = rng.randf_range(0, TAU)
+		obj.rotation.y = rotation_y
 
 	# Apply random scale
 	var scale_factor := rng.randf_range(config.scale_variation.x, config.scale_variation.y)
 	obj.scale = Vector3.ONE * scale_factor
+
+	# Store metadata on object for later reference
+	if obj.has_method("set_object_type"):
+		obj.set_object_type(object_type)
 
 	return obj
 

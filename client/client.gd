@@ -50,6 +50,13 @@ func _process(_delta: float) -> void:
 	if is_connected:
 		_update_hud()
 
+		# Update local player position in chunk manager for object spawning
+		if local_player and is_instance_valid(local_player):
+			voxel_world.update_player_spawn_position(
+				NetworkManager.get_local_player_id(),
+				local_player.global_position
+			)
+
 func auto_connect_to_localhost() -> void:
 	"""Auto-connect to localhost for singleplayer mode"""
 	await get_tree().create_timer(0.1).timeout

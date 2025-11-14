@@ -12,11 +12,13 @@ signal chunk_unloaded(chunk_pos: Vector2i)
 
 # Component references
 var spawner
+var database
 var voxel_world: Node3D
 
 # Chunk tracking
 var loaded_chunks: Dictionary = {}  # Vector2i -> Array of EnvironmentalObjects
 var player_chunk_positions: Dictionary = {}  # int (peer_id) -> Vector2i
+var modified_chunks: Dictionary = {}  # Vector2i -> bool (tracks which chunks have been edited)
 
 # Update timer
 var update_timer: float = 0.0
@@ -29,6 +31,12 @@ func _ready() -> void:
 	objects_container = Node3D.new()
 	objects_container.name = "EnvironmentalObjects"
 	add_child(objects_container)
+
+	# Create database for persistent storage
+	var ChunkDatabaseScript = load("res://shared/environmental/chunk_database.gd")
+	database = ChunkDatabaseScript.new()
+	database.name = "ChunkDatabase"
+	add_child(database)
 
 	# Create spawner
 	var EnvironmentalSpawnerScript = load("res://shared/environmental/environmental_spawner.gd")
@@ -49,9 +57,13 @@ func _process(delta: float) -> void:
 func initialize(voxel_world_ref: Node3D) -> void:
 	voxel_world = voxel_world_ref
 
+	# Wait a frame to ensure database is fully ready
+	await get_tree().process_frame
+
 	# Sync settings with spawner
-	spawner.set_world_seed(voxel_world.WORLD_SEED)
-	spawner.set_chunk_size(chunk_size)
+	if spawner and is_instance_valid(spawner):
+		spawner.set_world_seed(voxel_world.WORLD_SEED)
+		spawner.set_chunk_size(chunk_size)
 
 	print("[ChunkManager] Initialized with voxel world")
 
@@ -108,16 +120,51 @@ func _load_chunk(chunk_pos: Vector2i) -> void:
 		push_error("[ChunkManager] Cannot load chunk - voxel_world not initialized!")
 		return
 
-	# Spawn objects for this chunk
-	var objects: Array = spawner.spawn_chunk_objects(chunk_pos, voxel_world, objects_container)
+	if not spawner or not is_instance_valid(spawner):
+		push_error("[ChunkManager] Cannot load chunk - spawner not initialized!")
+		return
 
-	# Store in loaded chunks
+	var objects: Array = []
+
+	# Check if this chunk has been modified and saved
+	if database and database.is_chunk_generated(chunk_pos):
+		# Load from saved data
+		var chunk_data = database.get_chunk(chunk_pos)
+		objects = _load_chunk_from_saved_data(chunk_pos, chunk_data)
+		print("[ChunkManager] Loaded chunk %s from database with %d objects" % [chunk_pos, objects.size()])
+	else:
+		# Generate procedurally
+		objects = spawner.spawn_chunk_objects(chunk_pos, voxel_world, objects_container)
+		print("[ChunkManager] Generated chunk %s with %d objects" % [chunk_pos, objects.size()])
+
 	loaded_chunks[chunk_pos] = objects
+
+	# Set initial distance for each object to determine fade-in behavior
+	var chunk_center := _chunk_to_world(chunk_pos)
+	var chunk_center_3d := Vector3(chunk_center.x, 0, chunk_center.y)
+	var nearest_player_distance := _get_nearest_player_distance(chunk_center_3d)
+
+	for obj in objects:
+		if is_instance_valid(obj) and obj.has_method("set_initial_distance"):
+			obj.set_initial_distance(nearest_player_distance)
 
 	chunk_loaded.emit(chunk_pos)
 
-	if objects.size() > 0:
-		print("[ChunkManager] Loaded chunk %s with %d objects" % [chunk_pos, objects.size()])
+## Load chunk from saved database
+func _load_chunk_from_saved_data(chunk_pos: Vector2i, chunk_data) -> Array:
+	var objects: Array = []
+
+	# Get active (not destroyed) objects
+	var active_objects = chunk_data.get_active_objects()
+
+	for obj_data in active_objects:
+		# Spawn the object using spawner's method
+		var obj = spawner.spawn_saved_object(obj_data, voxel_world, objects_container)
+		if obj:
+			obj.set_chunk_position(chunk_pos)
+			objects.append(obj)
+
+	return objects
 
 ## Unload a chunk and destroy its objects
 func _unload_chunk(chunk_pos: Vector2i) -> void:
@@ -125,6 +172,10 @@ func _unload_chunk(chunk_pos: Vector2i) -> void:
 		return
 
 	var objects: Array = loaded_chunks[chunk_pos]
+
+	# If chunk was modified, save it
+	if modified_chunks.has(chunk_pos) and modified_chunks[chunk_pos] and database:
+		_save_chunk_to_database(chunk_pos, objects)
 
 	# Remove all objects
 	for obj in objects:
@@ -192,6 +243,30 @@ func _chunk_to_world(chunk_pos: Vector2i) -> Vector2:
 		chunk_pos.y * chunk_size + chunk_size * 0.5
 	)
 
+## Save a chunk to the database
+func _save_chunk_to_database(chunk_pos: Vector2i, objects: Array) -> void:
+	var chunk_data = database.get_chunk(chunk_pos)
+
+	# Clear existing objects
+	chunk_data.objects.clear()
+
+	# Record current objects
+	for obj in objects:
+		if is_instance_valid(obj):
+			var obj_type = "unknown"
+			if obj.has_method("get_object_type"):
+				obj_type = obj.get_object_type()
+
+			chunk_data.add_object(obj_type, obj.global_position, obj.rotation, obj.scale)
+
+	database.mark_chunk_generated(chunk_pos)
+	database.save_chunk(chunk_pos)
+	print("[ChunkManager] Saved modified chunk %s" % chunk_pos)
+
+## Mark a chunk as modified (call this when a player interacts with objects)
+func mark_chunk_modified(chunk_pos: Vector2i) -> void:
+	modified_chunks[chunk_pos] = true
+
 ## Get stats for debugging
 func get_stats() -> Dictionary:
 	var total_objects := 0
@@ -201,5 +276,6 @@ func get_stats() -> Dictionary:
 	return {
 		"loaded_chunks": loaded_chunks.size(),
 		"total_objects": total_objects,
-		"registered_players": player_chunk_positions.size()
+		"registered_players": player_chunk_positions.size(),
+		"modified_chunks": modified_chunks.size()
 	}

@@ -127,7 +127,7 @@ func _setup_chunk_manager() -> void:
 	chunk_manager = ChunkManagerScript.new()
 	chunk_manager.name = "ChunkManager"
 	chunk_manager.chunk_size = 32.0
-	chunk_manager.load_radius = 5
+	chunk_manager.load_radius = 8  # Increased from 5 to load chunks further out
 	chunk_manager.update_interval = 2.0
 	add_child(chunk_manager)
 
