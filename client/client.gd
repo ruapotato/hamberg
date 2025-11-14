@@ -6,17 +6,24 @@ extends Node
 # Scene references
 var player_scene := preload("res://shared/player.tscn")
 var camera_controller_scene := preload("res://shared/camera_controller.tscn")
+var hotbar_scene := preload("res://client/ui/hotbar.tscn")
+var inventory_panel_scene := preload("res://client/ui/inventory_panel.tscn")
 
 # Client state
 var is_connected: bool = false
 var local_player: Node3D = null
 var remote_players: Dictionary = {} # peer_id -> Player node
 
+# Inventory UI
+var hotbar_ui: Control = null
+var inventory_panel_ui: Control = null
+
 # Environmental objects
 var environmental_chunks: Dictionary = {} # Vector2i -> Dictionary of objects
 var environmental_objects_container: Node3D
 
 # UI references
+@onready var canvas_layer: CanvasLayer = $CanvasLayer
 @onready var connection_ui: Control = $CanvasLayer/ConnectionUI
 @onready var hud: Control = $CanvasLayer/HUD
 @onready var ip_input: LineEdit = $CanvasLayer/ConnectionUI/Panel/VBox/IPInput
@@ -180,6 +187,9 @@ func spawn_player(peer_id: int, player_name: String, spawn_pos: Vector3) -> void
 
 		# Attach camera to follow local player
 		_setup_camera_follow(player)
+
+		# Setup inventory UI
+		_setup_inventory_ui(player)
 	else:
 		# This is a remote player
 		remote_players[peer_id] = player
@@ -249,6 +259,43 @@ func _setup_camera_follow(player: Node3D) -> void:
 			viewer_parent.remove_child(viewer)
 			player.add_child(viewer)
 			print("[Client] VoxelViewer attached to local player")
+
+func _setup_inventory_ui(player: Node3D) -> void:
+	"""Set up inventory UI and link to player's inventory"""
+	if not canvas_layer:
+		push_error("[Client] Cannot setup inventory UI - canvas_layer not found")
+		return
+
+	if not player.has_node("Inventory"):
+		push_error("[Client] Cannot setup inventory UI - player has no inventory")
+		return
+
+	var player_inventory = player.get_node("Inventory")
+
+	# Create hotbar UI (always visible)
+	hotbar_ui = hotbar_scene.instantiate()
+	canvas_layer.add_child(hotbar_ui)
+	hotbar_ui.set_player_inventory(player_inventory)
+	print("[Client] Hotbar UI created and linked to player inventory")
+
+	# Create inventory panel UI (toggle with Tab)
+	inventory_panel_ui = inventory_panel_scene.instantiate()
+	canvas_layer.add_child(inventory_panel_ui)
+	inventory_panel_ui.set_player_inventory(player_inventory)
+	inventory_panel_ui.hide_inventory()  # Start hidden
+	print("[Client] Inventory panel UI created and linked to player inventory")
+
+	# Refresh displays periodically to sync with inventory changes
+	var refresh_timer = Timer.new()
+	refresh_timer.wait_time = 0.1  # Refresh every 100ms
+	refresh_timer.timeout.connect(func():
+		if hotbar_ui and is_instance_valid(hotbar_ui):
+			hotbar_ui.refresh_display()
+		if inventory_panel_ui and is_instance_valid(inventory_panel_ui) and inventory_panel_ui.is_inventory_open():
+			inventory_panel_ui.refresh_display()
+	)
+	add_child(refresh_timer)
+	refresh_timer.start()
 
 # ============================================================================
 # WORLD CONFIGURATION
