@@ -19,19 +19,24 @@ Hamberg aims to capture the magic of Valheim while being:
 
 ---
 
-## 🚀 Current Status: Phase 1 Complete ✅
+## 🚀 Current Status: Phase 2 Complete ✅
 
-**Phase 1: Core Networking Foundation** is fully implemented and tested!
+**Phase 2: Voxel Terrain & Environmental Objects** is fully implemented and tested!
 
 ### What Works Now
 - ✅ Dedicated server support (headless mode capable)
 - ✅ Client connection with UI
 - ✅ Player spawning and despawning
-- ✅ Client-side prediction for responsive movement
-- ✅ Server-authoritative player management
+- ✅ Client-authoritative player positions with validation
+- ✅ Server-authoritative environmental object management
 - ✅ Physics-based character controller (WASD, jump, sprint)
-- ✅ Network state synchronization
-- ✅ Multiple clients connecting and seeing each other
+- ✅ Procedural voxel terrain generation (Godot Voxel Tools)
+- ✅ Multi-biome world generation (Valley, Forest, Swamp, Mountain, Desert, Wizardland, Hell)
+- ✅ Server-authoritative environmental objects (trees, rocks, grass)
+- ✅ Chunk-based streaming with load/unload
+- ✅ Deterministic procedural generation (consistent across clients)
+- ✅ Smart persistence system (procedural + database for modified chunks)
+- ✅ Multiple clients with synchronized world state
 
 ### Try It Out!
 
@@ -58,13 +63,14 @@ Connect both clients to `127.0.0.1:7777` and see each other move around in real-
 - [x] Player spawning and movement
 - [x] Network synchronization
 
-### Phase 2: Voxel Terrain 🔨 **IN PROGRESS**
-- [ ] Integration with Godot Voxel Tools
-- [ ] Procedural terrain generation (noise-based)
-- [ ] Multiple biomes (Meadows, Forest, Mountains)
-- [ ] Chunk streaming to clients
-- [ ] Terrain editing (mining, building)
-- [ ] Server-authoritative terrain validation
+### Phase 2: Voxel Terrain ✅ **COMPLETE**
+- [x] Integration with Godot Voxel Tools
+- [x] Procedural terrain generation (biome-based)
+- [x] Multiple biomes (Valley, Forest, Swamp, Mountain, Desert, Wizardland, Hell)
+- [x] Chunk streaming with server-authoritative environmental objects
+- [x] Server-client world consistency
+- [x] Smart persistence (procedural + database)
+- [ ] Terrain editing (mining, building) - *deferred to Phase 4*
 
 ### Phase 3: Combat & AI 🗡️
 - [ ] Melee combat system
@@ -183,10 +189,22 @@ hamberg/
 ├── client/              # Client-only scripts
 │   └── client.gd       # UI, rendering, local player
 ├── shared/              # Shared game logic
-│   ├── network_manager.gd  # RPC relay & network state (autoload)
-│   ├── player.gd       # Player entity with prediction
-│   ├── player.tscn     # Player scene
-│   └── test_world.tscn # Test environment
+│   ├── network_manager.gd      # RPC relay & network state (autoload)
+│   ├── player.gd               # Player entity with client authority
+│   ├── player.tscn             # Player scene
+│   ├── voxel_world.gd          # Voxel terrain management
+│   ├── voxel_world.tscn        # Voxel terrain scene
+│   ├── biome_generator.gd      # Procedural terrain generation
+│   ├── camera_controller.gd    # Player camera
+│   └── environmental/          # Environmental objects
+│       ├── chunk_manager.gd        # Server-authoritative chunk streaming
+│       ├── chunk_data.gd           # Chunk persistence data
+│       ├── chunk_database.gd       # Save/load system
+│       ├── environmental_spawner.gd # Deterministic object spawning
+│       ├── environmental_object.gd  # Base class for trees/rocks/grass
+│       ├── tree.tscn               # Tree visual
+│       ├── rock.tscn               # Rock visual
+│       └── grass_clump.tscn        # Grass visual
 ├── scenes/              # Scene files
 │   ├── main.tscn       # Entry point
 │   ├── server.tscn     # Server scene
@@ -214,7 +232,8 @@ We prioritize instant feedback and smooth gameplay over paranoid anti-cheat. Thi
 
 | System | Authority | Why |
 |--------|-----------|-----|
-| Player Movement | **Client** (predicted) | Instant response, feels good |
+| Player Movement | **Client** (validated) | Instant response, validated by server |
+| Environmental Objects | **Server** | Consistent world state |
 | Combat/Hits | **Client** (reported) | Immediate hit feedback |
 | Damage Application | **Server** | Prevent obvious exploits |
 | Inventory | **Server** | No item duplication |
@@ -224,13 +243,28 @@ We prioritize instant feedback and smooth gameplay over paranoid anti-cheat. Thi
 
 ### Network Patterns
 
-**Client Prediction:**
+**Client-Authoritative Movement (Validated):**
 ```gdscript
-# CLIENT: Predict movement locally, send input to server
+# CLIENT: Move locally, send position to server
 func _physics_process(delta):
     var input = gather_input()
     apply_movement(input, delta)  # Instant local response
-    send_input_to_server.rpc_id(1, input)
+
+    # Send position update to server
+    var position_data = {
+        "position": global_position,
+        "rotation": rotation.y,
+        "velocity": velocity,
+        "animation_state": current_animation_state
+    }
+    NetworkManager.rpc_send_player_position.rpc_id(1, position_data)
+
+# SERVER: Validate and accept position
+func receive_player_position(peer_id, position_data):
+    var distance_moved = old_position.distance_to(new_position)
+    if distance_moved < MAX_MOVEMENT_PER_TICK:  # Anti-cheat validation
+        player.global_position = position_data.position
+        # Broadcast to all clients
 ```
 
 **Trust-Based Hit Detection:**
@@ -404,9 +438,9 @@ Hamberg is free and open source. Use it, modify it, learn from it, build your ow
 
 **Ready to dive in?**
 
-1. Try Phase 1 - Run the multiplayer demo
-2. Read the code - See how networking works
-3. Join development - Help build Phase 2 (voxel terrain!)
+1. Try Phase 2 - Run the multiplayer demo with voxel terrain!
+2. Read the code - See how server-authoritative world streaming works
+3. Join development - Help build Phase 3 (combat & AI!)
 4. Share feedback - What should we build next?
 
 **Join the journey to build an open source Valheim!** ⚔️🏔️
