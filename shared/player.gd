@@ -234,29 +234,20 @@ func _reconcile_with_server(state: Dictionary) -> void:
 
 func _interpolate_remote_player(delta: float) -> void:
 	"""Interpolate remote player movement for smooth rendering"""
-	if interpolation_buffer.size() < 2:
+	if interpolation_buffer.size() < 1:
 		return
 
-	render_timestamp += delta
+	# For now (Phase 1), just snap to the latest server position
+	# TODO: Implement proper time-based interpolation in Phase 2
+	var latest_state := interpolation_buffer[interpolation_buffer.size() - 1]
 
-	# Find two states to interpolate between
-	var render_time := Time.get_ticks_msec() / 1000.0 - INTERPOLATION_DELAY
+	# Snap to server position
+	var target_pos: Vector3 = latest_state.get("position", global_position)
+	var target_rot: float = latest_state.get("rotation", rotation.y)
 
-	# Simple interpolation: just use the two most recent states
-	var state_a := interpolation_buffer[interpolation_buffer.size() - 2]
-	var state_b := interpolation_buffer[interpolation_buffer.size() - 1]
-
-	var alpha := 0.5  # Simple lerp factor
-
-	# Interpolate position
-	var pos_a: Vector3 = state_a.get("position", global_position)
-	var pos_b: Vector3 = state_b.get("position", global_position)
-	global_position = pos_a.lerp(pos_b, alpha)
-
-	# Interpolate rotation
-	var rot_a: float = state_a.get("rotation", rotation.y)
-	var rot_b: float = state_b.get("rotation", rotation.y)
-	rotation.y = lerp_angle(rot_a, rot_b, alpha)
+	# Smooth lerp for visual quality (but use high alpha for responsiveness)
+	global_position = global_position.lerp(target_pos, 0.3)
+	rotation.y = lerp_angle(rotation.y, target_rot, 0.3)
 
 	# Update animation state
-	current_animation_state = state_b.get("animation_state", "idle")
+	current_animation_state = latest_state.get("animation_state", "idle")
