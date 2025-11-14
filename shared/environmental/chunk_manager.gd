@@ -109,7 +109,7 @@ func _load_chunk(chunk_pos: Vector2i) -> void:
 		return
 
 	# Spawn objects for this chunk
-	var objects := spawner.spawn_chunk_objects(chunk_pos, voxel_world, objects_container)
+	var objects: Array = spawner.spawn_chunk_objects(chunk_pos, voxel_world, objects_container)
 
 	# Store in loaded chunks
 	loaded_chunks[chunk_pos] = objects

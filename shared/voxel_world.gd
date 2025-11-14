@@ -7,7 +7,6 @@ extends Node3D
 @onready var multiplayer_sync: VoxelTerrainMultiplayerSynchronizer = $VoxelLodTerrain/VoxelTerrainMultiplayerSynchronizer
 
 # Environmental objects
-const ChunkManager = preload("res://shared/environmental/chunk_manager.gd")
 var chunk_manager
 
 # World generation settings
@@ -92,8 +91,9 @@ func _setup_generator() -> void:
 func _setup_chunk_manager() -> void:
 	print("[VoxelWorld] Setting up environmental object spawning...")
 
-	# Create chunk manager
-	chunk_manager = ChunkManager.new()
+	# Load and create chunk manager
+	var ChunkManagerScript = load("res://shared/environmental/chunk_manager.gd")
+	chunk_manager = ChunkManagerScript.new()
 	chunk_manager.name = "ChunkManager"
 	chunk_manager.chunk_size = 32.0
 	chunk_manager.load_radius = 5
