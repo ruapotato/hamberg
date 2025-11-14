@@ -95,7 +95,7 @@ func spawn_chunk_objects(chunk_pos: Vector2i, voxel_world: Node3D, parent: Node3
 
 			# Check if we should spawn here
 			if _should_spawn_at_position(world_pos, config, voxel_world, rng):
-				var obj := _spawn_object(config, world_pos, voxel_world, parent, rng)
+				var obj = _spawn_object(config, world_pos, voxel_world, parent, rng)
 				if obj:
 					obj.set_chunk_position(chunk_pos)
 					spawned_objects.append(obj)
@@ -105,7 +105,7 @@ func spawn_chunk_objects(chunk_pos: Vector2i, voxel_world: Node3D, parent: Node3
 ## Check if an object should spawn at the given position
 func _should_spawn_at_position(xz_pos: Vector2, config: SpawnConfig, voxel_world: Node3D, rng: RandomNumberGenerator) -> bool:
 	# Get terrain height at this position
-	var height := voxel_world.get_terrain_height_at(xz_pos)
+	var height: float = voxel_world.get_terrain_height_at(xz_pos)
 
 	# Check height constraints
 	if height < config.min_height or height > config.max_height:
@@ -113,13 +113,13 @@ func _should_spawn_at_position(xz_pos: Vector2, config: SpawnConfig, voxel_world
 
 	# Check biome constraints
 	if config.allowed_biomes.size() > 0:
-		var biome := voxel_world.get_biome_at(xz_pos)
+		var biome: String = voxel_world.get_biome_at(xz_pos)
 		if not biome in config.allowed_biomes:
 			return false
 
 	# Check slope (simplified - would need proper normal calculation)
 	# For now, just use height variation in a small radius
-	var slope_check := _estimate_slope_at(xz_pos, voxel_world)
+	var slope_check: float = _estimate_slope_at(xz_pos, voxel_world)
 	if slope_check < config.min_slope or slope_check > config.max_slope:
 		return false
 
@@ -131,11 +131,11 @@ func _should_spawn_at_position(xz_pos: Vector2, config: SpawnConfig, voxel_world
 
 ## Estimate slope at position (simplified)
 func _estimate_slope_at(xz_pos: Vector2, voxel_world: Node3D) -> float:
-	var center_height := voxel_world.get_terrain_height_at(xz_pos)
-	var offset := 2.0
+	var center_height: float = voxel_world.get_terrain_height_at(xz_pos)
+	var offset: float = 2.0
 
 	# Sample height at nearby points
-	var heights: Array[float] = [
+	var heights: Array = [
 		voxel_world.get_terrain_height_at(xz_pos + Vector2(offset, 0)),
 		voxel_world.get_terrain_height_at(xz_pos + Vector2(-offset, 0)),
 		voxel_world.get_terrain_height_at(xz_pos + Vector2(0, offset)),
@@ -143,9 +143,9 @@ func _estimate_slope_at(xz_pos: Vector2, voxel_world: Node3D) -> float:
 	]
 
 	# Find max height difference
-	var max_diff := 0.0
+	var max_diff: float = 0.0
 	for h in heights:
-		var diff := abs(h - center_height)
+		var diff: float = abs(h - center_height)
 		max_diff = max(max_diff, diff)
 
 	# Convert to approximate slope in degrees
@@ -154,7 +154,7 @@ func _estimate_slope_at(xz_pos: Vector2, voxel_world: Node3D) -> float:
 ## Actually spawn an object at the given position
 func _spawn_object(config: SpawnConfig, xz_pos: Vector2, voxel_world: Node3D, parent: Node3D, rng: RandomNumberGenerator):
 	# Find surface height
-	var surface_pos := voxel_world.find_surface_position(xz_pos, 100.0, 200.0)
+	var surface_pos: Vector3 = voxel_world.find_surface_position(xz_pos, 100.0, 200.0)
 
 	# Instance the scene
 	var obj := config.scene.instantiate()

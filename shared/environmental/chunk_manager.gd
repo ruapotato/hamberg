@@ -31,8 +31,8 @@ func _ready() -> void:
 	add_child(objects_container)
 
 	# Create spawner
-	var EnvironmentalSpawner = preload("res://shared/environmental/environmental_spawner.gd")
-	spawner = EnvironmentalSpawner.new()
+	var EnvironmentalSpawnerScript = load("res://shared/environmental/environmental_spawner.gd")
+	spawner = EnvironmentalSpawnerScript.new()
 	spawner.name = "EnvironmentalSpawner"
 	add_child(spawner)
 
