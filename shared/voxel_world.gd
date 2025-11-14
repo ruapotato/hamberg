@@ -114,6 +114,9 @@ func _setup_instancer() -> void:
 	# Assign to instancer
 	instancer.library = library
 
+	# Enable the instancer now that the library is set
+	instancer.process_mode = Node.PROCESS_MODE_INHERIT
+
 	print("[VoxelWorld] VoxelInstancer configured with %d item types" % library.get_item_count())
 
 ## Get terrain height at a given XZ position (approximate)

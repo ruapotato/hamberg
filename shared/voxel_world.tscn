@@ -43,5 +43,6 @@ shadow_enabled = true
 environment = SubResource("Environment_1")
 
 [node name="VoxelInstancer" type="VoxelInstancer" parent="VoxelLodTerrain"]
+process_mode = 4
 
 [node name="VoxelTerrainMultiplayerSynchronizer" type="VoxelTerrainMultiplayerSynchronizer" parent="VoxelLodTerrain"]
