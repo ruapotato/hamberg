@@ -8,24 +8,30 @@ static func create_library() -> VoxelInstanceLibrary:
 	var library := VoxelInstanceLibrary.new()
 
 	# Add trees (for Valley and Forest biomes)
-	_add_tree_item(library)
+	_add_tree_item(library, 0)
 
 	# Add rocks (for all biomes)
-	_add_rock_item(library)
+	_add_rock_item(library, 1)
 
 	# Add grass (for Valley and Forest biomes)
-	_add_grass_item(library)
+	_add_grass_item(library, 2)
 
 	print("[VoxelInstanceLibrary] Created library with %d items" % library.get_item_count())
 	return library
 
-static func _add_tree_item(library: VoxelInstanceLibrary) -> void:
-	var item := VoxelInstanceLibraryItem.new()
-
+static func _add_tree_item(library: VoxelInstanceLibrary, item_id: int) -> void:
 	# Load tree scene
 	var tree_scene := load("res://shared/props/tree.tscn")
 	if not tree_scene:
 		push_error("[VoxelInstanceLibrary] Failed to load tree scene!")
+		return
+
+	# Create item at specific ID
+	var item_index := library.add_item(item_id)
+	var item := library.get_item(item_index)
+
+	if not item:
+		push_error("[VoxelInstanceLibrary] Failed to create item at index %d" % item_id)
 		return
 
 	item.set_item_name("tree")
@@ -62,16 +68,21 @@ static func _add_tree_item(library: VoxelInstanceLibrary) -> void:
 
 	item.generator = generator
 
-	library.add_item(item)
-	print("[VoxelInstanceLibrary] Added tree item")
+	print("[VoxelInstanceLibrary] Added tree item at index %d" % item_index)
 
-static func _add_rock_item(library: VoxelInstanceLibrary) -> void:
-	var item := VoxelInstanceLibraryItem.new()
-
+static func _add_rock_item(library: VoxelInstanceLibrary, item_id: int) -> void:
 	# Load rock scene
 	var rock_scene := load("res://shared/props/rock.tscn")
 	if not rock_scene:
 		push_error("[VoxelInstanceLibrary] Failed to load rock scene!")
+		return
+
+	# Create item at specific ID
+	var item_index := library.add_item(item_id)
+	var item := library.get_item(item_index)
+
+	if not item:
+		push_error("[VoxelInstanceLibrary] Failed to create item at index %d" % item_id)
 		return
 
 	item.set_item_name("rock")
@@ -108,16 +119,21 @@ static func _add_rock_item(library: VoxelInstanceLibrary) -> void:
 
 	item.generator = generator
 
-	library.add_item(item)
-	print("[VoxelInstanceLibrary] Added rock item")
+	print("[VoxelInstanceLibrary] Added rock item at index %d" % item_index)
 
-static func _add_grass_item(library: VoxelInstanceLibrary) -> void:
-	var item := VoxelInstanceLibraryItem.new()
-
+static func _add_grass_item(library: VoxelInstanceLibrary, item_id: int) -> void:
 	# Load grass scene
 	var grass_scene := load("res://shared/props/grass.tscn")
 	if not grass_scene:
 		push_error("[VoxelInstanceLibrary] Failed to load grass scene!")
+		return
+
+	# Create item at specific ID
+	var item_index := library.add_item(item_id)
+	var item := library.get_item(item_index)
+
+	if not item:
+		push_error("[VoxelInstanceLibrary] Failed to create item at index %d" % item_id)
 		return
 
 	item.set_item_name("grass")
@@ -155,5 +171,4 @@ static func _add_grass_item(library: VoxelInstanceLibrary) -> void:
 
 	item.generator = generator
 
-	library.add_item(item)
-	print("[VoxelInstanceLibrary] Added grass item")
+	print("[VoxelInstanceLibrary] Added grass item at index %d" % item_index)

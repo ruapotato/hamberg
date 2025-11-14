@@ -111,13 +111,24 @@ func _setup_instancer() -> void:
 	# Create and configure the library
 	var library := VoxelInstanceLibrarySetup.create_library()
 
+	print("[VoxelWorld] Library created, item count: %d" % library.get_item_count())
+	print("[VoxelWorld] Library valid: %s" % (library != null))
+	print("[VoxelWorld] Library reference: %s" % library)
+
 	# Assign to instancer
 	instancer.library = library
+
+	print("[VoxelWorld] Library assigned to instancer")
+	print("[VoxelWorld] Instancer.library: %s" % instancer.library)
+	print("[VoxelWorld] Instancer.library item count: %d" % instancer.library.get_item_count())
+
+	# Wait a frame before enabling to ensure library is fully processed
+	await get_tree().process_frame
 
 	# Enable the instancer now that the library is set
 	instancer.process_mode = Node.PROCESS_MODE_INHERIT
 
-	print("[VoxelWorld] VoxelInstancer configured with %d item types" % library.get_item_count())
+	print("[VoxelWorld] VoxelInstancer enabled with %d item types" % library.get_item_count())
 
 ## Get terrain height at a given XZ position (approximate)
 ## Useful for spawning players/objects on the surface
