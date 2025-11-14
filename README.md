@@ -30,6 +30,8 @@ Hamberg aims to capture the magic of Valheim while being:
 - ✅ Client-authoritative player positions with validation
 - ✅ Server-authoritative environmental object management
 - ✅ Physics-based character controller (WASD, jump, sprint)
+- ✅ **Valheim-style player body** (segmented body with programmatic animations)
+- ✅ **Proper crosshair** (positioned top-right for better visibility)
 - ✅ Procedural voxel terrain generation (Godot Voxel Tools)
 - ✅ Multi-biome world generation (Valley, Forest, Swamp, Mountain, Desert, Wizardland, Hell)
 - ✅ Server-authoritative environmental objects (trees, rocks, grass)
@@ -196,7 +198,7 @@ GAME_PORT=8888 MAX_PLAYERS=20 ./launch_server.sh
 | Move Right | D |
 | Jump | Space |
 | Sprint | Left Shift |
-| Attack | Left Click *(coming soon)* |
+| Attack/Gather | Left Click |
 | Interact | E *(coming soon)* |
 | Inventory | Tab *(coming soon)* |
 

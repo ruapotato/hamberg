@@ -1,4 +1,4 @@
-[gd_scene load_steps=3 format=3 uid="uid://rock_env_001"]
+[gd_scene load_steps=4 format=3 uid="uid://rock_env_001"]
 
 [ext_resource type="Script" path="res://shared/environmental/environmental_object.gd" id="1"]
 
@@ -11,9 +11,18 @@ rings = 6
 [sub_resource type="StandardMaterial3D" id="rock_mat"]
 albedo_color = Color(0.5, 0.5, 0.55, 1)
 
-[node name="Rock" type="Node3D"]
+[sub_resource type="SphereShape3D" id="collision_shape"]
+radius = 0.8
+
+[node name="Rock" type="StaticBody3D"]
+collision_layer = 1
+collision_mask = 0
 script = ExtResource("1")
 cull_distance = 80.0
+
+[node name="RockCollision" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0.7, 0, 0, 0, 1.2, 0, 0.5, 0)
+shape = SubResource("collision_shape")
 
 [node name="RockMesh" type="MeshInstance3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 0.7, 0, 0, 0, 1.2, 0, 0.5, 0)
