@@ -371,13 +371,18 @@ func spawn_resource_drops(resources: Dictionary, position: Vector3) -> void:
 			var item = resource_scene.instantiate()
 			item.set_item_data(resource_type, 1)
 
-			# Random spawn offset
+			# Random spawn offset around hit position
 			var offset = Vector3(
 				randf_range(-0.5, 0.5),
-				0.5,
+				0.0,  # Don't offset vertically - let item handle its own height
 				randf_range(-0.5, 0.5)
 			)
-			item.global_position = position + offset
+
+			# Spawn at ground level (use hit position X/Z but lower Y)
+			var spawn_pos = position + offset
+			spawn_pos.y = position.y - 1.0  # Spawn about 1m below hit point (roughly ground level)
+
+			item.global_position = spawn_pos
 
 			# Add to world
 			world.add_child(item)

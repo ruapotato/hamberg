@@ -32,9 +32,9 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	# Bob up and down
 	var time = Time.get_ticks_msec() / 1000.0 + bob_offset
-	var bob = sin(time * 2.0) * 0.1
+	var bob = sin(time * 2.0) * 0.05  # Reduced bob amount
 	if mesh_instance:
-		mesh_instance.position.y = 0.5 + bob
+		mesh_instance.position.y = 0.3 + bob  # Lower base height
 
 	# Rotate slowly
 	rotation.y += delta * 1.0
@@ -77,7 +77,7 @@ func _create_mesh() -> void:
 			mesh.size = Vector3(0.2, 0.2, 0.2)
 			mesh_instance.mesh = mesh
 
-	mesh_instance.position.y = 0.5
+	mesh_instance.position.y = 0.3  # Start at lower height
 
 	# Add collision shape
 	var collision_shape = CollisionShape3D.new()
