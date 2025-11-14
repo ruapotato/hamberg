@@ -65,29 +65,17 @@ func _setup_client() -> void:
 	# Client will receive terrain data from server via multiplayer sync
 
 func _setup_generator() -> void:
-	# Create generator programmatically (scene file approach doesn't work reliably)
-	print("[VoxelWorld] Setting up terrain generator...")
+	# Create custom biome-based generator (Valheim-style)
+	print("[VoxelWorld] Setting up biome generator...")
 
-	# Create the noise using Godot's FastNoiseLite (not ZN_FastNoiseLite)
-	var noise := FastNoiseLite.new()
-	noise.seed = WORLD_SEED
-	noise.noise_type = FastNoiseLite.TYPE_PERLIN
-	noise.frequency = TERRAIN_SCALE
-	noise.fractal_octaves = 4
-	noise.fractal_lacunarity = 2.0
-	noise.fractal_gain = 0.5
-
-	# Create the generator
-	var generator := VoxelGeneratorNoise2D.new()
-	generator.channel = VoxelBuffer.CHANNEL_SDF
-	generator.height_start = SEA_LEVEL - 30.0
-	generator.height_range = TERRAIN_HEIGHT
-	generator.noise = noise
+	# Load the biome generator script
+	var BiomeGenerator := preload("res://shared/biome_generator.gd")
+	var generator := BiomeGenerator.new()
 
 	# Assign to terrain
 	terrain.generator = generator
 
-	print("[VoxelWorld] Generator configured: Noise2D with height range %.1f to %.1f" % [generator.height_start, generator.height_start + generator.height_range])
+	print("[VoxelWorld] Generator configured: Biome-based (distance + height)")
 
 ## Get terrain height at a given XZ position (approximate)
 ## Useful for spawning players/objects on the surface
@@ -95,7 +83,10 @@ func get_terrain_height_at(xz_pos: Vector2) -> float:
 	# This is an approximation - for precise results, use raycasting
 	var generator: VoxelGenerator = terrain.generator
 
-	if generator is VoxelGeneratorNoise2D:
+	# Check if it's our BiomeGenerator
+	if generator.has_method("get_height_at_position"):
+		return generator.get_height_at_position(xz_pos)
+	elif generator is VoxelGeneratorNoise2D:
 		var gen := generator as VoxelGeneratorNoise2D
 		if gen.noise:
 			var noise_value = gen.noise.get_noise_2d(xz_pos.x, xz_pos.y)
@@ -126,11 +117,16 @@ func find_surface_position(xz_pos: Vector2, search_start_y: float = 100.0, searc
 	var estimated_height := get_terrain_height_at(xz_pos)
 	return Vector3(xz_pos.x, estimated_height, xz_pos.y)
 
-## Get biome type at position (for future multi-biome support)
+## Get biome type at position
 func get_biome_at(xz_pos: Vector2) -> String:
-	var height := get_terrain_height_at(xz_pos)
+	var generator: VoxelGenerator = terrain.generator
 
-	# Heights relative to sea level
+	# Use BiomeGenerator if available
+	if generator.has_method("get_biome_at_position"):
+		return generator.get_biome_at_position(xz_pos)
+
+	# Fallback to height-based
+	var height := get_terrain_height_at(xz_pos)
 	var relative_height := height - SEA_LEVEL
 
 	if relative_height < MEADOW_HEIGHT:
