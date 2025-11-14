@@ -1,6 +1,11 @@
-[gd_scene load_steps=3 format=3 uid="uid://bvoxworld001"]
+[gd_scene load_steps=4 format=3 uid="uid://bvoxworld001"]
 
 [ext_resource type="Script" path="res://shared/voxel_world.gd" id="1"]
+
+[sub_resource type="StandardMaterial3D" id="terrain_material"]
+albedo_color = Color(0.3, 0.6, 0.3, 1)
+roughness = 0.9
+metallic = 0.0
 
 [sub_resource type="VoxelMesherTransvoxel" id="mesher"]
 mesh_mode = 0
@@ -24,6 +29,7 @@ script = ExtResource("1")
 
 [node name="VoxelLodTerrain" type="VoxelLodTerrain" parent="."]
 mesher = SubResource("mesher")
+material = SubResource("terrain_material")
 view_distance = 256
 lod_count = 5
 lod_distance = 48.0
