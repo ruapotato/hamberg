@@ -25,6 +25,7 @@ var remote_players: Dictionary = {} # peer_id -> Player node
 
 # World and camera
 @onready var world: Node3D = $World
+@onready var voxel_world = $World/VoxelWorld
 @onready var viewer: VoxelViewer = $VoxelViewer  # For voxel terrain - will attach to player
 
 func _ready() -> void:
