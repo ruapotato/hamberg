@@ -32,9 +32,7 @@ var interpolation_buffer: Array[Dictionary] = []
 const INTERPOLATION_DELAY: float = 0.1  # 100ms
 var render_timestamp: float = 0.0
 
-# Visual representation
-@onready var mesh_instance: MeshInstance3D = $MeshInstance3D
-@onready var collision_shape: CollisionShape3D = $CollisionShape3D
+# Visual representation (removed - now using body_container from player_body.tscn)
 
 # Attack cooldown
 var attack_cooldown: float = 0.0
@@ -332,7 +330,7 @@ func _handle_attack() -> void:
 		if hit_object.has_method("get_object_type") and hit_object.has_method("get_object_id"):
 			var object_type: String = hit_object.get_object_type()
 			var object_id: int = hit_object.get_object_id()
-			var chunk_pos: Vector2i = hit_object.chunk_position if hit_object.has("chunk_position") else Vector2i.ZERO
+			var chunk_pos: Vector2i = hit_object.chunk_position if "chunk_position" in hit_object else Vector2i.ZERO
 
 			print("[Player] Attacking %s (ID: %d in chunk %s)" % [object_type, object_id, chunk_pos])
 
