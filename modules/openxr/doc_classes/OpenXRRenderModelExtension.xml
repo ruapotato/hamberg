@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="OpenXRRenderModelExtension" inherits="OpenXRExtensionWrapper" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../doc/class.xsd">
+	<brief_description>
+	</brief_description>
+	<description>
+	</description>
+	<tutorials>
+	</tutorials>
+	<methods>
+		<method name="is_active" qualifiers="const">
+			<return type="bool" />
+			<description>
+			</description>
+		</method>
+		<method name="render_model_create">
+			<return type="RID" />
+			<param index="0" name="render_model_id" type="int" />
+			<description>
+			</description>
+		</method>
+		<method name="render_model_destroy">
+			<return type="void" />
+			<param index="0" name="render_model" type="RID" />
+			<description>
+			</description>
+		</method>
+		<method name="render_model_get_all">
+			<return type="RID[]" />
+			<description>
+			</description>
+		</method>
+		<method name="render_model_get_animatable_node_count" qualifiers="const">
+			<return type="int" />
+			<param index="0" name="render_model" type="RID" />
+			<description>
+			</description>
+		</method>
+		<method name="render_model_get_animatable_node_name" qualifiers="const">
+			<return type="String" />
+			<param index="0" name="render_model" type="RID" />
+			<param index="1" name="index" type="int" />
+			<description>
+			</description>
+		</method>
+		<method name="render_model_get_animatable_node_transform" qualifiers="const">
+			<return type="Transform3D" />
+			<param index="0" name="render_model" type="RID" />
+			<param index="1" name="index" type="int" />
+			<description>
+			</description>
+		</method>
+		<method name="render_model_get_confidence" qualifiers="const">
+			<return type="int" enum="XRPose.TrackingConfidence" />
+			<param index="0" name="render_model" type="RID" />
+			<description>
+			</description>
+		</method>
+		<method name="render_model_get_root_transform" qualifiers="const">
+			<return type="Transform3D" />
+			<param index="0" name="render_model" type="RID" />
+			<description>
+			</description>
+		</method>
+		<method name="render_model_get_subaction_paths">
+			<return type="PackedStringArray" />
+			<param index="0" name="render_model" type="RID" />
+			<description>
+			</description>
+		</method>
+		<method name="render_model_get_top_level_path" qualifiers="const">
+			<return type="String" />
+			<param index="0" name="render_model" type="RID" />
+			<description>
+			</description>
+		</method>
+		<method name="render_model_is_animatable_node_visible" qualifiers="const">
+			<return type="bool" />
+			<param index="0" name="render_model" type="RID" />
+			<param index="1" name="index" type="int" />
+			<description>
+			</description>
+		</method>
+		<method name="render_model_new_scene_instance" qualifiers="const">
+			<return type="Node3D" />
+			<param index="0" name="render_model" type="RID" />
+			<description>
+			</description>
+		</method>
+	</methods>
+	<signals>
+		<signal name="render_model_added">
+			<param index="0" name="render_model" type="RID" />
+			<description>
+			</description>
+		</signal>
+		<signal name="render_model_removed">
+			<param index="0" name="render_model" type="RID" />
+			<description>
+			</description>
+		</signal>
+		<signal name="render_model_top_level_path_changed">
+			<param index="0" name="render_model" type="RID" />
+			<description>
+			</description>
+		</signal>
+	</signals>
+</class>

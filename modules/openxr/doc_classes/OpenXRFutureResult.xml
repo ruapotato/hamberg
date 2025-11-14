@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="OpenXRFutureResult" inherits="RefCounted" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../doc/class.xsd">
+	<brief_description>
+	</brief_description>
+	<description>
+	</description>
+	<tutorials>
+	</tutorials>
+	<methods>
+		<method name="cancel_future">
+			<return type="void" />
+			<description>
+			</description>
+		</method>
+		<method name="get_future" qualifiers="const">
+			<return type="int" />
+			<description>
+			</description>
+		</method>
+		<method name="get_result_value" qualifiers="const">
+			<return type="Variant" />
+			<description>
+			</description>
+		</method>
+		<method name="get_status" qualifiers="const">
+			<return type="int" enum="OpenXRFutureResult.ResultStatus" />
+			<description>
+			</description>
+		</method>
+		<method name="set_result_value">
+			<return type="void" />
+			<param index="0" name="result_value" type="Variant" />
+			<description>
+			</description>
+		</method>
+	</methods>
+	<signals>
+		<signal name="completed">
+			<param index="0" name="result" type="OpenXRFutureResult" />
+			<description>
+			</description>
+		</signal>
+	</signals>
+	<constants>
+		<constant name="RESULT_RUNNING" value="0" enum="ResultStatus">
+		</constant>
+		<constant name="RESULT_FINISHED" value="1" enum="ResultStatus">
+		</constant>
+		<constant name="RESULT_CANCELLED" value="2" enum="ResultStatus">
+		</constant>
+	</constants>
+</class>

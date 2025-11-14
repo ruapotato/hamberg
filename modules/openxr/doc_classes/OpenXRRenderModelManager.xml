@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="OpenXRRenderModelManager" inherits="Node3D" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../doc/class.xsd">
+	<brief_description>
+	</brief_description>
+	<description>
+	</description>
+	<tutorials>
+	</tutorials>
+	<members>
+		<member name="make_local_to_pose" type="String" setter="set_make_local_to_pose" getter="get_make_local_to_pose" default="&quot;&quot;">
+		</member>
+		<member name="tracker" type="int" setter="set_tracker" getter="get_tracker" enum="OpenXRRenderModelManager.RenderModelTracker" default="0">
+		</member>
+	</members>
+	<signals>
+		<signal name="render_model_added">
+			<param index="0" name="render_model" type="OpenXRRenderModel" />
+			<description>
+			</description>
+		</signal>
+		<signal name="render_model_removed">
+			<param index="0" name="render_model" type="OpenXRRenderModel" />
+			<description>
+			</description>
+		</signal>
+	</signals>
+	<constants>
+		<constant name="RENDER_MODEL_TRACKER_ANY" value="0" enum="RenderModelTracker">
+		</constant>
+		<constant name="RENDER_MODEL_TRACKER_NONE_SET" value="1" enum="RenderModelTracker">
+		</constant>
+		<constant name="RENDER_MODEL_TRACKER_LEFT_HAND" value="2" enum="RenderModelTracker">
+		</constant>
+		<constant name="RENDER_MODEL_TRACKER_RIGHT_HAND" value="3" enum="RenderModelTracker">
+		</constant>
+	</constants>
+</class>

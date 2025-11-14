@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="GLTFObjectModelProperty" inherits="RefCounted" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../doc/class.xsd">
+	<brief_description>
+	</brief_description>
+	<description>
+	</description>
+	<tutorials>
+	</tutorials>
+	<methods>
+		<method name="append_node_path">
+			<return type="void" />
+			<param index="0" name="node_path" type="NodePath" />
+			<description>
+			</description>
+		</method>
+		<method name="append_path_to_property">
+			<return type="void" />
+			<param index="0" name="node_path" type="NodePath" />
+			<param index="1" name="prop_name" type="StringName" />
+			<description>
+			</description>
+		</method>
+		<method name="get_accessor_type" qualifiers="const">
+			<return type="int" enum="GLTFAccessor.GLTFAccessorType" />
+			<description>
+			</description>
+		</method>
+		<method name="has_json_pointers" qualifiers="const">
+			<return type="bool" />
+			<description>
+			</description>
+		</method>
+		<method name="has_node_paths" qualifiers="const">
+			<return type="bool" />
+			<description>
+			</description>
+		</method>
+		<method name="set_types">
+			<return type="void" />
+			<param index="0" name="variant_type" type="int" enum="Variant.Type" />
+			<param index="1" name="obj_model_type" type="int" enum="GLTFObjectModelProperty.GLTFObjectModelType" />
+			<description>
+			</description>
+		</method>
+	</methods>
+	<members>
+		<member name="gltf_to_godot_expression" type="Expression" setter="set_gltf_to_godot_expression" getter="get_gltf_to_godot_expression">
+		</member>
+		<member name="godot_to_gltf_expression" type="Expression" setter="set_godot_to_gltf_expression" getter="get_godot_to_gltf_expression">
+		</member>
+		<member name="json_pointers" type="PackedStringArray[]" setter="set_json_pointers" getter="get_json_pointers" default="[]">
+		</member>
+		<member name="node_paths" type="NodePath[]" setter="set_node_paths" getter="get_node_paths" default="[]">
+		</member>
+		<member name="object_model_type" type="int" setter="set_object_model_type" getter="get_object_model_type" enum="GLTFObjectModelProperty.GLTFObjectModelType" default="0">
+		</member>
+		<member name="variant_type" type="int" setter="set_variant_type" getter="get_variant_type" enum="Variant.Type" default="0">
+		</member>
+	</members>
+	<constants>
+		<constant name="GLTF_OBJECT_MODEL_TYPE_UNKNOWN" value="0" enum="GLTFObjectModelType">
+		</constant>
+		<constant name="GLTF_OBJECT_MODEL_TYPE_BOOL" value="1" enum="GLTFObjectModelType">
+		</constant>
+		<constant name="GLTF_OBJECT_MODEL_TYPE_FLOAT" value="2" enum="GLTFObjectModelType">
+		</constant>
+		<constant name="GLTF_OBJECT_MODEL_TYPE_FLOAT_ARRAY" value="3" enum="GLTFObjectModelType">
+		</constant>
+		<constant name="GLTF_OBJECT_MODEL_TYPE_FLOAT2" value="4" enum="GLTFObjectModelType">
+		</constant>
+		<constant name="GLTF_OBJECT_MODEL_TYPE_FLOAT3" value="5" enum="GLTFObjectModelType">
+		</constant>
+		<constant name="GLTF_OBJECT_MODEL_TYPE_FLOAT4" value="6" enum="GLTFObjectModelType">
+		</constant>
+		<constant name="GLTF_OBJECT_MODEL_TYPE_FLOAT2X2" value="7" enum="GLTFObjectModelType">
+		</constant>
+		<constant name="GLTF_OBJECT_MODEL_TYPE_FLOAT3X3" value="8" enum="GLTFObjectModelType">
+		</constant>
+		<constant name="GLTF_OBJECT_MODEL_TYPE_FLOAT4X4" value="9" enum="GLTFObjectModelType">
+		</constant>
+		<constant name="GLTF_OBJECT_MODEL_TYPE_INT" value="10" enum="GLTFObjectModelType">
+		</constant>
+	</constants>
+</class>

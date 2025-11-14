@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="OpenXRAnalogThresholdModifier" inherits="OpenXRActionBindingModifier" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../doc/class.xsd">
+	<brief_description>
+	</brief_description>
+	<description>
+	</description>
+	<tutorials>
+	</tutorials>
+	<members>
+		<member name="off_haptic" type="OpenXRHapticBase" setter="set_off_haptic" getter="get_off_haptic">
+		</member>
+		<member name="off_threshold" type="float" setter="set_off_threshold" getter="get_off_threshold" default="0.4">
+		</member>
+		<member name="on_haptic" type="OpenXRHapticBase" setter="set_on_haptic" getter="get_on_haptic">
+		</member>
+		<member name="on_threshold" type="float" setter="set_on_threshold" getter="get_on_threshold" default="0.6">
+		</member>
+	</members>
+</class>

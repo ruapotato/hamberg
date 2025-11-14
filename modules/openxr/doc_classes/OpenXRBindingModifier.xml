@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="OpenXRBindingModifier" inherits="Resource" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../doc/class.xsd">
+	<brief_description>
+	</brief_description>
+	<description>
+	</description>
+	<tutorials>
+	</tutorials>
+	<methods>
+		<method name="_get_description" qualifiers="virtual required const">
+			<return type="String" />
+			<description>
+			</description>
+		</method>
+		<method name="_get_ip_modification" qualifiers="virtual required">
+			<return type="PackedByteArray" />
+			<description>
+			</description>
+		</method>
+	</methods>
+</class>

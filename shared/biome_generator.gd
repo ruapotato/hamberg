@@ -12,12 +12,13 @@ var noise: FastNoiseLite
 var detail_noise: FastNoiseLite
 
 # Biome configuration (distances from origin in blocks)
-const MEADOWS_RADIUS := 500.0      # Starting area
-const FOREST_RADIUS := 1000.0      # Black forest equivalent
+const VALLEY_RADIUS := 500.0       # Starting area - peaceful valley
+const FOREST_RADIUS := 1000.0      # Dense forest
 const SWAMP_RADIUS := 1500.0       # Dangerous swamps
-const MOUNTAIN_RADIUS := 2000.0    # Mountain biome start
-const PLAINS_RADIUS := 2500.0      # Plains
-const MISTLANDS_RADIUS := 3000.0   # End-game biome
+const MOUNTAIN_RADIUS := 2000.0    # Mountain peaks
+const DESERT_RADIUS := 2500.0      # Hot desert
+const WIZARDLAND_RADIUS := 3000.0  # Magical biome
+# Hell is distance > WIZARDLAND_RADIUS
 
 # Height thresholds
 const OCEAN_LEVEL := -15.0
@@ -28,12 +29,13 @@ const MOUNTAIN_LEVEL := 50.0
 
 # Terrain parameters per biome
 var biome_heights := {
-	"meadows": {"base": 5.0, "amplitude": 10.0, "roughness": 0.3},
+	"valley": {"base": 5.0, "amplitude": 10.0, "roughness": 0.3},
 	"forest": {"base": 8.0, "amplitude": 15.0, "roughness": 0.4},
 	"swamp": {"base": -2.0, "amplitude": 5.0, "roughness": 0.2},
 	"mountain": {"base": 40.0, "amplitude": 30.0, "roughness": 0.6},
-	"plains": {"base": 3.0, "amplitude": 8.0, "roughness": 0.25},
-	"mistlands": {"base": 15.0, "amplitude": 20.0, "roughness": 0.5}
+	"desert": {"base": 3.0, "amplitude": 8.0, "roughness": 0.25},
+	"wizardland": {"base": 15.0, "amplitude": 20.0, "roughness": 0.5},
+	"hell": {"base": -10.0, "amplitude": 35.0, "roughness": 0.8}
 }
 
 func _init() -> void:
@@ -100,19 +102,21 @@ func _generate_block(out_buffer: VoxelBuffer, origin_in_voxels: Vector3i, lod: i
 				out_buffer.set_voxel_f(sdf, x, y, z, CHANNEL)
 
 func _get_biome_at_distance(distance: float) -> String:
-	"""Determine biome based on distance from origin (Valheim-style)"""
-	if distance < MEADOWS_RADIUS:
-		return "meadows"
+	"""Determine biome based on distance from origin"""
+	if distance < VALLEY_RADIUS:
+		return "valley"
 	elif distance < FOREST_RADIUS:
 		return "forest"
 	elif distance < SWAMP_RADIUS:
 		return "swamp"
 	elif distance < MOUNTAIN_RADIUS:
 		return "mountain"
-	elif distance < PLAINS_RADIUS:
-		return "plains"
+	elif distance < DESERT_RADIUS:
+		return "desert"
+	elif distance < WIZARDLAND_RADIUS:
+		return "wizardland"
 	else:
-		return "mistlands"
+		return "hell"
 
 ## Public API for external queries
 func get_biome_at_position(xz_pos: Vector2) -> String:

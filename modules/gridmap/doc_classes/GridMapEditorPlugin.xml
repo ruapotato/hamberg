@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="GridMapEditorPlugin" inherits="EditorPlugin" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../doc/class.xsd">
+	<brief_description>
+	</brief_description>
+	<description>
+	</description>
+	<tutorials>
+	</tutorials>
+	<methods>
+		<method name="clear_selection">
+			<return type="void" />
+			<description>
+			</description>
+		</method>
+		<method name="get_current_grid_map" qualifiers="const">
+			<return type="GridMap" />
+			<description>
+			</description>
+		</method>
+		<method name="get_selected_cells" qualifiers="const">
+			<return type="Array" />
+			<description>
+			</description>
+		</method>
+		<method name="get_selected_palette_item" qualifiers="const">
+			<return type="int" />
+			<description>
+			</description>
+		</method>
+		<method name="get_selection" qualifiers="const">
+			<return type="AABB" />
+			<description>
+			</description>
+		</method>
+		<method name="has_selection" qualifiers="const">
+			<return type="bool" />
+			<description>
+			</description>
+		</method>
+		<method name="set_selected_palette_item" qualifiers="const">
+			<return type="void" />
+			<param index="0" name="item" type="int" />
+			<description>
+			</description>
+		</method>
+		<method name="set_selection">
+			<return type="void" />
+			<param index="0" name="begin" type="Vector3i" />
+			<param index="1" name="end" type="Vector3i" />
+			<description>
+			</description>
+		</method>
+	</methods>
+</class>

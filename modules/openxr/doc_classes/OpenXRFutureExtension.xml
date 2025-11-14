@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="OpenXRFutureExtension" inherits="OpenXRExtensionWrapper" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../doc/class.xsd">
+	<brief_description>
+	</brief_description>
+	<description>
+	</description>
+	<tutorials>
+	</tutorials>
+	<methods>
+		<method name="cancel_future">
+			<return type="void" />
+			<param index="0" name="future" type="int" />
+			<description>
+			</description>
+		</method>
+		<method name="is_active" qualifiers="const">
+			<return type="bool" />
+			<description>
+			</description>
+		</method>
+		<method name="register_future">
+			<return type="OpenXRFutureResult" />
+			<param index="0" name="future" type="int" />
+			<param index="1" name="on_success" type="Callable" default="Callable()" />
+			<description>
+			</description>
+		</method>
+	</methods>
+</class>

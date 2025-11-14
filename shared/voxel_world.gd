@@ -77,6 +77,27 @@ func _setup_generator() -> void:
 
 	print("[VoxelWorld] Generator configured: Biome-based (distance + height)")
 
+	# Set up terrain material with biome coloring
+	_setup_terrain_material()
+
+func _setup_terrain_material() -> void:
+	print("[VoxelWorld] Setting up terrain material...")
+
+	# Load the shader
+	var shader := load("res://shared/terrain_material.gdshader") as Shader
+	if not shader:
+		push_error("[VoxelWorld] Failed to load terrain shader!")
+		return
+
+	# Create material
+	var material := ShaderMaterial.new()
+	material.shader = shader
+
+	# Assign to terrain
+	terrain.material_override = material
+
+	print("[VoxelWorld] Terrain material applied")
+
 ## Get terrain height at a given XZ position (approximate)
 ## Useful for spawning players/objects on the surface
 func get_terrain_height_at(xz_pos: Vector2) -> float:
