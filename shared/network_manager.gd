@@ -276,10 +276,14 @@ func get_mode_string() -> String:
 ## SERVER → CLIENTS: Spawn a player
 @rpc("authority", "call_remote", "reliable")
 func rpc_spawn_player(peer_id: int, player_name: String, spawn_pos: Vector3) -> void:
+	print("[NetworkManager] RPC received: spawn_player(%d, %s, %s)" % [peer_id, player_name, spawn_pos])
+
 	# Forward to client node if it exists
 	var client_node := get_node_or_null("/root/Main/Client")
 	if client_node and client_node.has_method("spawn_player"):
 		client_node.spawn_player(peer_id, player_name, spawn_pos)
+	else:
+		print("[NetworkManager] WARNING: Client node not found or doesn't have spawn_player method")
 
 ## SERVER → CLIENTS: Despawn a player
 @rpc("authority", "call_remote", "reliable")

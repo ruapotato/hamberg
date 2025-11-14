@@ -147,6 +147,7 @@ func _spawn_player(peer_id: int, player_name: String) -> void:
 	print("[Server] Spawned player %d at %s with VoxelViewer" % [peer_id, spawn_pos])
 
 	# Notify all clients to spawn this player through NetworkManager
+	print("[Server] Broadcasting spawn for player %d to all clients" % peer_id)
 	NetworkManager.rpc_spawn_player.rpc(peer_id, player_name, spawn_pos)
 
 	# Send existing players to the new client
@@ -154,6 +155,7 @@ func _spawn_player(peer_id: int, player_name: String) -> void:
 		if existing_peer_id != peer_id:
 			var existing_player: Node3D = spawned_players[existing_peer_id]
 			var existing_name: String = NetworkManager.get_player_info(existing_peer_id).get("name", "Unknown")
+			print("[Server] Sending existing player %d to new client %d" % [existing_peer_id, peer_id])
 			NetworkManager.rpc_spawn_player.rpc_id(peer_id, existing_peer_id, existing_name, existing_player.global_position)
 
 func _despawn_player(peer_id: int) -> void:

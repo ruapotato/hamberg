@@ -145,6 +145,14 @@ func spawn_player(peer_id: int, player_name: String, spawn_pos: Vector3) -> void
 
 	var is_local := peer_id == NetworkManager.get_local_player_id()
 
+	# Check if player already exists
+	if is_local and local_player:
+		print("[Client] Local player already exists, skipping spawn")
+		return
+	if not is_local and remote_players.has(peer_id):
+		print("[Client] Remote player %d already exists, skipping spawn" % peer_id)
+		return
+
 	# Instantiate player
 	var player: Node3D = player_scene.instantiate()
 	player.name = "Player_%d" % peer_id
@@ -159,14 +167,14 @@ func spawn_player(peer_id: int, player_name: String, spawn_pos: Vector3) -> void
 	if is_local:
 		# This is our local player
 		local_player = player
-		print("[Client] Local player spawned")
+		print("[Client] Local player spawned at %s" % spawn_pos)
 
 		# Attach camera to follow local player
 		_setup_camera_follow(player)
 	else:
 		# This is a remote player
 		remote_players[peer_id] = player
-		print("[Client] Remote player spawned")
+		print("[Client] Remote player %d spawned at %s" % [peer_id, spawn_pos])
 
 ## Despawn a player on the client (called by NetworkManager)
 func despawn_player(peer_id: int) -> void:
