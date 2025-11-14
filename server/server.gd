@@ -27,10 +27,14 @@ func _ready() -> void:
 	NetworkManager.player_joined.connect(_on_player_joined)
 	NetworkManager.player_left.connect(_on_player_left)
 
+	# Wait for voxel_world to finish initialization
+	await get_tree().process_frame
+
 	# Connect to chunk manager signals for environmental objects
 	if voxel_world and voxel_world.chunk_manager:
 		voxel_world.chunk_manager.chunk_loaded.connect(_on_chunk_loaded)
 		voxel_world.chunk_manager.chunk_unloaded.connect(_on_chunk_unloaded)
+		print("[Server] Connected to chunk manager signals")
 
 	# Set up console input (for dedicated servers)
 	if DisplayServer.get_name() == "headless":
