@@ -38,6 +38,11 @@ var render_timestamp: float = 0.0
 var attack_cooldown: float = 0.0
 const ATTACK_COOLDOWN_TIME: float = 0.5
 
+# Attack animation
+var is_attacking: bool = false
+var attack_timer: float = 0.0
+const ATTACK_ANIMATION_TIME: float = 0.3
+
 # Viewmodel (first-person arms)
 var viewmodel_arms: Node3D = null
 
@@ -295,9 +300,9 @@ func _handle_attack() -> void:
 	if not is_local_player:
 		return
 
-	# Trigger attack animation (simple bob for now)
-	if viewmodel_arms:
-		_play_attack_animation()
+	# Trigger attack animation
+	is_attacking = true
+	attack_timer = 0.0
 
 	# Get camera for raycasting
 	var camera := _get_camera()
@@ -353,16 +358,6 @@ func _send_damage_request(chunk_pos: Vector2i, object_id: int, damage: float, hi
 	# Send RPC to server via NetworkManager
 	NetworkManager.rpc_damage_environmental_object.rpc_id(1, [chunk_pos.x, chunk_pos.y], object_id, damage, hit_position)
 
-func _play_attack_animation() -> void:
-	"""Simple attack animation for viewmodel"""
-	if not viewmodel_arms:
-		return
-
-	# Create a simple tween for attack animation
-	var tween = create_tween()
-	tween.tween_property(viewmodel_arms, "position:z", -0.3, 0.1)
-	tween.tween_property(viewmodel_arms, "position:z", -0.4, 0.2)
-
 # ============================================================================
 # PLAYER BODY VISUALS
 # ============================================================================
@@ -396,6 +391,23 @@ func _update_body_animations(delta: float) -> void:
 	if not left_leg or not right_leg:
 		return
 
+	# Update attack animation
+	if is_attacking:
+		attack_timer += delta
+		if attack_timer >= ATTACK_ANIMATION_TIME:
+			is_attacking = false
+			attack_timer = 0.0
+
+	# Attack animation overrides arm movement
+	if is_attacking and right_arm:
+		# Swing right arm forward then back
+		var attack_progress = attack_timer / ATTACK_ANIMATION_TIME
+		var swing_angle = -sin(attack_progress * PI) * 1.2  # Swing forward
+		right_arm.rotation.x = swing_angle
+	elif right_arm:
+		# Normal arm swing will be handled below
+		pass
+
 	# Simple walking animation
 	var horizontal_speed = Vector2(velocity.x, velocity.z).length()
 
@@ -413,9 +425,10 @@ func _update_body_animations(delta: float) -> void:
 		right_leg.rotation.x = -leg_angle
 
 		# Arms swing opposite to legs (natural walking motion)
-		if left_arm and right_arm:
+		if left_arm:
 			left_arm.rotation.x = -arm_angle  # Left arm swings opposite to left leg
-			right_arm.rotation.x = arm_angle   # Right arm swings opposite to right leg
+		if right_arm and not is_attacking:
+			right_arm.rotation.x = arm_angle   # Right arm swings opposite to right leg (unless attacking)
 
 		# Add subtle torso sway
 		if torso:
@@ -435,7 +448,7 @@ func _update_body_animations(delta: float) -> void:
 
 		if left_arm:
 			left_arm.rotation.x = lerp(left_arm.rotation.x, 0.0, delta * 5.0)
-		if right_arm:
+		if right_arm and not is_attacking:
 			right_arm.rotation.x = lerp(right_arm.rotation.x, 0.0, delta * 5.0)
 
 		if torso:
