@@ -219,6 +219,14 @@ func _setup_camera_follow(player: Node3D) -> void:
 	camera_anchor.name = "CameraAnchor"
 	player.add_child(camera_anchor)
 
+	# Move VoxelViewer to player (for terrain streaming around player)
+	if viewer:
+		var viewer_parent := viewer.get_parent()
+		if viewer_parent:
+			viewer_parent.remove_child(viewer)
+			player.add_child(viewer)
+			print("[Client] VoxelViewer attached to local player")
+
 	# Reparent camera to anchor
 	var camera_parent := camera.get_parent()
 	camera_parent.remove_child(camera)

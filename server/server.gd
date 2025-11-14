@@ -6,7 +6,8 @@ extends Node
 # Player management
 var player_scene := preload("res://shared/player.tscn")
 var spawned_players: Dictionary = {} # peer_id -> Player node
-var player_spawn_points: Array[Vector3] = [Vector3(0, 50, 0)] # Default spawn
+var player_viewers: Dictionary = {} # peer_id -> VoxelViewer node
+var player_spawn_area_center: Vector2 = Vector2(0, 0) # Center of spawn area
 
 # Server state
 var is_running: bool = false
@@ -16,6 +17,8 @@ var tick_accumulator: float = 0.0
 
 # World root for spawning entities
 @onready var world: Node3D = $World
+@onready var voxel_world = $World/VoxelWorld
+@onready var voxel_terrain = $World/VoxelWorld/VoxelLodTerrain
 
 func _ready() -> void:
 	print("[Server] Server node ready")
@@ -130,7 +133,18 @@ func _spawn_player(peer_id: int, player_name: String) -> void:
 	# Set spawn position AFTER adding to tree
 	player.global_position = spawn_pos
 
-	print("[Server] Spawned player %d at %s" % [peer_id, spawn_pos])
+	# Create VoxelViewer for this player (server-side terrain streaming)
+	# VoxelViewer will stream terrain data around the player's position
+	var viewer := VoxelViewer.new()
+	viewer.name = "VoxelViewer_%d" % peer_id
+	viewer.view_distance = 256  # Match or slightly exceed client view distance
+	viewer.requires_collisions = true
+	viewer.requires_visuals = false  # Server doesn't need visual meshes
+	# Note: VoxelTerrainMultiplayerSynchronizer will handle associating this viewer with the peer
+	player.add_child(viewer)
+	player_viewers[peer_id] = viewer
+
+	print("[Server] Spawned player %d at %s with VoxelViewer" % [peer_id, spawn_pos])
 
 	# Notify all clients to spawn this player through NetworkManager
 	NetworkManager.rpc_spawn_player.rpc(peer_id, player_name, spawn_pos)
@@ -146,6 +160,14 @@ func _despawn_player(peer_id: int) -> void:
 	if not spawned_players.has(peer_id):
 		return
 
+	# Clean up VoxelViewer
+	if player_viewers.has(peer_id):
+		var viewer = player_viewers[peer_id]
+		if viewer and is_instance_valid(viewer):
+			viewer.queue_free()
+		player_viewers.erase(peer_id)
+
+	# Clean up player
 	var player: Node3D = spawned_players[peer_id]
 	if player and is_instance_valid(player):
 		player.queue_free()
@@ -158,9 +180,15 @@ func _despawn_player(peer_id: int) -> void:
 	print("[Server] Despawned player %d" % peer_id)
 
 func _get_spawn_point() -> Vector3:
-	# Simple spawn point selection
-	# TODO: Implement proper spawn point system
-	return player_spawn_points[0] + Vector3(randf_range(-5, 5), 0, randf_range(-5, 5))
+	# Generate random spawn position within spawn area
+	var random_offset := Vector2(randf_range(-10, 10), randf_range(-10, 10))
+	var spawn_xz := player_spawn_area_center + random_offset
+
+	# Get terrain height at this position
+	var spawn_height: float = voxel_world.get_terrain_height_at(spawn_xz)
+
+	# Spawn a bit above the surface to avoid clipping
+	return Vector3(spawn_xz.x, spawn_height + 3.0, spawn_xz.y)
 
 # ============================================================================
 # SERVER METHODS - Called by NetworkManager RPC relay

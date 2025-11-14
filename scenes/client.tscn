@@ -1,21 +1,25 @@
 [gd_scene load_steps=3 format=3 uid="uid://dy3jxg8yn7p6n"]
 
 [ext_resource type="Script" path="res://client/client.gd" id="1_client"]
-[ext_resource type="PackedScene" uid="uid://c8k3m2vfwxjy3" path="res://shared/test_world.tscn" id="2_testworld"]
+[ext_resource type="PackedScene" uid="uid://bvoxworld001" path="res://shared/voxel_world.tscn" id="2_voxelworld"]
 
 [node name="Client" type="Node"]
 script = ExtResource("1_client")
 
 [node name="World" type="Node3D" parent="."]
 
-[node name="TestWorld" parent="World" instance=ExtResource("2_testworld")]
+[node name="VoxelWorld" parent="World" instance=ExtResource("2_voxelworld")]
 
 [node name="Camera" type="Camera3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 0.707107, 0.707107, 0, -0.707107, 0.707107, 0, 60, 20)
 current = true
 fov = 75.0
 
-[node name="VoxelViewer" type="Node" parent="Camera"]
+[node name="VoxelViewer" type="VoxelViewer" parent="Camera"]
+view_distance = 256
+requires_collisions = true
+requires_meshes = true
+requires_visuals = true
 
 [node name="CanvasLayer" type="CanvasLayer" parent="."]
 
