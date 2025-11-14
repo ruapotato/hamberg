@@ -1,0 +1,30 @@
+[gd_scene load_steps=3 format=3 uid="uid://grass_env_001"]
+
+[ext_resource type="Script" path="res://shared/environmental/environmental_object.gd" id="1"]
+
+[sub_resource type="QuadMesh" id="grass_blade"]
+size = Vector2(0.4, 0.6)
+
+[sub_resource type="StandardMaterial3D" id="grass_mat"]
+albedo_color = Color(0.3, 0.6, 0.25, 1)
+cull_mode = 2
+billboard_mode = 1
+
+[node name="GrassClump" type="Node3D"]
+script = ExtResource("1")
+cull_distance = 30.0
+
+[node name="Blade1" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.3, 0)
+mesh = SubResource("grass_blade")
+surface_material_override/0 = SubResource("grass_mat")
+
+[node name="Blade2" type="MeshInstance3D" parent="."]
+transform = Transform3D(0.707, 0, 0.707, 0, 1, 0, -0.707, 0, 0.707, 0.15, 0.25, 0.1)
+mesh = SubResource("grass_blade")
+surface_material_override/0 = SubResource("grass_mat")
+
+[node name="Blade3" type="MeshInstance3D" parent="."]
+transform = Transform3D(0.707, 0, -0.707, 0, 1, 0, 0.707, 0, 0.707, -0.1, 0.3, -0.15)
+mesh = SubResource("grass_blade")
+surface_material_override/0 = SubResource("grass_mat")

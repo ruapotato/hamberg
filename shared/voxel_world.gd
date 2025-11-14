@@ -6,6 +6,9 @@ extends Node3D
 @onready var terrain: VoxelLodTerrain = $VoxelLodTerrain
 @onready var multiplayer_sync: VoxelTerrainMultiplayerSynchronizer = $VoxelLodTerrain/VoxelTerrainMultiplayerSynchronizer
 
+# Environmental objects
+var chunk_manager: ChunkManager
+
 # World generation settings
 const WORLD_SEED: int = 42  # TODO: Make this configurable
 const SEA_LEVEL: float = 0.0
@@ -37,6 +40,10 @@ func _ready() -> void:
 
 	# Setup the generator (both server and client need this)
 	_setup_generator()
+
+	# Setup environmental object spawning (server only for now)
+	if is_server:
+		_setup_chunk_manager()
 
 	is_initialized = true
 	print("[VoxelWorld] Voxel terrain initialized (Server: %s)" % is_server)
@@ -80,6 +87,37 @@ func _setup_generator() -> void:
 	# TODO: Set up terrain material with biome coloring
 	# VoxelLodTerrain material system needs investigation
 	# For now, using default material
+
+func _setup_chunk_manager() -> void:
+	print("[VoxelWorld] Setting up environmental object spawning...")
+
+	# Create chunk manager
+	chunk_manager = ChunkManager.new()
+	chunk_manager.name = "ChunkManager"
+	chunk_manager.chunk_size = 32.0
+	chunk_manager.load_radius = 5
+	chunk_manager.update_interval = 2.0
+	add_child(chunk_manager)
+
+	# Initialize with this voxel world
+	chunk_manager.initialize(self)
+
+	print("[VoxelWorld] ChunkManager initialized")
+
+## Register a player for environmental object spawning
+func register_player_for_spawning(peer_id: int, player_node: Node3D) -> void:
+	if chunk_manager:
+		chunk_manager.register_player(peer_id, player_node)
+
+## Unregister a player from environmental object spawning
+func unregister_player_from_spawning(peer_id: int) -> void:
+	if chunk_manager:
+		chunk_manager.unregister_player(peer_id)
+
+## Update player position for environmental object spawning
+func update_player_spawn_position(peer_id: int, position: Vector3) -> void:
+	if chunk_manager:
+		chunk_manager.update_player_position(peer_id, position)
 
 ## Get terrain height at a given XZ position (approximate)
 ## Useful for spawning players/objects on the surface
