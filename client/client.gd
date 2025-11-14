@@ -357,6 +357,31 @@ func destroy_environmental_object(chunk_pos: Vector2i, object_id: int) -> void:
 		chunk_objects.erase(object_id)
 		print("[Client] Destroyed environmental object %d in chunk %s" % [object_id, chunk_pos])
 
+## Spawn resource items at a position
+func spawn_resource_drops(resources: Dictionary, position: Vector3) -> void:
+	print("[Client] Spawning resource drops: %s at %s" % [resources, position])
+
+	var resource_scene = preload("res://shared/resource_item.tscn")
+
+	for resource_type in resources:
+		var amount: int = resources[resource_type]
+
+		# Spawn individual items
+		for i in amount:
+			var item = resource_scene.instantiate()
+			item.set_item_data(resource_type, 1)
+
+			# Random spawn offset
+			var offset = Vector3(
+				randf_range(-0.5, 0.5),
+				0.5,
+				randf_range(-0.5, 0.5)
+			)
+			item.global_position = position + offset
+
+			# Add to world
+			world.add_child(item)
+
 ## Clean up all environmental objects
 func _cleanup_environmental_objects() -> void:
 	for chunk_pos in environmental_chunks.keys():

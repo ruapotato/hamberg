@@ -437,8 +437,10 @@ func handle_environmental_damage(peer_id: int, chunk_pos: Vector2i, object_id: i
 			# Broadcast destruction to all clients
 			NetworkManager.rpc_destroy_environmental_object.rpc([chunk_pos.x, chunk_pos.y], object_id)
 
-			# Spawn resource drops
-			_spawn_resource_drops(resource_drops, hit_position)
+			# Broadcast resource drops to all clients (including position)
+			if not resource_drops.is_empty():
+				var pos_array = [hit_position.x, hit_position.y, hit_position.z]
+				NetworkManager.rpc_spawn_resource_drops.rpc(resource_drops, pos_array)
 
 			# Mark chunk as modified
 			chunk_manager.modified_chunks[chunk_pos] = true
@@ -448,37 +450,6 @@ func handle_environmental_damage(peer_id: int, chunk_pos: Vector2i, object_id: i
 			pass
 	else:
 		push_warning("[Server] Object doesn't have take_damage method")
-
-## Spawn resource item drops at a position
-func _spawn_resource_drops(resources: Dictionary, position: Vector3) -> void:
-	if resources.is_empty():
-		print("[Server] No resources to drop")
-		return
-
-	print("[Server] Spawning resources: %s at %s" % [resources, position])
-
-	var resource_scene = preload("res://shared/resource_item.tscn")
-
-	for resource_type in resources:
-		var amount: int = resources[resource_type]
-
-		# Spawn individual items (could group them later for performance)
-		for i in amount:
-			var item = resource_scene.instantiate()
-			item.set_item_data(resource_type, 1)
-
-			# Random spawn offset
-			var offset = Vector3(
-				randf_range(-0.5, 0.5),
-				0.5,
-				randf_range(-0.5, 0.5)
-			)
-			item.global_position = position + offset
-
-			# Add to scene
-			get_node("/root/Main/Server").add_child(item)
-
-		print("[Server] Spawned %d x %s at %s" % [amount, resource_type, position])
 
 # ============================================================================
 # CONSOLE COMMANDS (for dedicated server)
