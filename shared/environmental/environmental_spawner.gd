@@ -225,16 +225,19 @@ func _configure_object_properties(obj: Node3D, object_type: String) -> void:
 		"tree":
 			if "max_health" in obj:
 				obj.max_health = 100.0
+				obj.current_health = 100.0
 			if "resource_drops" in obj:
 				obj.resource_drops = {"wood": 3}
 		"rock":
 			if "max_health" in obj:
 				obj.max_health = 150.0
+				obj.current_health = 150.0
 			if "resource_drops" in obj:
 				obj.resource_drops = {"stone": 5}
 		"grass":
 			if "max_health" in obj:
 				obj.max_health = 10.0
+				obj.current_health = 10.0
 			if "resource_drops" in obj:
 				obj.resource_drops = {}  # Grass drops nothing
 
