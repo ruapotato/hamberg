@@ -5,11 +5,13 @@ class_name CameraController
 ## Attach this to the player and it will provide smooth camera controls
 
 @export var mouse_sensitivity: float = 0.003
-@export var min_zoom: float = 2.0
+@export var min_zoom: float = 0.0  # 0 = first-person
 @export var max_zoom: float = 10.0
 @export var zoom_speed: float = 0.5
 @export var min_pitch: float = -80.0
 @export var max_pitch: float = 80.0
+@export var first_person_threshold: float = 0.5  # Distance at which to switch to first-person
+@export var camera_height_offset: float = 0.5  # Camera positioned higher to show player lower on screen
 
 # Camera components
 @onready var spring_arm: SpringArm3D = $SpringArm3D
@@ -17,12 +19,16 @@ class_name CameraController
 
 # Camera state
 var camera_rotation: Vector2 = Vector2.ZERO  # x = yaw, y = pitch
-var target_zoom: float = 5.0
+var target_zoom: float = 3.0  # Valheim-like default distance
 var is_mouse_captured: bool = false
+var is_first_person: bool = false
 
 func _ready() -> void:
 	# Set initial zoom
 	spring_arm.spring_length = target_zoom
+
+	# Adjust camera height for Valheim-like perspective
+	spring_arm.position.y = camera_height_offset
 
 	# Capture mouse by default when in game
 	_capture_mouse()
@@ -50,6 +56,16 @@ func _input(event: InputEvent) -> void:
 func _process(delta: float) -> void:
 	# Smooth zoom
 	spring_arm.spring_length = lerp(spring_arm.spring_length, target_zoom, 10.0 * delta)
+
+	# Check if we're in first-person mode
+	is_first_person = spring_arm.spring_length < first_person_threshold
+
+	# Hide player mesh in first-person mode
+	var player = get_parent()
+	if player:
+		var mesh = player.get_node_or_null("MeshInstance3D")
+		if mesh:
+			mesh.visible = not is_first_person
 
 	# Apply camera rotation
 	rotation.y = camera_rotation.x

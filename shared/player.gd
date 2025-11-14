@@ -17,6 +17,7 @@ var gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
 # Player state
 var current_animation_state: String = "idle"
 var is_local_player: bool = false
+var animation_phase: float = 0.0  # Accumulated phase for smooth animation cycles
 
 # Client prediction state
 var input_sequence: int = 0
@@ -35,6 +36,16 @@ var render_timestamp: float = 0.0
 @onready var mesh_instance: MeshInstance3D = $MeshInstance3D
 @onready var collision_shape: CollisionShape3D = $CollisionShape3D
 
+# Attack cooldown
+var attack_cooldown: float = 0.0
+const ATTACK_COOLDOWN_TIME: float = 0.5
+
+# Viewmodel (first-person arms)
+var viewmodel_arms: Node3D = null
+
+# Player body visuals
+var body_container: Node3D = null
+
 func _ready() -> void:
 	# Determine if this is the local player
 	is_local_player = is_multiplayer_authority()
@@ -44,6 +55,9 @@ func _ready() -> void:
 	# Set collision layer
 	collision_layer = 2  # Players layer
 	collision_mask = 1   # World layer
+
+	# Setup player body visuals
+	_setup_player_body()
 
 	if is_local_player:
 		# Local player uses client prediction
@@ -57,18 +71,27 @@ func _physics_process(delta: float) -> void:
 		# Remote players don't process physics locally
 		return
 
+	# Update attack cooldown
+	if attack_cooldown > 0:
+		attack_cooldown -= delta
+
 	# CLIENT: Predict movement locally
 	var input_data := _gather_input()
 
 	# Handle attack input
-	if input_data.get("attack", false):
+	if input_data.get("attack", false) and attack_cooldown <= 0:
 		_handle_attack()
+		attack_cooldown = ATTACK_COOLDOWN_TIME
 
 	# Apply movement prediction
 	_apply_movement(input_data, delta)
 
 	# Update animation state
 	_update_animation_state()
+
+	# Update body animations if they exist
+	if body_container:
+		_update_body_animations(delta)
 
 	# Send position update to server (client-authoritative)
 	if NetworkManager.is_client:
@@ -163,6 +186,13 @@ func _apply_movement(input_data: Dictionary, delta: float) -> void:
 
 	# Apply movement
 	move_and_slide()
+
+	# Rotate VISUAL body to face movement direction (not the CharacterBody3D!)
+	if direction and body_container:
+		var horizontal_speed_check = Vector2(velocity.x, velocity.z).length()
+		if horizontal_speed_check > 0.1:
+			var target_rotation = atan2(direction.x, direction.z)
+			body_container.rotation.y = lerp_angle(body_container.rotation.y, target_rotation, delta * 10.0)
 
 func _update_animation_state() -> void:
 	"""Update animation state based on velocity"""
@@ -267,16 +297,24 @@ func _handle_attack() -> void:
 	if not is_local_player:
 		return
 
+	# Trigger attack animation (simple bob for now)
+	if viewmodel_arms:
+		_play_attack_animation()
+
 	# Get camera for raycasting
 	var camera := _get_camera()
 	if not camera:
 		print("[Player] No camera found for attack")
 		return
 
-	# Raycast from camera center
+	# Raycast from crosshair position
 	var viewport_size := get_viewport().get_visible_rect().size
-	var ray_origin := camera.project_ray_origin(viewport_size / 2)
-	var ray_direction := camera.project_ray_normal(viewport_size / 2)
+
+	# Crosshair is offset to match crosshair.tscn (20px right, 50px up)
+	var crosshair_offset := Vector2(21.0, -50.0)
+	var crosshair_pos := viewport_size / 2 + crosshair_offset
+	var ray_origin := camera.project_ray_origin(crosshair_pos)
+	var ray_direction := camera.project_ray_normal(crosshair_pos)
 	var ray_end := ray_origin + ray_direction * 5.0  # 5 meter reach
 
 	# Perform raycast
@@ -316,3 +354,104 @@ func _get_camera() -> Camera3D:
 func _send_damage_request(chunk_pos: Vector2i, object_id: int, damage: float, hit_position: Vector3) -> void:
 	# Send RPC to server via NetworkManager
 	NetworkManager.rpc_damage_environmental_object.rpc_id(1, [chunk_pos.x, chunk_pos.y], object_id, damage, hit_position)
+
+func _play_attack_animation() -> void:
+	"""Simple attack animation for viewmodel"""
+	if not viewmodel_arms:
+		return
+
+	# Create a simple tween for attack animation
+	var tween = create_tween()
+	tween.tween_property(viewmodel_arms, "position:z", -0.3, 0.1)
+	tween.tween_property(viewmodel_arms, "position:z", -0.4, 0.2)
+
+# ============================================================================
+# PLAYER BODY VISUALS
+# ============================================================================
+
+func _setup_player_body() -> void:
+	"""Create player body from TSCN file"""
+	# Load the complete body scene
+	var body_scene = preload("res://shared/player_body.tscn")
+	body_container = body_scene.instantiate()
+
+	# Add directly to player (this CharacterBody3D)
+	add_child(body_container)
+
+	print("[Player] Player body loaded from player_body.tscn")
+	print("[Player] Body container parent: %s" % body_container.get_parent().name)
+
+func _update_body_animations(delta: float) -> void:
+	"""Animate the legs, arms, and torso based on movement"""
+	if not body_container:
+		return
+
+	var left_leg = body_container.get_node_or_null("LeftLeg")
+	var right_leg = body_container.get_node_or_null("RightLeg")
+	var left_arm = body_container.get_node_or_null("LeftArm")
+	var right_arm = body_container.get_node_or_null("RightArm")
+	var hips = body_container.get_node_or_null("Hips")
+	var torso = body_container.get_node_or_null("Torso")
+	var neck = body_container.get_node_or_null("Neck")
+	var head = body_container.get_node_or_null("Head")
+
+	if not left_leg or not right_leg:
+		return
+
+	# Simple walking animation
+	var horizontal_speed = Vector2(velocity.x, velocity.z).length()
+
+	if horizontal_speed > 0.5:
+		# Walking - accumulate animation phase based on actual movement
+		# This ensures smooth animations that don't "scramble" during acceleration/deceleration
+		var speed_multiplier = horizontal_speed / WALK_SPEED
+		animation_phase += delta * 8.0 * speed_multiplier
+
+		var leg_angle = sin(animation_phase) * 0.3
+		var arm_angle = sin(animation_phase) * 0.2
+
+		# Legs swing opposite
+		left_leg.rotation.x = leg_angle
+		right_leg.rotation.x = -leg_angle
+
+		# Arms swing opposite to legs (natural walking motion)
+		if left_arm and right_arm:
+			left_arm.rotation.x = -arm_angle  # Left arm swings opposite to left leg
+			right_arm.rotation.x = arm_angle   # Right arm swings opposite to right leg
+
+		# Add subtle torso sway
+		if torso:
+			var sway = sin(animation_phase) * 0.05
+			torso.rotation.z = sway
+
+		# Add subtle head bob
+		if head:
+			var bob = sin(animation_phase * 2.0) * 0.015
+			head.position.y = 1.55 + bob
+	else:
+		# Standing still - return to neutral and reset animation phase
+		animation_phase = 0.0
+
+		left_leg.rotation.x = lerp(left_leg.rotation.x, 0.0, delta * 5.0)
+		right_leg.rotation.x = lerp(right_leg.rotation.x, 0.0, delta * 5.0)
+
+		if left_arm:
+			left_arm.rotation.x = lerp(left_arm.rotation.x, 0.0, delta * 5.0)
+		if right_arm:
+			right_arm.rotation.x = lerp(right_arm.rotation.x, 0.0, delta * 5.0)
+
+		if torso:
+			torso.rotation.z = lerp(torso.rotation.z, 0.0, delta * 5.0)
+
+		if head:
+			head.position.y = lerp(head.position.y, 1.55, delta * 5.0)
+
+## Called after camera controller is attached
+func setup_viewmodel() -> void:
+	"""Setup first-person viewmodel (weapon holder)"""
+	# NOTE: Viewmodel is for weapons, not arms
+	# Arms are now part of the player body and move with it
+	if not is_local_player:
+		return
+
+	print("[Player] Viewmodel setup (arms are now part of player body)")

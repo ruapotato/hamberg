@@ -233,10 +233,14 @@ func _setup_camera_follow(player: Node3D) -> void:
 	camera_controller.name = "CameraController"
 	player.add_child(camera_controller)
 
-	# Position camera controller at eye height
-	camera_controller.position = Vector3(0, 1.5, 0)
+	# Position camera controller at shoulder/neck height for better third-person view
+	camera_controller.position = Vector3(0, 1.2, 0)
 
 	print("[Client] Camera controller attached to local player")
+
+	# Setup viewmodel after camera is ready
+	if player.has_method("setup_viewmodel"):
+		player.setup_viewmodel()
 
 	# Move VoxelViewer to player (for terrain streaming around player)
 	if viewer:

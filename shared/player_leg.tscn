@@ -1,0 +1,16 @@
+[gd_scene load_steps=3 format=3 uid="uid://playerleg001"]
+
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_leg"]
+height = 0.8
+radius = 0.05
+
+[sub_resource type="StandardMaterial3D" id="Material_leg"]
+shading_mode = 1
+albedo_color = Color(0, 0, 0, 1)
+
+[node name="PlayerLeg" type="Node3D"]
+
+[node name="LegMesh" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.4, 0)
+mesh = SubResource("CapsuleMesh_leg")
+surface_material_override/0 = SubResource("Material_leg")
