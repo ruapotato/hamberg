@@ -158,6 +158,41 @@ func _on_chunk_unloaded(chunk_pos: Vector2i) -> void:
 	NetworkManager.rpc_despawn_environmental_objects.rpc([chunk_pos.x, chunk_pos.y])
 	print("[Server] Broadcasting chunk unload for %s" % chunk_pos)
 
+## Send all currently loaded chunks to a specific player (for when they join)
+func _send_loaded_chunks_to_player(peer_id: int) -> void:
+	if not voxel_world or not voxel_world.chunk_manager:
+		return
+
+	var chunk_manager = voxel_world.chunk_manager
+	var chunks_sent := 0
+
+	# Iterate through all loaded chunks and send them to the new player
+	for chunk_pos in chunk_manager.loaded_chunks.keys():
+		var objects = chunk_manager.loaded_chunks[chunk_pos]
+		var objects_data: Array = []
+
+		for i in objects.size():
+			var obj = objects[i]
+			if is_instance_valid(obj):
+				var obj_type = "unknown"
+				if obj.has_method("get_object_type"):
+					obj_type = obj.get_object_type()
+
+				objects_data.append({
+					"id": i,
+					"type": obj_type,
+					"pos": [obj.global_position.x, obj.global_position.y, obj.global_position.z],
+					"rot": [obj.rotation.x, obj.rotation.y, obj.rotation.z],
+					"scale": [obj.scale.x, obj.scale.y, obj.scale.z]
+				})
+
+		# Send this chunk to the new player only
+		if objects_data.size() > 0:
+			NetworkManager.rpc_spawn_environmental_objects.rpc_id(peer_id, [chunk_pos.x, chunk_pos.y], objects_data)
+			chunks_sent += 1
+
+	print("[Server] Sent %d loaded chunks to player %d" % [chunks_sent, peer_id])
+
 # ============================================================================
 # PLAYER MANAGEMENT (SERVER-AUTHORITATIVE)
 # ============================================================================
@@ -210,6 +245,9 @@ func _spawn_player(peer_id: int, player_name: String) -> void:
 	# Register player with chunk manager for environmental object spawning
 	if voxel_world:
 		voxel_world.register_player_for_spawning(peer_id, player)
+
+		# Send all currently loaded chunks to the new player
+		_send_loaded_chunks_to_player(peer_id)
 
 	# Notify all clients to spawn this player through NetworkManager
 	print("[Server] Broadcasting spawn for player %d to all clients" % peer_id)
