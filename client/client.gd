@@ -151,7 +151,6 @@ func _update_hud() -> void:
 ## Spawn a player on the client (called by NetworkManager)
 func spawn_player(peer_id: int, player_name: String, spawn_pos: Vector3) -> void:
 	print("[Client] Spawning player: %s (ID: %d)" % [player_name, peer_id])
-	print("[Client DEBUG] Spawn position for player %d: %s" % [peer_id, spawn_pos])
 
 	var is_local := peer_id == NetworkManager.get_local_player_id()
 
@@ -173,7 +172,6 @@ func spawn_player(peer_id: int, player_name: String, spawn_pos: Vector3) -> void
 
 	# Set spawn position AFTER adding to tree
 	player.global_position = spawn_pos
-	print("[Client DEBUG] Player %d actual position after spawn: %s" % [peer_id, player.global_position])
 
 	if is_local:
 		# This is our local player
@@ -295,10 +293,6 @@ func receive_environmental_objects(chunk_pos: Vector2i, objects_data: Array) -> 
 		obj.global_position = server_pos
 		obj.rotation = Vector3(rot_array[0], rot_array[1], rot_array[2])
 		obj.scale = Vector3(scale_array[0], scale_array[1], scale_array[2])
-
-		# Debug: Log first object in chunk to verify position
-		if obj_id == 0:
-			print("[Client DEBUG] Chunk %s first %s at %s" % [chunk_pos, obj_type, server_pos])
 
 		# Set object type
 		if obj.has_method("set_object_type"):

@@ -106,9 +106,6 @@ func _broadcast_player_states() -> void:
 				"animation_state": player.get("current_animation_state") if player.has_method("get") else "idle"
 			})
 
-			# Debug: Log player position occasionally
-			if server_tick % 90 == 0:  # Every 3 seconds
-				print("[Server DEBUG] Player %d at %s" % [peer_id, pos])
 
 	# Broadcast to all clients through NetworkManager
 	if states.size() > 0:
@@ -153,10 +150,6 @@ func _on_chunk_loaded(chunk_pos: Vector2i) -> void:
 					"rot": [obj.rotation.x, obj.rotation.y, obj.rotation.z],
 					"scale": [obj.scale.x, obj.scale.y, obj.scale.z]
 				})
-
-				# Debug: Log first object in chunk
-				if i == 0:
-					print("[Server DEBUG] Chunk %s first %s at %s" % [chunk_pos, obj_type, obj_pos])
 
 	# Broadcast to all clients
 	if objects_data.size() > 0:
