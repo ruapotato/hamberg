@@ -19,27 +19,11 @@ func _ready() -> void:
 func _initialize_recipes() -> void:
 	recipes.clear()
 
-	# Valheim-style crafting progression
-
-	# === BASIC TOOLS (No workbench required) ===
+	# Basic starting tools (no workbench required)
 	add_recipe("wooden_club", 1, {"wood": 10})
 	add_recipe("hammer", 1, {"wood": 10})
 	add_recipe("torch", 1, {"wood": 1, "resin": 1})
 	add_recipe("workbench", 1, {"wood": 10})
-
-	# === WORKBENCH REQUIRED ===
-	add_recipe("stone_axe", 1, {"wood": 5, "stone": 4}, "workbench")
-	add_recipe("stone_pickaxe", 1, {"wood": 5, "stone": 10}, "workbench")
-
-	# Building materials (require hammer + workbench)
-	add_recipe("wooden_wall", 1, {"wood": 4}, "workbench")
-	add_recipe("wooden_floor", 1, {"wood": 2}, "workbench")
-	add_recipe("wooden_door", 1, {"wood": 6}, "workbench")
-	add_recipe("wooden_beam", 1, {"wood": 1}, "workbench")
-
-	# Furniture (workbench required)
-	add_recipe("storage_chest", 1, {"wood": 10}, "workbench")
-	add_recipe("bed", 1, {"wood": 8}, "workbench")
 
 	print("[CraftingRecipes] Initialized %d recipes" % recipes.size())
 

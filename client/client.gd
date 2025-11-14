@@ -18,6 +18,10 @@ var remote_players: Dictionary = {} # peer_id -> Player node
 var hotbar_ui: Control = null
 var inventory_panel_ui: Control = null
 
+# Build mode
+var build_mode: Node = null
+var current_equipped_item: String = ""
+
 # Environmental objects
 var environmental_chunks: Dictionary = {} # Vector2i -> Dictionary of objects
 var environmental_objects_container: Node3D
@@ -46,6 +50,11 @@ func _ready() -> void:
 	environmental_objects_container = Node3D.new()
 	environmental_objects_container.name = "EnvironmentalObjects"
 	world.add_child(environmental_objects_container)
+
+	# Create build mode
+	var BuildMode = preload("res://client/build_mode.gd")
+	build_mode = BuildMode.new()
+	add_child(build_mode)
 
 	# Hide HUD initially
 	hud.visible = false
@@ -276,6 +285,7 @@ func _setup_inventory_ui(player: Node3D) -> void:
 	hotbar_ui = hotbar_scene.instantiate()
 	canvas_layer.add_child(hotbar_ui)
 	hotbar_ui.set_player_inventory(player_inventory)
+	hotbar_ui.hotbar_selection_changed.connect(_on_hotbar_selection_changed)
 	print("[Client] Hotbar UI created and linked to player inventory")
 
 	# Create inventory panel UI (toggle with Tab)
@@ -296,6 +306,28 @@ func _setup_inventory_ui(player: Node3D) -> void:
 	)
 	add_child(refresh_timer)
 	refresh_timer.start()
+
+## Handle hotbar selection changes (for build mode toggling)
+func _on_hotbar_selection_changed(slot_index: int, item_name: String) -> void:
+	current_equipped_item = item_name
+
+	# Toggle build mode if hammer is equipped
+	if item_name == "hammer":
+		if not build_mode.is_active:
+			var camera = _get_camera()
+			if camera and local_player:
+				build_mode.activate(local_player, camera, world)
+	else:
+		if build_mode.is_active:
+			build_mode.deactivate()
+
+## Get the current camera
+func _get_camera() -> Camera3D:
+	if local_player:
+		var camera_controller = local_player.get_node_or_null("CameraController")
+		if camera_controller:
+			return camera_controller.get_node_or_null("Camera3D")
+	return null
 
 # ============================================================================
 # WORLD CONFIGURATION

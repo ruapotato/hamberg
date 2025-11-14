@@ -3,6 +3,8 @@ extends Control
 ## Hotbar - Always-visible UI showing first 9 inventory slots
 ## Supports number key (1-9) selection like Valheim
 
+signal hotbar_selection_changed(slot_index: int, item_name: String)
+
 const InventorySlot = preload("res://client/ui/inventory_slot.tscn")
 const HOTBAR_SIZE: int = 9
 
@@ -43,6 +45,16 @@ func select_slot(index: int) -> void:
 
 	selected_slot = index
 	_update_selection()
+
+	# Get currently equipped item name
+	var equipped_item_name = ""
+	if player_inventory:
+		var inventory_data = player_inventory.get_inventory_data()
+		if index < inventory_data.size() and not inventory_data[index].is_empty():
+			equipped_item_name = inventory_data[index].get("item", "")
+
+	# Emit signal for build mode / equipment changes
+	hotbar_selection_changed.emit(selected_slot, equipped_item_name)
 
 	# Notify player of selection change
 	if player_inventory and player_inventory.get_parent().has_method("on_hotbar_selection_changed"):

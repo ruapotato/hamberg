@@ -1,0 +1,55 @@
+[gd_scene load_steps=5 format=3 uid="uid://workbench_001"]
+
+[ext_resource type="Script" path="res://shared/buildable/buildable_object.gd" id="1"]
+
+[sub_resource type="BoxMesh" id="tabletop_mesh"]
+size = Vector3(1.5, 0.1, 1.0)
+
+[sub_resource type="CylinderMesh" id="leg_mesh"]
+top_radius = 0.05
+bottom_radius = 0.05
+height = 0.8
+
+[sub_resource type="StandardMaterial3D" id="wood_mat"]
+albedo_color = Color(0.6, 0.4, 0.2, 1)
+
+[node name="Workbench" type="StaticBody3D"]
+collision_layer = 1
+collision_mask = 0
+script = ExtResource("1")
+object_name = "workbench"
+is_crafting_station = true
+station_type = "workbench"
+crafting_station_range = 20.0
+
+[node name="Tabletop" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.8, 0)
+mesh = SubResource("tabletop_mesh")
+surface_material_override/0 = SubResource("wood_mat")
+
+[node name="Leg1" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.6, 0.4, -0.4)
+mesh = SubResource("leg_mesh")
+surface_material_override/0 = SubResource("wood_mat")
+
+[node name="Leg2" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.6, 0.4, -0.4)
+mesh = SubResource("leg_mesh")
+surface_material_override/0 = SubResource("wood_mat")
+
+[node name="Leg3" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.6, 0.4, 0.4)
+mesh = SubResource("leg_mesh")
+surface_material_override/0 = SubResource("wood_mat")
+
+[node name="Leg4" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.6, 0.4, 0.4)
+mesh = SubResource("leg_mesh")
+surface_material_override/0 = SubResource("wood_mat")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.8, 0)
+shape = SubResource("BoxShape3D_workbench")
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_workbench"]
+size = Vector3(1.5, 0.1, 1.0)
