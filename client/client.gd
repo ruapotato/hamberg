@@ -5,6 +5,7 @@ extends Node
 
 # Scene references
 var player_scene := preload("res://shared/player.tscn")
+var camera_controller_scene := preload("res://shared/camera_controller.tscn")
 
 # Client state
 var is_connected: bool = false
@@ -24,8 +25,7 @@ var remote_players: Dictionary = {} # peer_id -> Player node
 
 # World and camera
 @onready var world: Node3D = $World
-@onready var camera: Camera3D = $Camera
-@onready var viewer: Node = $Camera/VoxelViewer  # For voxel terrain (Phase 2)
+@onready var viewer: VoxelViewer = $VoxelViewer  # For voxel terrain - will attach to player
 
 func _ready() -> void:
 	print("[Client] Client node ready")
@@ -44,10 +44,6 @@ func _ready() -> void:
 	ip_input.text = "127.0.0.1"
 	port_input.text = str(NetworkManager.DEFAULT_PORT)
 	name_input.text = "Player" + str(randi() % 1000)
-
-	# Set up camera
-	camera.position = Vector3(0, 60, 20)
-	camera.rotation_degrees = Vector3(-45, 0, 0)
 
 func _process(_delta: float) -> void:
 	if is_connected:
@@ -219,13 +215,15 @@ func receive_hit(target_id: int, damage: float, hit_position: Vector3) -> void:
 
 func _setup_camera_follow(player: Node3D) -> void:
 	"""Set up camera to follow the player"""
-	# For Phase 1, use a simple third-person camera
-	# In Phase 2+, we can make this more sophisticated
+	# Instance camera controller and attach to player
+	var camera_controller: Node3D = camera_controller_scene.instantiate()
+	camera_controller.name = "CameraController"
+	player.add_child(camera_controller)
 
-	# Create a camera anchor point
-	var camera_anchor := Node3D.new()
-	camera_anchor.name = "CameraAnchor"
-	player.add_child(camera_anchor)
+	# Position camera controller at eye height
+	camera_controller.position = Vector3(0, 1.5, 0)
+
+	print("[Client] Camera controller attached to local player")
 
 	# Move VoxelViewer to player (for terrain streaming around player)
 	if viewer:
@@ -234,14 +232,3 @@ func _setup_camera_follow(player: Node3D) -> void:
 			viewer_parent.remove_child(viewer)
 			player.add_child(viewer)
 			print("[Client] VoxelViewer attached to local player")
-
-	# Reparent camera to anchor
-	var camera_parent := camera.get_parent()
-	camera_parent.remove_child(camera)
-	camera_anchor.add_child(camera)
-
-	# Position camera behind and above player
-	camera.position = Vector3(0, 3, 6)
-	camera.rotation_degrees = Vector3(-15, 0, 0)
-
-	print("[Client] Camera attached to local player")

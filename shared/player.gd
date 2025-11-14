@@ -105,8 +105,14 @@ func _gather_input() -> Dictionary:
 
 func _get_camera_basis() -> Basis:
 	"""Get the camera's orientation for movement"""
-	# For now, use a simple forward direction
-	# In Phase 2+, we'll hook this up to actual camera rotation
+	# Get camera controller if it exists
+	var camera_controller := get_node_or_null("CameraController")
+	if camera_controller and camera_controller.has_method("get_camera"):
+		var camera: Camera3D = camera_controller.get_camera()
+		if camera:
+			return camera.global_transform.basis
+
+	# Fallback to identity (world-space movement)
 	return Basis()
 
 # ============================================================================

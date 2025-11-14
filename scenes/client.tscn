@@ -10,15 +10,9 @@ script = ExtResource("1_client")
 
 [node name="VoxelWorld" parent="World" instance=ExtResource("2_voxelworld")]
 
-[node name="Camera" type="Camera3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 0.707107, 0.707107, 0, -0.707107, 0.707107, 0, 60, 20)
-current = true
-fov = 75.0
-
-[node name="VoxelViewer" type="VoxelViewer" parent="Camera"]
+[node name="VoxelViewer" type="VoxelViewer" parent="."]
 view_distance = 256
 requires_collisions = true
-requires_meshes = true
 requires_visuals = true
 
 [node name="CanvasLayer" type="CanvasLayer" parent="."]

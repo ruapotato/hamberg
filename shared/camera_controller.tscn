@@ -1,0 +1,20 @@
+[gd_scene load_steps=2 format=3 uid="uid://camctrl001"]
+
+[ext_resource type="Script" path="res://shared/camera_controller.gd" id="1"]
+
+[node name="CameraController" type="Node3D"]
+script = ExtResource("1")
+mouse_sensitivity = 0.003
+min_zoom = 2.0
+max_zoom = 10.0
+zoom_speed = 0.5
+min_pitch = -80.0
+max_pitch = 80.0
+
+[node name="SpringArm3D" type="SpringArm3D" parent="."]
+spring_length = 5.0
+margin = 0.2
+
+[node name="Camera3D" type="Camera3D" parent="SpringArm3D"]
+current = true
+fov = 75.0
