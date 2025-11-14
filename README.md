@@ -46,14 +46,25 @@ Hamberg aims to capture the magic of Valheim while being:
 ### Try It Out!
 
 ```bash
-# Terminal 1 - Launch server (optionally set world name/seed)
-WORLD_NAME=myworld WORLD_SEED=12345 ./launch_server.sh
+# Terminal 1 - Launch server (edit launch_server.sh to customize world/seed/port)
+./launch_server.sh
 
 # Terminal 2 - Launch client
 ./launch_client.sh
 
 # Terminal 3 - Launch another client
 ./launch_client.sh
+```
+
+**Server Configuration**: Edit `launch_server.sh` to customize:
+- `WORLD_NAME` - Unique world name (default: "world")
+- `WORLD_SEED` - Seed for terrain generation (default: random)
+- `GAME_PORT` - Server port (default: 7777)
+- `MAX_PLAYERS` - Maximum players (default: 10)
+
+You can also override these with environment variables:
+```bash
+WORLD_NAME=myworld WORLD_SEED=12345 ./launch_server.sh
 ```
 
 Connect clients to `127.0.0.1:7777`, explore the world, and **left-click to punch trees and rocks!**
