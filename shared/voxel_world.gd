@@ -29,8 +29,23 @@ func _ready() -> void:
 	# Wait a frame to ensure multiplayer is fully initialized
 	await get_tree().process_frame
 
-	# Determine if we're server or client
-	is_server = multiplayer.is_server()
+	# Determine if we're server or client based on parent node
+	# Check if we're under a "Server" or "Client" node
+	var parent = get_parent()
+	var is_under_server = false
+	var is_under_client = false
+
+	while parent:
+		if parent.name == "Server":
+			is_under_server = true
+			break
+		elif parent.name == "Client":
+			is_under_client = true
+			break
+		parent = parent.get_parent()
+
+	# If we found a Server parent, we're the server. Otherwise we're a client.
+	is_server = is_under_server
 
 	# Configure terrain based on role
 	if is_server:
@@ -85,9 +100,24 @@ func _setup_generator() -> void:
 
 	print("[VoxelWorld] Generator configured: Biome-based (distance + height)")
 
-	# TODO: Set up terrain material with biome coloring
-	# VoxelLodTerrain material system needs investigation
-	# For now, using default material
+	# Set up basic terrain material
+	_setup_terrain_material()
+
+func _setup_terrain_material() -> void:
+	print("[VoxelWorld] Setting up terrain material...")
+
+	# Create a simple material with green color for now
+	var material = StandardMaterial3D.new()
+	material.albedo_color = Color(0.3, 0.6, 0.3)  # Green grass color
+	material.roughness = 0.9
+
+	# Try to apply to the mesher
+	var mesher = terrain.mesher
+	if mesher and mesher.has_method("set_material"):
+		mesher.set_material(material, 0)
+		print("[VoxelWorld] Material applied to mesher")
+	else:
+		print("[VoxelWorld] Could not apply material - mesher doesn't support it")
 
 func _setup_chunk_manager() -> void:
 	print("[VoxelWorld] Setting up environmental object spawning...")
