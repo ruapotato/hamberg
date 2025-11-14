@@ -315,9 +315,13 @@ func receive_environmental_objects(chunk_pos: Vector2i, objects_data: Array) -> 
 		obj.rotation = Vector3(rot_array[0], rot_array[1], rot_array[2])
 		obj.scale = Vector3(scale_array[0], scale_array[1], scale_array[2])
 
-		# Set object type
+		# Set object type and ID
 		if obj.has_method("set_object_type"):
 			obj.set_object_type(obj_type)
+		if obj.has_method("set_object_id"):
+			obj.set_object_id(obj_id)
+		if obj.has_method("set_chunk_position"):
+			obj.set_chunk_position(chunk_pos)
 
 		# Store in chunk
 		chunk_objects[obj_id] = obj
