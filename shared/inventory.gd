@@ -9,6 +9,7 @@ const MAX_STACK_SIZE: Dictionary = {
 	"stone": 50,
 	"iron": 50,
 	"copper": 50,
+	"resin": 50,
 }
 
 # Inventory data: Array of {item: String, amount: int}
@@ -122,3 +123,15 @@ func set_inventory_data(data: Array) -> void:
 func clear() -> void:
 	for i in MAX_SLOTS:
 		slots[i] = {}
+
+## Swap two inventory slots
+func swap_slots(slot_a: int, slot_b: int) -> void:
+	if slot_a < 0 or slot_a >= MAX_SLOTS or slot_b < 0 or slot_b >= MAX_SLOTS:
+		push_error("[Inventory] Invalid slot indices for swap: %d, %d" % [slot_a, slot_b])
+		return
+
+	var temp = slots[slot_a].duplicate(true)
+	slots[slot_a] = slots[slot_b].duplicate(true)
+	slots[slot_b] = temp
+
+	print("[Inventory] Swapped slots %d and %d" % [slot_a, slot_b])

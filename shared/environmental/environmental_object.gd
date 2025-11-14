@@ -11,6 +11,7 @@ extends Node3D
 # Resource system
 @export var max_health: float = 100.0  ## Health points (trees ~100, rocks ~150, grass ~10)
 @export var resource_drops: Dictionary = {}  ## Resources dropped when destroyed {"wood": 3, "stone": 0}
+@export var rare_drops: Dictionary = {}  ## Rare drops with chance {"resin": 0.2} means 20% chance
 
 var chunk_position: Vector2i  ## Which chunk this object belongs to
 var object_type: String = ""  ## Type identifier (tree, rock, grass, etc.)
@@ -164,6 +165,19 @@ func _play_destruction_effect() -> void:
 	tween.tween_property(self, "scale", Vector3.ZERO, 0.3).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_IN)
 	tween.tween_callback(queue_free)
 
-## Get resource drops for this object
+## Get resource drops for this object (includes rare drops based on chance)
 func get_resource_drops() -> Dictionary:
-	return resource_drops
+	var drops = resource_drops.duplicate()
+
+	# Roll for rare drops
+	for rare_item in rare_drops:
+		var drop_chance: float = rare_drops[rare_item]
+		if randf() < drop_chance:
+			# Add rare drop (1 item)
+			if drops.has(rare_item):
+				drops[rare_item] += 1
+			else:
+				drops[rare_item] = 1
+			print("[EnvironmentalObject] Rare drop! %s" % rare_item)
+
+	return drops

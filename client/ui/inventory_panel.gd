@@ -10,6 +10,7 @@ const COLUMNS: int = 6
 var slots: Array[Node] = []
 var player_inventory: Node = null
 var is_open: bool = false
+var nearby_stations: Array = []  # Crafting stations player is near (e.g., ["workbench"])
 
 @onready var inventory_grid: GridContainer = $Panel/InventoryGrid
 @onready var panel: Panel = $Panel
@@ -39,12 +40,24 @@ func _create_slots() -> void:
 		slot.slot_index = i
 		slot.is_hotbar_slot = false
 		slot.slot_clicked.connect(_on_slot_clicked)
+		slot.drag_ended.connect(_on_slot_drag_ended)
 		inventory_grid.add_child(slot)
 		slots.append(slot)
 
 func _on_slot_clicked(slot_index: int) -> void:
 	# TODO: Implement slot interaction (drag/drop, etc.)
 	print("[InventoryPanel] Clicked slot %d" % slot_index)
+
+func _on_slot_drag_ended(from_slot: int, to_slot: int) -> void:
+	if not player_inventory:
+		return
+
+	print("[InventoryPanel] Dragging from slot %d to slot %d" % [from_slot, to_slot])
+
+	# Swap items in inventory
+	if player_inventory.has_method("swap_slots"):
+		player_inventory.swap_slots(from_slot, to_slot)
+		refresh_display()
 
 ## Toggle inventory visibility
 func toggle_inventory() -> void:
@@ -124,9 +137,14 @@ func _create_recipe_button(recipe: Dictionary) -> Button:
 
 	var button_text = "%s x%d\n" % [display_name, output_amount]
 
+	# Add crafting station requirement
+	var required_station: String = recipe.get("crafting_station", "")
+	if not required_station.is_empty():
+		button_text += "[%s]\n" % CraftingRecipes.get_item_display_name(required_station).to_upper()
+
 	# Add requirements
 	var requirements: Dictionary = recipe.get("requirements", {})
-	var req_text = "Requires: "
+	var req_text = ""
 	var first = true
 	for item_name in requirements:
 		if not first:
@@ -150,22 +168,33 @@ func _on_craft_button_pressed(recipe: Dictionary) -> void:
 	if not player_inventory:
 		return
 
-	if CraftingRecipes.craft_item(recipe, player_inventory):
+	# TODO: Get actual nearby stations from player
+	# For now, allow all crafting (no station restrictions)
+	var stations = ["workbench"]  # Temporary: treat as if always near workbench
+
+	if CraftingRecipes.craft_item(recipe, player_inventory, stations):
 		print("[InventoryPanel] Successfully crafted %s" % recipe.get("output_item"))
 		refresh_display()
 		_update_recipe_buttons()
 	else:
-		print("[InventoryPanel] Cannot craft - missing resources")
+		var required_station: String = recipe.get("crafting_station", "")
+		if not required_station.is_empty() and not stations.has(required_station):
+			print("[InventoryPanel] Cannot craft - missing %s" % required_station)
+		else:
+			print("[InventoryPanel] Cannot craft - missing resources")
 
 ## Update recipe button states based on craftability
 func _update_recipe_buttons() -> void:
 	if not recipe_list or not player_inventory:
 		return
 
+	# TODO: Get actual nearby stations from player
+	var stations = ["workbench"]  # Temporary: treat as if always near workbench
+
 	for button in recipe_list.get_children():
 		if button is Button and button.has_meta("recipe"):
 			var recipe: Dictionary = button.get_meta("recipe")
-			var can_craft = CraftingRecipes.can_craft(recipe, player_inventory)
+			var can_craft = CraftingRecipes.can_craft(recipe, player_inventory, stations)
 
 			# Update button appearance based on craftability
 			button.disabled = not can_craft

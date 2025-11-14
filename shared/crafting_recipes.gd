@@ -7,7 +7,8 @@ extends Node
 # {
 #   "output_item": "item_name",
 #   "output_amount": 1,
-#   "requirements": {"item1": amount1, "item2": amount2, ...}
+#   "requirements": {"item1": amount1, "item2": amount2, ...},
+#   "crafting_station": "workbench" (optional - if not specified, can craft anywhere)
 # }
 
 var recipes: Array[Dictionary] = []
@@ -18,34 +19,41 @@ func _ready() -> void:
 func _initialize_recipes() -> void:
 	recipes.clear()
 
-	# Basic crafting recipes (similar to Valheim)
+	# Valheim-style crafting progression
 
-	# Tools
-	add_recipe("wooden_club", 1, {"wood": 5})
-	add_recipe("stone_axe", 1, {"wood": 5, "stone": 4})
-	add_recipe("stone_pickaxe", 1, {"wood": 5, "stone": 10})
-
-	# Building materials
-	add_recipe("wooden_wall", 1, {"wood": 4})
-	add_recipe("wooden_floor", 1, {"wood": 2})
-	add_recipe("wooden_door", 1, {"wood": 6})
-
-	# Furniture
+	# === BASIC TOOLS (No workbench required) ===
+	add_recipe("wooden_club", 1, {"wood": 10})
+	add_recipe("hammer", 1, {"wood": 10})
+	add_recipe("torch", 1, {"wood": 1, "resin": 1})
 	add_recipe("workbench", 1, {"wood": 10})
-	add_recipe("storage_chest", 1, {"wood": 10})
 
-	# Advanced materials (when copper and iron are available)
-	# add_recipe("copper_bar", 1, {"copper": 5})
-	# add_recipe("iron_bar", 1, {"iron": 5})
+	# === WORKBENCH REQUIRED ===
+	add_recipe("stone_axe", 1, {"wood": 5, "stone": 4}, "workbench")
+	add_recipe("stone_pickaxe", 1, {"wood": 5, "stone": 10}, "workbench")
+
+	# Building materials (require hammer + workbench)
+	add_recipe("wooden_wall", 1, {"wood": 4}, "workbench")
+	add_recipe("wooden_floor", 1, {"wood": 2}, "workbench")
+	add_recipe("wooden_door", 1, {"wood": 6}, "workbench")
+	add_recipe("wooden_beam", 1, {"wood": 1}, "workbench")
+
+	# Furniture (workbench required)
+	add_recipe("storage_chest", 1, {"wood": 10}, "workbench")
+	add_recipe("bed", 1, {"wood": 8}, "workbench")
 
 	print("[CraftingRecipes] Initialized %d recipes" % recipes.size())
 
-func add_recipe(output: String, amount: int, requirements: Dictionary) -> void:
-	recipes.append({
+func add_recipe(output: String, amount: int, requirements: Dictionary, crafting_station: String = "") -> void:
+	var recipe = {
 		"output_item": output,
 		"output_amount": amount,
 		"requirements": requirements
-	})
+	}
+
+	if not crafting_station.is_empty():
+		recipe["crafting_station"] = crafting_station
+
+	recipes.append(recipe)
 
 ## Get all craftable recipes (that the player has resources for)
 func get_craftable_recipes(inventory: Node) -> Array[Dictionary]:
@@ -62,9 +70,16 @@ func get_all_recipes() -> Array[Dictionary]:
 	return recipes.duplicate()
 
 ## Check if a recipe can be crafted with current inventory
-func can_craft(recipe: Dictionary, inventory: Node) -> bool:
+## nearby_stations: Array of crafting station names the player is near (e.g., ["workbench"])
+func can_craft(recipe: Dictionary, inventory: Node, nearby_stations: Array = []) -> bool:
 	if not inventory or not inventory.has_method("has_item"):
 		return false
+
+	# Check if crafting station is required
+	var required_station: String = recipe.get("crafting_station", "")
+	if not required_station.is_empty():
+		if not nearby_stations.has(required_station):
+			return false  # Missing required crafting station
 
 	var requirements: Dictionary = recipe.get("requirements", {})
 
@@ -76,9 +91,9 @@ func can_craft(recipe: Dictionary, inventory: Node) -> bool:
 	return true
 
 ## Attempt to craft an item
-## Returns true if successful, false if not enough resources
-func craft_item(recipe: Dictionary, inventory: Node) -> bool:
-	if not can_craft(recipe, inventory):
+## Returns true if successful, false if not enough resources or missing crafting station
+func craft_item(recipe: Dictionary, inventory: Node, nearby_stations: Array = []) -> bool:
+	if not can_craft(recipe, inventory, nearby_stations):
 		return false
 
 	# Remove requirements from inventory
