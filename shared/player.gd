@@ -282,7 +282,8 @@ func _handle_attack() -> void:
 	# Perform raycast
 	var space_state := get_world_3d().direct_space_state
 	var query := PhysicsRayQueryParameters3D.create(ray_origin, ray_end)
-	query.collision_mask = 1 | 2  # World and players
+	query.collision_mask = 1  # Only check world layer (environmental objects, terrain)
+	query.exclude = [self]  # Exclude the player themselves from the raycast
 
 	var result := space_state.intersect_ray(query)
 	if result:
