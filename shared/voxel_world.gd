@@ -5,6 +5,7 @@ extends Node3D
 
 @onready var terrain: VoxelLodTerrain = $VoxelLodTerrain
 @onready var multiplayer_sync: VoxelTerrainMultiplayerSynchronizer = $VoxelLodTerrain/VoxelTerrainMultiplayerSynchronizer
+@onready var instancer: VoxelInstancer = $VoxelLodTerrain/VoxelInstancer
 
 # World generation settings
 const WORLD_SEED: int = 42  # TODO: Make this configurable
@@ -37,6 +38,9 @@ func _ready() -> void:
 
 	# Setup the generator (both server and client need this)
 	_setup_generator()
+
+	# Setup instancer for environmental objects
+	_setup_instancer()
 
 	is_initialized = true
 	print("[VoxelWorld] Voxel terrain initialized (Server: %s)" % is_server)
@@ -97,6 +101,20 @@ func _setup_terrain_material() -> void:
 	terrain.material_override = material
 
 	print("[VoxelWorld] Terrain material applied")
+
+func _setup_instancer() -> void:
+	print("[VoxelWorld] Setting up VoxelInstancer for environmental objects...")
+
+	# Load the instance library setup script
+	var VoxelInstanceLibrarySetup := preload("res://shared/voxel_instance_library_setup.gd")
+
+	# Create and configure the library
+	var library := VoxelInstanceLibrarySetup.create_library()
+
+	# Assign to instancer
+	instancer.library = library
+
+	print("[VoxelWorld] VoxelInstancer configured with %d item types" % library.get_item_count())
 
 ## Get terrain height at a given XZ position (approximate)
 ## Useful for spawning players/objects on the surface

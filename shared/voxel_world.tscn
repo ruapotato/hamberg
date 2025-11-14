@@ -42,4 +42,6 @@ shadow_enabled = true
 [node name="WorldEnvironment" type="WorldEnvironment" parent="."]
 environment = SubResource("Environment_1")
 
+[node name="VoxelInstancer" type="VoxelInstancer" parent="VoxelLodTerrain"]
+
 [node name="VoxelTerrainMultiplayerSynchronizer" type="VoxelTerrainMultiplayerSynchronizer" parent="VoxelLodTerrain"]
