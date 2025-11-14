@@ -308,3 +308,30 @@ func rpc_broadcast_hit(target_id: int, damage: float, hit_position: Vector3) -> 
 	var client_node := get_node_or_null("/root/Main/Client")
 	if client_node and client_node.has_method("receive_hit"):
 		client_node.receive_hit(target_id, damage, hit_position)
+
+## SERVER → CLIENTS: Spawn environmental objects for a chunk
+@rpc("authority", "call_remote", "reliable")
+func rpc_spawn_environmental_objects(chunk_pos: Array, objects_data: Array) -> void:
+	# Forward to client node if it exists
+	var client_node := get_node_or_null("/root/Main/Client")
+	if client_node and client_node.has_method("receive_environmental_objects"):
+		var chunk_pos_v2i := Vector2i(chunk_pos[0], chunk_pos[1])
+		client_node.receive_environmental_objects(chunk_pos_v2i, objects_data)
+
+## SERVER → CLIENTS: Despawn environmental objects for a chunk
+@rpc("authority", "call_remote", "reliable")
+func rpc_despawn_environmental_objects(chunk_pos: Array) -> void:
+	# Forward to client node if it exists
+	var client_node := get_node_or_null("/root/Main/Client")
+	if client_node and client_node.has_method("despawn_environmental_objects"):
+		var chunk_pos_v2i := Vector2i(chunk_pos[0], chunk_pos[1])
+		client_node.despawn_environmental_objects(chunk_pos_v2i)
+
+## SERVER → CLIENTS: Destroy a specific environmental object
+@rpc("authority", "call_remote", "reliable")
+func rpc_destroy_environmental_object(chunk_pos: Array, object_id: int) -> void:
+	# Forward to client node if it exists
+	var client_node := get_node_or_null("/root/Main/Client")
+	if client_node and client_node.has_method("destroy_environmental_object"):
+		var chunk_pos_v2i := Vector2i(chunk_pos[0], chunk_pos[1])
+		client_node.destroy_environmental_object(chunk_pos_v2i, object_id)

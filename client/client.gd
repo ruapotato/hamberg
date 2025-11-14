@@ -12,6 +12,10 @@ var is_connected: bool = false
 var local_player: Node3D = null
 var remote_players: Dictionary = {} # peer_id -> Player node
 
+# Environmental objects
+var environmental_chunks: Dictionary = {} # Vector2i -> Dictionary of objects
+var environmental_objects_container: Node3D
+
 # UI references
 @onready var connection_ui: Control = $CanvasLayer/ConnectionUI
 @onready var hud: Control = $CanvasLayer/HUD
@@ -31,6 +35,11 @@ var remote_players: Dictionary = {} # peer_id -> Player node
 func _ready() -> void:
 	print("[Client] Client node ready")
 
+	# Create environmental objects container
+	environmental_objects_container = Node3D.new()
+	environmental_objects_container.name = "EnvironmentalObjects"
+	world.add_child(environmental_objects_container)
+
 	# Hide HUD initially
 	hud.visible = false
 
@@ -49,13 +58,6 @@ func _ready() -> void:
 func _process(_delta: float) -> void:
 	if is_connected:
 		_update_hud()
-
-		# Update local player position in chunk manager for object spawning
-		if local_player and is_instance_valid(local_player):
-			voxel_world.update_player_spawn_position(
-				NetworkManager.get_local_player_id(),
-				local_player.global_position
-			)
 
 func auto_connect_to_localhost() -> void:
 	"""Auto-connect to localhost for singleplayer mode"""
@@ -109,9 +111,6 @@ func _on_client_disconnected() -> void:
 
 	# Clean up players
 	if local_player:
-		# Unregister from environmental spawning
-		voxel_world.unregister_player_from_spawning(NetworkManager.get_local_player_id())
-
 		local_player.queue_free()
 		local_player = null
 
@@ -121,6 +120,9 @@ func _on_client_disconnected() -> void:
 			player.queue_free()
 
 	remote_players.clear()
+
+	# Clean up environmental objects
+	_cleanup_environmental_objects()
 
 	# Show connection UI, hide HUD
 	connection_ui.visible = true
@@ -244,6 +246,93 @@ func _setup_camera_follow(player: Node3D) -> void:
 			player.add_child(viewer)
 			print("[Client] VoxelViewer attached to local player")
 
-	# Register player with ChunkManager for environmental object spawning
-	voxel_world.register_player_for_spawning(NetworkManager.get_local_player_id(), player)
-	print("[Client] Player registered for environmental object spawning")
+# ============================================================================
+# ENVIRONMENTAL OBJECT MANAGEMENT (CLIENT-SIDE VISUAL ONLY)
+# ============================================================================
+
+## Receive environmental objects from server
+func receive_environmental_objects(chunk_pos: Vector2i, objects_data: Array) -> void:
+	print("[Client] Receiving %d objects for chunk %s" % [objects_data.size(), chunk_pos])
+
+	# Create chunk entry if it doesn't exist
+	if not environmental_chunks.has(chunk_pos):
+		environmental_chunks[chunk_pos] = {}
+
+	var chunk_objects = environmental_chunks[chunk_pos]
+
+	# Spawn each object
+	for obj_data in objects_data:
+		var obj_id = obj_data.get("id", -1)
+		var obj_type = obj_data.get("type", "unknown")
+		var pos_array = obj_data.get("pos", [0, 0, 0])
+		var rot_array = obj_data.get("rot", [0, 0, 0])
+		var scale_array = obj_data.get("scale", [1, 1, 1])
+
+		# Instantiate the appropriate scene based on type
+		var obj_scene: PackedScene = null
+		match obj_type:
+			"tree":
+				obj_scene = load("res://shared/environmental/tree.tscn")
+			"rock":
+				obj_scene = load("res://shared/environmental/rock.tscn")
+			"grass":
+				obj_scene = load("res://shared/environmental/grass_clump.tscn")
+			_:
+				push_error("[Client] Unknown environmental object type: %s" % obj_type)
+				continue
+
+		if not obj_scene:
+			continue
+
+		# Spawn the object
+		var obj = obj_scene.instantiate()
+		environmental_objects_container.add_child(obj)
+
+		# Set transform
+		obj.global_position = Vector3(pos_array[0], pos_array[1], pos_array[2])
+		obj.rotation = Vector3(rot_array[0], rot_array[1], rot_array[2])
+		obj.scale = Vector3(scale_array[0], scale_array[1], scale_array[2])
+
+		# Set object type
+		if obj.has_method("set_object_type"):
+			obj.set_object_type(obj_type)
+
+		# Store in chunk
+		chunk_objects[obj_id] = obj
+
+## Despawn environmental objects for a chunk
+func despawn_environmental_objects(chunk_pos: Vector2i) -> void:
+	if not environmental_chunks.has(chunk_pos):
+		return
+
+	print("[Client] Despawning objects for chunk %s" % chunk_pos)
+
+	var chunk_objects = environmental_chunks[chunk_pos]
+
+	# Remove all objects in this chunk
+	for obj_id in chunk_objects:
+		var obj = chunk_objects[obj_id]
+		if obj and is_instance_valid(obj):
+			obj.queue_free()
+
+	environmental_chunks.erase(chunk_pos)
+
+## Destroy a specific environmental object
+func destroy_environmental_object(chunk_pos: Vector2i, object_id: int) -> void:
+	if not environmental_chunks.has(chunk_pos):
+		return
+
+	var chunk_objects = environmental_chunks[chunk_pos]
+
+	if chunk_objects.has(object_id):
+		var obj = chunk_objects[object_id]
+		if obj and is_instance_valid(obj):
+			obj.queue_free()
+		chunk_objects.erase(object_id)
+		print("[Client] Destroyed environmental object %d in chunk %s" % [object_id, chunk_pos])
+
+## Clean up all environmental objects
+func _cleanup_environmental_objects() -> void:
+	for chunk_pos in environmental_chunks.keys():
+		despawn_environmental_objects(chunk_pos)
+	environmental_chunks.clear()

@@ -27,6 +27,11 @@ func _ready() -> void:
 	NetworkManager.player_joined.connect(_on_player_joined)
 	NetworkManager.player_left.connect(_on_player_left)
 
+	# Connect to chunk manager signals for environmental objects
+	if voxel_world and voxel_world.chunk_manager:
+		voxel_world.chunk_manager.chunk_loaded.connect(_on_chunk_loaded)
+		voxel_world.chunk_manager.chunk_unloaded.connect(_on_chunk_unloaded)
+
 	# Set up console input (for dedicated servers)
 	if DisplayServer.get_name() == "headless":
 		_setup_console_input()
@@ -75,6 +80,9 @@ func _process(delta: float) -> void:
 func _server_tick() -> void:
 	server_tick += 1
 
+	# Update player positions in chunk manager for environmental object loading
+	_update_environmental_chunks()
+
 	# Broadcast player states to all clients
 	_broadcast_player_states()
 
@@ -96,6 +104,55 @@ func _broadcast_player_states() -> void:
 	# Broadcast to all clients through NetworkManager
 	if states.size() > 0:
 		NetworkManager.rpc_broadcast_player_states.rpc(states)
+
+# ============================================================================
+# ENVIRONMENTAL OBJECT MANAGEMENT (SERVER-AUTHORITATIVE)
+# ============================================================================
+
+func _update_environmental_chunks() -> void:
+	# Update player positions in chunk manager
+	if voxel_world and voxel_world.chunk_manager:
+		for peer_id in spawned_players:
+			var player = spawned_players[peer_id]
+			if player and is_instance_valid(player):
+				voxel_world.update_player_spawn_position(peer_id, player.global_position)
+
+func _on_chunk_loaded(chunk_pos: Vector2i) -> void:
+	# When server loads a chunk, broadcast its objects to all clients
+	if not voxel_world or not voxel_world.chunk_manager:
+		return
+
+	var chunk_manager = voxel_world.chunk_manager
+	var objects_data: Array = []
+
+	# Get objects in this chunk
+	if chunk_manager.loaded_chunks.has(chunk_pos):
+		var objects = chunk_manager.loaded_chunks[chunk_pos]
+
+		for i in objects.size():
+			var obj = objects[i]
+			if is_instance_valid(obj):
+				var obj_type = "unknown"
+				if obj.has_method("get_object_type"):
+					obj_type = obj.get_object_type()
+
+				objects_data.append({
+					"id": i,  # Local ID within chunk
+					"type": obj_type,
+					"pos": [obj.global_position.x, obj.global_position.y, obj.global_position.z],
+					"rot": [obj.rotation.x, obj.rotation.y, obj.rotation.z],
+					"scale": [obj.scale.x, obj.scale.y, obj.scale.z]
+				})
+
+	# Broadcast to all clients
+	if objects_data.size() > 0:
+		NetworkManager.rpc_spawn_environmental_objects.rpc([chunk_pos.x, chunk_pos.y], objects_data)
+		print("[Server] Broadcasting %d objects for chunk %s" % [objects_data.size(), chunk_pos])
+
+func _on_chunk_unloaded(chunk_pos: Vector2i) -> void:
+	# When server unloads a chunk, tell clients to despawn it
+	NetworkManager.rpc_despawn_environmental_objects.rpc([chunk_pos.x, chunk_pos.y])
+	print("[Server] Broadcasting chunk unload for %s" % chunk_pos)
 
 # ============================================================================
 # PLAYER MANAGEMENT (SERVER-AUTHORITATIVE)
@@ -146,6 +203,10 @@ func _spawn_player(peer_id: int, player_name: String) -> void:
 
 	print("[Server] Spawned player %d at %s with VoxelViewer" % [peer_id, spawn_pos])
 
+	# Register player with chunk manager for environmental object spawning
+	if voxel_world:
+		voxel_world.register_player_for_spawning(peer_id, player)
+
 	# Notify all clients to spawn this player through NetworkManager
 	print("[Server] Broadcasting spawn for player %d to all clients" % peer_id)
 	NetworkManager.rpc_spawn_player.rpc(peer_id, player_name, spawn_pos)
@@ -161,6 +222,10 @@ func _spawn_player(peer_id: int, player_name: String) -> void:
 func _despawn_player(peer_id: int) -> void:
 	if not spawned_players.has(peer_id):
 		return
+
+	# Unregister player from chunk manager
+	if voxel_world:
+		voxel_world.unregister_player_from_spawning(peer_id)
 
 	# Clean up VoxelViewer
 	if player_viewers.has(peer_id):
