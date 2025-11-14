@@ -1,18 +1,17 @@
 extends Node3D
-class_name EnvironmentalObject
 
 ## Base class for environmental objects with distance-based culling and LOD
 ## Handles visibility management based on nearest player distance
 
 @export var cull_distance: float = 100.0  ## Distance at which object becomes invisible
-@export var lod_distances: Array[float] = []  ## Distances for LOD transitions (if applicable)
+@export var lod_distances: Array = []  ## Distances for LOD transitions (if applicable)
 
 var chunk_position: Vector2i  ## Which chunk this object belongs to
 var is_visible_in_range: bool = true
 var current_lod: int = 0
 
 # LOD node references (populated by child scenes)
-var lod_nodes: Array[Node3D] = []
+var lod_nodes: Array = []
 
 func _ready() -> void:
 	# Find LOD nodes if they exist

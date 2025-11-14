@@ -1,5 +1,4 @@
 extends Node
-class_name EnvironmentalSpawner
 
 ## Handles deterministic spawning of environmental objects based on terrain
 ## Uses world seed + chunk coordinates for consistent, reproducible placement
@@ -70,8 +69,8 @@ func _setup_spawn_configs() -> void:
 
 ## Spawn objects for a given chunk
 ## Returns array of spawned EnvironmentalObject instances
-func spawn_chunk_objects(chunk_pos: Vector2i, voxel_world: Node3D, parent: Node3D) -> Array[EnvironmentalObject]:
-	var spawned_objects: Array[EnvironmentalObject] = []
+func spawn_chunk_objects(chunk_pos: Vector2i, voxel_world: Node3D, parent: Node3D) -> Array:
+	var spawned_objects: Array = []
 
 	# Create deterministic RNG for this chunk
 	var rng := RandomNumberGenerator.new()
@@ -153,12 +152,12 @@ func _estimate_slope_at(xz_pos: Vector2, voxel_world: Node3D) -> float:
 	return rad_to_deg(atan(max_diff / offset))
 
 ## Actually spawn an object at the given position
-func _spawn_object(config: SpawnConfig, xz_pos: Vector2, voxel_world: Node3D, parent: Node3D, rng: RandomNumberGenerator) -> EnvironmentalObject:
+func _spawn_object(config: SpawnConfig, xz_pos: Vector2, voxel_world: Node3D, parent: Node3D, rng: RandomNumberGenerator):
 	# Find surface height
 	var surface_pos := voxel_world.find_surface_position(xz_pos, 100.0, 200.0)
 
 	# Instance the scene
-	var obj := config.scene.instantiate() as EnvironmentalObject
+	var obj := config.scene.instantiate()
 	if not obj:
 		push_error("[EnvironmentalSpawner] Failed to instantiate object!")
 		return null

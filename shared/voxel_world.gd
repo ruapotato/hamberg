@@ -7,7 +7,8 @@ extends Node3D
 @onready var multiplayer_sync: VoxelTerrainMultiplayerSynchronizer = $VoxelLodTerrain/VoxelTerrainMultiplayerSynchronizer
 
 # Environmental objects
-var chunk_manager: ChunkManager
+const ChunkManager = preload("res://shared/environmental/chunk_manager.gd")
+var chunk_manager
 
 # World generation settings
 const WORLD_SEED: int = 42  # TODO: Make this configurable

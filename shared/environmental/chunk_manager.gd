@@ -1,5 +1,4 @@
 extends Node3D
-class_name ChunkManager
 
 ## Manages chunk-based spawning and culling of environmental objects
 ## Tracks player positions and loads/unloads chunks accordingly
@@ -12,11 +11,11 @@ signal chunk_unloaded(chunk_pos: Vector2i)
 @export var update_interval: float = 1.0  ## How often to update chunks (seconds)
 
 # Component references
-var spawner: EnvironmentalSpawner
+var spawner
 var voxel_world: Node3D
 
 # Chunk tracking
-var loaded_chunks: Dictionary = {}  # Vector2i -> Array[EnvironmentalObject]
+var loaded_chunks: Dictionary = {}  # Vector2i -> Array of EnvironmentalObjects
 var player_chunk_positions: Dictionary = {}  # int (peer_id) -> Vector2i
 
 # Update timer
@@ -32,6 +31,7 @@ func _ready() -> void:
 	add_child(objects_container)
 
 	# Create spawner
+	var EnvironmentalSpawner = preload("res://shared/environmental/environmental_spawner.gd")
 	spawner = EnvironmentalSpawner.new()
 	spawner.name = "EnvironmentalSpawner"
 	add_child(spawner)
@@ -124,7 +124,7 @@ func _unload_chunk(chunk_pos: Vector2i) -> void:
 	if not loaded_chunks.has(chunk_pos):
 		return
 
-	var objects: Array[EnvironmentalObject] = loaded_chunks[chunk_pos]
+	var objects: Array = loaded_chunks[chunk_pos]
 
 	# Remove all objects
 	for obj in objects:
@@ -143,13 +143,13 @@ func _update_object_visibility() -> void:
 		return
 
 	# Get all player positions
-	var player_positions: Array[Vector3] = []
+	var player_positions: Array = []
 	# We need to get actual player nodes - for now we'll skip this optimization
 	# This will be called less frequently so it's okay
 
 	# For each loaded chunk
 	for chunk_pos in loaded_chunks.keys():
-		var objects: Array[EnvironmentalObject] = loaded_chunks[chunk_pos]
+		var objects: Array = loaded_chunks[chunk_pos]
 
 		# Update each object
 		for obj in objects:
