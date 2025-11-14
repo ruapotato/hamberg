@@ -9,6 +9,7 @@ extends Area3D
 
 var spawn_time: float = 0.0
 var bob_offset: float = 0.0  # Random bob phase
+var network_id: String = ""  # Unique ID for network sync
 
 # Visual
 var mesh_instance: MeshInstance3D
@@ -91,11 +92,20 @@ func _on_body_entered(body: Node3D) -> void:
 	if not body.has_method("pickup_item"):
 		return
 
-	# Try to give item to player
-	body.pickup_item(item_name, amount)
+	# Only allow local player to pick up
+	if not body.is_multiplayer_authority():
+		return
 
-	# Remove item from world
-	queue_free()
+	# Try to give item to player
+	var picked_up = body.pickup_item(item_name, amount)
+
+	if picked_up:
+		# Broadcast pickup to all clients via NetworkManager
+		if NetworkManager:
+			NetworkManager.rpc_pickup_resource_item.rpc(network_id)
+
+		# Remove item from world
+		queue_free()
 
 func set_item_data(item: String, qty: int) -> void:
 	item_name = item

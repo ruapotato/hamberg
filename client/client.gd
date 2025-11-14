@@ -382,10 +382,25 @@ func spawn_resource_drops(resources: Dictionary, position: Vector3) -> void:
 			var spawn_pos = position + offset
 			spawn_pos.y = position.y - 1.0  # Spawn about 1m below hit point (roughly ground level)
 
+			# Generate unique network ID (position + time + index)
+			var net_id = "%s_%d_%d" % [spawn_pos, Time.get_ticks_msec(), i]
+			item.network_id = net_id
+			item.name = "Item_%s" % net_id
+
 			item.global_position = spawn_pos
 
 			# Add to world
 			world.add_child(item)
+
+## Remove a resource item by network ID (when another player picks it up)
+func remove_resource_item(net_id: String) -> void:
+	# Find item by network_id in the world
+	var item_name = "Item_%s" % net_id
+	var item = world.get_node_or_null(item_name)
+
+	if item and is_instance_valid(item):
+		print("[Client] Removing picked up item: %s" % item_name)
+		item.queue_free()
 
 ## Clean up all environmental objects
 func _cleanup_environmental_objects() -> void:

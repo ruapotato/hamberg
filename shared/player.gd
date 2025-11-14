@@ -478,9 +478,10 @@ func setup_viewmodel() -> void:
 # ============================================================================
 
 ## Pick up an item (called by resource items on collision)
-func pickup_item(item_name: String, amount: int) -> void:
+## Returns true if at least some items were picked up
+func pickup_item(item_name: String, amount: int) -> bool:
 	if not inventory:
-		return
+		return false
 
 	var remaining = inventory.add_item(item_name, amount)
 
@@ -490,6 +491,9 @@ func pickup_item(item_name: String, amount: int) -> void:
 
 		# Play pickup sound (TODO)
 		# Show pickup notification (TODO)
+		return true
 
 	if remaining > 0:
 		print("[Player] Inventory full! Couldn't pick up %d x %s" % [remaining, item_name])
+
+	return remaining < amount

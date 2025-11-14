@@ -369,6 +369,14 @@ func rpc_spawn_resource_drops(resources: Dictionary, position: Array) -> void:
 		var pos_v3 := Vector3(position[0], position[1], position[2])
 		client_node.spawn_resource_drops(resources, pos_v3)
 
+## ANY_PEER → ALL: Resource item picked up (broadcast to all clients)
+@rpc("any_peer", "call_remote", "reliable")
+func rpc_pickup_resource_item(network_id: String) -> void:
+	# Broadcast to all clients to remove the item
+	var client_node := get_node_or_null("/root/Main/Client")
+	if client_node and client_node.has_method("remove_resource_item"):
+		client_node.remove_resource_item(network_id)
+
 ## SERVER → CLIENT: Send world configuration (seed, name)
 @rpc("authority", "call_remote", "reliable")
 func rpc_send_world_config(world_data: Dictionary) -> void:
