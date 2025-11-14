@@ -1,301 +1,292 @@
-# Valheim Clone - Multiplayer Survival Game
+# Hamberg 🏔️⚔️
 
-A trust-based multiplayer survival game built with Godot 4 and a networking-first architecture. Inspired by Valheim, this game prioritizes responsive gameplay and community-driven experiences.
+**An open source multiplayer survival game inspired by Valheim**
 
-## Phase 1: Core Networking Foundation ✅
+Hamberg is a co-op survival and crafting game built with Godot 4 and a networking-first architecture. Explore procedurally generated worlds, gather resources, build settlements, and battle mythical creatures with your friends in a trust-based multiplayer environment.
 
-This phase implements the fundamental multiplayer infrastructure:
+The name "Hamberg" is a tribute to the developers' origins - a fusion of **Hamner** and **Inberg**.
 
-- ✅ Dedicated server support (headless mode)
+---
+
+## 🎮 Vision
+
+Hamberg aims to capture the magic of Valheim while being:
+- **Open Source** - Fully transparent, community-driven development
+- **Moddable** - Clean, documented code designed for extensibility
+- **Responsive** - Client-side prediction for instant, satisfying gameplay
+- **Community-Focused** - Trust-based networking for cooperative play with friends
+- **Cross-Platform** - Linux, Windows, and Mac support via Godot
+
+---
+
+## 🚀 Current Status: Phase 1 Complete ✅
+
+**Phase 1: Core Networking Foundation** is fully implemented and tested!
+
+### What Works Now
+- ✅ Dedicated server support (headless mode capable)
 - ✅ Client connection with UI
 - ✅ Player spawning and despawning
-- ✅ Client-side prediction for movement
+- ✅ Client-side prediction for responsive movement
 - ✅ Server-authoritative player management
-- ✅ Basic character controller (WASD + Jump + Sprint)
+- ✅ Physics-based character controller (WASD, jump, sprint)
 - ✅ Network state synchronization
+- ✅ Multiple clients connecting and seeing each other
 
-## Quick Start
+### Try It Out!
+
+```bash
+# Terminal 1 - Launch server
+./launch_server.sh
+
+# Terminal 2 - Launch client
+./launch_client.sh
+
+# Terminal 3 - Launch another client
+./launch_client.sh
+```
+
+Connect both clients to `127.0.0.1:7777` and see each other move around in real-time!
+
+---
+
+## 📋 Roadmap
+
+### Phase 1: Core Networking ✅ **COMPLETE**
+- [x] Dual-mode launch (server/client/singleplayer)
+- [x] Client-side prediction
+- [x] Player spawning and movement
+- [x] Network synchronization
+
+### Phase 2: Voxel Terrain 🔨 **IN PROGRESS**
+- [ ] Integration with Godot Voxel Tools
+- [ ] Procedural terrain generation (noise-based)
+- [ ] Multiple biomes (Meadows, Forest, Mountains)
+- [ ] Chunk streaming to clients
+- [ ] Terrain editing (mining, building)
+- [ ] Server-authoritative terrain validation
+
+### Phase 3: Combat & AI 🗡️
+- [ ] Melee combat system
+- [ ] Ranged weapons (bow, spear)
+- [ ] Client-side hit detection
+- [ ] Enemy AI with pathfinding
+- [ ] Boss encounters
+- [ ] Death and respawn mechanics
+
+### Phase 4: Crafting & Building 🏗️
+- [ ] Resource gathering
+- [ ] Crafting stations
+- [ ] Building system (walls, floors, roofs)
+- [ ] Structural integrity
+- [ ] Storage and chests
+
+### Phase 5: Progression & Content 📈
+- [ ] Player skills and leveling
+- [ ] Equipment and armor
+- [ ] Food and cooking
+- [ ] World persistence (save/load)
+- [ ] Portals and fast travel
+
+### Phase 6: Polish & Release 🎨
+- [ ] Audio system (music, SFX)
+- [ ] Particle effects
+- [ ] UI/UX improvements
+- [ ] Performance optimization
+- [ ] Steam/Itch.io release
+
+---
+
+## 🛠️ Quick Start Guide
 
 ### Prerequisites
 
-- Godot 4.3+ installed (with `godot` or `./godot.linuxbsd.editor.x86_64` in PATH)
-- Linux/Mac/Windows with terminal access
+You'll need:
+- **Godot 4.3+** with Voxel Tools module ([download here](https://github.com/Zylann/godot_voxel))
+- **Linux/Mac/Windows** with terminal/command prompt access
+- **Git** (to clone the repository)
 
-### Option 1: Launch Dedicated Server
+### Installation
 
 ```bash
-# Launch headless server on default port (7777)
-./godot.linuxbsd.editor.x86_64 --headless -- --server
+# Clone the repository
+git clone https://github.com/yourusername/hamberg.git
+cd hamberg
 
-# Or with custom port (via environment variable)
-GAME_PORT=8888 MAX_PLAYERS=20 ./godot.linuxbsd.editor.x86_64 --headless -- --server
+# Copy your Godot binary to the project folder
+cp /path/to/godot.linuxbsd.editor.x86_64 ./
+
+# Make launch scripts executable (Linux/Mac)
+chmod +x launch_*.sh
+```
+
+### Launch Options
+
+**Option 1: Dedicated Server**
+```bash
+./launch_server.sh
+# OR manually:
+./godot.linuxbsd.editor.x86_64 --headless -- --server
+```
+
+**Option 2: Client**
+```bash
+./launch_client.sh
+# OR manually:
+./godot.linuxbsd.editor.x86_64
+```
+
+**Option 3: Singleplayer** (auto-local server)
+```bash
+./launch_singleplayer.sh
+# OR manually:
+./godot.linuxbsd.editor.x86_64 -- --singleplayer
+```
+
+### Server Configuration
+
+Set environment variables for custom configuration:
+```bash
+GAME_PORT=8888 MAX_PLAYERS=20 ./launch_server.sh
 ```
 
 **Server Console Commands:**
 - `players` - List connected players
 - `kick <id>` - Kick a player by peer ID
-- `save` - Save the world (not implemented yet)
+- `save` - Save the world (coming soon)
 - `shutdown` - Stop the server
 
-### Option 2: Launch Client
+---
 
-```bash
-# Launch client with UI
-./godot.linuxbsd.editor.x86_64
+## 🎯 Controls
 
-# In the connection UI, enter:
-# - Player Name: YourName
-# - Server IP: 127.0.0.1 (or server IP)
-# - Port: 7777
-# Click "Connect"
-```
+| Action | Key |
+|--------|-----|
+| Move Forward | W |
+| Move Left | A |
+| Move Backward | S |
+| Move Right | D |
+| Jump | Space |
+| Sprint | Left Shift |
+| Attack | Left Click *(coming soon)* |
+| Interact | E *(coming soon)* |
+| Inventory | Tab *(coming soon)* |
 
-### Option 3: Singleplayer (Auto-Local Server)
+---
 
-```bash
-# Launch in singleplayer mode (auto-starts local server + client)
-./godot.linuxbsd.editor.x86_64 -- --singleplayer
-```
-
-### Option 4: Testing with Multiple Clients
-
-Open 3 terminals:
-
-```bash
-# Terminal 1 - Launch server
-./godot.linuxbsd.editor.x86_64 --headless -- --server
-
-# Terminal 2 - Launch client 1
-./godot.linuxbsd.editor.x86_64
-
-# Terminal 3 - Launch client 2
-./godot.linuxbsd.editor.x86_64
-```
-
-Connect both clients to `127.0.0.1:7777` and you should see each other!
-
-## Controls
-
-**Movement:**
-- `W` `A` `S` `D` - Move forward/left/backward/right
-- `Space` - Jump
-- `Left Shift` - Sprint
-
-**Future Controls:**
-- `Left Click` - Attack (Phase 2+)
-- `E` - Interact (Phase 2+)
-- `Tab` - Inventory (Phase 2+)
-
-## Project Structure
+## 🏗️ Project Structure
 
 ```
-project/
+hamberg/
 ├── server/              # Server-only scripts
-│   └── server.gd       # Main server logic, player management
+│   └── server.gd       # Player management, world authority
 ├── client/              # Client-only scripts
-│   └── client.gd       # Connection UI, client-side rendering
-├── shared/              # Shared game logic (client + server)
-│   ├── network_manager.gd  # Network utilities (autoload)
+│   └── client.gd       # UI, rendering, local player
+├── shared/              # Shared game logic
+│   ├── network_manager.gd  # RPC relay & network state (autoload)
 │   ├── player.gd       # Player entity with prediction
-│   └── player.tscn     # Player scene
+│   ├── player.tscn     # Player scene
+│   └── test_world.tscn # Test environment
 ├── scenes/              # Scene files
 │   ├── main.tscn       # Entry point
 │   ├── server.tscn     # Server scene
-│   └── client.tscn     # Client scene
+│   └── client.tscn     # Client scene with UI
 ├── resources/           # Resource definitions (.tres)
 ├── assets/              # Models, textures, audio
-└── project.godot        # Project configuration
+├── main.gd              # Mode detection (server/client/SP)
+├── project.godot        # Godot project config
+└── launch_*.sh          # Helper launch scripts
 ```
 
-## Network Architecture
+---
 
-### Core Principles
+## 🌐 Network Architecture
 
-**Trust-Based Model:**
-- Designed for co-op play with trusted communities
-- Client-side hit detection (instant feedback)
-- Server validates important actions (inventory, progression)
-- Prioritizes gameplay feel over anti-cheat
+Hamberg uses a **trust-based networking model** designed for cooperative play with friends.
 
-**Authority Split:**
+### Design Philosophy
 
-| System | Authority | Reason |
-|--------|-----------|--------|
-| Player Movement | Client (predicted) | Responsive controls |
-| Combat/Hits | Client (reported) | Instant feedback |
-| Damage Application | Server | Prevent obvious exploits |
-| Inventory | Server | Prevent item duplication |
-| World Persistence | Server | Single source of truth |
-| Enemy Spawning | Server | Consistent experience |
-| Terrain Editing | Server (validated) | Prevent griefing |
+**Responsive Gameplay > Anti-Cheat**
 
-### Network Flow
+We prioritize instant feedback and smooth gameplay over paranoid anti-cheat. This is a co-op game meant to be played with communities you trust, not a competitive game.
 
-**Player Connection:**
-1. Client connects to server (ENet)
-2. Client sends player name
-3. Server registers player, assigns peer ID
-4. Server spawns player entity
-5. Server broadcasts new player to all clients
-6. Clients spawn visual representation
+### Authority Split
 
-**Player Movement (Client Prediction):**
-1. Client gathers input (WASD, Jump, etc.)
-2. Client predicts movement locally (instant response)
-3. Client stores input in history
-4. Client sends input to server
-5. Server simulates same input
-6. Server broadcasts authoritative states
-7. Remote clients interpolate for smooth rendering
+| System | Authority | Why |
+|--------|-----------|-----|
+| Player Movement | **Client** (predicted) | Instant response, feels good |
+| Combat/Hits | **Client** (reported) | Immediate hit feedback |
+| Damage Application | **Server** | Prevent obvious exploits |
+| Inventory | **Server** | No item duplication |
+| World Persistence | **Server** | Single source of truth |
+| Terrain Editing | **Server** (validated) | Prevent griefing |
+| Enemy AI | **Server** | Consistent behavior |
 
-**Player Disconnection:**
-1. Server detects disconnect
-2. Server despawns player entity
-3. Server broadcasts despawn to all clients
-4. Clients remove player from world
+### Network Patterns
 
-### RPC Patterns
-
-**Client → Server (Request pattern):**
+**Client Prediction:**
 ```gdscript
-# CLIENT
-func use_item(slot: int):
-    request_use_item.rpc_id(1, slot)  # Send to server (ID 1)
-
-# SERVER
-@rpc("any_peer", "call_remote", "reliable")
-func request_use_item(slot: int):
-    var peer_id = multiplayer.get_remote_sender_id()
-    validate_and_apply(peer_id, slot)
+# CLIENT: Predict movement locally, send input to server
+func _physics_process(delta):
+    var input = gather_input()
+    apply_movement(input, delta)  # Instant local response
+    send_input_to_server.rpc_id(1, input)
 ```
 
-**Server → All Clients (Broadcast pattern):**
+**Trust-Based Hit Detection:**
 ```gdscript
-# SERVER
-func apply_damage(target_id: int, damage: float):
-    # ... apply damage ...
-    broadcast_damage.rpc(target_id, damage)  # Tell all clients
+# CLIENT: Detect hit, show effect, report to server
+func on_attack():
+    var hit = raycast_weapon()
+    if hit:
+        show_hit_effect(hit.position)  # Instant feedback
+        report_hit.rpc_id(1, hit.target_id, damage)
 
-# CLIENT
-@rpc("authority", "call_remote", "reliable")
-func broadcast_damage(target_id: int, damage: float):
-    show_damage_effect(target_id, damage)
-```
-
-**Client → Server → All Clients (Report pattern):**
-```gdscript
-# CLIENT (trust model)
-func on_attack_hit(target_id: int):
-    var damage = calculate_damage()
-    show_hit_effect()  # Instant local feedback
-    report_hit.rpc_id(1, target_id, damage)
-
-# SERVER
+# SERVER: Trust client, apply damage, broadcast
 @rpc("any_peer")
-func report_hit(target_id: int, damage: float):
-    apply_damage(target_id, damage)  # Trust client
-    broadcast_hit.rpc(target_id, damage)  # Replicate to others
+func report_hit(target_id, damage):
+    apply_damage(target_id, damage)
+    broadcast_hit.rpc(target_id, damage)
 ```
 
-## Key Features
+**Server Authority (Inventory):**
+```gdscript
+# CLIENT: Request action
+func use_item(slot):
+    request_use_item.rpc_id(1, slot)
 
-### Implemented (Phase 1)
+# SERVER: Validate and apply
+@rpc("any_peer")
+func request_use_item(slot):
+    if validate_use(player_id, slot):
+        apply_use(player_id, slot)
+        sync_inventory.rpc_id(player_id, inventory)
+```
 
-✅ **Dual-Mode Launch System**
-- Headless server mode (`--server`)
-- Client mode (default)
-- Singleplayer mode (`--singleplayer`)
-- Command-line argument parsing
+### RPC Relay Pattern
 
-✅ **Server Management**
-- ENet server initialization
-- Configurable port and max players
-- Player connection/disconnection handling
-- Server console (placeholder for commands)
+All RPCs go through `NetworkManager` (autoload) to ensure they work across client/server boundaries:
 
-✅ **Client Connection**
-- Connection UI (IP, Port, Player Name)
-- Connection handshake
-- Network status display
+```gdscript
+# CLIENT → SERVER
+NetworkManager.rpc_register_player.rpc_id(1, player_name)
 
-✅ **Player Entity System**
-- Server spawns players on connect
-- Client-side prediction for movement
-- Server broadcasts player states
-- Interpolation for remote players
-- Automatic despawn on disconnect
+# SERVER → CLIENTS
+NetworkManager.rpc_spawn_player.rpc(peer_id, name, pos)
+```
 
-✅ **Character Controller**
-- WASD movement with physics
-- Jump and gravity
-- Sprint modifier
-- CharacterBody3D with collision
+---
 
-### Planned (Phase 2+)
-
-🔲 **Voxel Terrain System**
-- Integration with Godot Voxel Tools
-- Server-side chunk generation
-- Chunk streaming to clients
-- VoxelTerrainMultiplayerSynchronizer
-- Terrain editing (client request → server validate → broadcast)
-- Multiple biomes (Meadows, Forest, Mountains)
-
-🔲 **Combat System**
-- Melee weapons
-- Ranged weapons
-- Client-side hit detection
-- Damage calculation
-- Death and respawn
-
-🔲 **Inventory & Crafting**
-- Server-authoritative inventory
-- Item pickup/drop
-- Crafting system
-- Resource gathering
-
-🔲 **Building System**
-- Placeable structures
-- Building pieces (walls, floors, roofs)
-- Structural integrity
-- Building permissions
-
-🔲 **Enemy AI**
-- Server-controlled enemies
-- Pathfinding with Navigation
-- AI behaviors
-- Loot drops
-
-🔲 **World Persistence**
-- Save/load system
-- Chunk data persistence
-- Player data persistence
-- Building persistence
-
-## Performance Targets
-
-- **Tick Rate:** 30 Hz server simulation
-- **Max Players:** 10-20 (configurable)
-- **Render Distance:** TBD (depends on voxel terrain)
-- **Target FPS:** 60 FPS client-side
-
-## Testing
+## 🧪 Testing
 
 ### Verify Server Launch
 
 ```bash
-./godot.linuxbsd.editor.x86_64 --headless -- --server
+./launch_server.sh
 ```
 
-Expected output:
+**Expected output:**
 ```
-[NetworkManager] Ready
-[Server] Server node ready
-[Main] Starting Valheim Clone...
-[Main] Command line args: [...]
-[Main] Running headless - defaulting to server mode
-[Main] Launching dedicated server...
-[NetworkManager] Server started on port 7777 (max players: 10)
 [Server] ===========================================
 [Server] Server is now running!
 [Server] Port: 7777
@@ -303,117 +294,126 @@ Expected output:
 [Server] ===========================================
 ```
 
-### Verify Client Connection
+### Verify Multiplayer
 
-1. Launch server in one terminal
-2. Launch client in another terminal
-3. Enter connection details in UI
-4. Click "Connect"
+1. Launch server in Terminal 1
+2. Launch client in Terminal 2
+3. Connect to `127.0.0.1:7777`
+4. Launch another client in Terminal 3
+5. Connect second client
 
-Expected:
-- Client shows "Connected!" message
-- Server logs `[Server] Player joined: PlayerName (ID: X)`
-- Client HUD appears with controls
+**Expected:**
+- Both clients see each other as blue capsules
+- Movement is smooth and responsive
+- No errors in console
 
-### Verify Multiplayer Movement
+### Troubleshooting
 
-1. Launch server
-2. Connect 2+ clients
-3. Move with WASD in one client
-4. Observe movement in other client windows
-
-Expected:
-- Local player movement feels instant and responsive
-- Remote players appear and move smoothly
-- No major rubber-banding or jitter
-
-## Development Notes
-
-### Adding New Features
-
-**Server-Authoritative Feature (e.g., Inventory):**
-1. Add state to server/server.gd (e.g., `player_inventories: Dictionary`)
-2. Add RPC: `@rpc("any_peer") func request_inventory_action()`
-3. Validate request in RPC handler
-4. Apply changes server-side
-5. Broadcast result: `sync_inventory.rpc_id(peer_id, inventory_data)`
-
-**Client-Reported Feature (e.g., Hit Detection):**
-1. Detect action client-side (e.g., raycast for hit)
-2. Show instant feedback (effects, sounds)
-3. Report to server: `report_action.rpc_id(1, action_data)`
-4. Server trusts and replicates: `broadcast_action.rpc(action_data)`
-
-### Debugging Network Issues
-
-**Enable verbose networking logs:**
-```gdscript
-# In network_manager.gd or main.gd
-ProjectSettings.set_setting("debug/settings/network/max_queued_messages", 512)
+**"Port already in use"**
+```bash
+GAME_PORT=8888 ./launch_server.sh
+# Update clients to connect to port 8888
 ```
 
-**Check peer connectivity:**
-```gdscript
-# In console or script
-print(multiplayer.get_peers())  # List of connected peer IDs
-```
+**"Connection failed"**
+- Make sure server is running first
+- Check firewall settings
+- Try `127.0.0.1` for local testing
 
-**Monitor network stats:**
-- Ping display in HUD (placeholder)
-- Check ENet statistics via `multiplayer.multiplayer_peer`
-
-## Known Limitations
-
-- **No player camera rotation yet** - Third-person camera is fixed
-- **No terrain** - Players spawn in the void (floor at Y=0 has invisible collision)
-- **No visuals for ground** - Using CharacterBody3D collision only
-- **Console input incomplete** - Server commands need proper stdin handling
-- **No server reconciliation** - Client prediction always wins (trust model)
-
-## Next Steps for Phase 2
-
-1. **Install Godot Voxel Tools module**
-   - Build Godot with voxel tools, or use pre-built binary
-   - Verify voxel classes are available
-
-2. **Add VoxelLodTerrain to server and client**
-   - Server: Authoritative terrain data
-   - Client: Visual representation only
-
-3. **Implement VoxelTerrainMultiplayerSynchronizer**
-   - Automatic chunk streaming
-   - Edit synchronization
-
-4. **Add terrain generator**
-   - Noise-based height map
-   - Multiple biomes
-   - Caves and overhangs
-
-5. **Implement terrain editing**
-   - Client: Detect edit intent (mining, placing)
-   - Client → Server: Request edit with position and type
-   - Server: Validate player has tool and is in range
-   - Server: Apply edit to terrain
-   - Server → All Clients: Broadcast terrain change
-
-## Contributing
-
-This is a learning project! Feel free to:
-- Experiment with the code
-- Add features for your own game
-- Share improvements
-
-## License
-
-MIT License - Free to use for your own projects!
-
-## Credits
-
-- Built with [Godot Engine 4.3+](https://godotengine.org/)
-- Networking: ENetMultiplayerPeer
-- Terrain (Phase 2): [Godot Voxel Tools](https://github.com/Zylann/godot_voxel)
-- Inspired by [Valheim](https://www.valheimgame.com/)
+**"Can't see other players"**
+- Check server logs for player join messages
+- Make sure both clients connected successfully
+- Try moving around - they might spawn at the same spot
 
 ---
 
-**Have fun building your survival game!** 🎮⛏️🌲
+## 🤝 Contributing
+
+Hamberg is open source and welcomes contributions!
+
+### Ways to Contribute
+
+- 🐛 **Report bugs** - Open an issue with reproduction steps
+- ✨ **Suggest features** - Share your ideas in discussions
+- 🔧 **Submit PRs** - Fix bugs, add features, improve docs
+- 🎨 **Create assets** - Models, textures, sounds
+- 📖 **Improve docs** - Help others get started
+
+### Development Guidelines
+
+1. **Read the code** - It's heavily commented to explain networking patterns
+2. **Test locally** - Use the launch scripts to verify changes
+3. **Follow the architecture** - Keep client/server/shared separation clean
+4. **Document your code** - Explain networking and game logic
+5. **Keep it modular** - Design for extensibility
+
+### Getting Help
+
+- 💬 **Discord** - *(coming soon)*
+- 🐛 **Issues** - For bugs and technical questions
+- 💡 **Discussions** - For ideas and general chat
+
+---
+
+## 📚 Documentation
+
+- **[QUICKSTART.md](QUICKSTART.md)** - Quick testing guide
+- **[Network Architecture](#-network-architecture)** - Deep dive into networking
+- **[Godot Voxel Tools Docs](https://voxel-tools.readthedocs.io/)** - For terrain (Phase 2)
+- **Code Comments** - Read the source, it's well documented!
+
+---
+
+## 🎓 Learning Resources
+
+Building Hamberg? These resources helped us:
+
+- [Godot Multiplayer Docs](https://docs.godotengine.org/en/stable/tutorials/networking/high_level_multiplayer.html)
+- [Godot Voxel Tools](https://github.com/Zylann/godot_voxel)
+- [Client-Side Prediction](https://www.gabrielgambetta.com/client-side-prediction-server-reconciliation.html)
+- [Valheim (inspiration)](https://www.valheimgame.com/)
+
+---
+
+## 📜 License
+
+**MIT License** - See [LICENSE](LICENSE) for details
+
+Hamberg is free and open source. Use it, modify it, learn from it, build your own game!
+
+---
+
+## 🙏 Credits
+
+**Built with:**
+- [Godot Engine 4.x](https://godotengine.org/) - Open source game engine
+- [Godot Voxel Tools](https://github.com/Zylann/godot_voxel) - Terrain system (Phase 2)
+- [ENet](http://enet.bespin.org/) - Reliable UDP networking
+- [Claude Code](https://claude.com/claude-code) - AI pair programming assistant
+
+**Inspired by:**
+- [Valheim](https://www.valheimgame.com/) - The gold standard for co-op survival
+- The indie survival game community
+
+**Created by:**
+- The Hamberg community 💙
+
+---
+
+## 🚀 Next Steps
+
+**Ready to dive in?**
+
+1. Try Phase 1 - Run the multiplayer demo
+2. Read the code - See how networking works
+3. Join development - Help build Phase 2 (voxel terrain!)
+4. Share feedback - What should we build next?
+
+**Join the journey to build an open source Valheim!** ⚔️🏔️
+
+---
+
+<p align="center">
+  <strong>Hamberg - Open Source Survival, Built Together</strong><br>
+  <em>A fusion of Hamner and Inberg</em>
+</p>

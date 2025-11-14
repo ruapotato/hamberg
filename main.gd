@@ -15,7 +15,7 @@ enum LaunchMode {
 var current_mode: LaunchMode = LaunchMode.AUTO_DETECT
 
 func _ready() -> void:
-	print("[Main] Starting Valheim Clone...")
+	print("[Main] Starting Hamberg - Open Source Survival...")
 	print("[Main] Godot version: %s" % Engine.get_version_info().string)
 
 	# Parse command line arguments

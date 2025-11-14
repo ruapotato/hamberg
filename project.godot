@@ -6,8 +6,8 @@ config_version=5
 
 [application]
 
-config/name="Valheim Clone - Multiplayer Survival"
-config/description="A trust-based multiplayer survival game with networking-first architecture"
+config/name="Hamberg"
+config/description="An open source multiplayer survival game inspired by Valheim. A fusion of Hamner and Inberg."
 run/main_scene="res://scenes/main.tscn"
 config/features=PackedStringArray("4.3", "GL Compatibility")
 config/icon="res://icon.svg"

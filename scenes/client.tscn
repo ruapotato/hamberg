@@ -46,7 +46,7 @@ layout_mode = 2
 
 [node name="TitleLabel" type="Label" parent="CanvasLayer/ConnectionUI/Panel/VBox"]
 layout_mode = 2
-text = "Valheim Clone - Multiplayer"
+text = "Hamberg"
 horizontal_alignment = 1
 vertical_alignment = 1
 
