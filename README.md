@@ -19,9 +19,9 @@ Hamberg aims to capture the magic of Valheim while being:
 
 ---
 
-## 🚀 Current Status: Phase 2 Complete ✅
+## 🚀 Current Status: Phase 4 In Progress 🏗️
 
-**Phase 2: Voxel Terrain & Environmental Objects** is fully implemented and tested!
+**Phase 4: Multi-World System & Resource Gathering** is now partially implemented!
 
 ### What Works Now
 - ✅ Dedicated server support (headless mode capable)
@@ -37,12 +37,17 @@ Hamberg aims to capture the magic of Valheim while being:
 - ✅ Deterministic procedural generation (consistent across clients)
 - ✅ Smart persistence system (procedural + database for modified chunks)
 - ✅ Multiple clients with synchronized world state
+- ✅ **Multi-world system** (unique world names and seeds)
+- ✅ **Per-world storage** (isolated save data)
+- ✅ **Resource gathering** (punch trees/rocks to destroy them)
+- ✅ **Health system** (trees: 100 HP, rocks: 150 HP)
+- ✅ **Resource drops configured** (wood from trees, stone from rocks)
 
 ### Try It Out!
 
 ```bash
-# Terminal 1 - Launch server
-./launch_server.sh
+# Terminal 1 - Launch server (optionally set world name/seed)
+WORLD_NAME=myworld WORLD_SEED=12345 ./launch_server.sh
 
 # Terminal 2 - Launch client
 ./launch_client.sh
@@ -51,7 +56,7 @@ Hamberg aims to capture the magic of Valheim while being:
 ./launch_client.sh
 ```
 
-Connect both clients to `127.0.0.1:7777` and see each other move around in real-time!
+Connect clients to `127.0.0.1:7777`, explore the world, and **left-click to punch trees and rocks!**
 
 ---
 
@@ -72,20 +77,26 @@ Connect both clients to `127.0.0.1:7777` and see each other move around in real-
 - [x] Smart persistence (procedural + database)
 - [ ] Terrain editing (mining, building) - *deferred to Phase 4*
 
-### Phase 3: Combat & AI 🗡️
+### Phase 3: Combat & AI 🗡️ **(Deferred - doing Phase 4 first)**
 - [ ] Melee combat system
 - [ ] Ranged weapons (bow, spear)
-- [ ] Client-side hit detection
 - [ ] Enemy AI with pathfinding
 - [ ] Boss encounters
 - [ ] Death and respawn mechanics
 
-### Phase 4: Crafting & Building 🏗️
-- [ ] Resource gathering
+### Phase 4: Multi-World & Resource Gathering 🏗️ **IN PROGRESS**
+- [x] Multi-world system (unique names and seeds)
+- [x] Per-world storage and persistence
+- [x] World config synchronization (server → clients)
+- [x] Resource gathering (destructible environmental objects)
+- [x] Health system for trees, rocks, grass
+- [x] Client-side hit detection (punch/attack)
+- [x] Server-authoritative damage validation
+- [ ] Resource item pickups (wood, stone)
+- [ ] Inventory system
 - [ ] Crafting stations
 - [ ] Building system (walls, floors, roofs)
 - [ ] Structural integrity
-- [ ] Storage and chests
 
 ### Phase 5: Progression & Content 📈
 - [ ] Player skills and leveling
