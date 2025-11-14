@@ -1,0 +1,135 @@
+[gd_scene load_steps=3 format=3 uid="uid://dy3jxg8yn7p6n"]
+
+[ext_resource type="Script" path="res://client/client.gd" id="1_client"]
+[ext_resource type="PackedScene" uid="uid://c8k3m2vfwxjy3" path="res://shared/test_world.tscn" id="2_testworld"]
+
+[node name="Client" type="Node"]
+script = ExtResource("1_client")
+
+[node name="World" type="Node3D" parent="."]
+
+[node name="TestWorld" parent="World" instance=ExtResource("2_testworld")]
+
+[node name="Camera" type="Camera3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0.707107, 0.707107, 0, -0.707107, 0.707107, 0, 60, 20)
+current = true
+fov = 75.0
+
+[node name="VoxelViewer" type="Node" parent="Camera"]
+
+[node name="CanvasLayer" type="CanvasLayer" parent="."]
+
+[node name="ConnectionUI" type="Control" parent="CanvasLayer"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Panel" type="PanelContainer" parent="CanvasLayer/ConnectionUI"]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -200.0
+offset_top = -150.0
+offset_right = 200.0
+offset_bottom = 150.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="VBox" type="VBoxContainer" parent="CanvasLayer/ConnectionUI/Panel"]
+layout_mode = 2
+
+[node name="TitleLabel" type="Label" parent="CanvasLayer/ConnectionUI/Panel/VBox"]
+layout_mode = 2
+text = "Valheim Clone - Multiplayer"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="HSeparator" type="HSeparator" parent="CanvasLayer/ConnectionUI/Panel/VBox"]
+layout_mode = 2
+
+[node name="NameLabel" type="Label" parent="CanvasLayer/ConnectionUI/Panel/VBox"]
+layout_mode = 2
+text = "Player Name:"
+
+[node name="NameInput" type="LineEdit" parent="CanvasLayer/ConnectionUI/Panel/VBox"]
+layout_mode = 2
+placeholder_text = "Enter your name"
+max_length = 20
+
+[node name="IPLabel" type="Label" parent="CanvasLayer/ConnectionUI/Panel/VBox"]
+layout_mode = 2
+text = "Server IP:"
+
+[node name="IPInput" type="LineEdit" parent="CanvasLayer/ConnectionUI/Panel/VBox"]
+layout_mode = 2
+placeholder_text = "127.0.0.1"
+
+[node name="PortLabel" type="Label" parent="CanvasLayer/ConnectionUI/Panel/VBox"]
+layout_mode = 2
+text = "Port:"
+
+[node name="PortInput" type="LineEdit" parent="CanvasLayer/ConnectionUI/Panel/VBox"]
+layout_mode = 2
+placeholder_text = "7777"
+
+[node name="ConnectButton" type="Button" parent="CanvasLayer/ConnectionUI/Panel/VBox"]
+layout_mode = 2
+text = "Connect"
+
+[node name="StatusLabel" type="Label" parent="CanvasLayer/ConnectionUI/Panel/VBox"]
+layout_mode = 2
+text = "Enter server details and click Connect"
+horizontal_alignment = 1
+
+[node name="HUD" type="Control" parent="CanvasLayer"]
+visible = false
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="PingLabel" type="Label" parent="CanvasLayer/HUD"]
+layout_mode = 0
+offset_left = 10.0
+offset_top = 10.0
+offset_right = 150.0
+offset_bottom = 35.0
+text = "Ping: 0 ms"
+
+[node name="PlayersLabel" type="Label" parent="CanvasLayer/HUD"]
+layout_mode = 0
+offset_left = 10.0
+offset_top = 40.0
+offset_right = 150.0
+offset_bottom = 65.0
+text = "Players: 0"
+
+[node name="ControlsLabel" type="Label" parent="CanvasLayer/HUD"]
+layout_mode = 1
+anchors_preset = 3
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -300.0
+offset_top = -150.0
+offset_right = -10.0
+offset_bottom = -10.0
+grow_horizontal = 0
+grow_vertical = 0
+text = "Controls:
+WASD - Move
+Space - Jump
+Shift - Sprint
+Mouse - Look around (coming soon)"
+horizontal_alignment = 2
+vertical_alignment = 2

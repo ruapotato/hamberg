@@ -1,16 +1,28 @@
 # Godot 4+ specific ignores
 .godot/
-.nomedia
-
-# Godot-specific ignores
 .import/
-export.cfg
-export_credentials.cfg
-
-# Imported translations (automatically generated from CSV files)
-*.translation
 
 # Mono-specific ignores
 .mono/
 data_*/
 mono_crash.*.json
+
+# Build results
+builds/
+export/
+*.import
+
+# OS specific
+.DS_Store
+Thumbs.db
+
+# Editor
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# Logs
+*.log
+godot.linuxbsd.editor.x86_64

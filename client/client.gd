@@ -1,0 +1,231 @@
+extends Node
+
+## Client - Client-side game logic and UI
+## This handles client-specific systems like UI, local player camera, and rendering
+
+# Scene references
+var player_scene := preload("res://shared/player.tscn")
+
+# Client state
+var is_connected: bool = false
+var local_player: Node3D = null
+var remote_players: Dictionary = {} # peer_id -> Player node
+
+# UI references
+@onready var connection_ui: Control = $CanvasLayer/ConnectionUI
+@onready var hud: Control = $CanvasLayer/HUD
+@onready var ip_input: LineEdit = $CanvasLayer/ConnectionUI/Panel/VBox/IPInput
+@onready var port_input: LineEdit = $CanvasLayer/ConnectionUI/Panel/VBox/PortInput
+@onready var name_input: LineEdit = $CanvasLayer/ConnectionUI/Panel/VBox/NameInput
+@onready var connect_button: Button = $CanvasLayer/ConnectionUI/Panel/VBox/ConnectButton
+@onready var status_label: Label = $CanvasLayer/ConnectionUI/Panel/VBox/StatusLabel
+@onready var ping_label: Label = $CanvasLayer/HUD/PingLabel
+@onready var players_label: Label = $CanvasLayer/HUD/PlayersLabel
+
+# World and camera
+@onready var world: Node3D = $World
+@onready var camera: Camera3D = $Camera
+@onready var viewer: Node = $Camera/VoxelViewer  # For voxel terrain (Phase 2)
+
+func _ready() -> void:
+	print("[Client] Client node ready")
+
+	# Hide HUD initially
+	hud.visible = false
+
+	# Connect UI signals
+	connect_button.pressed.connect(_on_connect_button_pressed)
+
+	# Connect to network events
+	NetworkManager.client_connected.connect(_on_client_connected)
+	NetworkManager.client_disconnected.connect(_on_client_disconnected)
+
+	# Set default values
+	ip_input.text = "127.0.0.1"
+	port_input.text = str(NetworkManager.DEFAULT_PORT)
+	name_input.text = "Player" + str(randi() % 1000)
+
+	# Set up camera
+	camera.position = Vector3(0, 60, 20)
+	camera.rotation_degrees = Vector3(-45, 0, 0)
+
+func _process(_delta: float) -> void:
+	if is_connected:
+		_update_hud()
+
+func auto_connect_to_localhost() -> void:
+	"""Auto-connect to localhost for singleplayer mode"""
+	await get_tree().create_timer(0.1).timeout
+
+	ip_input.text = "127.0.0.1"
+	port_input.text = str(NetworkManager.DEFAULT_PORT)
+	_on_connect_button_pressed()
+
+func _on_connect_button_pressed() -> void:
+	var address := ip_input.text
+	var port := port_input.text.to_int()
+	var player_name := name_input.text
+
+	if address.is_empty():
+		_update_status("Please enter server address", true)
+		return
+
+	if player_name.is_empty():
+		_update_status("Please enter player name", true)
+		return
+
+	_update_status("Connecting to %s:%d..." % [address, port], false)
+	connect_button.disabled = true
+
+	# Connect to server
+	if NetworkManager.connect_to_server(address, port):
+		# Wait for connection result
+		pass
+	else:
+		_update_status("Failed to start connection", true)
+		connect_button.disabled = false
+
+func _on_client_connected() -> void:
+	print("[Client] Successfully connected to server!")
+	is_connected = true
+
+	# Register with server through NetworkManager
+	var player_name := name_input.text
+	NetworkManager.rpc_register_player.rpc_id(1, player_name)
+
+	# Hide connection UI, show HUD
+	connection_ui.visible = false
+	hud.visible = true
+
+	_update_status("Connected!", false)
+
+func _on_client_disconnected() -> void:
+	print("[Client] Disconnected from server")
+	is_connected = false
+
+	# Clean up players
+	if local_player:
+		local_player.queue_free()
+		local_player = null
+
+	for peer_id in remote_players:
+		var player = remote_players[peer_id]
+		if player and is_instance_valid(player):
+			player.queue_free()
+
+	remote_players.clear()
+
+	# Show connection UI, hide HUD
+	connection_ui.visible = true
+	hud.visible = false
+	connect_button.disabled = false
+
+	_update_status("Disconnected from server", true)
+
+func _update_status(text: String, is_error: bool) -> void:
+	status_label.text = text
+	status_label.modulate = Color.RED if is_error else Color.WHITE
+
+func _update_hud() -> void:
+	# Update ping
+	ping_label.text = "Ping: %.0f ms" % NetworkManager.ping
+
+	# Update player count
+	var player_count := 1 # Local player
+	player_count += remote_players.size()
+	players_label.text = "Players: %d" % player_count
+
+# ============================================================================
+# PLAYER MANAGEMENT (CLIENT-SIDE)
+# ============================================================================
+
+## Spawn a player on the client (called by NetworkManager)
+func spawn_player(peer_id: int, player_name: String, spawn_pos: Vector3) -> void:
+	print("[Client] Spawning player: %s (ID: %d)" % [player_name, peer_id])
+
+	var is_local := peer_id == NetworkManager.get_local_player_id()
+
+	# Instantiate player
+	var player: Node3D = player_scene.instantiate()
+	player.name = "Player_%d" % peer_id
+	player.set_multiplayer_authority(peer_id)
+
+	# Add to world FIRST (required before setting global_position)
+	world.add_child(player)
+
+	# Set spawn position AFTER adding to tree
+	player.global_position = spawn_pos
+
+	if is_local:
+		# This is our local player
+		local_player = player
+		print("[Client] Local player spawned")
+
+		# Attach camera to follow local player
+		_setup_camera_follow(player)
+	else:
+		# This is a remote player
+		remote_players[peer_id] = player
+		print("[Client] Remote player spawned")
+
+## Despawn a player on the client (called by NetworkManager)
+func despawn_player(peer_id: int) -> void:
+	print("[Client] Despawning player ID: %d" % peer_id)
+
+	if peer_id == NetworkManager.get_local_player_id():
+		if local_player:
+			local_player.queue_free()
+			local_player = null
+	else:
+		if remote_players.has(peer_id):
+			var player = remote_players[peer_id]
+			if player and is_instance_valid(player):
+				player.queue_free()
+			remote_players.erase(peer_id)
+
+## Receive player states from server for interpolation (called by NetworkManager)
+func receive_player_states(states: Array) -> void:
+	# Apply states to remote players (not local player, which uses prediction)
+	for state in states:
+		var peer_id: int = state.get("peer_id", 0)
+
+		# Skip local player (we use client prediction for that)
+		if peer_id == NetworkManager.get_local_player_id():
+			continue
+
+		if remote_players.has(peer_id):
+			var player = remote_players[peer_id]
+			if player and is_instance_valid(player) and player.has_method("apply_server_state"):
+				player.apply_server_state(state)
+
+## Receive hit broadcast from server (called by NetworkManager)
+func receive_hit(target_id: int, damage: float, hit_position: Vector3) -> void:
+	print("[Client] Hit received: target %d, damage %.1f" % [target_id, damage])
+
+	# TODO: Play hit effects
+	# For Phase 1, just log it
+
+# ============================================================================
+# CAMERA MANAGEMENT
+# ============================================================================
+
+func _setup_camera_follow(player: Node3D) -> void:
+	"""Set up camera to follow the player"""
+	# For Phase 1, use a simple third-person camera
+	# In Phase 2+, we can make this more sophisticated
+
+	# Create a camera anchor point
+	var camera_anchor := Node3D.new()
+	camera_anchor.name = "CameraAnchor"
+	player.add_child(camera_anchor)
+
+	# Reparent camera to anchor
+	var camera_parent := camera.get_parent()
+	camera_parent.remove_child(camera)
+	camera_anchor.add_child(camera)
+
+	# Position camera behind and above player
+	camera.position = Vector3(0, 3, 6)
+	camera.rotation_degrees = Vector3(-15, 0, 0)
+
+	print("[Client] Camera attached to local player")
