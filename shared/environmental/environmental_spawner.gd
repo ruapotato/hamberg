@@ -162,6 +162,9 @@ func _spawn_object(config: SpawnConfig, xz_pos: Vector2, voxel_world: Node3D, pa
 		push_error("[EnvironmentalSpawner] Failed to instantiate object!")
 		return null
 
+	# Add to scene first (required for global_position to work)
+	parent.add_child(obj)
+
 	# Set position
 	obj.global_position = surface_pos
 
@@ -172,9 +175,6 @@ func _spawn_object(config: SpawnConfig, xz_pos: Vector2, voxel_world: Node3D, pa
 	# Apply random scale
 	var scale_factor := rng.randf_range(config.scale_variation.x, config.scale_variation.y)
 	obj.scale = Vector3.ONE * scale_factor
-
-	# Add to scene
-	parent.add_child(obj)
 
 	return obj
 
