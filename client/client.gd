@@ -101,6 +101,9 @@ func _on_client_disconnected() -> void:
 
 	# Clean up players
 	if local_player:
+		# Unregister from environmental spawning
+		voxel_world.unregister_player_from_spawning(NetworkManager.get_local_player_id())
+
 		local_player.queue_free()
 		local_player = null
 
@@ -232,3 +235,7 @@ func _setup_camera_follow(player: Node3D) -> void:
 			viewer_parent.remove_child(viewer)
 			player.add_child(viewer)
 			print("[Client] VoxelViewer attached to local player")
+
+	# Register player with ChunkManager for environmental object spawning
+	voxel_world.register_player_for_spawning(NetworkManager.get_local_player_id(), player)
+	print("[Client] Player registered for environmental object spawning")

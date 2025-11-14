@@ -144,9 +144,6 @@ func _spawn_player(peer_id: int, player_name: String) -> void:
 	player.add_child(viewer)
 	player_viewers[peer_id] = viewer
 
-	# Register player for environmental object spawning
-	voxel_world.register_player_for_spawning(peer_id, player)
-
 	print("[Server] Spawned player %d at %s with VoxelViewer" % [peer_id, spawn_pos])
 
 	# Notify all clients to spawn this player through NetworkManager
@@ -164,9 +161,6 @@ func _spawn_player(peer_id: int, player_name: String) -> void:
 func _despawn_player(peer_id: int) -> void:
 	if not spawned_players.has(peer_id):
 		return
-
-	# Unregister from environmental spawning
-	voxel_world.unregister_player_from_spawning(peer_id)
 
 	# Clean up VoxelViewer
 	if player_viewers.has(peer_id):

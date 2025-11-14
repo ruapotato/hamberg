@@ -41,8 +41,9 @@ func _ready() -> void:
 	# Setup the generator (both server and client need this)
 	_setup_generator()
 
-	# Setup environmental object spawning (server only for now)
-	if is_server:
+	# Setup environmental object spawning (CLIENT-SIDE ONLY for visual objects)
+	# Uses deterministic seed so all clients see the same world
+	if not is_server:
 		_setup_chunk_manager()
 
 	is_initialized = true
