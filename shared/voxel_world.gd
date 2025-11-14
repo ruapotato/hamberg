@@ -5,7 +5,6 @@ extends Node3D
 
 @onready var terrain: VoxelLodTerrain = $VoxelLodTerrain
 @onready var multiplayer_sync: VoxelTerrainMultiplayerSynchronizer = $VoxelLodTerrain/VoxelTerrainMultiplayerSynchronizer
-@onready var instancer: VoxelInstancer = $VoxelLodTerrain/VoxelInstancer
 
 # World generation settings
 const WORLD_SEED: int = 42  # TODO: Make this configurable
@@ -38,9 +37,6 @@ func _ready() -> void:
 
 	# Setup the generator (both server and client need this)
 	_setup_generator()
-
-	# Setup instancer for environmental objects
-	_setup_instancer()
 
 	is_initialized = true
 	print("[VoxelWorld] Voxel terrain initialized (Server: %s)" % is_server)
@@ -81,54 +77,9 @@ func _setup_generator() -> void:
 
 	print("[VoxelWorld] Generator configured: Biome-based (distance + height)")
 
-	# Set up terrain material with biome coloring
-	_setup_terrain_material()
-
-func _setup_terrain_material() -> void:
-	print("[VoxelWorld] Setting up terrain material...")
-
-	# Load the shader
-	var shader := load("res://shared/terrain_material.gdshader") as Shader
-	if not shader:
-		push_error("[VoxelWorld] Failed to load terrain shader!")
-		return
-
-	# Create material
-	var material := ShaderMaterial.new()
-	material.shader = shader
-
-	# Assign to terrain
-	terrain.material_override = material
-
-	print("[VoxelWorld] Terrain material applied")
-
-func _setup_instancer() -> void:
-	print("[VoxelWorld] Setting up VoxelInstancer for environmental objects...")
-
-	# Load the instance library setup script
-	var VoxelInstanceLibrarySetup := preload("res://shared/voxel_instance_library_setup.gd")
-
-	# Create and configure the library
-	var library := VoxelInstanceLibrarySetup.create_library()
-
-	print("[VoxelWorld] Library created, item count: %d" % library.get_item_count())
-	print("[VoxelWorld] Library valid: %s" % (library != null))
-	print("[VoxelWorld] Library reference: %s" % library)
-
-	# Assign to instancer
-	instancer.library = library
-
-	print("[VoxelWorld] Library assigned to instancer")
-	print("[VoxelWorld] Instancer.library: %s" % instancer.library)
-	print("[VoxelWorld] Instancer.library item count: %d" % instancer.library.get_item_count())
-
-	# Wait a frame before enabling to ensure library is fully processed
-	await get_tree().process_frame
-
-	# Enable the instancer now that the library is set
-	instancer.process_mode = Node.PROCESS_MODE_INHERIT
-
-	print("[VoxelWorld] VoxelInstancer enabled with %d item types" % library.get_item_count())
+	# TODO: Set up terrain material with biome coloring
+	# VoxelLodTerrain material system needs investigation
+	# For now, using default material
 
 ## Get terrain height at a given XZ position (approximate)
 ## Useful for spawning players/objects on the surface
