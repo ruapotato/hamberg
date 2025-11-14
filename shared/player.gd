@@ -49,7 +49,13 @@ var viewmodel_arms: Node3D = null
 # Player body visuals
 var body_container: Node3D = null
 
+# Inventory (client-authoritative)
+var inventory: Node = null
+
 func _ready() -> void:
+	# Create inventory
+	var Inventory = preload("res://shared/inventory.gd")
+	inventory = Inventory.new(get_multiplayer_authority())
 	# Determine if this is the local player
 	is_local_player = is_multiplayer_authority()
 
@@ -466,3 +472,24 @@ func setup_viewmodel() -> void:
 		return
 
 	print("[Player] Viewmodel setup (arms are now part of player body)")
+
+# ============================================================================
+# INVENTORY & ITEM PICKUP
+# ============================================================================
+
+## Pick up an item (called by resource items on collision)
+func pickup_item(item_name: String, amount: int) -> void:
+	if not inventory:
+		return
+
+	var remaining = inventory.add_item(item_name, amount)
+
+	if remaining < amount:
+		var picked_up = amount - remaining
+		print("[Player] Picked up %d x %s" % [picked_up, item_name])
+
+		# Play pickup sound (TODO)
+		# Show pickup notification (TODO)
+
+	if remaining > 0:
+		print("[Player] Inventory full! Couldn't pick up %d x %s" % [remaining, item_name])

@@ -457,11 +457,28 @@ func _spawn_resource_drops(resources: Dictionary, position: Vector3) -> void:
 
 	print("[Server] Spawning resources: %s at %s" % [resources, position])
 
-	# TODO: Implement actual resource item spawning
-	# For now, just log what would be spawned
+	var resource_scene = preload("res://shared/resource_item.tscn")
+
 	for resource_type in resources:
 		var amount: int = resources[resource_type]
-		print("[Server] Would spawn %d x %s" % [amount, resource_type])
+
+		# Spawn individual items (could group them later for performance)
+		for i in amount:
+			var item = resource_scene.instantiate()
+			item.set_item_data(resource_type, 1)
+
+			# Random spawn offset
+			var offset = Vector3(
+				randf_range(-0.5, 0.5),
+				0.5,
+				randf_range(-0.5, 0.5)
+			)
+			item.global_position = position + offset
+
+			# Add to scene
+			get_node("/root/Main/Server").add_child(item)
+
+		print("[Server] Spawned %d x %s at %s" % [amount, resource_type, position])
 
 # ============================================================================
 # CONSOLE COMMANDS (for dedicated server)
