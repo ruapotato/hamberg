@@ -288,10 +288,15 @@ func receive_environmental_objects(chunk_pos: Vector2i, objects_data: Array) -> 
 		var obj = obj_scene.instantiate()
 		environmental_objects_container.add_child(obj)
 
-		# Set transform
-		obj.global_position = Vector3(pos_array[0], pos_array[1], pos_array[2])
+		# Set transform from server data
+		var server_pos = Vector3(pos_array[0], pos_array[1], pos_array[2])
+		obj.global_position = server_pos
 		obj.rotation = Vector3(rot_array[0], rot_array[1], rot_array[2])
 		obj.scale = Vector3(scale_array[0], scale_array[1], scale_array[2])
+
+		# Debug: Log first object in chunk to verify position
+		if obj_id == 0:
+			print("[Client DEBUG] Chunk %s first %s at %s" % [chunk_pos, obj_type, server_pos])
 
 		# Set object type
 		if obj.has_method("set_object_type"):

@@ -140,13 +140,18 @@ func _on_chunk_loaded(chunk_pos: Vector2i) -> void:
 				if obj.has_method("get_object_type"):
 					obj_type = obj.get_object_type()
 
+				var obj_pos = obj.global_position
 				objects_data.append({
 					"id": i,  # Local ID within chunk
 					"type": obj_type,
-					"pos": [obj.global_position.x, obj.global_position.y, obj.global_position.z],
+					"pos": [obj_pos.x, obj_pos.y, obj_pos.z],
 					"rot": [obj.rotation.x, obj.rotation.y, obj.rotation.z],
 					"scale": [obj.scale.x, obj.scale.y, obj.scale.z]
 				})
+
+				# Debug: Log first object in chunk
+				if i == 0:
+					print("[Server DEBUG] Chunk %s first %s at %s" % [chunk_pos, obj_type, obj_pos])
 
 	# Broadcast to all clients
 	if objects_data.size() > 0:
