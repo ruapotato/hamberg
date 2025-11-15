@@ -132,7 +132,7 @@ func _update_ghost_position() -> void:
 
 				target_position = hit_point
 		else:
-			# Try to find nearby snap point first
+			# ALWAYS try to find nearby floors first, even if we hit ground
 			var snap_result = _find_nearest_snap_point(hit_point)
 
 			if snap_result.has("position"):
@@ -141,7 +141,7 @@ func _update_ghost_position() -> void:
 				target_rotation = snap_result.get("rotation", target_rotation)
 				is_snapped_to_piece = true
 			else:
-				# No snap point found, use ground placement
+				# No nearby floors - use ground placement
 				# Snap to grid (only X and Z, not Y)
 				if ghost_preview.snap_to_grid:
 					var grid = ghost_preview.grid_size
@@ -157,6 +157,7 @@ func _update_ghost_position() -> void:
 					hit_point.y += offset_y
 
 				target_position = hit_point
+				is_snapped_to_piece = false
 
 		ghost_preview.global_position = target_position
 		ghost_preview.rotation.y = target_rotation

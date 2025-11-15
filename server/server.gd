@@ -12,6 +12,9 @@ var spawned_players: Dictionary = {} # peer_id -> Player node
 var player_viewers: Dictionary = {} # peer_id -> VoxelViewer node
 var player_spawn_area_center: Vector2 = Vector2(0, 0) # Center of spawn area
 
+# Buildable management
+var placed_buildables: Dictionary = {} # network_id -> {piece_name, position, rotation_y}
+
 # World configuration
 var world_config = null  # Will be WorldConfig instance
 const DEFAULT_WORLD_NAME: String = "world"
@@ -235,6 +238,26 @@ func _send_loaded_chunks_to_player(peer_id: int) -> void:
 
 	print("[Server] Sent %d loaded chunks to player %d" % [chunks_sent, peer_id])
 
+func _send_buildables_to_player(peer_id: int) -> void:
+	if placed_buildables.is_empty():
+		print("[Server] No buildables to send to player %d" % peer_id)
+		return
+
+	var buildables_sent := 0
+
+	# Send each buildable to the new player
+	for net_id in placed_buildables.keys():
+		var buildable_data = placed_buildables[net_id]
+		var piece_name = buildable_data.piece_name
+		var position = buildable_data.position
+		var rotation_y = buildable_data.rotation_y
+
+		# Send to this specific client only
+		NetworkManager.rpc_spawn_buildable.rpc_id(peer_id, piece_name, position, rotation_y, net_id)
+		buildables_sent += 1
+
+	print("[Server] Sent %d buildables to player %d" % [buildables_sent, peer_id])
+
 # ============================================================================
 # PLAYER MANAGEMENT (SERVER-AUTHORITATIVE)
 # ============================================================================
@@ -296,6 +319,9 @@ func _spawn_player(peer_id: int, player_name: String) -> void:
 
 		# Send all currently loaded chunks to the new player
 		_send_loaded_chunks_to_player(peer_id)
+
+	# Send all existing buildables to the new player
+	_send_buildables_to_player(peer_id)
 
 	# Notify all clients to spawn this player through NetworkManager
 	print("[Server] Broadcasting spawn for player %d to all clients" % peer_id)
@@ -470,6 +496,13 @@ func handle_place_buildable(peer_id: int, piece_name: String, position: Vector3,
 
 	# Generate unique network ID for this buildable
 	var net_id = "%d_%s_%d" % [peer_id, piece_name, Time.get_ticks_msec()]
+
+	# Store buildable for persistence and new client sync
+	placed_buildables[net_id] = {
+		"piece_name": piece_name,
+		"position": [position.x, position.y, position.z],
+		"rotation_y": rotation_y
+	}
 
 	# Broadcast to all clients to spawn the buildable
 	var pos_array = [position.x, position.y, position.z]
