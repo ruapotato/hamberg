@@ -248,7 +248,7 @@ func _find_nearest_snap_point(cursor_position: Vector3) -> Dictionary:
 
 	return nearest_snap
 
-## Special snapping for walls stacking on walls - uses raycast proximity
+## Special snapping for walls - uses raycast proximity for both floors and walls
 func _find_wall_stack_snap(cursor_position: Vector3) -> Dictionary:
 	if not world or not ghost_preview or not camera:
 		return {}
@@ -262,26 +262,33 @@ func _find_wall_stack_snap(cursor_position: Vector3) -> Dictionary:
 
 	const MAX_PERPENDICULAR_DISTANCE: float = 3.0  # Snap if within 3m of ray
 
-	# Search for nearby walls to stack on
+	# Search for nearby pieces (walls and floors) to snap to
 	for child in world.get_children():
 		if child == ghost_preview:
 			continue
 
-		# Only look for other walls
-		if not ("piece_name" in child) or child.piece_name != "wooden_wall":
+		# Look for walls and floors
+		if not ("piece_name" in child):
 			continue
 
-		# Skip if wall is too far behind or in front of camera
-		var to_wall = child.global_position - camera_pos
-		var distance_along_camera = to_wall.dot(camera_forward)
+		var is_wall = child.piece_name == "wooden_wall"
+		var is_floor = child.piece_name == "wooden_floor"
+
+		if not is_wall and not is_floor:
+			continue
+
+		# Skip if piece is too far behind or in front of camera
+		var to_piece = child.global_position - camera_pos
+		var distance_along_camera = to_piece.dot(camera_forward)
 		if distance_along_camera < 0 or distance_along_camera > placement_distance + 5.0:
 			continue
 
-		# Check each wall_top snap point
+		# Check each snap point (wall_top for walls, floor_top for floors)
 		if "snap_points" in child:
 			for snap_point in child.snap_points:
 				var snap_type: String = snap_point.get("type", "")
-				if snap_type != "wall_top":
+				# Accept both wall_top and floor_top snap points
+				if snap_type != "wall_top" and snap_type != "floor_top":
 					continue
 
 				var snap_pos_local: Vector3 = snap_point.position

@@ -32,7 +32,7 @@ func _setup_snap_points() -> void:
 	# Define snap points based on piece type
 	match piece_name:
 		"wooden_floor":
-			# Floor: 4 corner snaps (for creating grid) + edge/center tops (for walls)
+			# Floor: 4 corner snaps (for creating grid) + comprehensive top surface snaps for walls
 			var half_x = grid_size.x / 2.0
 			var half_z = grid_size.z / 2.0
 			var half_height = grid_size.y / 2.0
@@ -45,13 +45,32 @@ func _setup_snap_points() -> void:
 			snap_points.append({"position": Vector3(-half_x, 0, -half_z), "normal": Vector3.ZERO, "type": "floor_corner", "corner_id": "sw"})
 			snap_points.append({"position": Vector3(half_x, 0, -half_z), "normal": Vector3.ZERO, "type": "floor_corner", "corner_id": "se"})
 
-			# Top surface snap points for walls to attach
-			# Inset from edges by wall_inset to prevent overhang
+			# Top surface snap points for walls - comprehensive coverage with corners and edges
 			snap_points.append({"position": Vector3(0, half_height, 0), "normal": Vector3.UP, "type": "floor_top"})  # Center
-			snap_points.append({"position": Vector3(half_x - wall_inset, half_height, 0), "normal": Vector3.UP, "type": "floor_top"})  # East edge
-			snap_points.append({"position": Vector3(-half_x + wall_inset, half_height, 0), "normal": Vector3.UP, "type": "floor_top"})  # West edge
-			snap_points.append({"position": Vector3(0, half_height, half_z - wall_inset), "normal": Vector3.UP, "type": "floor_top"})  # North edge
-			snap_points.append({"position": Vector3(0, half_height, -half_z + wall_inset), "normal": Vector3.UP, "type": "floor_top"})  # South edge
+
+			# North edge (5 points)
+			snap_points.append({"position": Vector3(-half_x + wall_inset, half_height, half_z - wall_inset), "normal": Vector3.UP, "type": "floor_top"})  # NW corner
+			snap_points.append({"position": Vector3(-half_x * 0.5, half_height, half_z - wall_inset), "normal": Vector3.UP, "type": "floor_top"})  # North left quarter
+			snap_points.append({"position": Vector3(0, half_height, half_z - wall_inset), "normal": Vector3.UP, "type": "floor_top"})  # North center
+			snap_points.append({"position": Vector3(half_x * 0.5, half_height, half_z - wall_inset), "normal": Vector3.UP, "type": "floor_top"})  # North right quarter
+			snap_points.append({"position": Vector3(half_x - wall_inset, half_height, half_z - wall_inset), "normal": Vector3.UP, "type": "floor_top"})  # NE corner
+
+			# South edge (5 points)
+			snap_points.append({"position": Vector3(-half_x + wall_inset, half_height, -half_z + wall_inset), "normal": Vector3.UP, "type": "floor_top"})  # SW corner
+			snap_points.append({"position": Vector3(-half_x * 0.5, half_height, -half_z + wall_inset), "normal": Vector3.UP, "type": "floor_top"})  # South left quarter
+			snap_points.append({"position": Vector3(0, half_height, -half_z + wall_inset), "normal": Vector3.UP, "type": "floor_top"})  # South center
+			snap_points.append({"position": Vector3(half_x * 0.5, half_height, -half_z + wall_inset), "normal": Vector3.UP, "type": "floor_top"})  # South right quarter
+			snap_points.append({"position": Vector3(half_x - wall_inset, half_height, -half_z + wall_inset), "normal": Vector3.UP, "type": "floor_top"})  # SE corner
+
+			# East edge (3 intermediate points - corners already covered above)
+			snap_points.append({"position": Vector3(half_x - wall_inset, half_height, half_z * 0.5), "normal": Vector3.UP, "type": "floor_top"})  # East north quarter
+			snap_points.append({"position": Vector3(half_x - wall_inset, half_height, 0), "normal": Vector3.UP, "type": "floor_top"})  # East center
+			snap_points.append({"position": Vector3(half_x - wall_inset, half_height, -half_z * 0.5), "normal": Vector3.UP, "type": "floor_top"})  # East south quarter
+
+			# West edge (3 intermediate points - corners already covered above)
+			snap_points.append({"position": Vector3(-half_x + wall_inset, half_height, half_z * 0.5), "normal": Vector3.UP, "type": "floor_top"})  # West north quarter
+			snap_points.append({"position": Vector3(-half_x + wall_inset, half_height, 0), "normal": Vector3.UP, "type": "floor_top"})  # West center
+			snap_points.append({"position": Vector3(-half_x + wall_inset, half_height, -half_z * 0.5), "normal": Vector3.UP, "type": "floor_top"})  # West south quarter
 
 		"wooden_wall":
 			# Wall: 2 side snaps (for adjacent walls) + bottom (for floor) + top (for walls above)
