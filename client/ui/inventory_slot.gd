@@ -102,9 +102,13 @@ func _set_placeholder_icon(item: String) -> void:
 			color = Color(0.8, 0.5, 0.2)  # Copper color
 		"resin":
 			color = Color(0.9, 0.7, 0.0)  # Golden/amber color
-		"wooden_club", "hammer", "torch", "stone_axe", "stone_pickaxe":
+		"wooden_club", "hammer", "stone_axe", "stone_pickaxe":
 			color = Color(0.7, 0.6, 0.4)  # Tool color
-		"workbench", "wooden_wall", "wooden_floor", "wooden_door", "wooden_beam":
+		"torch":
+			color = Color(0.9, 0.6, 0.1)  # Torch orange
+		"workbench":
+			color = Color(0.6, 0.4, 0.2)  # Workbench brown
+		"wooden_wall", "wooden_floor", "wooden_door", "wooden_beam", "wooden_roof":
 			color = Color(0.5, 0.35, 0.2)  # Building material
 		_:
 			color = Color(0.8, 0.8, 0.8)  # Default light gray

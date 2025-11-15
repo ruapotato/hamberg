@@ -20,6 +20,7 @@ var inventory_panel_ui: Control = null
 
 # Build mode
 var build_mode: Node = null
+var placement_mode: Node = null
 var current_equipped_item: String = ""
 
 # Environmental objects
@@ -55,6 +56,11 @@ func _ready() -> void:
 	var BuildMode = preload("res://client/build_mode.gd")
 	build_mode = BuildMode.new()
 	add_child(build_mode)
+
+	# Create placement mode
+	var PlacementMode = preload("res://client/placement_mode.gd")
+	placement_mode = PlacementMode.new()
+	add_child(placement_mode)
 
 	# Hide HUD initially
 	hud.visible = false
@@ -311,15 +317,21 @@ func _setup_inventory_ui(player: Node3D) -> void:
 func _on_hotbar_selection_changed(slot_index: int, item_name: String) -> void:
 	current_equipped_item = item_name
 
-	# Toggle build mode if hammer is equipped
+	var camera = _get_camera()
+
+	# Deactivate all modes first
+	if build_mode.is_active:
+		build_mode.deactivate()
+	if placement_mode.is_active:
+		placement_mode.deactivate()
+
+	# Activate appropriate mode based on equipped item
 	if item_name == "hammer":
-		if not build_mode.is_active:
-			var camera = _get_camera()
-			if camera and local_player:
-				build_mode.activate(local_player, camera, world)
-	else:
-		if build_mode.is_active:
-			build_mode.deactivate()
+		if camera and local_player:
+			build_mode.activate(local_player, camera, world)
+	elif item_name == "workbench":
+		if camera and local_player:
+			placement_mode.activate(local_player, camera, world, item_name)
 
 ## Get the current camera
 func _get_camera() -> Camera3D:

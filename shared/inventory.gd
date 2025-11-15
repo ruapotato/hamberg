@@ -10,6 +10,10 @@ const MAX_STACK_SIZE: Dictionary = {
 	"iron": 50,
 	"copper": 50,
 	"resin": 50,
+	"wooden_club": 1,
+	"hammer": 1,
+	"torch": 20,
+	"workbench": 1,
 }
 
 # Inventory data: Array of {item: String, amount: int}
