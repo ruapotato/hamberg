@@ -198,6 +198,12 @@ func _find_nearest_snap_point(cursor_position: Vector3) -> Dictionary:
 	if current_piece_name == "wooden_floor":
 		return _find_floor_grid_snap(cursor_position)
 
+	# For walls trying to stack on walls, use special detection
+	if current_piece_name == "wooden_wall":
+		var wall_stack_result = _find_wall_stack_snap(cursor_position)
+		if not wall_stack_result.is_empty():
+			return wall_stack_result
+
 	# For other pieces, use the old snap point system
 	var nearest_snap: Dictionary = {}
 	var nearest_distance: float = snap_distance_threshold
@@ -239,6 +245,51 @@ func _find_nearest_snap_point(cursor_position: Vector3) -> Dictionary:
 				if distance < nearest_distance:
 					nearest_distance = distance
 					nearest_snap = our_snap_result
+
+	return nearest_snap
+
+## Special snapping for walls stacking on walls
+func _find_wall_stack_snap(cursor_position: Vector3) -> Dictionary:
+	if not world or not ghost_preview or not camera:
+		return {}
+
+	var nearest_snap: Dictionary = {}
+	var nearest_distance: float = INF
+	var camera_pos = camera.global_position
+
+	# Search for nearby walls to stack on
+	for child in world.get_children():
+		if child == ghost_preview:
+			continue
+
+		# Only look for other walls
+		if not ("piece_name" in child) or child.piece_name != "wooden_wall":
+			continue
+
+		# Skip if too far from camera (not cursor - walls might be tall)
+		if child.global_position.distance_to(camera_pos) > snap_search_radius:
+			continue
+
+		# Check each wall_top snap point
+		if "snap_points" in child:
+			for snap_point in child.snap_points:
+				var snap_type: String = snap_point.get("type", "")
+				if snap_type != "wall_top":
+					continue
+
+				var snap_pos_local: Vector3 = snap_point.position
+				var snap_pos_global: Vector3 = child.global_transform * snap_pos_local
+
+				# Calculate where our wall should be placed
+				var our_snap_result = _find_matching_snap_point(snap_pos_global, Vector3.UP, child.rotation.y, snap_type, cursor_position)
+
+				if our_snap_result.has("position"):
+					# Use distance from camera, not cursor, for better detection
+					var distance = camera_pos.distance_to(snap_pos_global)
+
+					if distance < nearest_distance:
+						nearest_distance = distance
+						nearest_snap = our_snap_result
 
 	return nearest_snap
 
@@ -425,7 +476,8 @@ func _find_matching_snap_point(target_pos: Vector3, target_normal: Vector3, targ
 			var our_type: String = our_snap.get("type", "")
 			if our_type == "wall_bottom":
 				var our_pos_local: Vector3 = our_snap.position
-				var rotated_snap_pos = Vector3(our_pos_local.x, our_pos_local.y, our_pos_local.z).rotated(Vector3.UP, ghost_preview.rotation.y)
+				# Rotate by target_rotation (the wall we're snapping to), not ghost's current rotation
+				var rotated_snap_pos = Vector3(our_pos_local.x, our_pos_local.y, our_pos_local.z).rotated(Vector3.UP, target_rotation)
 				var our_center_pos = target_pos - rotated_snap_pos
 
 				return {
