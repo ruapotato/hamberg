@@ -26,9 +26,9 @@ var placement_distance: float = 15.0  # Increased from 5.0 for better reach
 var can_place_current: bool = false
 
 # Snapping
-var snap_distance_threshold: float = 8.0  # Snap when within 8 units of a valid snap position
+var snap_distance_threshold: float = 12.0  # Snap when within 12 units of a valid snap position (increased for wall stacking)
 var is_snapped_to_piece: bool = false  # Whether currently snapped to another piece
-var snap_search_radius: float = 8.0  # Search for nearby pieces within 8 units for grid reference
+var snap_search_radius: float = 12.0  # Search for nearby pieces within 12 units (increased for wall stacking)
 var debug_snap: bool = false  # Enable debug logging for snapping
 var placed_buildables: Dictionary = {}  # Track placed positions to avoid duplicate snaps
 
