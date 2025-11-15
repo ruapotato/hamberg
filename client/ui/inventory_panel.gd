@@ -173,11 +173,6 @@ func _on_craft_button_pressed(recipe: Dictionary) -> void:
 	var stations = ["workbench"]  # Temporary: treat as if always near workbench
 
 	if CraftingRecipes.craft_item(recipe, player_inventory, stations):
-		var output_item = recipe.get("output_item")
-		print("[InventoryPanel] Successfully crafted %s" % output_item)
-		var inv_data = player_inventory.get_inventory_data()
-		print("[InventoryPanel] Inventory after craft: %s" % str(inv_data))
-
 		# Force immediate refresh of both inventory panel and hotbar
 		refresh_display()
 		_update_recipe_buttons()
@@ -186,7 +181,6 @@ func _on_craft_button_pressed(recipe: Dictionary) -> void:
 		var hotbar = get_node_or_null("/root/Main/Client/CanvasLayer/Hotbar")
 		if hotbar and hotbar.has_method("refresh_display"):
 			hotbar.refresh_display()
-			print("[InventoryPanel] Forced hotbar refresh")
 	else:
 		var required_station: String = recipe.get("crafting_station", "")
 		if not required_station.is_empty() and not stations.has(required_station):

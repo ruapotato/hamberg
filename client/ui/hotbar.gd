@@ -73,17 +73,13 @@ func set_player_inventory(inventory: Node) -> void:
 ## Refresh hotbar display from inventory data
 func refresh_display() -> void:
 	if not player_inventory:
-		print("[Hotbar] Cannot refresh - no player_inventory")
 		return
 
 	var inventory_data = player_inventory.get_inventory_data()
-	print("[Hotbar] Refreshing display with %d inventory items" % inventory_data.size())
 
 	for i in HOTBAR_SIZE:
 		if i < inventory_data.size():
-			var item_data = inventory_data[i]
-			print("[Hotbar] Slot %d: %s" % [i, str(item_data)])
-			slots[i].set_item_data(item_data)
+			slots[i].set_item_data(inventory_data[i])
 		else:
 			slots[i].set_item_data({})
 
