@@ -66,10 +66,12 @@ func _setup_snap_points() -> void:
 			# No Z-offset to avoid rotation issues
 			snap_points.append({"position": Vector3(0, -half_height, 0), "normal": Vector3.DOWN, "type": "wall_bottom"})
 
-			# Top snaps (for walls/roof above) - multiple points for easier stacking
+			# Top snaps (for walls/roof above) - corners + intermediate points for raycast detection
+			snap_points.append({"position": Vector3(-half_x, half_height, 0), "normal": Vector3.UP, "type": "wall_top"})  # Left corner
+			snap_points.append({"position": Vector3(-half_x * 0.5, half_height, 0), "normal": Vector3.UP, "type": "wall_top"})  # Left quarter
 			snap_points.append({"position": Vector3(0, half_height, 0), "normal": Vector3.UP, "type": "wall_top"})  # Center
 			snap_points.append({"position": Vector3(half_x * 0.5, half_height, 0), "normal": Vector3.UP, "type": "wall_top"})  # Right quarter
-			snap_points.append({"position": Vector3(-half_x * 0.5, half_height, 0), "normal": Vector3.UP, "type": "wall_top"})  # Left quarter
+			snap_points.append({"position": Vector3(half_x, half_height, 0), "normal": Vector3.UP, "type": "wall_top"})  # Right corner
 
 		"wooden_beam":
 			# Beam: similar to wall but can attach at various points

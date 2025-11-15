@@ -248,14 +248,19 @@ func _find_nearest_snap_point(cursor_position: Vector3) -> Dictionary:
 
 	return nearest_snap
 
-## Special snapping for walls stacking on walls
+## Special snapping for walls stacking on walls - uses raycast proximity
 func _find_wall_stack_snap(cursor_position: Vector3) -> Dictionary:
 	if not world or not ghost_preview or not camera:
 		return {}
 
-	var nearest_snap: Dictionary = {}
-	var nearest_distance: float = INF
 	var camera_pos = camera.global_position
+	var camera_forward = -camera.global_transform.basis.z  # Forward direction (normalized)
+
+	var best_snap: Dictionary = {}
+	var best_distance_from_ray: float = INF
+	var best_distance_along_ray: float = INF
+
+	const MAX_PERPENDICULAR_DISTANCE: float = 3.0  # Snap if within 3m of ray
 
 	# Search for nearby walls to stack on
 	for child in world.get_children():
@@ -266,8 +271,10 @@ func _find_wall_stack_snap(cursor_position: Vector3) -> Dictionary:
 		if not ("piece_name" in child) or child.piece_name != "wooden_wall":
 			continue
 
-		# Skip if too far from camera (not cursor - walls might be tall)
-		if child.global_position.distance_to(camera_pos) > snap_search_radius:
+		# Skip if wall is too far behind or in front of camera
+		var to_wall = child.global_position - camera_pos
+		var distance_along_camera = to_wall.dot(camera_forward)
+		if distance_along_camera < 0 or distance_along_camera > placement_distance + 5.0:
 			continue
 
 		# Check each wall_top snap point
@@ -280,18 +287,40 @@ func _find_wall_stack_snap(cursor_position: Vector3) -> Dictionary:
 				var snap_pos_local: Vector3 = snap_point.position
 				var snap_pos_global: Vector3 = child.global_transform * snap_pos_local
 
-				# Calculate where our wall should be placed
-				var our_snap_result = _find_matching_snap_point(snap_pos_global, Vector3.UP, child.rotation.y, snap_type, cursor_position)
+				# Calculate closest point on camera ray to this snap point
+				var to_snap = snap_pos_global - camera_pos
+				var distance_along_ray = to_snap.dot(camera_forward)
 
-				if our_snap_result.has("position"):
-					# Use distance from camera, not cursor, for better detection
-					var distance = camera_pos.distance_to(snap_pos_global)
+				# Skip if snap point is behind camera or too far
+				if distance_along_ray < 0 or distance_along_ray > placement_distance + 5.0:
+					continue
 
-					if distance < nearest_distance:
-						nearest_distance = distance
-						nearest_snap = our_snap_result
+				# Calculate perpendicular distance from ray to snap point
+				var closest_point_on_ray = camera_pos + camera_forward * distance_along_ray
+				var perpendicular_distance = snap_pos_global.distance_to(closest_point_on_ray)
 
-	return nearest_snap
+				# Skip if snap point is too far from the ray
+				if perpendicular_distance > MAX_PERPENDICULAR_DISTANCE:
+					continue
+
+				# This is a valid candidate - pick the one closest to the ray, then closest along ray
+				var is_better = false
+				if perpendicular_distance < best_distance_from_ray - 0.1:  # Significantly closer to ray
+					is_better = true
+				elif abs(perpendicular_distance - best_distance_from_ray) < 0.1:  # Similar distance to ray
+					if distance_along_ray < best_distance_along_ray:  # Prefer closer along ray
+						is_better = true
+
+				if is_better:
+					# Calculate where our wall should be placed
+					var our_snap_result = _find_matching_snap_point(snap_pos_global, Vector3.UP, child.rotation.y, snap_type, cursor_position)
+
+					if our_snap_result.has("position"):
+						best_snap = our_snap_result
+						best_distance_from_ray = perpendicular_distance
+						best_distance_along_ray = distance_along_ray
+
+	return best_snap
 
 ## Floor grid snapping - snap to grid coordinates aligned with nearby floors
 func _find_floor_grid_snap(cursor_position: Vector3) -> Dictionary:
