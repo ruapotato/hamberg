@@ -26,6 +26,7 @@ func _ready() -> void:
 
 func _populate_piece_list() -> void:
 	if not piece_list:
+		print("[BuildMenu] ERROR: piece_list is null!")
 		return
 
 	# Clear existing buttons
@@ -47,6 +48,8 @@ func _populate_piece_list() -> void:
 
 		piece_list.add_child(button)
 
+	print("[BuildMenu] Created %d buttons" % piece_list.get_child_count())
+
 func _on_piece_button_pressed(piece_name: String) -> void:
 	print("[BuildMenu] Selected piece: %s" % piece_name)
 	piece_selected.emit(piece_name)
@@ -64,6 +67,9 @@ func show_menu() -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
 	print("[BuildMenu] Opened - Select a building piece")
+	print("[BuildMenu] Debug - visible: %s, position: %s, size: %s" % [visible, position, size])
+	if panel:
+		print("[BuildMenu] Debug - panel visible: %s, position: %s, size: %s" % [panel.visible, panel.position, panel.size])
 
 ## Hide the build menu
 func hide_menu() -> void:

@@ -43,7 +43,8 @@ func _input(event: InputEvent) -> void:
 		return
 
 	# Mouse look (only when captured)
-	if event is InputEventMouseMotion and is_mouse_captured:
+	# Check actual mouse mode in case it was changed externally (e.g., by inventory UI)
+	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		_handle_mouse_look(event.relative)
 
 	# Scroll wheel zoom
