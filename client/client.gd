@@ -423,10 +423,14 @@ func _get_camera() -> Camera3D:
 	if local_player:
 		var camera_controller = local_player.get_node_or_null("CameraController")
 		if camera_controller:
-			var cam = camera_controller.get_node_or_null("Camera3D")
-			if not cam:
-				print("[Client] _get_camera: Camera3D not found under CameraController")
-			return cam
+			var spring_arm = camera_controller.get_node_or_null("SpringArm3D")
+			if spring_arm:
+				var cam = spring_arm.get_node_or_null("Camera3D")
+				if not cam:
+					print("[Client] _get_camera: Camera3D not found under SpringArm3D")
+				return cam
+			else:
+				print("[Client] _get_camera: SpringArm3D not found under CameraController")
 		else:
 			print("[Client] _get_camera: CameraController not found on local_player")
 	else:
