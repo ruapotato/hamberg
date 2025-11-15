@@ -45,6 +45,7 @@ func activate(p_player: Node3D, p_camera: Camera3D, p_world: Node3D) -> void:
 
 	_create_ghost_preview()
 	print("[BuildMode] Activated - Use mouse wheel to cycle pieces, left-click to place, R to rotate")
+	print("[BuildMode] Current piece: %s (1/%d)" % [current_piece_name, piece_names.size()])
 
 func deactivate() -> void:
 	if not is_active:
@@ -143,7 +144,8 @@ func cycle_piece(direction: int) -> void:
 	_destroy_ghost_preview()
 	_create_ghost_preview()
 
-	print("[BuildMode] Selected: %s" % current_piece_name)
+	var display_name = current_piece_name.replace("_", " ").capitalize()
+	print("[BuildMode] Selected: %s (%d/%d)" % [display_name, current_piece_index + 1, piece_names.size()])
 
 func rotate_preview() -> void:
 	if ghost_preview:

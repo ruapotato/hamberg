@@ -56,11 +56,13 @@ func _ready() -> void:
 	var BuildMode = preload("res://client/build_mode.gd")
 	build_mode = BuildMode.new()
 	add_child(build_mode)
+	build_mode.build_piece_placed.connect(_on_build_piece_placed)
 
 	# Create placement mode
 	var PlacementMode = preload("res://client/placement_mode.gd")
 	placement_mode = PlacementMode.new()
 	add_child(placement_mode)
+	placement_mode.item_placed.connect(_on_item_placed)
 
 	# Hide HUD initially
 	hud.visible = false
@@ -332,6 +334,20 @@ func _on_hotbar_selection_changed(slot_index: int, item_name: String) -> void:
 	elif item_name == "workbench":
 		if camera and local_player:
 			placement_mode.activate(local_player, camera, world, item_name)
+
+## Handle build piece placement from build mode
+func _on_build_piece_placed(piece_name: String, position: Vector3, rotation_y: float) -> void:
+	print("[Client] Requesting placement of %s at %s" % [piece_name, position])
+	# TODO: Request server to place the buildable
+	# For now, just log it
+	# NetworkManager.rpc_place_buildable.rpc_id(1, piece_name, position, rotation_y)
+
+## Handle item placement from placement mode
+func _on_item_placed(item_name: String, position: Vector3, rotation_y: float) -> void:
+	print("[Client] Requesting placement of %s at %s" % [item_name, position])
+	# TODO: Request server to place the item as a buildable
+	# For now, just log it
+	# NetworkManager.rpc_place_buildable.rpc_id(1, item_name, position, rotation_y)
 
 ## Get the current camera
 func _get_camera() -> Camera3D:

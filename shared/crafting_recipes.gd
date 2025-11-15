@@ -23,7 +23,7 @@ func _initialize_recipes() -> void:
 	add_recipe("wooden_club", 1, {"wood": 10})
 	add_recipe("hammer", 1, {"wood": 10})
 	add_recipe("torch", 1, {"wood": 1, "resin": 1})
-	add_recipe("workbench", 1, {"wood": 10})
+	# Note: workbench is now buildable via hammer, not craftable
 
 	print("[CraftingRecipes] Initialized %d recipes" % recipes.size())
 
