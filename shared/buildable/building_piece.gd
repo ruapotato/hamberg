@@ -35,7 +35,7 @@ func _setup_snap_points() -> void:
 			# Floor: 4 corner snaps (for creating grid) + edge/center tops (for walls)
 			var half_x = grid_size.x / 2.0
 			var half_z = grid_size.z / 2.0
-			var height = grid_size.y
+			var half_height = grid_size.y / 2.0
 
 			# Corner snap points - these define the grid expansion points
 			# Each corner can attach up to 4 adjacent floor pieces
@@ -45,48 +45,51 @@ func _setup_snap_points() -> void:
 			snap_points.append({"position": Vector3(half_x, 0, -half_z), "normal": Vector3.ZERO, "type": "floor_corner", "corner_id": "se"})
 
 			# Top surface snap points for walls to attach anywhere on the floor surface
-			snap_points.append({"position": Vector3(0, height, 0), "normal": Vector3.UP, "type": "floor_top"})
-			snap_points.append({"position": Vector3(half_x, height, 0), "normal": Vector3.UP, "type": "floor_top"})
-			snap_points.append({"position": Vector3(-half_x, height, 0), "normal": Vector3.UP, "type": "floor_top"})
-			snap_points.append({"position": Vector3(0, height, half_z), "normal": Vector3.UP, "type": "floor_top"})
-			snap_points.append({"position": Vector3(0, height, -half_z), "normal": Vector3.UP, "type": "floor_top"})
+			# Using half_height so snap points are at actual top surface, not above it
+			snap_points.append({"position": Vector3(0, half_height, 0), "normal": Vector3.UP, "type": "floor_top"})
+			snap_points.append({"position": Vector3(half_x, half_height, 0), "normal": Vector3.UP, "type": "floor_top"})
+			snap_points.append({"position": Vector3(-half_x, half_height, 0), "normal": Vector3.UP, "type": "floor_top"})
+			snap_points.append({"position": Vector3(0, half_height, half_z), "normal": Vector3.UP, "type": "floor_top"})
+			snap_points.append({"position": Vector3(0, half_height, -half_z), "normal": Vector3.UP, "type": "floor_top"})
 
 		"wooden_wall":
 			# Wall: 2 side snaps (for adjacent walls) + bottom (for floor) + top (for walls above)
 			var half_x = grid_size.x / 2.0
-			var height = grid_size.y
+			var half_height = grid_size.y / 2.0
 
-			# Side snaps (for adjacent walls)
-			snap_points.append({"position": Vector3(half_x, height/2, 0), "normal": Vector3.RIGHT, "type": "wall_edge"})
-			snap_points.append({"position": Vector3(-half_x, height/2, 0), "normal": Vector3.LEFT, "type": "wall_edge"})
+			# Side snaps (for adjacent walls) - at mid-height
+			snap_points.append({"position": Vector3(half_x, 0, 0), "normal": Vector3.RIGHT, "type": "wall_edge"})
+			snap_points.append({"position": Vector3(-half_x, 0, 0), "normal": Vector3.LEFT, "type": "wall_edge"})
 
-			# Bottom snap (for floor)
-			snap_points.append({"position": Vector3(0, 0, 0), "normal": Vector3.DOWN, "type": "wall_bottom"})
+			# Bottom snap (for floor) - at bottom edge
+			snap_points.append({"position": Vector3(0, -half_height, 0), "normal": Vector3.DOWN, "type": "wall_bottom"})
 
-			# Top snap (for walls/roof above)
-			snap_points.append({"position": Vector3(0, height, 0), "normal": Vector3.UP, "type": "wall_top"})
+			# Top snap (for walls/roof above) - at top edge
+			snap_points.append({"position": Vector3(0, half_height, 0), "normal": Vector3.UP, "type": "wall_top"})
 
 		"wooden_beam":
 			# Beam: similar to wall but can attach at various points
-			var half_x = grid_size.x / 2.0
-			var height = grid_size.y
+			var half_height = grid_size.y / 2.0
 
-			snap_points.append({"position": Vector3(0, 0, 0), "normal": Vector3.DOWN, "type": "beam_bottom"})
-			snap_points.append({"position": Vector3(0, height, 0), "normal": Vector3.UP, "type": "beam_top"})
+			snap_points.append({"position": Vector3(0, -half_height, 0), "normal": Vector3.DOWN, "type": "beam_bottom"})
+			snap_points.append({"position": Vector3(0, half_height, 0), "normal": Vector3.UP, "type": "beam_top"})
 
 		"wooden_door":
 			# Door: bottom snap to floor
-			snap_points.append({"position": Vector3(0, 0, 0), "normal": Vector3.DOWN, "type": "door_bottom"})
+			var half_height = grid_size.y / 2.0
+			snap_points.append({"position": Vector3(0, -half_height, 0), "normal": Vector3.DOWN, "type": "door_bottom"})
 
 		"wooden_roof":
 			# Roof: bottom edges for attaching to walls
 			var half_x = grid_size.x / 2.0
-			snap_points.append({"position": Vector3(half_x, 0, 0), "normal": Vector3.RIGHT, "type": "roof_edge"})
-			snap_points.append({"position": Vector3(-half_x, 0, 0), "normal": Vector3.LEFT, "type": "roof_edge"})
+			var half_height = grid_size.y / 2.0
+			snap_points.append({"position": Vector3(half_x, -half_height, 0), "normal": Vector3.RIGHT, "type": "roof_edge"})
+			snap_points.append({"position": Vector3(-half_x, -half_height, 0), "normal": Vector3.LEFT, "type": "roof_edge"})
 
 		"workbench":
 			# Workbench: just bottom snap to floor
-			snap_points.append({"position": Vector3(0, 0, 0), "normal": Vector3.DOWN, "type": "workbench_bottom"})
+			var half_height = grid_size.y / 2.0
+			snap_points.append({"position": Vector3(0, -half_height, 0), "normal": Vector3.DOWN, "type": "workbench_bottom"})
 
 ## Set up as a ghost preview
 func _setup_preview_mode() -> void:

@@ -414,14 +414,23 @@ func _find_matching_snap_point(target_pos: Vector3, target_normal: Vector3, targ
 				var rotated_snap_pos = Vector3(our_pos_local.x, our_pos_local.y, our_pos_local.z).rotated(Vector3.UP, ghost_preview.rotation.y)
 				var our_center_pos = target_pos - rotated_snap_pos
 
-				# Offset wall upward by half its height so bottom aligns with floor top
-				# Wall snap point is at center-bottom (y=0), so we need to add half wall height
-				var wall_half_height = ghost_preview.grid_size.y / 2.0
-				our_center_pos.y += wall_half_height
-
 				return {
 					"position": our_center_pos,
 					"rotation": ghost_preview.rotation.y
+				}
+
+	# Wall bottoms should snap to wall tops (for vertical stacking)
+	if current_piece_name == "wooden_wall" and target_type == "wall_top":
+		for our_snap in ghost_preview.snap_points:
+			var our_type: String = our_snap.get("type", "")
+			if our_type == "wall_bottom":
+				var our_pos_local: Vector3 = our_snap.position
+				var rotated_snap_pos = Vector3(our_pos_local.x, our_pos_local.y, our_pos_local.z).rotated(Vector3.UP, ghost_preview.rotation.y)
+				var our_center_pos = target_pos - rotated_snap_pos
+
+				return {
+					"position": our_center_pos,
+					"rotation": target_rotation  # Match the rotation of the wall below
 				}
 
 	# Wall edges should snap to other wall edges
@@ -493,6 +502,10 @@ func _handle_input() -> void:
 	# Rotate with R key
 	if Input.is_action_just_pressed("build_rotate") and ghost_preview:
 		rotate_preview()
+
+	# Destroy buildable with middle mouse
+	if Input.is_action_just_pressed("destroy_object"):
+		_try_destroy_buildable()
 
 	# Place with left click (but not if build menu is open or during cooldown)
 	if Input.is_action_just_pressed("attack") and can_place_current and ghost_preview:
@@ -570,3 +583,31 @@ func place_current_piece() -> void:
 
 	# Emit signal for server to handle actual placement and resource consumption
 	build_piece_placed.emit(current_piece_name, position, rotation)
+
+## Try to destroy a buildable at cursor position
+func _try_destroy_buildable() -> void:
+	if not camera or not world:
+		return
+
+	# Raycast from camera forward
+	var from = camera.global_position
+	var to = from + (-camera.global_transform.basis.z * placement_distance)
+
+	var space_state = world.get_world_3d().direct_space_state
+	var query = PhysicsRayQueryParameters3D.create(from, to)
+	query.collision_mask = 1  # World layer
+
+	var result = space_state.intersect_ray(query)
+
+	if result:
+		var hit_object = result.get("collider")
+
+		# Check if it's a buildable piece by checking if name starts with "Buildable_"
+		if hit_object and hit_object.name.begins_with("Buildable_"):
+			var network_id = hit_object.name.substr(10)  # Remove "Buildable_" prefix
+			var piece_name = hit_object.piece_name if "piece_name" in hit_object else "unknown"
+
+			print("[BuildMode] Requesting to destroy %s (ID: %s)" % [piece_name, network_id])
+
+			# Send destroy request to server via NetworkManager
+			NetworkManager.rpc_destroy_buildable.rpc_id(1, network_id)
