@@ -52,15 +52,6 @@ vertical_alignment = 1
 [node name="HSeparator" type="HSeparator" parent="CanvasLayer/ConnectionUI/Panel/VBox"]
 layout_mode = 2
 
-[node name="NameLabel" type="Label" parent="CanvasLayer/ConnectionUI/Panel/VBox"]
-layout_mode = 2
-text = "Player Name:"
-
-[node name="NameInput" type="LineEdit" parent="CanvasLayer/ConnectionUI/Panel/VBox"]
-layout_mode = 2
-placeholder_text = "Enter your name"
-max_length = 20
-
 [node name="IPLabel" type="Label" parent="CanvasLayer/ConnectionUI/Panel/VBox"]
 layout_mode = 2
 text = "Server IP:"

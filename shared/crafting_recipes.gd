@@ -49,6 +49,12 @@ func add_recipe(output: String, amount: int, requirements: Dictionary, crafting_
 
 	recipes.append(recipe)
 
+func get_recipe_by_name(item_name: String) -> Dictionary:
+	for recipe in recipes:
+		if recipe.get("output_item") == item_name:
+			return recipe
+	return {}
+
 ## Get all craftable recipes (that the player has resources for)
 func get_craftable_recipes(inventory: Node) -> Array[Dictionary]:
 	var craftable: Array[Dictionary] = []

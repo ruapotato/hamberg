@@ -9,9 +9,12 @@ var camera_controller_scene := preload("res://shared/camera_controller.tscn")
 var hotbar_scene := preload("res://client/ui/hotbar.tscn")
 var inventory_panel_scene := preload("res://client/ui/inventory_panel.tscn")
 var build_menu_scene := preload("res://client/ui/build_menu.tscn")
+var character_selection_scene := preload("res://client/ui/character_selection.tscn")
+var pause_menu_scene := preload("res://client/ui/pause_menu.tscn")
 
 # Client state
 var is_connected: bool = false
+var is_in_game: bool = false
 var local_player: Node3D = null
 var remote_players: Dictionary = {} # peer_id -> Player node
 
@@ -19,6 +22,8 @@ var remote_players: Dictionary = {} # peer_id -> Player node
 var hotbar_ui: Control = null
 var inventory_panel_ui: Control = null
 var build_menu_ui: Control = null
+var character_selection_ui: Control = null
+var pause_menu_ui: Control = null
 
 # Build mode
 var build_mode: Node = null
@@ -35,7 +40,6 @@ var environmental_objects_container: Node3D
 @onready var hud: Control = $CanvasLayer/HUD
 @onready var ip_input: LineEdit = $CanvasLayer/ConnectionUI/Panel/VBox/IPInput
 @onready var port_input: LineEdit = $CanvasLayer/ConnectionUI/Panel/VBox/PortInput
-@onready var name_input: LineEdit = $CanvasLayer/ConnectionUI/Panel/VBox/NameInput
 @onready var connect_button: Button = $CanvasLayer/ConnectionUI/Panel/VBox/ConnectButton
 @onready var status_label: Label = $CanvasLayer/ConnectionUI/Panel/VBox/StatusLabel
 @onready var ping_label: Label = $CanvasLayer/HUD/PingLabel
@@ -66,6 +70,18 @@ func _ready() -> void:
 	add_child(placement_mode)
 	placement_mode.item_placed.connect(_on_item_placed)
 
+	# Create character selection UI
+	character_selection_ui = character_selection_scene.instantiate()
+	canvas_layer.add_child(character_selection_ui)
+	character_selection_ui.character_selected.connect(_on_character_selected)
+
+	# Create pause menu
+	pause_menu_ui = pause_menu_scene.instantiate()
+	canvas_layer.add_child(pause_menu_ui)
+	pause_menu_ui.resume_pressed.connect(_on_pause_resume)
+	pause_menu_ui.save_pressed.connect(_on_pause_save)
+	pause_menu_ui.quit_pressed.connect(_on_pause_quit)
+
 	# Hide HUD initially
 	hud.visible = false
 
@@ -79,12 +95,15 @@ func _ready() -> void:
 	# Set default values
 	ip_input.text = "127.0.0.1"
 	port_input.text = str(NetworkManager.DEFAULT_PORT)
-	name_input.text = "Player" + str(randi() % 1000)
 
 func _process(_delta: float) -> void:
-	if is_connected:
+	if is_in_game:
 		_update_hud()
 		_handle_build_input()
+
+	# Handle pause menu
+	if Input.is_action_just_pressed("ui_cancel") and is_in_game:
+		_toggle_pause_menu()
 
 func auto_connect_to_localhost() -> void:
 	"""Auto-connect to localhost for singleplayer mode"""
@@ -97,14 +116,9 @@ func auto_connect_to_localhost() -> void:
 func _on_connect_button_pressed() -> void:
 	var address := ip_input.text
 	var port := port_input.text.to_int()
-	var player_name := name_input.text
 
 	if address.is_empty():
 		_update_status("Please enter server address", true)
-		return
-
-	if player_name.is_empty():
-		_update_status("Please enter player name", true)
 		return
 
 	_update_status("Connecting to %s:%d..." % [address, port], false)
@@ -122,19 +136,18 @@ func _on_client_connected() -> void:
 	print("[Client] Successfully connected to server!")
 	is_connected = true
 
-	# Register with server through NetworkManager
-	var player_name := name_input.text
-	NetworkManager.rpc_register_player.rpc_id(1, player_name)
-
-	# Hide connection UI, show HUD
+	# Hide connection UI
 	connection_ui.visible = false
-	hud.visible = true
 
-	_update_status("Connected!", false)
+	# Request character list from server
+	NetworkManager.rpc_request_character_list.rpc_id(1)
+
+	_update_status("Connected! Loading characters...", false)
 
 func _on_client_disconnected() -> void:
 	print("[Client] Disconnected from server")
 	is_connected = false
+	is_in_game = false
 
 	# Clean up players
 	if local_player:
@@ -151,9 +164,11 @@ func _on_client_disconnected() -> void:
 	# Clean up environmental objects
 	_cleanup_environmental_objects()
 
-	# Show connection UI, hide HUD
+	# Show connection UI, hide HUD and character selection
 	connection_ui.visible = true
 	hud.visible = false
+	if character_selection_ui:
+		character_selection_ui.visible = false
 	connect_button.disabled = false
 
 	_update_status("Disconnected from server", true)
@@ -263,7 +278,11 @@ func spawn_player(peer_id: int, player_name: String, spawn_pos: Vector3) -> void
 	if is_local:
 		# This is our local player
 		local_player = player
+		is_in_game = true
 		print("[Client] Local player spawned at %s" % spawn_pos)
+
+		# Show HUD
+		hud.visible = true
 
 		# Attach camera to follow local player
 		_setup_camera_follow(player)
@@ -449,6 +468,34 @@ func _get_camera() -> Camera3D:
 	return null
 
 # ============================================================================
+# PAUSE MENU
+# ============================================================================
+
+func _toggle_pause_menu() -> void:
+	if not pause_menu_ui:
+		return
+
+	if pause_menu_ui.visible:
+		pause_menu_ui.hide_menu()
+	else:
+		pause_menu_ui.show_menu()
+
+func _on_pause_resume() -> void:
+	# Menu already hidden by resume button
+	pass
+
+func _on_pause_save() -> void:
+	# Send save request to server (just triggers a save, server is always authoritative)
+	print("[Client] Requesting manual save...")
+	NetworkManager.rpc_request_save.rpc_id(1)
+	# Note: Server auto-saves every 5 minutes anyway
+
+func _on_pause_quit() -> void:
+	print("[Client] Quitting to menu...")
+	# Disconnect from server
+	NetworkManager.disconnect_network()
+
+# ============================================================================
 # WORLD CONFIGURATION
 # ============================================================================
 
@@ -465,6 +512,48 @@ func receive_world_config(world_data: Dictionary) -> void:
 		print("[Client] Initialized world '%s' with seed %d" % [world_name, world_seed])
 	else:
 		push_error("[Client] VoxelWorld not found!")
+
+# ============================================================================
+# CHARACTER SELECTION AND PERSISTENCE
+# ============================================================================
+
+## Receive character list from server
+func receive_character_list(characters: Array) -> void:
+	print("[Client] Received %d characters from server" % characters.size())
+
+	if character_selection_ui:
+		character_selection_ui.show_characters(characters)
+
+## Handle character selection
+func _on_character_selected(character_id: String, character_name: String, is_new: bool) -> void:
+	print("[Client] Character selected: %s (%s), new: %s" % [character_name, character_id, is_new])
+
+	# Send character load request to server
+	NetworkManager.rpc_load_character.rpc_id(1, character_id, character_name, is_new)
+
+## Receive inventory sync from server
+func receive_inventory_sync(inventory_data: Array) -> void:
+	print("[Client] Received inventory sync with %d slots" % inventory_data.size())
+
+	if local_player and local_player.has_node("Inventory"):
+		var inventory = local_player.get_node("Inventory")
+		inventory.set_inventory_data(inventory_data)
+		print("[Client] Updated local player inventory")
+
+		# Update hotbar UI if it exists
+		if hotbar_ui:
+			hotbar_ui.refresh_display()
+
+## Receive inventory slot update from server
+func receive_inventory_slot_update(slot: int, item: String, amount: int) -> void:
+	if local_player and local_player.has_node("Inventory"):
+		var inventory = local_player.get_node("Inventory")
+		if slot >= 0 and slot < inventory.slots.size():
+			inventory.slots[slot] = {"item": item, "amount": amount}
+
+			# Update hotbar UI if it exists
+			if hotbar_ui:
+				hotbar_ui.refresh_display()
 
 # ============================================================================
 # ENVIRONMENTAL OBJECT MANAGEMENT (CLIENT-SIDE VISUAL ONLY)

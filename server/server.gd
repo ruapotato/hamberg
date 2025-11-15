@@ -5,19 +5,30 @@ extends Node
 
 # Preload WorldConfig
 const WorldConfig = preload("res://shared/world_config.gd")
+const PlayerDataManager = preload("res://shared/player_data_manager.gd")
+const WorldStateManager = preload("res://shared/world_state_manager.gd")
 
 # Player management
 var player_scene := preload("res://shared/player.tscn")
 var spawned_players: Dictionary = {} # peer_id -> Player node
 var player_viewers: Dictionary = {} # peer_id -> VoxelViewer node
+var player_characters: Dictionary = {} # peer_id -> character_id (for saving on disconnect)
 var player_spawn_area_center: Vector2 = Vector2(0, 0) # Center of spawn area
 
 # Buildable management
 var placed_buildables: Dictionary = {} # network_id -> {piece_name, position, rotation_y}
 
+# Persistence managers
+var player_data_manager: PlayerDataManager = null
+var world_state_manager: WorldStateManager = null
+
 # World configuration
 var world_config = null  # Will be WorldConfig instance
 const DEFAULT_WORLD_NAME: String = "world"
+
+# Auto-save system
+var auto_save_timer: float = 0.0
+const AUTO_SAVE_INTERVAL: float = 300.0  # Save every 5 minutes
 
 # Server state
 var is_running: bool = false
@@ -88,6 +99,16 @@ func start_server(port: int = 7777, max_players: int = 10) -> void:
 	# Load or create world configuration
 	_load_or_create_world()
 
+	# Initialize persistence managers
+	player_data_manager = PlayerDataManager.new()
+	player_data_manager.initialize(world_config.world_name)
+
+	world_state_manager = WorldStateManager.new()
+	world_state_manager.initialize(world_config.world_name)
+
+	# Load world state (buildables, etc.)
+	_load_world_state()
+
 	if NetworkManager.start_server(port, max_players):
 		is_running = true
 		print("[Server] ===========================================")
@@ -95,6 +116,7 @@ func start_server(port: int = 7777, max_players: int = 10) -> void:
 		print("[Server] Port: %d" % port)
 		print("[Server] Max players: %d" % max_players)
 		print("[Server] World: %s (seed: %d)" % [world_config.world_name, world_config.seed])
+		print("[Server] Loaded %d buildables from save" % placed_buildables.size())
 		print("[Server] ===========================================")
 		print("[Server] Available commands: save, kick <id>, shutdown, players")
 	else:
@@ -105,6 +127,12 @@ func stop_server() -> void:
 		return
 
 	print("[Server] Shutting down server...")
+
+	# Save all player data before shutdown
+	_save_all_players()
+
+	# Save world state
+	_save_world_state()
 
 	# Kick all players
 	for peer_id in spawned_players.keys():
@@ -133,6 +161,18 @@ func _server_tick() -> void:
 
 	# Broadcast player states to all clients
 	_broadcast_player_states()
+
+	# Auto-save timer
+	auto_save_timer += TICK_RATE
+	if auto_save_timer >= AUTO_SAVE_INTERVAL:
+		auto_save_timer = 0.0
+		_auto_save()
+
+func _auto_save() -> void:
+	print("[Server] Auto-saving...")
+	_save_all_players()
+	_save_world_state()
+	print("[Server] Auto-save complete")
 
 func _broadcast_player_states() -> void:
 	# Collect all player states
@@ -265,14 +305,13 @@ func _send_buildables_to_player(peer_id: int) -> void:
 func _on_player_joined(peer_id: int, player_name: String) -> void:
 	print("[Server] Player joined: %s (ID: %d)" % [player_name, peer_id])
 
-	# Send world config to the new client first
+	# Send world config to the new client
 	if world_config:
 		var world_data: Dictionary = world_config.to_dict()
 		NetworkManager.rpc_send_world_config.rpc_id(peer_id, world_data)
 		print("[Server] Sent world config to player %d" % peer_id)
 
-	# Spawn player entity
-	_spawn_player(peer_id, player_name)
+	# Note: Player spawning is now handled by load_player_character() after character selection
 
 func _on_player_left(peer_id: int) -> void:
 	print("[Server] Player left (ID: %d)" % peer_id)
@@ -338,6 +377,37 @@ func _spawn_player(peer_id: int, player_name: String) -> void:
 func _despawn_player(peer_id: int) -> void:
 	if not spawned_players.has(peer_id):
 		return
+
+	# Save player data before despawning
+	if player_data_manager and player_characters.has(peer_id):
+		var player = spawned_players[peer_id]
+		var character_id = player_characters[peer_id]
+
+		if player and is_instance_valid(player):
+			var player_data = PlayerDataManager.serialize_player(player)
+
+			# Debug: Check inventory contents
+			if player_data.has("inventory"):
+				var item_count = 0
+				for slot in player_data["inventory"]:
+					if slot is Dictionary and slot.has("item") and not slot["item"].is_empty():
+						item_count += 1
+						print("[Server] Saving inventory slot with: %s x %d" % [slot["item"], slot.get("amount", 0)])
+				print("[Server] Saving %d non-empty inventory slots" % item_count)
+
+			# Preserve important fields from existing save
+			var existing_data = player_data_manager.load_player_data(character_id)
+			if existing_data.has("character_name"):
+				player_data["character_name"] = existing_data["character_name"]
+			if existing_data.has("created_at"):
+				player_data["created_at"] = existing_data["created_at"]
+			if existing_data.has("play_time"):
+				player_data["play_time"] = existing_data["play_time"]
+
+			player_data_manager.save_player_data(character_id, player_data)
+			print("[Server] Saved character data for player %d before disconnect" % peer_id)
+
+		player_characters.erase(peer_id)
 
 	# Unregister player from chunk manager
 	if voxel_world:
@@ -494,6 +564,46 @@ func handle_place_buildable(peer_id: int, piece_name: String, position: Vector3,
 	# Validate placement (can add more checks here later)
 	# TODO: Check if position is valid, not colliding, etc.
 
+	# Check if player exists and has inventory
+	if not spawned_players.has(peer_id):
+		push_warning("[Server] Player %d not found for buildable placement" % peer_id)
+		return
+
+	var player = spawned_players[peer_id]
+	if not player or not is_instance_valid(player):
+		return
+
+	if not player.has_node("Inventory"):
+		push_warning("[Server] Player %d has no inventory" % peer_id)
+		return
+
+	var inventory = player.get_node("Inventory")
+
+	# Get resource costs
+	var costs = CraftingRecipes.BUILDING_COSTS.get(piece_name, {})
+
+	# Check if player has required resources
+	for resource in costs:
+		var required = costs[resource]
+		if not inventory.has_item(resource, required):
+			print("[Server] Player %d doesn't have enough %s to place %s" % [peer_id, resource, piece_name])
+			# TODO: Send error message to client
+			return
+
+	# Remove resources from inventory
+	for resource in costs:
+		var required = costs[resource]
+		if not inventory.remove_item(resource, required):
+			push_error("[Server] Failed to remove %d %s from player %d inventory!" % [required, resource, peer_id])
+			# This shouldn't happen since we already checked
+			return
+
+	print("[Server] Consumed %s from player %d inventory" % [costs, peer_id])
+
+	# Sync inventory back to client (to fix any client-side prediction errors)
+	var inventory_data = inventory.get_inventory_data()
+	NetworkManager.rpc_sync_inventory.rpc_id(peer_id, inventory_data)
+
 	# Generate unique network ID for this buildable
 	var net_id = "%d_%s_%d" % [peer_id, piece_name, Time.get_ticks_msec()]
 
@@ -586,8 +696,9 @@ func _execute_console_command(command: String) -> void:
 
 		"save":
 			print("[Server] Saving world...")
-			# TODO: Implement world saving
-			print("[Server] Save complete (not implemented yet)")
+			_save_all_players()
+			_save_world_state()
+			print("[Server] Save complete")
 
 		"shutdown":
 			print("[Server] Shutting down...")
@@ -596,3 +707,270 @@ func _execute_console_command(command: String) -> void:
 
 		_:
 			print("[Server] Unknown command: %s" % cmd)
+
+# ============================================================================
+# PERSISTENCE METHODS
+# ============================================================================
+
+func _load_world_state() -> void:
+	if not world_state_manager:
+		return
+
+	var state_data = world_state_manager.load_world_state()
+
+	# Load buildables
+	if state_data.has("buildables"):
+		placed_buildables = state_data["buildables"]
+		print("[Server] Loaded %d buildables from disk" % placed_buildables.size())
+
+	# TODO: Load other world state (time_of_day, global_events, etc.)
+
+func _save_world_state() -> void:
+	if not world_state_manager:
+		return
+
+	var additional_data = {
+		# TODO: Add time_of_day, global_events, etc. when implemented
+	}
+
+	world_state_manager.save_world_state(placed_buildables, additional_data)
+
+func _save_all_players() -> void:
+	if not player_data_manager:
+		return
+
+	var saved_count := 0
+
+	for peer_id in spawned_players:
+		var player = spawned_players[peer_id]
+		if not player or not is_instance_valid(player):
+			continue
+
+		# Get character_id for this player
+		var character_id = player_characters.get(peer_id, "")
+		if character_id.is_empty():
+			continue
+
+		# Serialize player data
+		var player_data = PlayerDataManager.serialize_player(player)
+
+		# Preserve important fields from existing save
+		var existing_data = player_data_manager.load_player_data(character_id)
+		if existing_data.has("character_name"):
+			player_data["character_name"] = existing_data["character_name"]
+		if existing_data.has("created_at"):
+			player_data["created_at"] = existing_data["created_at"]
+		if existing_data.has("play_time"):
+			player_data["play_time"] = existing_data["play_time"]
+
+		# Save
+		if player_data_manager.save_player_data(character_id, player_data):
+			saved_count += 1
+
+	print("[Server] Saved %d player characters" % saved_count)
+
+## Send list of characters to client (called via RPC)
+func send_character_list(peer_id: int) -> void:
+	if not player_data_manager:
+		return
+
+	var characters = player_data_manager.get_all_characters()
+
+	# Convert character data to simple format for network transmission
+	var character_list: Array = []
+	for char_data in characters:
+		character_list.append({
+			"character_id": char_data.get("character_id", ""),
+			"character_name": char_data.get("character_name", "Unknown"),
+			"last_played": char_data.get("last_played", 0),
+			"created_at": char_data.get("created_at", 0),
+			"play_time": char_data.get("play_time", 0)
+		})
+
+	NetworkManager.rpc_receive_character_list.rpc_id(peer_id, character_list)
+	print("[Server] Sent %d characters to peer %d" % [character_list.size(), peer_id])
+
+## Load player character and spawn them (called via RPC)
+func load_player_character(peer_id: int, character_id: String, character_name: String, is_new: bool) -> void:
+	if not player_data_manager:
+		return
+
+	var player_data: Dictionary
+
+	if is_new:
+		# Create new character
+		player_data = player_data_manager.create_new_character(character_name)
+		if player_data.is_empty():
+			push_error("[Server] Failed to create new character for peer %d" % peer_id)
+			return
+		character_id = player_data["character_id"]
+		print("[Server] Created new character '%s' (ID: %s) for peer %d" % [character_name, character_id, peer_id])
+	else:
+		# Load existing character
+		player_data = player_data_manager.load_player_data(character_id)
+		if player_data.is_empty():
+			push_error("[Server] Failed to load character %s for peer %d" % [character_id, peer_id])
+			return
+		print("[Server] Loaded character '%s' for peer %d" % [player_data["character_name"], peer_id])
+
+	# Store character_id for this peer
+	player_characters[peer_id] = character_id
+
+	# Register player with NetworkManager
+	NetworkManager.register_player(peer_id, player_data["character_name"])
+
+	# Spawn player with loaded data
+	_spawn_player_with_data(peer_id, player_data)
+
+## Spawn player with loaded character data
+func _spawn_player_with_data(peer_id: int, player_data: Dictionary) -> void:
+	if spawned_players.has(peer_id):
+		push_warning("[Server] Player %d already spawned" % peer_id)
+		return
+
+	# Instantiate player
+	var player: Node3D = player_scene.instantiate()
+	player.name = "Player_%d" % peer_id
+	player.set_multiplayer_authority(peer_id)
+
+	# Set player name from character data
+	if player_data.has("character_name"):
+		player.player_name = player_data["character_name"]
+
+	# Get spawn position from saved data or default
+	var spawn_pos: Vector3
+	if player_data.has("position"):
+		var pos = player_data["position"]
+		spawn_pos = Vector3(pos[0], pos[1], pos[2])
+	else:
+		spawn_pos = _get_spawn_point()
+
+	# Add to world FIRST (required before setting global_position)
+	world.add_child(player, true)
+	spawned_players[peer_id] = player
+
+	# Set position and rotation AFTER adding to tree
+	player.global_position = spawn_pos
+
+	if player_data.has("rotation_y"):
+		player.rotation.y = player_data["rotation_y"]
+
+	# Load inventory
+	if player_data.has("inventory") and player.has_node("Inventory"):
+		var inventory = player.get_node("Inventory")
+		inventory.set_inventory_data(player_data["inventory"])
+
+	# Create VoxelViewer for this player (server-side terrain streaming)
+	var viewer := VoxelViewer.new()
+	viewer.name = "VoxelViewer_%d" % peer_id
+	viewer.view_distance = 256
+	viewer.requires_collisions = true
+	viewer.requires_visuals = false
+	player.add_child(viewer)
+	player_viewers[peer_id] = viewer
+
+	print("[Server] Spawned player %d at %s with VoxelViewer" % [peer_id, spawn_pos])
+
+	# Register player with chunk manager for environmental object spawning
+	if voxel_world:
+		voxel_world.register_player_for_spawning(peer_id, player)
+		_send_loaded_chunks_to_player(peer_id)
+
+	# Send all existing buildables to the new player
+	_send_buildables_to_player(peer_id)
+
+	# Notify all clients to spawn this player through NetworkManager
+	var player_name = player_data.get("character_name", "Unknown")
+	print("[Server] Broadcasting spawn for player %d to all clients" % peer_id)
+	NetworkManager.rpc_spawn_player.rpc(peer_id, player_name, spawn_pos)
+
+	# Send existing players to the new client
+	for existing_peer_id in spawned_players:
+		if existing_peer_id != peer_id:
+			var existing_player: Node3D = spawned_players[existing_peer_id]
+			var existing_name: String = NetworkManager.get_player_info(existing_peer_id).get("name", "Unknown")
+			print("[Server] Sending existing player %d to new client %d" % [existing_peer_id, peer_id])
+			NetworkManager.rpc_spawn_player.rpc_id(peer_id, existing_peer_id, existing_name, existing_player.global_position)
+
+	# Send inventory to client
+	if player_data.has("inventory"):
+		NetworkManager.rpc_sync_inventory.rpc_id(peer_id, player_data["inventory"])
+
+## Handle item pickup request (server-authoritative)
+func handle_pickup_request(peer_id: int, item_name: String, amount: int, network_id: String) -> void:
+	if not spawned_players.has(peer_id):
+		return
+
+	var player = spawned_players[peer_id]
+	if not player or not is_instance_valid(player):
+		return
+
+	if not player.has_node("Inventory"):
+		return
+
+	var inventory = player.get_node("Inventory")
+
+	# Try to add item to inventory
+	var remaining = inventory.add_item(item_name, amount)
+
+	if remaining < amount:
+		# Successfully added at least some items
+		var added_amount = amount - remaining
+
+		# Debug: Check what's in inventory after adding
+		var inventory_data = inventory.get_inventory_data()
+		var item_count = 0
+		for slot in inventory_data:
+			if slot is Dictionary and slot.has("item") and not slot["item"].is_empty():
+				item_count += 1
+		print("[Server] Player %d picked up %d %s (inventory now has %d occupied slots)" % [peer_id, added_amount, item_name, item_count])
+
+		# Broadcast to all clients to remove the resource item
+		NetworkManager.rpc_pickup_resource_item.rpc(network_id)
+
+		# Sync inventory to client
+		NetworkManager.rpc_sync_inventory.rpc_id(peer_id, inventory_data)
+	else:
+		# Inventory full - do nothing
+		print("[Server] Player %d inventory full, cannot pick up %s" % [peer_id, item_name])
+
+## Handle crafting request (server-authoritative)
+func handle_craft_request(peer_id: int, recipe_name: String) -> void:
+	if not spawned_players.has(peer_id):
+		return
+
+	var player = spawned_players[peer_id]
+	if not player or not is_instance_valid(player):
+		return
+
+	if not player.has_node("Inventory"):
+		return
+
+	var inventory = player.get_node("Inventory")
+
+	# Get the recipe
+	var recipe = CraftingRecipes.get_recipe_by_name(recipe_name)
+	if recipe.is_empty():
+		print("[Server] Player %d requested invalid recipe: %s" % [peer_id, recipe_name])
+		return
+
+	# TODO: Get actual nearby stations from player
+	# For now, allow all crafting (no station restrictions)
+	var stations = ["workbench"]
+
+	# Attempt to craft
+	if CraftingRecipes.craft_item(recipe, inventory, stations):
+		print("[Server] Player %d crafted %s" % [peer_id, recipe_name])
+
+		# Sync inventory to client
+		var inventory_data = inventory.get_inventory_data()
+		NetworkManager.rpc_sync_inventory.rpc_id(peer_id, inventory_data)
+	else:
+		print("[Server] Player %d failed to craft %s (missing resources or station)" % [peer_id, recipe_name])
+
+## Handle manual save request (server-authoritative)
+func handle_save_request(peer_id: int) -> void:
+	print("[Server] Player %d requested manual save" % peer_id)
+	_save_all_players()
+	_save_world_state()
+	print("[Server] Manual save complete")

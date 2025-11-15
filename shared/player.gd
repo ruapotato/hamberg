@@ -49,6 +49,9 @@ var viewmodel_arms: Node3D = null
 # Player body visuals
 var body_container: Node3D = null
 
+# Player identity
+var player_name: String = "Unknown"
+
 # Inventory (client-authoritative)
 var inventory: Node = null
 

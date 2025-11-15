@@ -120,8 +120,19 @@ func get_inventory_data() -> Array:
 
 ## Set inventory from data (when syncing from server)
 func set_inventory_data(data: Array) -> void:
-	slots = data.duplicate(true)
-	slots.resize(MAX_SLOTS)
+	# Build new typed array manually to avoid type mismatch
+	var new_slots: Array[Dictionary] = []
+	new_slots.resize(MAX_SLOTS)
+
+	# Copy each element
+	for i in range(MAX_SLOTS):
+		if i < data.size() and data[i] is Dictionary:
+			new_slots[i] = data[i].duplicate(true)
+		else:
+			new_slots[i] = {}
+
+	# Replace slots
+	slots = new_slots
 
 ## Clear all items
 func clear() -> void:

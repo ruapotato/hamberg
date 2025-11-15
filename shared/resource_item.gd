@@ -89,23 +89,17 @@ func _create_mesh() -> void:
 
 func _on_body_entered(body: Node3D) -> void:
 	# Check if it's a player
-	if not body.has_method("pickup_item"):
+	if not body.has_node("Inventory"):
 		return
 
 	# Only allow local player to pick up
 	if not body.is_multiplayer_authority():
 		return
 
-	# Try to give item to player
-	var picked_up = body.pickup_item(item_name, amount)
-
-	if picked_up:
-		# Broadcast pickup to all clients via NetworkManager
-		if NetworkManager:
-			NetworkManager.rpc_pickup_resource_item.rpc(network_id)
-
-		# Remove item from world
-		queue_free()
+	# Send pickup request to server (server-authoritative)
+	if NetworkManager and NetworkManager.is_client:
+		print("[ResourceItem] Requesting pickup of %d x %s (network_id: %s)" % [amount, item_name, network_id])
+		NetworkManager.rpc_request_pickup_item.rpc_id(1, item_name, amount, network_id)
 
 func set_item_data(item: String, qty: int) -> void:
 	item_name = item

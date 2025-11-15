@@ -168,25 +168,16 @@ func _on_craft_button_pressed(recipe: Dictionary) -> void:
 	if not player_inventory:
 		return
 
-	# TODO: Get actual nearby stations from player
-	# For now, allow all crafting (no station restrictions)
-	var stations = ["workbench"]  # Temporary: treat as if always near workbench
+	# Send craft request to server (server-authoritative)
+	var item_name: String = recipe.get("output_item", "")
+	if item_name.is_empty():
+		return
 
-	if CraftingRecipes.craft_item(recipe, player_inventory, stations):
-		# Force immediate refresh of both inventory panel and hotbar
-		refresh_display()
-		_update_recipe_buttons()
+	print("[InventoryPanel] Requesting to craft: %s" % item_name)
+	NetworkManager.rpc_request_craft.rpc_id(1, item_name)
 
-		# Also refresh hotbar if it exists
-		var hotbar = get_node_or_null("/root/Main/Client/CanvasLayer/Hotbar")
-		if hotbar and hotbar.has_method("refresh_display"):
-			hotbar.refresh_display()
-	else:
-		var required_station: String = recipe.get("crafting_station", "")
-		if not required_station.is_empty() and not stations.has(required_station):
-			print("[InventoryPanel] Cannot craft - missing %s" % required_station)
-		else:
-			print("[InventoryPanel] Cannot craft - missing resources")
+	# Note: Inventory will be synced back from server after crafting
+	# No need to update UI here - wait for server response
 
 ## Update recipe button states based on craftability
 func _update_recipe_buttons() -> void:

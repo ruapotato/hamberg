@@ -434,3 +434,87 @@ func rpc_spawn_buildable(piece_name: String, position: Array, rotation_y: float,
 		client_node.spawn_buildable(piece_name, pos_v3, rotation_y, network_id)
 	else:
 		print("[NetworkManager] WARNING: Client node not found or doesn't have spawn_buildable method")
+
+# ============================================================================
+# PERSISTENCE RPCs - Character and Inventory Management
+# ============================================================================
+
+## CLIENT -> SERVER: Request list of available characters for this world
+@rpc("any_peer", "call_remote", "reliable")
+func rpc_request_character_list() -> void:
+	if not is_server:
+		return
+
+	var peer_id := multiplayer.get_remote_sender_id()
+	var server_node := get_node_or_null("/root/Main/Server")
+	if server_node and server_node.has_method("send_character_list"):
+		server_node.send_character_list(peer_id)
+
+## SERVER -> CLIENT: Send available characters
+@rpc("authority", "call_remote", "reliable")
+func rpc_receive_character_list(characters: Array) -> void:
+	print("[NetworkManager] RPC received: receive_character_list with ", characters.size(), " characters")
+
+	var client_node := get_node_or_null("/root/Main/Client")
+	if client_node and client_node.has_method("receive_character_list"):
+		client_node.receive_character_list(characters)
+
+## CLIENT -> SERVER: Load a character (or create new)
+@rpc("any_peer", "call_remote", "reliable")
+func rpc_load_character(character_id: String, character_name: String, is_new: bool) -> void:
+	if not is_server:
+		return
+
+	var peer_id := multiplayer.get_remote_sender_id()
+	var server_node := get_node_or_null("/root/Main/Server")
+	if server_node and server_node.has_method("load_player_character"):
+		server_node.load_player_character(peer_id, character_id, character_name, is_new)
+
+## SERVER -> CLIENT: Send full inventory data
+@rpc("authority", "call_remote", "reliable")
+func rpc_sync_inventory(inventory_data: Array) -> void:
+	print("[NetworkManager] RPC received: sync_inventory")
+
+	var client_node := get_node_or_null("/root/Main/Client")
+	if client_node and client_node.has_method("receive_inventory_sync"):
+		client_node.receive_inventory_sync(inventory_data)
+
+## SERVER -> CLIENT: Update a single inventory slot (for efficiency)
+@rpc("authority", "call_remote", "reliable")
+func rpc_update_inventory_slot(slot: int, item: String, amount: int) -> void:
+	var client_node := get_node_or_null("/root/Main/Client")
+	if client_node and client_node.has_method("receive_inventory_slot_update"):
+		client_node.receive_inventory_slot_update(slot, item, amount)
+
+## CLIENT -> SERVER: Request to pick up an item (server validates and updates inventory)
+@rpc("any_peer", "call_remote", "reliable")
+func rpc_request_pickup_item(item_name: String, amount: int, network_id: String) -> void:
+	if not is_server:
+		return
+
+	var peer_id := multiplayer.get_remote_sender_id()
+	var server_node := get_node_or_null("/root/Main/Server")
+	if server_node and server_node.has_method("handle_pickup_request"):
+		server_node.handle_pickup_request(peer_id, item_name, amount, network_id)
+
+## CLIENT -> SERVER: Request to craft an item (server validates and updates inventory)
+@rpc("any_peer", "call_remote", "reliable")
+func rpc_request_craft(recipe_name: String) -> void:
+	if not is_server:
+		return
+
+	var peer_id := multiplayer.get_remote_sender_id()
+	var server_node := get_node_or_null("/root/Main/Server")
+	if server_node and server_node.has_method("handle_craft_request"):
+		server_node.handle_craft_request(peer_id, recipe_name)
+
+## CLIENT -> SERVER: Request manual save
+@rpc("any_peer", "call_remote", "reliable")
+func rpc_request_save() -> void:
+	if not is_server:
+		return
+
+	var peer_id := multiplayer.get_remote_sender_id()
+	var server_node := get_node_or_null("/root/Main/Server")
+	if server_node and server_node.has_method("handle_save_request"):
+		server_node.handle_save_request(peer_id)
