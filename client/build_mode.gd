@@ -183,9 +183,13 @@ func _find_nearest_snap_point(cursor_position: Vector3) -> Dictionary:
 			var snap_pos_global: Vector3 = child.global_transform * snap_pos_local
 			var snap_normal_global: Vector3 = child.global_transform.basis * snap_normal
 
+			# For floor corners, preserve the Y height of the existing floor
+			if snap_type == "floor_corner":
+				snap_pos_global.y = child.global_position.y
+
 			# Calculate where our piece should be placed to connect at this snap point
 			# We need to find which of OUR snap points should connect to THIS snap point
-			var our_snap_result = _find_matching_snap_point(snap_pos_global, snap_normal_global, child.rotation.y, snap_type)
+			var our_snap_result = _find_matching_snap_point(snap_pos_global, snap_normal_global, child.rotation.y, snap_type, cursor_position)
 
 			if our_snap_result.has("position"):
 				var distance = cursor_position.distance_to(our_snap_result.position)
@@ -197,55 +201,81 @@ func _find_nearest_snap_point(cursor_position: Vector3) -> Dictionary:
 	return nearest_snap
 
 ## Find which of our snap points should connect to a target snap point
-func _find_matching_snap_point(target_pos: Vector3, target_normal: Vector3, target_rotation: float, target_type: String) -> Dictionary:
+func _find_matching_snap_point(target_pos: Vector3, target_normal: Vector3, target_rotation: float, target_type: String, cursor_pos: Vector3) -> Dictionary:
 	if not ghost_preview or not ("snap_points" in ghost_preview):
 		return {}
 
-	# For piece-to-piece snapping, we want to find a snap point on our piece
-	# that has an opposite normal to the target (so they face each other)
-	for our_snap in ghost_preview.snap_points:
-		var our_normal: Vector3 = our_snap.normal
-		var our_pos_local: Vector3 = our_snap.position
-		var our_type: String = our_snap.get("type", "")
+	# Special handling for floor corner snapping
+	if current_piece_name == "wooden_floor" and target_type == "floor_corner":
+		# Determine which direction from the corner to place the new floor
+		var direction = (cursor_pos - target_pos).normalized()
+		direction.y = 0  # Keep on same plane
 
-		# Type-based filtering for better snapping behavior
-		# Floor edges should only snap to other floor edges (horizontal expansion)
-		if current_piece_name == "wooden_floor" and target_type.begins_with("floor"):
-			# Only allow floor_edge to floor_edge snapping
-			if our_type != "floor_edge" or target_type != "floor_edge":
-				continue
+		# Determine which of our corners should connect to the target corner
+		# Based on cursor direction from the target corner
+		var half_x = ghost_preview.grid_size.x / 2.0
+		var half_z = ghost_preview.grid_size.z / 2.0
 
-		# Wall bottoms should snap to floor tops
-		if current_piece_name == "wooden_wall" and target_type == "floor_top":
-			if our_type != "wall_bottom":
-				continue
+		var our_corner_offset: Vector3
 
-		# Wall edges should snap to other wall edges
-		if current_piece_name == "wooden_wall" and target_type == "wall_edge":
+		# Choose the opposite corner to connect
+		# If cursor is NE of corner, use our SW corner to connect
+		if direction.x >= 0 and direction.z >= 0:  # NE quadrant
+			our_corner_offset = Vector3(-half_x, 0, -half_z)  # Our SW corner
+		elif direction.x < 0 and direction.z >= 0:  # NW quadrant
+			our_corner_offset = Vector3(half_x, 0, -half_z)  # Our SE corner
+		elif direction.x < 0 and direction.z < 0:  # SW quadrant
+			our_corner_offset = Vector3(half_x, 0, half_z)  # Our NE corner
+		else:  # SE quadrant
+			our_corner_offset = Vector3(-half_x, 0, half_z)  # Our NW corner
+
+		# Calculate our center position so our chosen corner aligns with target
+		var our_center = target_pos - our_corner_offset
+
+		if debug_snap:
+			print("[BuildMode] Floor corner snap: dir=%s, our_corner_offset=%s" % [direction, our_corner_offset])
+			print("  Target corner: %s, Our center: %s" % [target_pos, our_center])
+
+		return {
+			"position": our_center,
+			"rotation": 0.0  # Floors always at 0 rotation for grid alignment
+		}
+
+	# Wall bottoms should snap to floor tops
+	if current_piece_name == "wooden_wall" and target_type == "floor_top":
+		for our_snap in ghost_preview.snap_points:
+			var our_type: String = our_snap.get("type", "")
+			if our_type == "wall_bottom":
+				var our_pos_local: Vector3 = our_snap.position
+				var rotated_snap_pos = Vector3(our_pos_local.x, our_pos_local.y, our_pos_local.z).rotated(Vector3.UP, ghost_preview.rotation.y)
+				var our_center_pos = target_pos - rotated_snap_pos
+
+				return {
+					"position": our_center_pos,
+					"rotation": ghost_preview.rotation.y
+				}
+
+	# Wall edges should snap to other wall edges
+	if current_piece_name == "wooden_wall" and target_type == "wall_edge":
+		for our_snap in ghost_preview.snap_points:
+			var our_type: String = our_snap.get("type", "")
 			if our_type != "wall_edge":
 				continue
 
-		# Check if normals are roughly opposite (facing each other)
-		# Use current ghost rotation to get actual normal direction
-		var rotated_normal = Vector3(our_normal.x, our_normal.y, our_normal.z).rotated(Vector3.UP, ghost_preview.rotation.y)
+			var our_normal: Vector3 = our_snap.normal
+			var our_pos_local: Vector3 = our_snap.position
 
-		# Normals should point in opposite directions (dot product close to -1)
-		var dot = rotated_normal.dot(target_normal)
+			var rotated_normal = Vector3(our_normal.x, our_normal.y, our_normal.z).rotated(Vector3.UP, ghost_preview.rotation.y)
+			var dot = rotated_normal.dot(target_normal)
 
-		if dot < -0.7:  # Roughly opposite (allow some tolerance)
-			# Calculate where our piece center should be
-			# If our snap point aligns with target snap point
-			var rotated_snap_pos = Vector3(our_pos_local.x, our_pos_local.y, our_pos_local.z).rotated(Vector3.UP, ghost_preview.rotation.y)
-			var our_center_pos = target_pos - rotated_snap_pos
+			if dot < -0.7:  # Opposite facing
+				var rotated_snap_pos = Vector3(our_pos_local.x, our_pos_local.y, our_pos_local.z).rotated(Vector3.UP, ghost_preview.rotation.y)
+				var our_center_pos = target_pos - rotated_snap_pos
 
-			if debug_snap:
-				print("[BuildMode] Snap match: our_type=%s target_type=%s dot=%.2f" % [our_type, target_type, dot])
-				print("  Target pos: %s, Our center: %s" % [target_pos, our_center_pos])
-
-			return {
-				"position": our_center_pos,
-				"rotation": ghost_preview.rotation.y  # Keep current rotation
-			}
+				return {
+					"position": our_center_pos,
+					"rotation": ghost_preview.rotation.y
+				}
 
 	return {}
 

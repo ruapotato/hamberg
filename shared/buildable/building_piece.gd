@@ -32,19 +32,24 @@ func _setup_snap_points() -> void:
 	# Define snap points based on piece type
 	match piece_name:
 		"wooden_floor":
-			# Floor: 4 edge snaps (for adjacent floors) + top surface (for walls/beams)
+			# Floor: 4 corner snaps (for creating grid) + edge/center tops (for walls)
 			var half_x = grid_size.x / 2.0
 			var half_z = grid_size.z / 2.0
 			var height = grid_size.y
 
-			# Edge snaps (for adjacent floors)
-			snap_points.append({"position": Vector3(half_x, 0, 0), "normal": Vector3.RIGHT, "type": "floor_edge"})
-			snap_points.append({"position": Vector3(-half_x, 0, 0), "normal": Vector3.LEFT, "type": "floor_edge"})
-			snap_points.append({"position": Vector3(0, 0, half_z), "normal": Vector3.FORWARD, "type": "floor_edge"})
-			snap_points.append({"position": Vector3(0, 0, -half_z), "normal": Vector3.BACK, "type": "floor_edge"})
+			# Corner snap points - these define the grid expansion points
+			# Each corner can attach up to 4 adjacent floor pieces
+			snap_points.append({"position": Vector3(half_x, 0, half_z), "normal": Vector3.ZERO, "type": "floor_corner", "corner_id": "ne"})
+			snap_points.append({"position": Vector3(-half_x, 0, half_z), "normal": Vector3.ZERO, "type": "floor_corner", "corner_id": "nw"})
+			snap_points.append({"position": Vector3(-half_x, 0, -half_z), "normal": Vector3.ZERO, "type": "floor_corner", "corner_id": "sw"})
+			snap_points.append({"position": Vector3(half_x, 0, -half_z), "normal": Vector3.ZERO, "type": "floor_corner", "corner_id": "se"})
 
-			# Top surface snap (for walls)
+			# Top surface snap points for walls to attach anywhere on the floor surface
 			snap_points.append({"position": Vector3(0, height, 0), "normal": Vector3.UP, "type": "floor_top"})
+			snap_points.append({"position": Vector3(half_x, height, 0), "normal": Vector3.UP, "type": "floor_top"})
+			snap_points.append({"position": Vector3(-half_x, height, 0), "normal": Vector3.UP, "type": "floor_top"})
+			snap_points.append({"position": Vector3(0, height, half_z), "normal": Vector3.UP, "type": "floor_top"})
+			snap_points.append({"position": Vector3(0, height, -half_z), "normal": Vector3.UP, "type": "floor_top"})
 
 		"wooden_wall":
 			# Wall: 2 side snaps (for adjacent walls) + bottom (for floor) + top (for walls above)
