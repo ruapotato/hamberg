@@ -16,7 +16,7 @@ var is_selected: bool = false
 var is_dragging: bool = false
 var drag_preview: Control = null
 
-@onready var item_icon: TextureRect = $ItemIcon
+@onready var item_icon: ColorRect = $ItemIcon
 @onready var item_name_label: Label = $ItemNameLabel
 @onready var amount_label: Label = $AmountLabel
 @onready var selection_border: Panel = $SelectionBorder
@@ -111,31 +111,31 @@ func _set_placeholder_icon(item: String) -> void:
 	if not item_icon:
 		return
 
-	# Create a colored texture based on item type
-	var color := Color.WHITE
+	# Set color based on item type
+	var icon_color := Color.WHITE
 	match item:
 		"wood":
-			color = Color(0.6, 0.4, 0.2)  # Brown
+			icon_color = Color(0.6, 0.4, 0.2)  # Brown
 		"stone":
-			color = Color(0.5, 0.5, 0.5)  # Gray
+			icon_color = Color(0.5, 0.5, 0.5)  # Gray
 		"iron":
-			color = Color(0.3, 0.3, 0.4)  # Dark gray-blue
+			icon_color = Color(0.3, 0.3, 0.4)  # Dark gray-blue
 		"copper":
-			color = Color(0.8, 0.5, 0.2)  # Copper color
+			icon_color = Color(0.8, 0.5, 0.2)  # Copper color
 		"resin":
-			color = Color(0.9, 0.7, 0.0)  # Golden/amber color
+			icon_color = Color(0.9, 0.7, 0.0)  # Golden/amber color
 		"wooden_club", "hammer", "stone_axe", "stone_pickaxe":
-			color = Color(0.7, 0.6, 0.4)  # Tool color
+			icon_color = Color(0.7, 0.6, 0.4)  # Tool color
 		"torch":
-			color = Color(0.9, 0.6, 0.1)  # Torch orange
+			icon_color = Color(0.9, 0.6, 0.1)  # Torch orange
 		"workbench":
-			color = Color(0.6, 0.4, 0.2)  # Workbench brown
+			icon_color = Color(0.6, 0.4, 0.2)  # Workbench brown
 		"wooden_wall", "wooden_floor", "wooden_door", "wooden_beam", "wooden_roof":
-			color = Color(0.5, 0.35, 0.2)  # Building material
+			icon_color = Color(0.5, 0.35, 0.2)  # Building material
 		_:
-			color = Color(0.8, 0.8, 0.8)  # Default light gray
+			icon_color = Color(0.8, 0.8, 0.8)  # Default light gray
 
-	item_icon.modulate = color
+	item_icon.color = icon_color
 
 ## Get the inventory slot under the mouse cursor
 func _get_slot_under_mouse() -> Node:
