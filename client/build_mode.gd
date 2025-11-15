@@ -26,9 +26,9 @@ var placement_distance: float = 5.0
 var can_place_current: bool = false
 
 # Snapping
-var snap_distance_threshold: float = 50.0  # Very aggressive - snap from anywhere nearby
+var snap_distance_threshold: float = 8.0  # Snap when within 8 units of a valid snap position
 var is_snapped_to_piece: bool = false  # Whether currently snapped to another piece
-var snap_search_radius: float = 10.0  # Radius to search for nearby pieces
+var snap_search_radius: float = 8.0  # Search for nearby pieces within 8 units for grid reference
 var debug_snap: bool = false  # Enable debug logging for snapping
 var placed_buildables: Dictionary = {}  # Track placed positions to avoid duplicate snaps
 
@@ -108,69 +108,77 @@ func _update_ghost_position() -> void:
 	if result:
 		var hit_point = result.position
 		var hit_normal = result.normal
-
-		# Special handling if we hit an existing floor piece directly
 		var hit_object = result.get("collider")
-		if hit_object and ("piece_name" in hit_object) and hit_object.piece_name == "wooden_floor" and current_piece_name == "wooden_floor":
-			# Use the hit floor as reference for finding adjacent positions
-			var snap_result = _find_nearest_snap_point(hit_object.global_position)
 
-			if snap_result.has("position"):
-				target_position = snap_result.position
-				target_rotation = snap_result.get("rotation", 0.0)
-				is_snapped_to_piece = true
-			else:
-				# No valid adjacent position found, use ground placement
-				if ghost_preview.snap_to_grid:
-					var grid = ghost_preview.grid_size
-					hit_point.x = round(hit_point.x / grid.x) * grid.x
-					hit_point.z = round(hit_point.z / grid.z) * grid.z
+		# Debug: Print what we hit
+		if debug_snap:
+			print("[BuildMode] Raycast hit: pos=%s, normal=%s, object=%s" % [hit_point, hit_normal, hit_object])
 
-				if hit_normal.y > 0.5:
-					var offset_y = ghost_preview.grid_size.y / 2.0
-					hit_point.y += offset_y
+		# Try to snap to nearby floors first (uses grid-aligned snapping for floors)
+		var snap_result = _find_nearest_snap_point(hit_point)
 
-				target_position = hit_point
+		if snap_result.has("position"):
+			# Found a valid snap position near an existing floor!
+			target_position = snap_result.position
+			target_rotation = snap_result.get("rotation", target_rotation)
+			is_snapped_to_piece = true
 		else:
-			# ALWAYS try to find nearby floors first, even if we hit ground
-			var snap_result = _find_nearest_snap_point(hit_point)
-
-			if snap_result.has("position"):
-				# Snap to nearby piece!
-				target_position = snap_result.position
-				target_rotation = snap_result.get("rotation", target_rotation)
-				is_snapped_to_piece = true
-			else:
-				# No nearby floors - use ground placement
-				# Snap to grid (only X and Z, not Y)
-				if ghost_preview.snap_to_grid:
-					var grid = ghost_preview.grid_size
-					hit_point.x = round(hit_point.x / grid.x) * grid.x
-					hit_point.z = round(hit_point.z / grid.z) * grid.z
-					# Don't snap Y - we want objects to sit on the surface
-
-				# Align object to surface normal (make it stand upright on slopes)
-				if hit_normal.y > 0.5:  # Only on relatively flat surfaces
-					# Place object ON the surface, not embedded in it
-					# Offset by half the grid height to sit on top
+			# No nearby floors - place exactly where raycast hits (no grid snapping)
+			# This allows the first piece to be placed anywhere
+			# Place object ON the surface, not embedded in it
+			if hit_normal.y > 0.5:  # Only on relatively flat surfaces
+				# Safe access to grid_size (some buildables don't have it)
+				if "grid_size" in ghost_preview:
 					var offset_y = ghost_preview.grid_size.y / 2.0
 					hit_point.y += offset_y
+				else:
+					hit_point.y += 0.1  # Default small offset for non-building pieces
 
-				target_position = hit_point
-				is_snapped_to_piece = false
+			target_position = hit_point
+			is_snapped_to_piece = false
+
+			# For floors: check if we're too close to an existing floor (would overlap)
+			if current_piece_name == "wooden_floor" and _is_position_occupied(target_position):
+				if debug_snap:
+					print("[BuildMode] Ground placement would overlap with existing floor at %s" % target_position)
+				# Mark as invalid but still show the ghost
+				can_place_current = false
+				ghost_preview.global_position = target_position
+				ghost_preview.rotation.y = target_rotation
+				ghost_preview.set_preview_valid(false, false)
+				return  # Early return to skip normal validation
 
 		ghost_preview.global_position = target_position
 		ghost_preview.rotation.y = target_rotation
+
+		if debug_snap:
+			print("[BuildMode] Ghost position: %s (snapped=%s)" % [target_position, is_snapped_to_piece])
 
 		# Validate placement
 		can_place_current = _validate_placement(target_position)
 		ghost_preview.set_preview_valid(can_place_current, is_snapped_to_piece)
 	else:
-		# No hit - place in front of player
-		ghost_preview.global_position = from + (-camera.global_transform.basis.z * placement_distance)
-		can_place_current = false
+		# No hit - place in front of player at player's feet level
+		var forward_pos = from + (-camera.global_transform.basis.z * placement_distance)
+
+		# Use player's Y position as reference (player should be standing on ground)
+		if player:
+			forward_pos.y = player.global_position.y
+			# Add offset for piece height
+			if "grid_size" in ghost_preview:
+				forward_pos.y += ghost_preview.grid_size.y / 2.0
+			else:
+				forward_pos.y += 0.1
+		else:
+			# Fallback: use camera Y minus some height
+			forward_pos.y = from.y - 1.0
+
+		ghost_preview.global_position = forward_pos
 		is_snapped_to_piece = false
-		ghost_preview.set_preview_valid(false, false)
+
+		# Allow placement if player has resources
+		can_place_current = _validate_placement(forward_pos)
+		ghost_preview.set_preview_valid(can_place_current, false)
 
 ## Find the nearest snap point from nearby building pieces
 func _find_nearest_snap_point(cursor_position: Vector3) -> Dictionary:
@@ -225,74 +233,107 @@ func _find_nearest_snap_point(cursor_position: Vector3) -> Dictionary:
 
 	return nearest_snap
 
-## Aggressive floor grid snapping - calculate all 4 adjacent positions and pick closest
+## Floor grid snapping - snap to grid coordinates aligned with nearby floors
 func _find_floor_grid_snap(cursor_position: Vector3) -> Dictionary:
 	if not world or not ghost_preview:
+		return {}
+
+	# Safety check - ensure ghost_preview has grid_size
+	if not ("grid_size" in ghost_preview):
 		return {}
 
 	var grid_size_x = ghost_preview.grid_size.x
 	var grid_size_z = ghost_preview.grid_size.z
 
-	var best_snap: Dictionary = {}
-	var best_distance: float = snap_distance_threshold
+	# Find the nearest floor piece to use as grid reference
+	var nearest_floor: Node3D = null
+	var nearest_distance: float = snap_search_radius
 
-	var total_floors = 0
-	var total_adjacent = 0
-	var occupied_count = 0
-
-	# Find all floor pieces nearby
 	for child in world.get_children():
-		# Skip if it's the ghost preview itself
 		if child == ghost_preview:
 			continue
 
-		# Only look for other floors
 		if not ("piece_name" in child) or child.piece_name != "wooden_floor":
 			continue
 
-		total_floors += 1
+		var distance = child.global_position.distance_to(cursor_position)
+		if distance < nearest_distance:
+			nearest_distance = distance
+			nearest_floor = child
 
-		# Skip if too far away
-		if child.global_position.distance_to(cursor_position) > snap_search_radius:
-			continue
+	# If no nearby floor found, no grid snapping
+	if not nearest_floor:
+		return {}
 
-		# Get the floor's center position
-		var floor_center = child.global_position
-		var floor_y = floor_center.y  # Preserve Y height
+	# Use the nearest floor as the grid reference
+	var floor_center = nearest_floor.global_position
+	var floor_y = floor_center.y  # Use the same Y level as the reference floor
 
-		# Calculate ALL 4 possible adjacent positions
-		var adjacent_positions = [
-			Vector3(floor_center.x + grid_size_x, floor_y, floor_center.z),  # East
-			Vector3(floor_center.x - grid_size_x, floor_y, floor_center.z),  # West
-			Vector3(floor_center.x, floor_y, floor_center.z + grid_size_z),  # North
-			Vector3(floor_center.x, floor_y, floor_center.z - grid_size_z),  # South
-		]
+	# Calculate what grid position the cursor should snap to
+	# based on the reference floor's grid
+	var offset_x = cursor_position.x - floor_center.x
+	var offset_z = cursor_position.z - floor_center.z
 
-		# Check each adjacent position
-		for adj_pos in adjacent_positions:
-			total_adjacent += 1
+	# Round to nearest grid cell
+	var grid_x = round(offset_x / grid_size_x)
+	var grid_z = round(offset_z / grid_size_z)
 
-			# Skip if this position is already occupied
-			if _is_position_occupied(adj_pos):
-				occupied_count += 1
-				continue
+	# Calculate the snapped position
+	var snapped_pos = Vector3(
+		floor_center.x + grid_x * grid_size_x,
+		floor_y,
+		floor_center.z + grid_z * grid_size_z
+	)
 
-			# Calculate distance from cursor to this potential placement
-			var distance = cursor_position.distance_to(adj_pos)
+	# Check if this position is already occupied
+	if _is_position_occupied(snapped_pos):
+		if debug_snap:
+			print("[BuildMode] Primary grid position %s is occupied, searching for nearest unoccupied..." % snapped_pos)
 
-			if distance < best_distance:
-				best_distance = distance
-				best_snap = {
-					"position": adj_pos,
-					"rotation": 0.0  # Floors always at 0 rotation
-				}
+		# Find the nearest unoccupied grid position
+		# Check adjacent positions in expanding rings
+		var best_pos: Vector3 = Vector3.ZERO
+		var best_dist: float = INF
+		var found: bool = false
 
-	if debug_snap and total_floors > 0:
-		print("[BuildMode] Floor snap search: %d floors, %d adjacent slots, %d occupied, best_dist: %.2f" % [total_floors, total_adjacent, occupied_count, best_distance])
-		if best_snap.has("position"):
-			print("  Snapping to: %s" % best_snap.position)
+		# Check positions in a 3x3 grid around the calculated position (excluding center which is occupied)
+		for dx in range(-1, 2):
+			for dz in range(-1, 2):
+				if dx == 0 and dz == 0:
+					continue  # Skip the occupied center position
 
-	return best_snap
+				var test_pos = Vector3(
+					floor_center.x + (grid_x + dx) * grid_size_x,
+					floor_y,
+					floor_center.z + (grid_z + dz) * grid_size_z
+				)
+
+				if not _is_position_occupied(test_pos):
+					var dist = cursor_position.distance_to(test_pos)
+					if dist < best_dist:
+						best_dist = dist
+						best_pos = test_pos
+						found = true
+
+		if found and best_dist < snap_distance_threshold:
+			if debug_snap:
+				print("[BuildMode] Found unoccupied position at %s (dist: %.2f)" % [best_pos, best_dist])
+			return {
+				"position": best_pos,
+				"rotation": 0.0
+			}
+
+		# No nearby unoccupied position found
+		return {}
+
+	# Valid snap position found
+	if debug_snap:
+		print("[BuildMode] Snapping to grid position %s (ref floor: %s)" % [snapped_pos, floor_center])
+
+	return {
+		"position": snapped_pos,
+		"rotation": 0.0
+	}
 
 ## Check if a position is already occupied by a floor piece
 func _is_position_occupied(pos: Vector3) -> bool:
