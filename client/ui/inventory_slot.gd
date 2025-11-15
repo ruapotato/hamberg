@@ -55,6 +55,7 @@ func set_item_data(data: Dictionary) -> void:
 		item_name = data.get("item", "")
 		item_amount = data.get("amount", 0)
 
+	print("[InventorySlot %d] set_item_data: item=%s, amount=%d" % [slot_index, item_name, item_amount])
 	update_display()
 
 ## Set selection state
@@ -84,6 +85,9 @@ func update_display() -> void:
 			# Convert snake_case to Title Case
 			var display_name = _get_display_name(item_name)
 			item_name_label.text = display_name
+			print("[InventorySlot %d] Displaying item: %s (label: %s)" % [slot_index, item_name, display_name])
+	else:
+		print("[InventorySlot %d] WARNING: item_name_label is null!" % slot_index)
 
 	if amount_label:
 		amount_label.visible = has_item and item_amount > 1
