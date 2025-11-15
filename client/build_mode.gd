@@ -26,9 +26,10 @@ var placement_distance: float = 5.0
 var can_place_current: bool = false
 
 # Snapping
-var snap_distance_threshold: float = 1.5  # Max distance to snap to a point
+var snap_distance_threshold: float = 2.5  # Max distance to snap to a point
 var is_snapped_to_piece: bool = false  # Whether currently snapped to another piece
-var snap_search_radius: float = 4.0  # Radius to search for nearby pieces
+var snap_search_radius: float = 6.0  # Radius to search for nearby pieces
+var debug_snap: bool = false  # Enable debug logging for snapping
 
 # References
 var player: Node3D = null
@@ -161,7 +162,11 @@ func _find_nearest_snap_point(cursor_position: Vector3) -> Dictionary:
 			continue
 
 		# Check if it's a buildable piece (has snap_points)
-		if not child.has("snap_points") or not child.has("piece_name"):
+		if not ("snap_points" in child) or not ("piece_name" in child):
+			continue
+
+		# Skip if snap_points is empty
+		if child.snap_points.is_empty():
 			continue
 
 		# Skip if too far away
@@ -172,6 +177,7 @@ func _find_nearest_snap_point(cursor_position: Vector3) -> Dictionary:
 		for snap_point in child.snap_points:
 			var snap_pos_local: Vector3 = snap_point.position
 			var snap_normal: Vector3 = snap_point.normal
+			var snap_type: String = snap_point.get("type", "")
 
 			# Transform to global space
 			var snap_pos_global: Vector3 = child.global_transform * snap_pos_local
@@ -179,7 +185,7 @@ func _find_nearest_snap_point(cursor_position: Vector3) -> Dictionary:
 
 			# Calculate where our piece should be placed to connect at this snap point
 			# We need to find which of OUR snap points should connect to THIS snap point
-			var our_snap_result = _find_matching_snap_point(snap_pos_global, snap_normal_global, child.rotation.y)
+			var our_snap_result = _find_matching_snap_point(snap_pos_global, snap_normal_global, child.rotation.y, snap_type)
 
 			if our_snap_result.has("position"):
 				var distance = cursor_position.distance_to(our_snap_result.position)
@@ -191,8 +197,8 @@ func _find_nearest_snap_point(cursor_position: Vector3) -> Dictionary:
 	return nearest_snap
 
 ## Find which of our snap points should connect to a target snap point
-func _find_matching_snap_point(target_pos: Vector3, target_normal: Vector3, target_rotation: float) -> Dictionary:
-	if not ghost_preview or not ghost_preview.has("snap_points"):
+func _find_matching_snap_point(target_pos: Vector3, target_normal: Vector3, target_rotation: float, target_type: String) -> Dictionary:
+	if not ghost_preview or not ("snap_points" in ghost_preview):
 		return {}
 
 	# For piece-to-piece snapping, we want to find a snap point on our piece
@@ -200,6 +206,24 @@ func _find_matching_snap_point(target_pos: Vector3, target_normal: Vector3, targ
 	for our_snap in ghost_preview.snap_points:
 		var our_normal: Vector3 = our_snap.normal
 		var our_pos_local: Vector3 = our_snap.position
+		var our_type: String = our_snap.get("type", "")
+
+		# Type-based filtering for better snapping behavior
+		# Floor edges should only snap to other floor edges (horizontal expansion)
+		if current_piece_name == "wooden_floor" and target_type.begins_with("floor"):
+			# Only allow floor_edge to floor_edge snapping
+			if our_type != "floor_edge" or target_type != "floor_edge":
+				continue
+
+		# Wall bottoms should snap to floor tops
+		if current_piece_name == "wooden_wall" and target_type == "floor_top":
+			if our_type != "wall_bottom":
+				continue
+
+		# Wall edges should snap to other wall edges
+		if current_piece_name == "wooden_wall" and target_type == "wall_edge":
+			if our_type != "wall_edge":
+				continue
 
 		# Check if normals are roughly opposite (facing each other)
 		# Use current ghost rotation to get actual normal direction
@@ -213,6 +237,10 @@ func _find_matching_snap_point(target_pos: Vector3, target_normal: Vector3, targ
 			# If our snap point aligns with target snap point
 			var rotated_snap_pos = Vector3(our_pos_local.x, our_pos_local.y, our_pos_local.z).rotated(Vector3.UP, ghost_preview.rotation.y)
 			var our_center_pos = target_pos - rotated_snap_pos
+
+			if debug_snap:
+				print("[BuildMode] Snap match: our_type=%s target_type=%s dot=%.2f" % [our_type, target_type, dot])
+				print("  Target pos: %s, Our center: %s" % [target_pos, our_center_pos])
 
 			return {
 				"position": our_center_pos,
