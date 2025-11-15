@@ -8,6 +8,7 @@ var player_scene := preload("res://shared/player.tscn")
 var camera_controller_scene := preload("res://shared/camera_controller.tscn")
 var hotbar_scene := preload("res://client/ui/hotbar.tscn")
 var inventory_panel_scene := preload("res://client/ui/inventory_panel.tscn")
+var build_menu_scene := preload("res://client/ui/build_menu.tscn")
 
 # Client state
 var is_connected: bool = false
@@ -17,6 +18,7 @@ var remote_players: Dictionary = {} # peer_id -> Player node
 # Inventory UI
 var hotbar_ui: Control = null
 var inventory_panel_ui: Control = null
+var build_menu_ui: Control = null
 
 # Build mode
 var build_mode: Node = null
@@ -82,6 +84,7 @@ func _ready() -> void:
 func _process(_delta: float) -> void:
 	if is_connected:
 		_update_hud()
+		_handle_build_input()
 
 func auto_connect_to_localhost() -> void:
 	"""Auto-connect to localhost for singleplayer mode"""
@@ -167,6 +170,51 @@ func _update_hud() -> void:
 	var player_count := 1 # Local player
 	player_count += remote_players.size()
 	players_label.text = "Players: %d" % player_count
+
+func _handle_build_input() -> void:
+	# Don't handle build input if inventory or build menu is open
+	if inventory_panel_ui and inventory_panel_ui.is_inventory_open():
+		return
+	if build_menu_ui and build_menu_ui.is_open:
+		return
+
+	# Right-click to open build menu when hammer is equipped
+	if Input.is_action_just_pressed("secondary_action"):
+		if current_equipped_item == "hammer" and build_mode and build_mode.is_active:
+			if build_menu_ui:
+				build_menu_ui.toggle_menu()
+
+	# Middle mouse button to destroy objects (when hammer equipped)
+	if Input.is_action_just_pressed("destroy_object"):
+		if current_equipped_item == "hammer":
+			_destroy_object_under_cursor()
+
+func _destroy_object_under_cursor() -> void:
+	var camera = _get_camera()
+	if not camera:
+		return
+
+	# Raycast from camera forward
+	var from = camera.global_position
+	var to = from + (-camera.global_transform.basis.z * 5.0)
+
+	var space_state = world.get_world_3d().direct_space_state
+	var query = PhysicsRayQueryParameters3D.create(from, to)
+	query.collision_mask = 1  # World layer
+
+	var result = space_state.intersect_ray(query)
+
+	if result and result.collider:
+		var hit_object = result.collider
+		# Check if it's a buildable object (has a parent BuildableObject or BuildingPiece)
+		var buildable = hit_object
+		while buildable:
+			if buildable.has_method("get_piece_name") or buildable.has_method("is_position_in_range"):
+				# Found a buildable - request server to destroy it
+				print("[Client] Requesting destruction of buildable at %s" % result.position)
+				# TODO: NetworkManager.rpc_destroy_buildable.rpc_id(1, buildable.global_position)
+				return
+			buildable = buildable.get_parent()
 
 # ============================================================================
 # PLAYER MANAGEMENT (CLIENT-SIDE)
@@ -303,6 +351,13 @@ func _setup_inventory_ui(player: Node3D) -> void:
 	inventory_panel_ui.hide_inventory()  # Start hidden
 	print("[Client] Inventory panel UI created and linked to player inventory")
 
+	# Create build menu UI (opens with right-click when hammer equipped)
+	build_menu_ui = build_menu_scene.instantiate()
+	canvas_layer.add_child(build_menu_ui)
+	build_menu_ui.piece_selected.connect(_on_build_piece_selected)
+	build_menu_ui.hide_menu()  # Start hidden
+	print("[Client] Build menu UI created")
+
 	# Refresh displays periodically to sync with inventory changes
 	var refresh_timer = Timer.new()
 	refresh_timer.wait_time = 0.1  # Refresh every 100ms
@@ -334,6 +389,11 @@ func _on_hotbar_selection_changed(slot_index: int, item_name: String) -> void:
 	elif item_name == "workbench":
 		if camera and local_player:
 			placement_mode.activate(local_player, camera, world, item_name)
+
+## Handle build piece selection from build menu
+func _on_build_piece_selected(piece_name: String) -> void:
+	if build_mode and build_mode.is_active:
+		build_mode.set_piece(piece_name)
 
 ## Handle build piece placement from build mode
 func _on_build_piece_placed(piece_name: String, position: Vector3, rotation_y: float) -> void:

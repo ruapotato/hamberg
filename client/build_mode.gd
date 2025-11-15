@@ -56,10 +56,12 @@ func deactivate() -> void:
 	print("[BuildMode] Deactivated")
 
 func _process(_delta: float) -> void:
-	if not is_active or not ghost_preview:
+	if not is_active:
 		return
 
-	_update_ghost_position()
+	if ghost_preview:
+		_update_ghost_position()
+
 	_handle_input()
 
 func _create_ghost_preview() -> void:
@@ -120,19 +122,33 @@ func _validate_placement(_position: Vector3) -> bool:
 	return true
 
 func _handle_input() -> void:
-	# Cycle pieces with mouse wheel
-	if Input.is_action_just_pressed("build_next_piece"):
-		cycle_piece(1)
-	elif Input.is_action_just_pressed("build_prev_piece"):
-		cycle_piece(-1)
-
 	# Rotate with R key
-	if Input.is_action_just_pressed("build_rotate"):
+	if Input.is_action_just_pressed("build_rotate") and ghost_preview:
 		rotate_preview()
 
 	# Place with left click
-	if Input.is_action_just_pressed("attack") and can_place_current:
+	if Input.is_action_just_pressed("attack") and can_place_current and ghost_preview:
 		place_current_piece()
+
+## Set which piece to build (called from build menu)
+func set_piece(piece_name: String) -> void:
+	if not available_pieces.has(piece_name):
+		push_error("[BuildMode] Unknown piece: %s" % piece_name)
+		return
+
+	current_piece_name = piece_name
+
+	# Find the index
+	for i in piece_names.size():
+		if piece_names[i] == piece_name:
+			current_piece_index = i
+			break
+
+	_destroy_ghost_preview()
+	_create_ghost_preview()
+
+	var display_name = current_piece_name.replace("_", " ").capitalize()
+	print("[BuildMode] Selected: %s" % display_name)
 
 func cycle_piece(direction: int) -> void:
 	current_piece_index = (current_piece_index + direction) % piece_names.size()
