@@ -235,3 +235,10 @@ func save_terrain() -> void:
 	if terrain.stream:
 		terrain.save_modified_blocks()
 		print("[VoxelWorld] Saved modified terrain blocks")
+
+## Save all modified environmental chunks (call on server shutdown/save)
+func save_environmental_chunks() -> void:
+	if chunk_manager:
+		chunk_manager.save_all_modified_chunks()
+	else:
+		print("[VoxelWorld] No chunk manager to save chunks")

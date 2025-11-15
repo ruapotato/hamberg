@@ -134,6 +134,9 @@ func stop_server() -> void:
 	# Save world state
 	_save_world_state()
 
+	# Save environmental chunks (trees, rocks, etc.)
+	_save_environmental_chunks()
+
 	# Kick all players
 	for peer_id in spawned_players.keys():
 		_despawn_player(peer_id)
@@ -172,6 +175,7 @@ func _auto_save() -> void:
 	print("[Server] Auto-saving...")
 	_save_all_players()
 	_save_world_state()
+	_save_environmental_chunks()
 	print("[Server] Auto-save complete")
 
 func _broadcast_player_states() -> void:
@@ -698,6 +702,7 @@ func _execute_console_command(command: String) -> void:
 			print("[Server] Saving world...")
 			_save_all_players()
 			_save_world_state()
+			_save_environmental_chunks()
 			print("[Server] Save complete")
 
 		"shutdown":
@@ -768,6 +773,12 @@ func _save_all_players() -> void:
 			saved_count += 1
 
 	print("[Server] Saved %d player characters" % saved_count)
+
+func _save_environmental_chunks() -> void:
+	if voxel_world:
+		voxel_world.save_environmental_chunks()
+	else:
+		print("[Server] No voxel world to save chunks")
 
 ## Send list of characters to client (called via RPC)
 func send_character_list(peer_id: int) -> void:
@@ -973,4 +984,5 @@ func handle_save_request(peer_id: int) -> void:
 	print("[Server] Player %d requested manual save" % peer_id)
 	_save_all_players()
 	_save_world_state()
+	_save_environmental_chunks()
 	print("[Server] Manual save complete")

@@ -273,6 +273,20 @@ func _save_chunk_to_database(chunk_pos: Vector2i, objects: Array) -> void:
 func mark_chunk_modified(chunk_pos: Vector2i) -> void:
 	modified_chunks[chunk_pos] = true
 
+## Save all modified chunks to database (call on server shutdown)
+func save_all_modified_chunks() -> void:
+	if not database:
+		return
+
+	var saved_count := 0
+	for chunk_pos in modified_chunks.keys():
+		if modified_chunks[chunk_pos] and loaded_chunks.has(chunk_pos):
+			var objects = loaded_chunks[chunk_pos]
+			_save_chunk_to_database(chunk_pos, objects)
+			saved_count += 1
+
+	print("[ChunkManager] Saved %d modified chunks" % saved_count)
+
 ## Get stats for debugging
 func get_stats() -> Dictionary:
 	var total_objects := 0
