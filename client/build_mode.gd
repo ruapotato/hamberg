@@ -26,10 +26,11 @@ var placement_distance: float = 5.0
 var can_place_current: bool = false
 
 # Snapping
-var snap_distance_threshold: float = 2.5  # Max distance to snap to a point
+var snap_distance_threshold: float = 50.0  # Very aggressive - snap from anywhere nearby
 var is_snapped_to_piece: bool = false  # Whether currently snapped to another piece
-var snap_search_radius: float = 6.0  # Radius to search for nearby pieces
+var snap_search_radius: float = 10.0  # Radius to search for nearby pieces
 var debug_snap: bool = false  # Enable debug logging for snapping
+var placed_buildables: Dictionary = {}  # Track placed positions to avoid duplicate snaps
 
 # References
 var player: Node3D = null
@@ -108,31 +109,54 @@ func _update_ghost_position() -> void:
 		var hit_point = result.position
 		var hit_normal = result.normal
 
-		# Try to find nearby snap point first
-		var snap_result = _find_nearest_snap_point(hit_point)
+		# Special handling if we hit an existing floor piece directly
+		var hit_object = result.get("collider")
+		if hit_object and ("piece_name" in hit_object) and hit_object.piece_name == "wooden_floor" and current_piece_name == "wooden_floor":
+			# Use the hit floor as reference for finding adjacent positions
+			var snap_result = _find_nearest_snap_point(hit_object.global_position)
 
-		if snap_result.has("position"):
-			# Snap to nearby piece!
-			target_position = snap_result.position
-			target_rotation = snap_result.get("rotation", target_rotation)
-			is_snapped_to_piece = true
+			if snap_result.has("position"):
+				target_position = snap_result.position
+				target_rotation = snap_result.get("rotation", 0.0)
+				is_snapped_to_piece = true
+			else:
+				# No valid adjacent position found, use ground placement
+				if ghost_preview.snap_to_grid:
+					var grid = ghost_preview.grid_size
+					hit_point.x = round(hit_point.x / grid.x) * grid.x
+					hit_point.z = round(hit_point.z / grid.z) * grid.z
+
+				if hit_normal.y > 0.5:
+					var offset_y = ghost_preview.grid_size.y / 2.0
+					hit_point.y += offset_y
+
+				target_position = hit_point
 		else:
-			# No snap point found, use ground placement
-			# Snap to grid (only X and Z, not Y)
-			if ghost_preview.snap_to_grid:
-				var grid = ghost_preview.grid_size
-				hit_point.x = round(hit_point.x / grid.x) * grid.x
-				hit_point.z = round(hit_point.z / grid.z) * grid.z
-				# Don't snap Y - we want objects to sit on the surface
+			# Try to find nearby snap point first
+			var snap_result = _find_nearest_snap_point(hit_point)
 
-			# Align object to surface normal (make it stand upright on slopes)
-			if hit_normal.y > 0.5:  # Only on relatively flat surfaces
-				# Place object ON the surface, not embedded in it
-				# Offset by half the grid height to sit on top
-				var offset_y = ghost_preview.grid_size.y / 2.0
-				hit_point.y += offset_y
+			if snap_result.has("position"):
+				# Snap to nearby piece!
+				target_position = snap_result.position
+				target_rotation = snap_result.get("rotation", target_rotation)
+				is_snapped_to_piece = true
+			else:
+				# No snap point found, use ground placement
+				# Snap to grid (only X and Z, not Y)
+				if ghost_preview.snap_to_grid:
+					var grid = ghost_preview.grid_size
+					hit_point.x = round(hit_point.x / grid.x) * grid.x
+					hit_point.z = round(hit_point.z / grid.z) * grid.z
+					# Don't snap Y - we want objects to sit on the surface
 
-			target_position = hit_point
+				# Align object to surface normal (make it stand upright on slopes)
+				if hit_normal.y > 0.5:  # Only on relatively flat surfaces
+					# Place object ON the surface, not embedded in it
+					# Offset by half the grid height to sit on top
+					var offset_y = ghost_preview.grid_size.y / 2.0
+					hit_point.y += offset_y
+
+				target_position = hit_point
 
 		ghost_preview.global_position = target_position
 		ghost_preview.rotation.y = target_rotation
@@ -152,6 +176,11 @@ func _find_nearest_snap_point(cursor_position: Vector3) -> Dictionary:
 	if not world or not ghost_preview:
 		return {}
 
+	# For floors, use aggressive grid-based snapping
+	if current_piece_name == "wooden_floor":
+		return _find_floor_grid_snap(cursor_position)
+
+	# For other pieces, use the old snap point system
 	var nearest_snap: Dictionary = {}
 	var nearest_distance: float = snap_distance_threshold
 
@@ -183,12 +212,7 @@ func _find_nearest_snap_point(cursor_position: Vector3) -> Dictionary:
 			var snap_pos_global: Vector3 = child.global_transform * snap_pos_local
 			var snap_normal_global: Vector3 = child.global_transform.basis * snap_normal
 
-			# For floor corners, preserve the Y height of the existing floor
-			if snap_type == "floor_corner":
-				snap_pos_global.y = child.global_position.y
-
-			# Calculate where our piece should be placed to connect at this snap point
-			# We need to find which of OUR snap points should connect to THIS snap point
+			# Calculate where our piece should be placed
 			var our_snap_result = _find_matching_snap_point(snap_pos_global, snap_normal_global, child.rotation.y, snap_type, cursor_position)
 
 			if our_snap_result.has("position"):
@@ -199,6 +223,95 @@ func _find_nearest_snap_point(cursor_position: Vector3) -> Dictionary:
 					nearest_snap = our_snap_result
 
 	return nearest_snap
+
+## Aggressive floor grid snapping - calculate all 4 adjacent positions and pick closest
+func _find_floor_grid_snap(cursor_position: Vector3) -> Dictionary:
+	if not world or not ghost_preview:
+		return {}
+
+	var grid_size_x = ghost_preview.grid_size.x
+	var grid_size_z = ghost_preview.grid_size.z
+
+	var best_snap: Dictionary = {}
+	var best_distance: float = snap_distance_threshold
+
+	var total_floors = 0
+	var total_adjacent = 0
+	var occupied_count = 0
+
+	# Find all floor pieces nearby
+	for child in world.get_children():
+		# Skip if it's the ghost preview itself
+		if child == ghost_preview:
+			continue
+
+		# Only look for other floors
+		if not ("piece_name" in child) or child.piece_name != "wooden_floor":
+			continue
+
+		total_floors += 1
+
+		# Skip if too far away
+		if child.global_position.distance_to(cursor_position) > snap_search_radius:
+			continue
+
+		# Get the floor's center position
+		var floor_center = child.global_position
+		var floor_y = floor_center.y  # Preserve Y height
+
+		# Calculate ALL 4 possible adjacent positions
+		var adjacent_positions = [
+			Vector3(floor_center.x + grid_size_x, floor_y, floor_center.z),  # East
+			Vector3(floor_center.x - grid_size_x, floor_y, floor_center.z),  # West
+			Vector3(floor_center.x, floor_y, floor_center.z + grid_size_z),  # North
+			Vector3(floor_center.x, floor_y, floor_center.z - grid_size_z),  # South
+		]
+
+		# Check each adjacent position
+		for adj_pos in adjacent_positions:
+			total_adjacent += 1
+
+			# Skip if this position is already occupied
+			if _is_position_occupied(adj_pos):
+				occupied_count += 1
+				continue
+
+			# Calculate distance from cursor to this potential placement
+			var distance = cursor_position.distance_to(adj_pos)
+
+			if distance < best_distance:
+				best_distance = distance
+				best_snap = {
+					"position": adj_pos,
+					"rotation": 0.0  # Floors always at 0 rotation
+				}
+
+	if debug_snap and total_floors > 0:
+		print("[BuildMode] Floor snap search: %d floors, %d adjacent slots, %d occupied, best_dist: %.2f" % [total_floors, total_adjacent, occupied_count, best_distance])
+		if best_snap.has("position"):
+			print("  Snapping to: %s" % best_snap.position)
+
+	return best_snap
+
+## Check if a position is already occupied by a floor piece
+func _is_position_occupied(pos: Vector3) -> bool:
+	if not world:
+		return false
+
+	var tolerance = 0.1  # Small tolerance for floating point comparison
+
+	for child in world.get_children():
+		if child == ghost_preview:
+			continue
+
+		if not ("piece_name" in child) or child.piece_name != "wooden_floor":
+			continue
+
+		var distance = child.global_position.distance_to(pos)
+		if distance < tolerance:
+			return true  # Position is occupied
+
+	return false
 
 ## Find which of our snap points should connect to a target snap point
 func _find_matching_snap_point(target_pos: Vector3, target_normal: Vector3, target_rotation: float, target_type: String, cursor_pos: Vector3) -> Dictionary:
