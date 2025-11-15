@@ -180,9 +180,19 @@ func _handle_build_input() -> void:
 
 	# Right-click to open build menu when hammer is equipped
 	if Input.is_action_just_pressed("secondary_action"):
+		print("[Client] secondary_action pressed!")
+		print("[Client] current_equipped_item=%s, build_mode=%s, build_mode.is_active=%s, build_menu_ui=%s" % [
+			current_equipped_item,
+			build_mode != null,
+			build_mode.is_active if build_mode else "N/A",
+			build_menu_ui != null
+		])
 		if current_equipped_item == "hammer" and build_mode and build_mode.is_active:
 			if build_menu_ui:
+				print("[Client] Calling build_menu_ui.toggle_menu()")
 				build_menu_ui.toggle_menu()
+			else:
+				print("[Client] ERROR: build_menu_ui is null!")
 
 	# Middle mouse button to destroy objects (when hammer equipped)
 	if Input.is_action_just_pressed("destroy_object"):
