@@ -639,13 +639,20 @@ func handle_destroy_buildable(peer_id: int, network_id: String) -> void:
 	# Get resource costs from crafting recipes
 	var costs = CraftingRecipes.BUILDING_COSTS.get(piece_name, {})
 
-	# Return resources to the player
-	if not costs.is_empty():
-		for resource in costs:
-			var amount = costs[resource]
-			# Add resources to player's inventory via RPC
-			NetworkManager.rpc_add_inventory_item.rpc_id(peer_id, resource, amount)
-			print("[Server] Returning %d %s to player %d" % [amount, resource, peer_id])
+	# Return resources to the player's server-side inventory
+	if not costs.is_empty() and spawned_players.has(peer_id):
+		var player = spawned_players[peer_id]
+		if player and is_instance_valid(player) and player.has_node("Inventory"):
+			var inventory = player.get_node("Inventory")
+
+			for resource in costs:
+				var amount = costs[resource]
+				inventory.add_item(resource, amount)
+				print("[Server] Returning %d %s to player %d" % [amount, resource, peer_id])
+
+			# Sync inventory to client
+			var inventory_data = inventory.get_inventory_data()
+			NetworkManager.rpc_sync_inventory.rpc_id(peer_id, inventory_data)
 
 	# Remove from placed buildables dictionary
 	placed_buildables.erase(network_id)

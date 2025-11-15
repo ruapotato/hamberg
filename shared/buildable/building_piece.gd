@@ -56,16 +56,18 @@ func _setup_snap_points() -> void:
 			# Wall: 2 side snaps (for adjacent walls) + bottom (for floor) + top (for walls above)
 			var half_x = grid_size.x / 2.0
 			var half_height = grid_size.y / 2.0
+			var half_depth = grid_size.z / 2.0  # Wall thickness
 
 			# Side snaps (for adjacent walls) - at mid-height
 			snap_points.append({"position": Vector3(half_x, 0, 0), "normal": Vector3.RIGHT, "type": "wall_edge"})
 			snap_points.append({"position": Vector3(-half_x, 0, 0), "normal": Vector3.LEFT, "type": "wall_edge"})
 
-			# Bottom snap (for floor) - at bottom edge
-			snap_points.append({"position": Vector3(0, -half_height, 0), "normal": Vector3.DOWN, "type": "wall_bottom"})
+			# Bottom snap (for floor) - at bottom edge, offset backward by half depth
+			# This makes the back face of the wall align with the floor edge, keeping wall inset
+			snap_points.append({"position": Vector3(0, -half_height, -half_depth), "normal": Vector3.DOWN, "type": "wall_bottom"})
 
-			# Top snap (for walls/roof above) - at top edge
-			snap_points.append({"position": Vector3(0, half_height, 0), "normal": Vector3.UP, "type": "wall_top"})
+			# Top snap (for walls/roof above) - at top edge, offset backward by half depth
+			snap_points.append({"position": Vector3(0, half_height, -half_depth), "normal": Vector3.UP, "type": "wall_top"})
 
 		"wooden_beam":
 			# Beam: similar to wall but can attach at various points
