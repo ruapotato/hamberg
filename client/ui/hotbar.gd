@@ -83,6 +83,10 @@ func refresh_display() -> void:
 		else:
 			slots[i].set_item_data({})
 
+	# Trigger update after setting data
+	for slot in slots:
+		slot.update_display()
+
 ## Get currently selected slot index
 func get_selected_slot() -> int:
 	return selected_slot

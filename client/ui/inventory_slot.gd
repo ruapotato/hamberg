@@ -17,6 +17,7 @@ var is_dragging: bool = false
 var drag_preview: Control = null
 
 @onready var item_icon: TextureRect = $ItemIcon
+@onready var item_name_label: Label = $ItemNameLabel
 @onready var amount_label: Label = $AmountLabel
 @onready var selection_border: Panel = $SelectionBorder
 
@@ -77,12 +78,29 @@ func update_display() -> void:
 		if has_item:
 			_set_placeholder_icon(item_name)
 
+	if item_name_label:
+		item_name_label.visible = has_item
+		if has_item:
+			# Convert snake_case to Title Case
+			var display_name = _get_display_name(item_name)
+			item_name_label.text = display_name
+
 	if amount_label:
 		amount_label.visible = has_item and item_amount > 1
 		amount_label.text = str(item_amount)
 
 	if selection_border:
 		selection_border.visible = is_selected
+
+## Get a display-friendly name for an item
+func _get_display_name(item: String) -> String:
+	var words = item.split("_")
+	var display = ""
+	for word in words:
+		if display != "":
+			display += " "
+		display += word.capitalize()
+	return display
 
 ## Placeholder icon coloring (until we have actual icons)
 func _set_placeholder_icon(item: String) -> void:

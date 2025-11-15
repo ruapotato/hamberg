@@ -101,6 +101,10 @@ func refresh_display() -> void:
 		else:
 			slots[i].set_item_data({})
 
+	# Trigger update after setting data
+	for slot in slots:
+		slot.update_display()
+
 	# Update crafting button states
 	_update_recipe_buttons()
 
@@ -173,7 +177,9 @@ func _on_craft_button_pressed(recipe: Dictionary) -> void:
 	var stations = ["workbench"]  # Temporary: treat as if always near workbench
 
 	if CraftingRecipes.craft_item(recipe, player_inventory, stations):
-		print("[InventoryPanel] Successfully crafted %s" % recipe.get("output_item"))
+		var output_item = recipe.get("output_item")
+		print("[InventoryPanel] Successfully crafted %s" % output_item)
+		print("[InventoryPanel] Inventory after craft: %s" % player_inventory.get_inventory_data())
 		refresh_display()
 		_update_recipe_buttons()
 	else:
