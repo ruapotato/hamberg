@@ -25,6 +25,11 @@ var ghost_preview: Node3D = null
 var placement_distance: float = 5.0
 var can_place_current: bool = false
 
+# Snapping
+var snap_distance_threshold: float = 1.5  # Max distance to snap to a point
+var is_snapped_to_piece: bool = false  # Whether currently snapped to another piece
+var snap_search_radius: float = 4.0  # Radius to search for nearby pieces
+
 # References
 var player: Node3D = null
 var camera: Camera3D = null
@@ -94,37 +99,148 @@ func _update_ghost_position() -> void:
 
 	var result = space_state.intersect_ray(query)
 
+	var target_position: Vector3
+	var target_rotation: float = ghost_preview.rotation.y  # Preserve current rotation
+	is_snapped_to_piece = false
+
 	if result:
 		var hit_point = result.position
 		var hit_normal = result.normal
 
-		# Snap to grid (only X and Z, not Y)
-		if ghost_preview.snap_to_grid:
-			var grid = ghost_preview.grid_size
-			hit_point.x = round(hit_point.x / grid.x) * grid.x
-			hit_point.z = round(hit_point.z / grid.z) * grid.z
-			# Don't snap Y - we want objects to sit on the surface
+		# Try to find nearby snap point first
+		var snap_result = _find_nearest_snap_point(hit_point)
 
-		# Align object to surface normal (make it stand upright on slopes)
-		if hit_normal.y > 0.5:  # Only on relatively flat surfaces
-			# Place object ON the surface, not embedded in it
-			# Offset by half the grid height to sit on top
-			var offset_y = ghost_preview.grid_size.y / 2.0
-			hit_point.y += offset_y
+		if snap_result.has("position"):
+			# Snap to nearby piece!
+			target_position = snap_result.position
+			target_rotation = snap_result.get("rotation", target_rotation)
+			is_snapped_to_piece = true
+		else:
+			# No snap point found, use ground placement
+			# Snap to grid (only X and Z, not Y)
+			if ghost_preview.snap_to_grid:
+				var grid = ghost_preview.grid_size
+				hit_point.x = round(hit_point.x / grid.x) * grid.x
+				hit_point.z = round(hit_point.z / grid.z) * grid.z
+				# Don't snap Y - we want objects to sit on the surface
 
-		ghost_preview.global_position = hit_point
+			# Align object to surface normal (make it stand upright on slopes)
+			if hit_normal.y > 0.5:  # Only on relatively flat surfaces
+				# Place object ON the surface, not embedded in it
+				# Offset by half the grid height to sit on top
+				var offset_y = ghost_preview.grid_size.y / 2.0
+				hit_point.y += offset_y
+
+			target_position = hit_point
+
+		ghost_preview.global_position = target_position
+		ghost_preview.rotation.y = target_rotation
 
 		# Validate placement
-		can_place_current = _validate_placement(hit_point)
-		ghost_preview.set_preview_valid(can_place_current)
+		can_place_current = _validate_placement(target_position)
+		ghost_preview.set_preview_valid(can_place_current, is_snapped_to_piece)
 	else:
 		# No hit - place in front of player
 		ghost_preview.global_position = from + (-camera.global_transform.basis.z * placement_distance)
 		can_place_current = false
-		ghost_preview.set_preview_valid(false)
+		is_snapped_to_piece = false
+		ghost_preview.set_preview_valid(false, false)
+
+## Find the nearest snap point from nearby building pieces
+func _find_nearest_snap_point(cursor_position: Vector3) -> Dictionary:
+	if not world or not ghost_preview:
+		return {}
+
+	var nearest_snap: Dictionary = {}
+	var nearest_distance: float = snap_distance_threshold
+
+	# Find all building pieces in the world
+	for child in world.get_children():
+		# Skip if it's the ghost preview itself
+		if child == ghost_preview:
+			continue
+
+		# Check if it's a buildable piece (has snap_points)
+		if not child.has("snap_points") or not child.has("piece_name"):
+			continue
+
+		# Skip if too far away
+		if child.global_position.distance_to(cursor_position) > snap_search_radius:
+			continue
+
+		# Check each snap point on this piece
+		for snap_point in child.snap_points:
+			var snap_pos_local: Vector3 = snap_point.position
+			var snap_normal: Vector3 = snap_point.normal
+
+			# Transform to global space
+			var snap_pos_global: Vector3 = child.global_transform * snap_pos_local
+			var snap_normal_global: Vector3 = child.global_transform.basis * snap_normal
+
+			# Calculate where our piece should be placed to connect at this snap point
+			# We need to find which of OUR snap points should connect to THIS snap point
+			var our_snap_result = _find_matching_snap_point(snap_pos_global, snap_normal_global, child.rotation.y)
+
+			if our_snap_result.has("position"):
+				var distance = cursor_position.distance_to(our_snap_result.position)
+
+				if distance < nearest_distance:
+					nearest_distance = distance
+					nearest_snap = our_snap_result
+
+	return nearest_snap
+
+## Find which of our snap points should connect to a target snap point
+func _find_matching_snap_point(target_pos: Vector3, target_normal: Vector3, target_rotation: float) -> Dictionary:
+	if not ghost_preview or not ghost_preview.has("snap_points"):
+		return {}
+
+	# For piece-to-piece snapping, we want to find a snap point on our piece
+	# that has an opposite normal to the target (so they face each other)
+	for our_snap in ghost_preview.snap_points:
+		var our_normal: Vector3 = our_snap.normal
+		var our_pos_local: Vector3 = our_snap.position
+
+		# Check if normals are roughly opposite (facing each other)
+		# Use current ghost rotation to get actual normal direction
+		var rotated_normal = Vector3(our_normal.x, our_normal.y, our_normal.z).rotated(Vector3.UP, ghost_preview.rotation.y)
+
+		# Normals should point in opposite directions (dot product close to -1)
+		var dot = rotated_normal.dot(target_normal)
+
+		if dot < -0.7:  # Roughly opposite (allow some tolerance)
+			# Calculate where our piece center should be
+			# If our snap point aligns with target snap point
+			var rotated_snap_pos = Vector3(our_pos_local.x, our_pos_local.y, our_pos_local.z).rotated(Vector3.UP, ghost_preview.rotation.y)
+			var our_center_pos = target_pos - rotated_snap_pos
+
+			return {
+				"position": our_center_pos,
+				"rotation": ghost_preview.rotation.y  # Keep current rotation
+			}
+
+	return {}
 
 func _validate_placement(_position: Vector3) -> bool:
-	# Check if player has required resources
+	# If snapped to another piece, always valid (assumes other piece is valid)
+	if is_snapped_to_piece:
+		# Still check resources
+		if not player:
+			return false
+
+		var player_inventory = player.get_node_or_null("Inventory")
+		if not player_inventory:
+			return false
+
+		var costs = CraftingRecipes.BUILDING_COSTS.get(current_piece_name, {})
+		for resource in costs:
+			var required = costs[resource]
+			if not player_inventory.has_item(resource, required):
+				return false
+
+		return true
+
+	# Not snapped - check if player has required resources
 	if not player:
 		return false
 
