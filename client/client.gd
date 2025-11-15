@@ -390,10 +390,11 @@ func _on_hotbar_selection_changed(slot_index: int, item_name: String) -> void:
 	# Activate appropriate mode based on equipped item
 	if item_name == "hammer":
 		print("[Client] Hammer equipped - activating build mode")
+		print("[Client] Debug - camera: %s, local_player: %s, world: %s" % [camera, local_player, world])
 		if camera and local_player:
 			build_mode.activate(local_player, camera, world)
 		else:
-			print("[Client] WARNING: Cannot activate build mode - camera or player missing")
+			print("[Client] WARNING: Cannot activate build mode - camera=%s, player=%s" % [camera != null, local_player != null])
 	elif item_name == "workbench":
 		if camera and local_player:
 			placement_mode.activate(local_player, camera, world, item_name)
@@ -422,7 +423,14 @@ func _get_camera() -> Camera3D:
 	if local_player:
 		var camera_controller = local_player.get_node_or_null("CameraController")
 		if camera_controller:
-			return camera_controller.get_node_or_null("Camera3D")
+			var cam = camera_controller.get_node_or_null("Camera3D")
+			if not cam:
+				print("[Client] _get_camera: Camera3D not found under CameraController")
+			return cam
+		else:
+			print("[Client] _get_camera: CameraController not found on local_player")
+	else:
+		print("[Client] _get_camera: local_player is null")
 	return null
 
 # ============================================================================
