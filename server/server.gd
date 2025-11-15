@@ -461,6 +461,22 @@ func handle_environmental_damage(peer_id: int, chunk_pos: Vector2i, object_id: i
 	else:
 		push_warning("[Server] Object doesn't have take_damage method")
 
+## Handle buildable placement request from NetworkManager
+func handle_place_buildable(peer_id: int, piece_name: String, position: Vector3, rotation_y: float) -> void:
+	print("[Server] Player %d requesting to place %s at %s" % [peer_id, piece_name, position])
+
+	# Validate placement (can add more checks here later)
+	# TODO: Check if position is valid, not colliding, etc.
+
+	# Generate unique network ID for this buildable
+	var net_id = "%d_%s_%d" % [peer_id, piece_name, Time.get_ticks_msec()]
+
+	# Broadcast to all clients to spawn the buildable
+	var pos_array = [position.x, position.y, position.z]
+	NetworkManager.rpc_spawn_buildable.rpc(piece_name, pos_array, rotation_y, net_id)
+
+	print("[Server] Buildable %s placed successfully (ID: %s)" % [piece_name, net_id])
+
 # ============================================================================
 # CONSOLE COMMANDS (for dedicated server)
 # ============================================================================

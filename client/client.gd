@@ -409,9 +409,22 @@ func _on_build_piece_selected(piece_name: String) -> void:
 ## Handle build piece placement from build mode
 func _on_build_piece_placed(piece_name: String, position: Vector3, rotation_y: float) -> void:
 	print("[Client] Requesting placement of %s at %s" % [piece_name, position])
-	# TODO: Request server to place the buildable
-	# For now, just log it
-	# NetworkManager.rpc_place_buildable.rpc_id(1, piece_name, position, rotation_y)
+
+	# Consume resources from inventory (client-side prediction)
+	if local_player:
+		var player_inventory = local_player.get_node_or_null("Inventory")
+		if player_inventory:
+			var costs = CraftingRecipes.BUILDING_COSTS.get(piece_name, {})
+			for resource in costs:
+				var required = costs[resource]
+				if not player_inventory.remove_item(resource, required):
+					push_error("[Client] Failed to remove %d %s from inventory!" % [required, resource])
+					return
+			print("[Client] Consumed resources for %s" % piece_name)
+
+	# Request server to place the buildable
+	var pos_array = [position.x, position.y, position.z]
+	NetworkManager.rpc_place_buildable.rpc_id(1, piece_name, pos_array, rotation_y)
 
 ## Handle item placement from placement mode
 func _on_item_placed(item_name: String, position: Vector3, rotation_y: float) -> void:
@@ -583,6 +596,27 @@ func remove_resource_item(net_id: String) -> void:
 	if item and is_instance_valid(item):
 		print("[Client] Removing picked up item: %s" % item_name)
 		item.queue_free()
+
+## Spawn a buildable object (called by server)
+func spawn_buildable(piece_name: String, position: Vector3, rotation_y: float, network_id: String) -> void:
+	print("[Client] Spawning buildable: %s at %s (ID: %s)" % [piece_name, position, network_id])
+
+	# Get the scene for this piece
+	if not build_mode or not build_mode.available_pieces.has(piece_name):
+		push_error("[Client] Unknown buildable piece: %s" % piece_name)
+		return
+
+	var piece_scene = build_mode.available_pieces[piece_name]
+	var buildable = piece_scene.instantiate()
+	buildable.name = "Buildable_%s" % network_id
+	buildable.is_preview = false  # This is a real placed object
+
+	# Add to world and set position/rotation
+	world.add_child(buildable)
+	buildable.global_position = position
+	buildable.rotation.y = rotation_y
+
+	print("[Client] Buildable %s placed successfully" % piece_name)
 
 ## Clean up all environmental objects
 func _cleanup_environmental_objects() -> void:

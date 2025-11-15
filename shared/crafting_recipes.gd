@@ -16,6 +16,16 @@ var recipes: Array[Dictionary] = []
 func _ready() -> void:
 	_initialize_recipes()
 
+# Building piece costs (separate from crafting recipes)
+const BUILDING_COSTS: Dictionary = {
+	"workbench": {"wood": 10},
+	"wooden_wall": {"wood": 4},
+	"wooden_floor": {"wood": 2},
+	"wooden_door": {"wood": 4},
+	"wooden_beam": {"wood": 2},
+	"wooden_roof": {"wood": 2},
+}
+
 func _initialize_recipes() -> void:
 	recipes.clear()
 

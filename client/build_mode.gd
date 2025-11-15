@@ -124,8 +124,26 @@ func _update_ghost_position() -> void:
 		ghost_preview.set_preview_valid(false)
 
 func _validate_placement(_position: Vector3) -> bool:
+	# Check if player has required resources
+	if not player:
+		return false
+
+	var player_inventory = player.get_node_or_null("Inventory")
+	if not player_inventory:
+		return false
+
+	# Get required resources for this piece
+	var costs = CraftingRecipes.BUILDING_COSTS.get(current_piece_name, {})
+	if costs.is_empty():
+		return true  # No cost means always valid
+
+	# Check all required resources
+	for resource in costs:
+		var required = costs[resource]
+		if not player_inventory.has_item(resource, required):
+			return false  # Missing resources
+
 	# TODO: Check for overlaps, terrain validity, etc.
-	# For now, always valid if we hit something
 	return true
 
 func _handle_input() -> void:
@@ -178,12 +196,23 @@ func place_current_piece() -> void:
 	if not can_place_current or not ghost_preview:
 		return
 
+	# Double-check resources before placement
+	var player_inventory = player.get_node_or_null("Inventory")
+	if not player_inventory:
+		print("[BuildMode] ERROR: Player inventory not found")
+		return
+
+	var costs = CraftingRecipes.BUILDING_COSTS.get(current_piece_name, {})
+	for resource in costs:
+		var required = costs[resource]
+		if not player_inventory.has_item(resource, required):
+			print("[BuildMode] Cannot build - missing %d %s" % [required, resource])
+			return
+
 	var position = ghost_preview.global_position
 	var rotation = ghost_preview.rotation.y
 
 	print("[BuildMode] Placing %s at %s" % [current_piece_name, position])
 
-	# Emit signal for server to handle actual placement
+	# Emit signal for server to handle actual placement and resource consumption
 	build_piece_placed.emit(current_piece_name, position, rotation)
-
-	# TODO: Check if player has resources and consume them

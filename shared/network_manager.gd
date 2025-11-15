@@ -273,6 +273,18 @@ func rpc_damage_environmental_object(chunk_pos: Array, object_id: int, damage: f
 		var chunk_pos_v2i := Vector2i(chunk_pos[0], chunk_pos[1])
 		server_node.handle_environmental_damage(peer_id, chunk_pos_v2i, object_id, damage, hit_position)
 
+## CLIENT -> SERVER: Place a buildable object
+@rpc("any_peer", "call_remote", "reliable")
+func rpc_place_buildable(piece_name: String, position: Array, rotation_y: float) -> void:
+	if not is_server:
+		return
+
+	var peer_id := multiplayer.get_remote_sender_id()
+	var server_node := get_node_or_null("/root/Main/Server")
+	if server_node and server_node.has_method("handle_place_buildable"):
+		var pos_v3 := Vector3(position[0], position[1], position[2])
+		server_node.handle_place_buildable(peer_id, piece_name, pos_v3, rotation_y)
+
 # ============================================================================
 # UTILITY FUNCTIONS
 # ============================================================================
@@ -388,3 +400,16 @@ func rpc_send_world_config(world_data: Dictionary) -> void:
 		client_node.receive_world_config(world_data)
 	else:
 		print("[NetworkManager] WARNING: Client node not found or doesn't have receive_world_config method")
+
+## SERVER → CLIENTS: Spawn a buildable object
+@rpc("authority", "call_remote", "reliable")
+func rpc_spawn_buildable(piece_name: String, position: Array, rotation_y: float, network_id: String) -> void:
+	print("[NetworkManager] RPC received: spawn_buildable(%s, %s, %f, %s)" % [piece_name, position, rotation_y, network_id])
+
+	# Forward to client node if it exists
+	var client_node := get_node_or_null("/root/Main/Client")
+	if client_node and client_node.has_method("spawn_buildable"):
+		var pos_v3 := Vector3(position[0], position[1], position[2])
+		client_node.spawn_buildable(piece_name, pos_v3, rotation_y, network_id)
+	else:
+		print("[NetworkManager] WARNING: Client node not found or doesn't have spawn_buildable method")
