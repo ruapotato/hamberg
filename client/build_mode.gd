@@ -98,12 +98,19 @@ func _update_ghost_position() -> void:
 		var hit_point = result.position
 		var hit_normal = result.normal
 
-		# Snap to grid
+		# Snap to grid (only X and Z, not Y)
 		if ghost_preview.snap_to_grid:
 			var grid = ghost_preview.grid_size
 			hit_point.x = round(hit_point.x / grid.x) * grid.x
-			hit_point.y = round(hit_point.y / grid.y) * grid.y
 			hit_point.z = round(hit_point.z / grid.z) * grid.z
+			# Don't snap Y - we want objects to sit on the surface
+
+		# Align object to surface normal (make it stand upright on slopes)
+		if hit_normal.y > 0.5:  # Only on relatively flat surfaces
+			# Place object ON the surface, not embedded in it
+			# Offset by half the grid height to sit on top
+			var offset_y = ghost_preview.grid_size.y / 2.0
+			hit_point.y += offset_y
 
 		ghost_preview.global_position = hit_point
 

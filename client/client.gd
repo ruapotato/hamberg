@@ -180,13 +180,9 @@ func _handle_build_input() -> void:
 
 	# Right-click to open build menu when hammer is equipped
 	if Input.is_action_just_pressed("secondary_action"):
-		print("[Client] Right-click detected. Equipped item: %s, build_mode.is_active: %s" % [current_equipped_item, build_mode.is_active if build_mode else "null"])
 		if current_equipped_item == "hammer" and build_mode and build_mode.is_active:
 			if build_menu_ui:
-				print("[Client] Opening build menu")
 				build_menu_ui.toggle_menu()
-		else:
-			print("[Client] Cannot open build menu - hammer not equipped or build mode not active")
 
 	# Middle mouse button to destroy objects (when hammer equipped)
 	if Input.is_action_just_pressed("destroy_object"):
@@ -377,8 +373,6 @@ func _setup_inventory_ui(player: Node3D) -> void:
 ## Handle hotbar selection changes (for build mode toggling)
 func _on_hotbar_selection_changed(slot_index: int, item_name: String) -> void:
 	current_equipped_item = item_name
-	print("[Client] Hotbar selection changed to slot %d: %s" % [slot_index, item_name])
-
 	var camera = _get_camera()
 
 	# Deactivate all modes first
@@ -389,12 +383,10 @@ func _on_hotbar_selection_changed(slot_index: int, item_name: String) -> void:
 
 	# Activate appropriate mode based on equipped item
 	if item_name == "hammer":
-		print("[Client] Hammer equipped - activating build mode")
-		print("[Client] Debug - camera: %s, local_player: %s, world: %s" % [camera, local_player, world])
 		if camera and local_player:
 			build_mode.activate(local_player, camera, world)
 		else:
-			print("[Client] WARNING: Cannot activate build mode - camera=%s, player=%s" % [camera != null, local_player != null])
+			print("[Client] Cannot activate build mode - camera or player missing")
 	elif item_name == "workbench":
 		if camera and local_player:
 			placement_mode.activate(local_player, camera, world, item_name)
@@ -425,16 +417,7 @@ func _get_camera() -> Camera3D:
 		if camera_controller:
 			var spring_arm = camera_controller.get_node_or_null("SpringArm3D")
 			if spring_arm:
-				var cam = spring_arm.get_node_or_null("Camera3D")
-				if not cam:
-					print("[Client] _get_camera: Camera3D not found under SpringArm3D")
-				return cam
-			else:
-				print("[Client] _get_camera: SpringArm3D not found under CameraController")
-		else:
-			print("[Client] _get_camera: CameraController not found on local_player")
-	else:
-		print("[Client] _get_camera: local_player is null")
+				return spring_arm.get_node_or_null("Camera3D")
 	return null
 
 # ============================================================================
