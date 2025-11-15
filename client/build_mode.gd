@@ -22,7 +22,7 @@ var piece_names: Array = []
 
 # Ghost preview
 var ghost_preview: Node3D = null
-var placement_distance: float = 5.0
+var placement_distance: float = 15.0  # Increased from 5.0 for better reach
 var can_place_current: bool = false
 
 # Snapping
@@ -413,6 +413,11 @@ func _find_matching_snap_point(target_pos: Vector3, target_normal: Vector3, targ
 				var our_pos_local: Vector3 = our_snap.position
 				var rotated_snap_pos = Vector3(our_pos_local.x, our_pos_local.y, our_pos_local.z).rotated(Vector3.UP, ghost_preview.rotation.y)
 				var our_center_pos = target_pos - rotated_snap_pos
+
+				# Offset wall upward by half its height so bottom aligns with floor top
+				# Wall snap point is at center-bottom (y=0), so we need to add half wall height
+				var wall_half_height = ghost_preview.grid_size.y / 2.0
+				our_center_pos.y += wall_half_height
 
 				return {
 					"position": our_center_pos,
