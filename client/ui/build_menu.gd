@@ -92,6 +92,6 @@ func toggle_menu() -> void:
 		show_menu()
 
 func _process(_delta: float) -> void:
-	# Close menu with Escape or right-click again
-	if is_open and (Input.is_action_just_pressed("ui_cancel") or Input.is_action_just_pressed("secondary_action")):
+	# Close menu with Escape
+	if is_open and Input.is_action_just_pressed("ui_cancel"):
 		hide_menu()
