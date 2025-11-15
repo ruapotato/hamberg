@@ -36,18 +36,23 @@ var placed_buildables: Dictionary = {}  # Track placed positions to avoid duplic
 var player: Node3D = null
 var camera: Camera3D = null
 var world: Node3D = null
+var build_menu: Control = null  # Reference to build menu to check if open
+
+# Input cooldown
+var placement_cooldown: float = 0.0  # Prevents accidental placement after menu selection
 
 func _ready() -> void:
 	piece_names = available_pieces.keys()
 	piece_names.sort()
 
-func activate(p_player: Node3D, p_camera: Camera3D, p_world: Node3D) -> void:
+func activate(p_player: Node3D, p_camera: Camera3D, p_world: Node3D, p_build_menu: Control = null) -> void:
 	if is_active:
 		return
 
 	player = p_player
 	camera = p_camera
 	world = p_world
+	build_menu = p_build_menu
 	is_active = true
 
 	_create_ghost_preview()
@@ -62,9 +67,13 @@ func deactivate() -> void:
 	_destroy_ghost_preview()
 	print("[BuildMode] Deactivated")
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	if not is_active:
 		return
+
+	# Tick down placement cooldown
+	if placement_cooldown > 0.0:
+		placement_cooldown -= delta
 
 	if ghost_preview:
 		_update_ghost_position()
@@ -480,8 +489,16 @@ func _handle_input() -> void:
 	if Input.is_action_just_pressed("build_rotate") and ghost_preview:
 		rotate_preview()
 
-	# Place with left click
+	# Place with left click (but not if build menu is open or during cooldown)
 	if Input.is_action_just_pressed("attack") and can_place_current and ghost_preview:
+		# Check if build menu is open
+		if build_menu and build_menu.is_open:
+			return  # Don't place while menu is open
+
+		# Check cooldown (prevents accidental placement after menu selection)
+		if placement_cooldown > 0.0:
+			return
+
 		place_current_piece()
 
 ## Set which piece to build (called from build menu)
@@ -500,6 +517,9 @@ func set_piece(piece_name: String) -> void:
 
 	_destroy_ghost_preview()
 	_create_ghost_preview()
+
+	# Set cooldown to prevent immediate placement after menu selection
+	placement_cooldown = 0.2  # 200ms cooldown
 
 	var display_name = current_piece_name.replace("_", " ").capitalize()
 	print("[BuildMode] Selected: %s" % display_name)

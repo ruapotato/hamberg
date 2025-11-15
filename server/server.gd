@@ -510,6 +510,37 @@ func handle_place_buildable(peer_id: int, piece_name: String, position: Vector3,
 
 	print("[Server] Buildable %s placed successfully (ID: %s)" % [piece_name, net_id])
 
+func handle_destroy_buildable(peer_id: int, network_id: String) -> void:
+	print("[Server] Player %d requesting to destroy buildable %s" % [peer_id, network_id])
+
+	# Check if buildable exists
+	if not placed_buildables.has(network_id):
+		print("[Server] WARNING: Buildable %s not found in placed_buildables" % network_id)
+		return
+
+	# Get buildable info to determine resource refund
+	var buildable_info = placed_buildables[network_id]
+	var piece_name = buildable_info.get("piece_name", "")
+
+	# Get resource costs from crafting recipes
+	var costs = CraftingRecipes.BUILDING_COSTS.get(piece_name, {})
+
+	# Return resources to the player
+	if not costs.is_empty():
+		for resource in costs:
+			var amount = costs[resource]
+			# Add resources to player's inventory via RPC
+			NetworkManager.rpc_add_inventory_item.rpc_id(peer_id, resource, amount)
+			print("[Server] Returning %d %s to player %d" % [amount, resource, peer_id])
+
+	# Remove from placed buildables dictionary
+	placed_buildables.erase(network_id)
+
+	# Broadcast to all clients to remove the buildable
+	NetworkManager.rpc_remove_buildable.rpc(network_id)
+
+	print("[Server] Buildable %s destroyed successfully" % network_id)
+
 # ============================================================================
 # CONSOLE COMMANDS (for dedicated server)
 # ============================================================================

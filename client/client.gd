@@ -220,9 +220,14 @@ func _destroy_object_under_cursor() -> void:
 		var buildable = hit_object
 		while buildable:
 			if buildable.has_method("get_piece_name") or buildable.has_method("is_position_in_range"):
-				# Found a buildable - request server to destroy it
-				print("[Client] Requesting destruction of buildable at %s" % result.position)
-				# TODO: NetworkManager.rpc_destroy_buildable.rpc_id(1, buildable.global_position)
+				# Found a buildable - extract network ID from its name
+				var buildable_name = buildable.name
+				if buildable_name.begins_with("Buildable_"):
+					var network_id = buildable_name.substr(10)  # Remove "Buildable_" prefix
+					print("[Client] Requesting destruction of buildable %s" % network_id)
+					NetworkManager.rpc_destroy_buildable.rpc_id(1, network_id)
+				else:
+					print("[Client] WARNING: Buildable found but doesn't have proper network ID in name: %s" % buildable_name)
 				return
 			buildable = buildable.get_parent()
 
@@ -394,7 +399,7 @@ func _on_hotbar_selection_changed(slot_index: int, item_name: String) -> void:
 	# Activate appropriate mode based on equipped item
 	if item_name == "hammer":
 		if camera and local_player:
-			build_mode.activate(local_player, camera, world)
+			build_mode.activate(local_player, camera, world, build_menu_ui)
 		else:
 			print("[Client] Cannot activate build mode - camera or player missing")
 	elif item_name == "workbench":
@@ -617,6 +622,19 @@ func spawn_buildable(piece_name: String, position: Vector3, rotation_y: float, n
 	buildable.rotation.y = rotation_y
 
 	print("[Client] Buildable %s placed successfully" % piece_name)
+
+func remove_buildable(network_id: String) -> void:
+	print("[Client] Removing buildable: %s" % network_id)
+
+	# Find the buildable by its network ID
+	var buildable_name = "Buildable_%s" % network_id
+	var buildable = world.get_node_or_null(buildable_name)
+
+	if buildable:
+		buildable.queue_free()
+		print("[Client] Buildable %s removed from world" % network_id)
+	else:
+		print("[Client] WARNING: Buildable %s not found in world" % network_id)
 
 ## Clean up all environmental objects
 func _cleanup_environmental_objects() -> void:
