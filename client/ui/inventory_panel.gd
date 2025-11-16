@@ -111,10 +111,8 @@ func _on_slot_drag_ended(from_slot: int, to_slot: int) -> void:
 
 	print("[InventoryPanel] Dragging from slot %d to slot %d" % [from_slot, to_slot])
 
-	# Swap items in inventory
-	if player_inventory.has_method("swap_slots"):
-		player_inventory.swap_slots(from_slot, to_slot)
-		refresh_display()
+	# Request server to swap items in inventory
+	NetworkManager.rpc_request_swap_slots.rpc_id(1, from_slot, to_slot)
 
 ## Toggle inventory visibility
 func toggle_inventory() -> void:

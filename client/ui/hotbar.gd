@@ -115,8 +115,28 @@ func select_slot(index: int) -> void:
 	if player_inventory and player_inventory.get_parent().has_method("on_hotbar_selection_changed"):
 		player_inventory.get_parent().on_hotbar_selection_changed(selected_slot)
 
-	# Don't re-equip if selecting the same slot
-	if is_same_slot:
+	# If selecting the same slot and item is equipped, unequip it (toggle behavior)
+	if is_same_slot and not item_id.is_empty():
+		var item_data = ItemDatabase.get_item(item_id)
+		if item_data:
+			var equip_slot = -1
+			match item_data.item_type:
+				ItemData.ItemType.WEAPON, ItemData.ItemType.TOOL:
+					equip_slot = Equipment.EquipmentSlot.MAIN_HAND
+				ItemData.ItemType.SHIELD:
+					equip_slot = Equipment.EquipmentSlot.OFF_HAND
+
+			if equip_slot != -1:
+				# Check if this item is currently equipped
+				var player = player_inventory.get_parent()
+				if player and player.has_node("Equipment"):
+					var equipment = player.get_node("Equipment")
+					var currently_equipped = equipment.get_equipped_item(equip_slot)
+					if currently_equipped == item_id:
+						# Item is equipped - unequip it
+						print("[Hotbar] Toggling off %s from equipment slot %d" % [item_id, equip_slot])
+						NetworkManager.rpc_request_unequip_slot.rpc_id(1, equip_slot)
+						return
 		return
 
 	# Auto-equip the item ONLY if it's an equippable item (weapon, tool, or shield)

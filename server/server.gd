@@ -1105,6 +1105,29 @@ func handle_unequip_request(peer_id: int, equip_slot: int) -> void:
 	var equipment_data = equipment.get_equipment_data()
 	NetworkManager.rpc_sync_equipment.rpc_id(peer_id, equipment_data)
 
+## Handle swap inventory slots request
+func handle_swap_slots_request(peer_id: int, slot_a: int, slot_b: int) -> void:
+	if not spawned_players.has(peer_id):
+		return
+
+	var player = spawned_players[peer_id]
+	if not player or not is_instance_valid(player):
+		return
+
+	if not player.has_node("Inventory"):
+		return
+
+	var inventory = player.get_node("Inventory")
+
+	# Swap the slots
+	inventory.swap_slots(slot_a, slot_b)
+
+	print("[Server] Player %d swapped inventory slots %d and %d" % [peer_id, slot_a, slot_b])
+
+	# Sync inventory to client
+	var inventory_data = inventory.get_inventory_data()
+	NetworkManager.rpc_sync_inventory.rpc_id(peer_id, inventory_data)
+
 ## Handle enemy damage request (server-authoritative)
 func handle_enemy_damage(peer_id: int, enemy_path: NodePath, damage: float, knockback: float, direction: Vector3) -> void:
 	# Get the enemy node

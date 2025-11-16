@@ -561,6 +561,17 @@ func rpc_request_unequip_slot(slot: int) -> void:
 	if server_node and server_node.has_method("handle_unequip_request"):
 		server_node.handle_unequip_request(peer_id, slot)
 
+## CLIENT -> SERVER: Request to swap two inventory slots
+@rpc("any_peer", "call_remote", "reliable")
+func rpc_request_swap_slots(slot_a: int, slot_b: int) -> void:
+	if not is_server:
+		return
+
+	var peer_id := multiplayer.get_remote_sender_id()
+	var server_node := get_node_or_null("/root/Main/Server")
+	if server_node and server_node.has_method("handle_swap_slots_request"):
+		server_node.handle_swap_slots_request(peer_id, slot_a, slot_b)
+
 ## CLIENT -> SERVER: Player died
 @rpc("any_peer", "call_remote", "reliable")
 func rpc_player_died() -> void:
