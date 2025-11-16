@@ -37,15 +37,21 @@ var player: Node3D = null
 var camera: Camera3D = null
 var world: Node3D = null
 var build_menu: Control = null  # Reference to build menu to check if open
+var status_label: Label = null  # Reference to status label for messages
 
 # Input cooldown
 var placement_cooldown: float = 0.0  # Prevents accidental placement after menu selection
+
+# Workbench requirement
+var requires_workbench: bool = true  # Whether building requires being near a workbench
+var workbench_range: float = 20.0  # How close you need to be to a workbench
+var is_near_workbench: bool = false  # Cached result of workbench check
 
 func _ready() -> void:
 	piece_names = available_pieces.keys()
 	piece_names.sort()
 
-func activate(p_player: Node3D, p_camera: Camera3D, p_world: Node3D, p_build_menu: Control = null) -> void:
+func activate(p_player: Node3D, p_camera: Camera3D, p_world: Node3D, p_build_menu: Control = null, p_status_label: Label = null) -> void:
 	if is_active:
 		return
 
@@ -53,6 +59,7 @@ func activate(p_player: Node3D, p_camera: Camera3D, p_world: Node3D, p_build_men
 	camera = p_camera
 	world = p_world
 	build_menu = p_build_menu
+	status_label = p_status_label
 	is_active = true
 
 	_create_ghost_preview()
@@ -65,6 +72,7 @@ func deactivate() -> void:
 
 	is_active = false
 	_destroy_ghost_preview()
+	_clear_status_message()
 	print("[BuildMode] Deactivated")
 
 func _process(delta: float) -> void:
@@ -74,6 +82,9 @@ func _process(delta: float) -> void:
 	# Tick down placement cooldown
 	if placement_cooldown > 0.0:
 		placement_cooldown -= delta
+
+	# Check workbench proximity
+	_update_workbench_proximity()
 
 	if ghost_preview:
 		_update_ghost_position()
@@ -86,10 +97,16 @@ func _create_ghost_preview() -> void:
 
 	var piece_scene = available_pieces[current_piece_name]
 	ghost_preview = piece_scene.instantiate()
-	ghost_preview.is_preview = true
+
+	# Try to set is_preview property if it exists (for newer builds)
+	if "is_preview" in ghost_preview:
+		ghost_preview.is_preview = true
 
 	world.add_child(ghost_preview)
-	ghost_preview._setup_preview_mode()
+
+	# Always call setup preview mode to ensure visual feedback
+	if ghost_preview.has_method("_setup_preview_mode"):
+		ghost_preview._setup_preview_mode()
 
 func _destroy_ghost_preview() -> void:
 	if ghost_preview:
@@ -546,6 +563,11 @@ func _find_matching_snap_point(target_pos: Vector3, target_normal: Vector3, targ
 	return {}
 
 func _validate_placement(_position: Vector3) -> bool:
+	# Workbench doesn't require a workbench to place (bootstrap item)
+	if current_piece_name != "workbench" and requires_workbench:
+		if not is_near_workbench:
+			return false  # Not in range of workbench
+
 	# If snapped to another piece, always valid (assumes other piece is valid)
 	if is_snapped_to_piece:
 		# Still check resources
@@ -699,3 +721,59 @@ func _try_destroy_buildable() -> void:
 
 			# Send destroy request to server via NetworkManager
 			NetworkManager.rpc_destroy_buildable.rpc_id(1, network_id)
+
+## Check if player is near any workbench and update status message
+func _update_workbench_proximity() -> void:
+	if not player:
+		is_near_workbench = false
+		return
+
+	# Workbench doesn't need another workbench to be placed
+	if current_piece_name == "workbench":
+		is_near_workbench = true
+		_clear_status_message()
+		return
+
+	# Check if near any workbench
+	var was_near_workbench = is_near_workbench
+	is_near_workbench = _check_near_workbench()
+
+	# Update status message only when building something other than workbench
+	if requires_workbench and current_piece_name != "workbench":
+		if not is_near_workbench:
+			_set_status_message("Not in range of workbench")
+		elif was_near_workbench != is_near_workbench:
+			# Just entered range, clear the message
+			_clear_status_message()
+
+## Check if player is within range of any workbench
+func _check_near_workbench() -> bool:
+	if not world or not player:
+		return false
+
+	# Search for all workbenches in the world
+	var buildables = world.get_children()
+	for child in buildables:
+		# Check if it's a buildable object node (spawned buildables are children of world)
+		if child.name.begins_with("Buildable_"):
+			# Check if it has is_crafting_station property and it's a workbench
+			if "is_crafting_station" in child and child.is_crafting_station:
+				if "station_type" in child and child.station_type == "workbench":
+					# Check distance
+					var distance = player.global_position.distance_to(child.global_position)
+					if distance <= workbench_range:
+						return true
+
+	return false
+
+## Set status message on UI
+func _set_status_message(message: String) -> void:
+	if status_label:
+		status_label.text = message
+		status_label.visible = true
+
+## Clear status message
+func _clear_status_message() -> void:
+	if status_label:
+		status_label.text = ""
+		status_label.visible = false

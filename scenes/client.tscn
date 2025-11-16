@@ -103,6 +103,21 @@ offset_right = 150.0
 offset_bottom = 65.0
 text = "Players: 0"
 
+[node name="StatusLabel" type="Label" parent="CanvasLayer/HUD"]
+visible = false
+layout_mode = 1
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -200.0
+offset_top = 100.0
+offset_right = 200.0
+offset_bottom = 130.0
+grow_horizontal = 2
+text = ""
+horizontal_alignment = 1
+vertical_alignment = 1
+
 [node name="ControlsLabel" type="Label" parent="CanvasLayer/HUD"]
 layout_mode = 1
 anchors_preset = 3

@@ -44,6 +44,7 @@ var environmental_objects_container: Node3D
 @onready var status_label: Label = $CanvasLayer/ConnectionUI/Panel/VBox/StatusLabel
 @onready var ping_label: Label = $CanvasLayer/HUD/PingLabel
 @onready var players_label: Label = $CanvasLayer/HUD/PlayersLabel
+@onready var build_status_label: Label = $CanvasLayer/HUD/StatusLabel
 
 # World and camera
 @onready var world: Node3D = $World
@@ -418,7 +419,7 @@ func _on_hotbar_selection_changed(slot_index: int, item_name: String) -> void:
 	# Activate appropriate mode based on equipped item
 	if item_name == "hammer":
 		if camera and local_player:
-			build_mode.activate(local_player, camera, world, build_menu_ui)
+			build_mode.activate(local_player, camera, world, build_menu_ui, build_status_label)
 		else:
 			print("[Client] Cannot activate build mode - camera or player missing")
 	elif item_name == "workbench":
