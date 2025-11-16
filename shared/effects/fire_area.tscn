@@ -1,0 +1,30 @@
+[gd_scene load_steps=2 format=3 uid="uid://bxqw3m8r7vjp8"]
+
+[ext_resource type="Script" path="res://shared/effects/fire_area.gd" id="1_fire_area"]
+
+[node name="FireArea" type="Node3D"]
+script = ExtResource("1_fire_area")
+
+[node name="GPUParticles3D" type="GPUParticles3D" parent="."]
+amount = 100
+lifetime = 2.0
+explosiveness = 0.2
+randomness = 0.5
+visibility_aabb = AABB(-5, 0, -5, 10, 3, 10)
+local_coords = false
+draw_order = 1
+
+[node name="AreaOfEffect" type="Area3D" parent="."]
+collision_layer = 0
+collision_mask = 4
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="AreaOfEffect"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, 0)
+
+[node name="Timer" type="Timer" parent="."]
+wait_time = 3.0
+one_shot = true
+autostart = true
+
+[connection signal="body_entered" from="AreaOfEffect" to="." method="_on_area_body_entered"]
+[connection signal="timeout" from="Timer" to="." method="_on_timer_timeout"]

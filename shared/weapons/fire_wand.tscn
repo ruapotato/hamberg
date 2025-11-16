@@ -2,11 +2,12 @@
 
 [sub_resource type="CylinderMesh" id="staff_mesh"]
 top_radius = 0.02
-bottom_radius = 0.02
-height = 0.6
+bottom_radius = 0.013
+height = 0.29
 
 [sub_resource type="SphereMesh" id="orb_mesh"]
-radius = 0.08
+radius = 0.035
+height = 0.16
 
 [sub_resource type="StandardMaterial3D" id="fire_mat"]
 albedo_color = Color(1, 0.3, 0, 1)
@@ -20,13 +21,13 @@ emission_energy_multiplier = 2.0
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0417772, 0)
 
 [node name="Staff" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.3, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.13770121, 0)
 mesh = SubResource("staff_mesh")
 
 [node name="Orb" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.65, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.23401785, 0)
 mesh = SubResource("orb_mesh")
 surface_material_override/0 = SubResource("fire_mat")
 
 [node name="Tip" type="Node3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.73, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.320621, 0)

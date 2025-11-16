@@ -49,6 +49,28 @@ const ATTACK_COOLDOWN_TIME: float = 0.3  # Match animation time for responsive c
 var is_attacking: bool = false
 var attack_timer: float = 0.0
 const ATTACK_ANIMATION_TIME: float = 0.3
+const KNIFE_ANIMATION_TIME: float = 0.225  # 25% faster than normal (0.3 * 0.75)
+const SWORD_ANIMATION_TIME: float = 0.3  # Normal speed
+var current_attack_animation_time: float = 0.3  # Actual animation time for current attack
+
+# Combo system (for weapons like knife)
+var combo_count: int = 0  # Current combo hit (0, 1, 2 for knife's 3-hit combo)
+var combo_timer: float = 0.0  # Time since last attack in combo
+const COMBO_WINDOW: float = 1.0  # Time window to continue combo
+const MAX_COMBO: int = 3  # Maximum combo hits (knife has 3-hit combo)
+var current_combo_animation: int = 0  # Which animation to play (0=right slash, 1=left slash, 2=jab)
+
+# Special attack state
+var is_special_attacking: bool = false
+var special_attack_timer: float = 0.0
+const SPECIAL_ATTACK_ANIMATION_TIME: float = 0.5  # Longer than normal attacks
+const KNIFE_SPECIAL_ANIMATION_TIME: float = 0.4  # Faster for knife lunge
+const SWORD_SPECIAL_ANIMATION_TIME: float = 0.6  # Slower for sword jab
+var current_special_attack_animation_time: float = 0.5  # Actual special animation time
+var is_lunging: bool = false  # Track if player is performing a lunge attack
+var lunge_direction: Vector3 = Vector3.ZERO  # Direction of lunge for maintaining momentum
+const LUNGE_FORWARD_FORCE: float = 15.0  # Continuous forward force during lunge
+var was_in_air_lunging: bool = false  # Track if we were in air during lunge (for landing detection)
 
 # Block/Parry system
 var is_blocking: bool = false
@@ -140,6 +162,14 @@ func _physics_process(delta: float) -> void:
 	if attack_cooldown > 0:
 		attack_cooldown -= delta
 
+	# Update combo timer
+	if combo_timer > 0:
+		combo_timer -= delta
+		if combo_timer <= 0:
+			# Combo window expired, reset combo
+			combo_count = 0
+			combo_timer = 0.0
+
 	# Update stun timer
 	if is_stunned:
 		stun_timer -= delta
@@ -156,8 +186,12 @@ func _physics_process(delta: float) -> void:
 	# CLIENT: Predict movement locally
 	var input_data := _gather_input()
 
-	# Handle attack input (can't attack while stunned)
-	if input_data.get("attack", false) and attack_cooldown <= 0 and not is_stunned:
+	# Handle special attack input (can't attack while stunned or blocking)
+	if input_data.get("special_attack", false) and attack_cooldown <= 0 and not is_stunned and not is_blocking:
+		_handle_special_attack()
+		attack_cooldown = ATTACK_COOLDOWN_TIME
+	# Handle normal attack input (can't attack while stunned or blocking)
+	elif input_data.get("attack", false) and attack_cooldown <= 0 and not is_stunned and not is_blocking:
 		_handle_attack()
 		attack_cooldown = ATTACK_COOLDOWN_TIME
 
@@ -201,12 +235,18 @@ func _gather_input() -> Dictionary:
 	if Input.is_action_just_pressed("attack") if InputMap.has_action("attack") else Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
 		attack_pressed = true
 
+	# Special attack input (middle mouse button)
+	var special_attack_pressed := false
+	if Input.is_action_just_pressed("special_attack"):
+		special_attack_pressed = true
+
 	return {
 		"move_x": input_dir.x,
 		"move_z": input_dir.y,
 		"sprint": is_sprinting,
 		"jump": jump_pressed,
 		"attack": attack_pressed,
+		"special_attack": special_attack_pressed,
 		"camera_basis": _get_camera_basis()
 	}
 
@@ -244,6 +284,27 @@ func _apply_movement(input_data: Dictionary, delta: float) -> void:
 	if not is_on_floor():
 		velocity.y -= gravity * delta
 
+	# Lunge momentum - maintain forward arc while lunging in the air
+	if is_lunging and not is_on_floor():
+		# Continuously apply forward force to maintain arc trajectory
+		velocity.x = lunge_direction.x * 5.0  # Maintain constant forward speed (matching initial velocity)
+		velocity.z = lunge_direction.z * 5.0
+		# Don't modify y velocity - let gravity create the arc and pull down hard
+
+		# STUCK DETECTION: If velocity magnitude is near zero, we hit a wall/enemy - stop lunging
+		var velocity_magnitude = Vector3(velocity.x, 0, velocity.z).length()
+		if velocity_magnitude < 0.5:  # Nearly stopped
+			print("[Player] Lunge STUCK (velocity near zero)! Ending lunge state.")
+			is_lunging = false
+			was_in_air_lunging = false
+			lunge_direction = Vector3.ZERO
+			velocity.x = 0.0
+			velocity.z = 0.0
+			# Reset weapon rotation
+			if equipped_weapon_visual:
+				equipped_weapon_visual.rotation_degrees = Vector3(90, 0, 0)
+				print("[Player] Reset weapon to 90 degrees")
+
 	# Jumping (with stamina cost)
 	if jump_pressed and is_on_floor():
 		if consume_stamina(JUMP_STAMINA_COST):
@@ -261,21 +322,49 @@ func _apply_movement(input_data: Dictionary, delta: float) -> void:
 
 	var control_factor := 1.0 if is_on_floor() else AIR_CONTROL
 
-	# Horizontal movement
-	if direction:
-		var target_velocity := direction * target_speed
-		velocity.x = lerp(velocity.x, target_velocity.x, ACCELERATION * delta * control_factor)
-		velocity.z = lerp(velocity.z, target_velocity.z, ACCELERATION * delta * control_factor)
-	else:
-		# Apply friction
-		velocity.x = lerp(velocity.x, 0.0, FRICTION * delta * control_factor)
-		velocity.z = lerp(velocity.z, 0.0, FRICTION * delta * control_factor)
+	# Horizontal movement (skip if lunging - lunge controls movement)
+	if not is_lunging:
+		if direction:
+			var target_velocity := direction * target_speed
+			velocity.x = lerp(velocity.x, target_velocity.x, ACCELERATION * delta * control_factor)
+			velocity.z = lerp(velocity.z, target_velocity.z, ACCELERATION * delta * control_factor)
+		else:
+			# Apply friction
+			velocity.x = lerp(velocity.x, 0.0, FRICTION * delta * control_factor)
+			velocity.z = lerp(velocity.z, 0.0, FRICTION * delta * control_factor)
 
 	# Apply movement
 	move_and_slide()
 
+	# LUNGE LANDING DETECTION - Check immediately after move_and_slide() updates is_on_floor()
+	# Track if we're in the air during lunge
+	if is_lunging and not is_on_floor():
+		if not was_in_air_lunging:
+			print("[Player] Lunge entered air! was_in_air_lunging now TRUE")
+		was_in_air_lunging = true
+
+	# Detect landing: were in air lunging, now on floor
+	if is_lunging and was_in_air_lunging and is_on_floor():
+		# LANDED! End lunge immediately
+		print("[Player] Lunge LANDED! Ending lunge state. is_on_floor: %s, velocity: %s" % [is_on_floor(), velocity])
+
+		is_lunging = false
+		was_in_air_lunging = false
+		lunge_direction = Vector3.ZERO
+
+		# STOP all momentum immediately to prevent sliding
+		velocity.x = 0.0
+		velocity.z = 0.0
+		velocity.y = 0.0
+
+		# Reset weapon rotation when lunge completes (on landing)
+		if equipped_weapon_visual:
+			equipped_weapon_visual.rotation_degrees = Vector3(90, 0, 0)
+			print("[Player] Reset weapon to 90 degrees")
+
 	# Rotate VISUAL body to face movement direction (not the CharacterBody3D!)
-	if direction and body_container:
+	# UNLESS blocking or lunging - then stay facing shield/lunge direction
+	if direction and body_container and not is_blocking and not is_lunging:
 		var horizontal_speed_check = Vector2(velocity.x, velocity.z).length()
 		if horizontal_speed_check > 0.1:
 			var target_rotation = atan2(direction.x, direction.z)
@@ -398,8 +487,57 @@ func _handle_attack() -> void:
 	if not weapon_data:
 		weapon_data = ItemDatabase.get_item("fists")
 
+	# COMBO SYSTEM: Check if this is a knife (which has combo attacks)
+	var is_knife = weapon_data.item_id == "stone_knife"
+	var is_sword = weapon_data.item_id == "stone_sword"
+	var combo_multiplier: float = 1.0  # Damage multiplier based on combo
+
+	# Set animation speed based on weapon type
+	if is_knife:
+		current_attack_animation_time = KNIFE_ANIMATION_TIME  # 25% faster
+	elif is_sword:
+		current_attack_animation_time = SWORD_ANIMATION_TIME  # Normal speed
+	else:
+		current_attack_animation_time = ATTACK_ANIMATION_TIME  # Default
+
+	if is_knife:
+		# Store current combo animation BEFORE incrementing
+		current_combo_animation = combo_count  # 0=right slash, 1=left slash, 2=jab
+
+		# Knife has a 3-hit combo: right slash, left slash, forward JAB (third is stronger)
+		if combo_count == 2:  # Third hit (index 2)
+			combo_multiplier = 1.5  # 50% more damage on jab
+			print("[Player] Knife combo FINISHER - Forward JAB! (Hit %d)" % (combo_count + 1))
+
+			# Rotate knife to 0 degrees (straight) for jab finisher
+			if equipped_weapon_visual:
+				equipped_weapon_visual.rotation_degrees = Vector3(0, 0, 0)
+		elif combo_count == 0:
+			print("[Player] Knife combo hit 1 - Right slash")
+			# Reset to normal angle for slashes
+			if equipped_weapon_visual:
+				equipped_weapon_visual.rotation_degrees = Vector3(90, 0, 0)
+		else:
+			print("[Player] Knife combo hit 2 - Left slash")
+			# Reset to normal angle for slashes
+			if equipped_weapon_visual:
+				equipped_weapon_visual.rotation_degrees = Vector3(90, 0, 0)
+
+		# Advance combo
+		combo_count = (combo_count + 1) % MAX_COMBO
+		combo_timer = COMBO_WINDOW  # Reset combo window
+	else:
+		# Non-combo weapons always use default slash animation
+		current_combo_animation = 0
+		combo_count = 0
+		combo_timer = 0.0
+
+		# Reset weapon to normal angle
+		if equipped_weapon_visual:
+			equipped_weapon_visual.rotation_degrees = Vector3(90, 0, 0)
+
 	# Use weapon stats
-	var damage: float = weapon_data.damage
+	var damage: float = weapon_data.damage * combo_multiplier
 	var knockback: float = weapon_data.knockback
 	var attack_speed: float = weapon_data.attack_speed
 	var stamina_cost: float = weapon_data.stamina_cost
@@ -476,6 +614,256 @@ func _handle_attack() -> void:
 		else:
 			# Attack missed (no raycast hit)
 			pass
+
+## Handle special attack input (CLIENT-SIDE) - Middle mouse button attacks
+func _handle_special_attack() -> void:
+	if not is_local_player or is_dead:
+		return
+
+	# Check if blocking (can't attack while blocking)
+	if is_blocking:
+		return
+
+	# Get equipped weapon (or default to fists)
+	var weapon_data = null  # WeaponData
+
+	if equipment:
+		weapon_data = equipment.get_equipped_weapon()
+
+	# Default to fists if no weapon equipped
+	if not weapon_data:
+		weapon_data = ItemDatabase.get_item("fists")
+
+	# Get camera for raycasting/aiming
+	var camera := _get_camera()
+	if not camera:
+		print("[Player] No camera found for special attack")
+		return
+
+	# Reset combo on special attack
+	combo_count = 0
+	combo_timer = 0.0
+
+	# Different special attacks based on weapon type
+	match weapon_data.item_id:
+		"stone_knife":
+			_special_attack_knife_lunge(weapon_data, camera)
+		"stone_sword":
+			_special_attack_sword_stab(weapon_data, camera)
+		"fire_wand":
+			_special_attack_fire_wand_area(weapon_data, camera)
+		_:
+			# Default special attack (same as normal attack but 1.5x damage)
+			_special_attack_default(weapon_data, camera)
+
+## Knife special: Lunge forward jab (high damage, high stamina, moves player forward)
+func _special_attack_knife_lunge(weapon_data: WeaponData, camera: Camera3D) -> void:
+	var stamina_cost: float = 25.0  # High stamina cost
+	var damage: float = weapon_data.damage * 2.5  # 2.5x damage for lunge
+	var knockback: float = weapon_data.knockback * 1.5
+	var attack_range: float = 7.0  # Longer range for lunge
+
+	# Check stamina cost
+	if not consume_stamina(stamina_cost):
+		print("[Player] Not enough stamina for knife lunge!")
+		return
+
+	# LEAP forward in camera direction (powerful lunge)
+	var camera_forward = -camera.global_transform.basis.z  # Camera facing direction
+	var horizontal_direction = Vector3(camera_forward.x, 0, camera_forward.z).normalized()
+
+	# Store lunge direction for continuous momentum
+	lunge_direction = horizontal_direction
+
+	# Moderate forward leap with upward component (arcs down harder)
+	velocity = horizontal_direction * 5.0  # Reduced forward momentum for tighter control
+	velocity.y = 9.0  # Reduced upward component for shorter, tighter arc
+
+	print("[Player] Knife LUNGE LEAP attack! is_on_floor: %s" % is_on_floor())
+
+	# Trigger special attack animation (faster for knife)
+	is_special_attacking = true
+	is_lunging = true  # Enable crouch animation
+	was_in_air_lunging = false  # Reset landing tracker (will be set to true when in air)
+	special_attack_timer = 0.0
+	current_special_attack_animation_time = KNIFE_SPECIAL_ANIMATION_TIME
+
+	print("[Player] Lunge state set: is_lunging=%s, was_in_air_lunging=%s" % [is_lunging, was_in_air_lunging])
+
+	# IMMEDIATELY snap player mesh to face lunge direction (no lerp - prevents tangled mesh)
+	if is_local_player and body_container:
+		var camera_controller = get_node_or_null("CameraController")
+		if camera_controller and "camera_rotation" in camera_controller:
+			var camera_yaw = camera_controller.camera_rotation.x
+			body_container.rotation.y = camera_yaw + PI  # Instant snap to face lunge direction
+			print("[Player] Snapped mesh to face lunge direction: %.2f radians" % body_container.rotation.y)
+
+	# Rotate knife to 0 degrees (straight/horizontal) for lunge
+	if equipped_weapon_visual:
+		equipped_weapon_visual.rotation_degrees = Vector3(0, 0, 0)  # Straight angle for lunge
+
+	# Perform melee raycast attack
+	_perform_melee_attack(camera, attack_range, damage, knockback)
+
+## Sword special: Stab forward (piercing jab attack - longer and slower than third swipe)
+func _special_attack_sword_stab(weapon_data: WeaponData, camera: Camera3D) -> void:
+	var stamina_cost: float = 20.0
+	var damage: float = weapon_data.damage * 2.2  # 2.2x damage for powerful jab
+	var knockback: float = weapon_data.knockback * 0.5  # Less knockback, more penetration
+	var attack_range: float = 6.5  # Longer range for jab
+
+	# Check stamina cost
+	if not consume_stamina(stamina_cost):
+		print("[Player] Not enough stamina for sword jab!")
+		return
+
+	print("[Player] Sword powerful JAB attack!")
+
+	# Trigger special attack animation (slower for sword jab - longer and more powerful)
+	is_special_attacking = true
+	special_attack_timer = 0.0
+	current_special_attack_animation_time = SWORD_SPECIAL_ANIMATION_TIME
+
+	# Rotate player mesh to face attack direction
+	if is_local_player and body_container:
+		var camera_controller = get_node_or_null("CameraController")
+		if camera_controller and "camera_rotation" in camera_controller:
+			var camera_yaw = camera_controller.camera_rotation.x
+			body_container.rotation.y = camera_yaw + PI
+
+	# Rotate sword to 0 degrees (straight/horizontal) for jab
+	if equipped_weapon_visual:
+		equipped_weapon_visual.rotation_degrees = Vector3(0, 0, 0)  # Straight angle for jab
+
+	# Perform melee raycast attack
+	_perform_melee_attack(camera, attack_range, damage, knockback)
+
+## Fire wand special: Area fire effect at mouse position (ground fire)
+func _special_attack_fire_wand_area(weapon_data: WeaponData, camera: Camera3D) -> void:
+	var stamina_cost: float = 30.0  # Very high stamina cost
+	var damage: float = weapon_data.damage * 1.2  # 1.2x damage per tick
+	var area_radius: float = 5.0  # 5 meter radius
+	var duration: float = 3.0  # 3 seconds of burning
+
+	# Check stamina cost
+	if not consume_stamina(stamina_cost):
+		print("[Player] Not enough stamina for fire area!")
+		return
+
+	print("[Player] Fire wand AREA EFFECT!")
+
+	# Trigger special attack animation
+	is_special_attacking = true
+	special_attack_timer = 0.0
+
+	# Raycast to find ground position at mouse cursor
+	var viewport_size := get_viewport().get_visible_rect().size
+	var crosshair_offset := Vector2(21.0, -50.0)
+	var crosshair_pos := viewport_size / 2 + crosshair_offset
+	var ray_origin := camera.project_ray_origin(crosshair_pos)
+	var ray_direction := camera.project_ray_normal(crosshair_pos)
+
+	var space_state := get_world_3d().direct_space_state
+	var query := PhysicsRayQueryParameters3D.create(ray_origin, ray_origin + ray_direction * 100.0)
+	query.collision_mask = 1  # World layer only
+	query.exclude = [self]
+
+	var result := space_state.intersect_ray(query)
+	if result:
+		var ground_pos: Vector3 = result.position
+		print("[Player] Creating fire area at %s" % ground_pos)
+
+		# Spawn fire area effect scene
+		var fire_area_scene = load("res://shared/effects/fire_area.tscn")
+		var fire_area = fire_area_scene.instantiate()
+		get_tree().root.add_child(fire_area)
+		fire_area.global_position = ground_pos
+		fire_area.radius = area_radius
+		fire_area.damage = damage
+		fire_area.duration = duration
+	else:
+		print("[Player] No ground found for fire area")
+
+## Default special attack (1.5x damage, same as normal attack otherwise)
+func _special_attack_default(weapon_data: WeaponData, camera: Camera3D) -> void:
+	var stamina_cost: float = weapon_data.stamina_cost * 2.0
+	var damage: float = weapon_data.damage * 1.5
+	var knockback: float = weapon_data.knockback
+	var attack_range: float = 5.0
+
+	# Check stamina cost
+	if not consume_stamina(stamina_cost):
+		print("[Player] Not enough stamina for special attack!")
+		return
+
+	print("[Player] Special attack!")
+
+	# Trigger special attack animation
+	is_special_attacking = true
+	special_attack_timer = 0.0
+
+	# Rotate player mesh to face attack direction
+	if is_local_player and body_container:
+		var camera_controller = get_node_or_null("CameraController")
+		if camera_controller and "camera_rotation" in camera_controller:
+			var camera_yaw = camera_controller.camera_rotation.x
+			body_container.rotation.y = camera_yaw + PI
+
+	# Check if ranged weapon
+	var is_ranged = weapon_data.weapon_type == WeaponData.WeaponType.MAGIC or weapon_data.weapon_type == WeaponData.WeaponType.RANGED
+	if is_ranged:
+		_spawn_projectile(weapon_data, camera)
+	else:
+		_perform_melee_attack(camera, attack_range, damage, knockback)
+
+## Helper: Perform melee raycast attack (extracted from _handle_attack)
+func _perform_melee_attack(camera: Camera3D, attack_range: float, damage: float, knockback: float) -> void:
+	var viewport_size := get_viewport().get_visible_rect().size
+	var crosshair_offset := Vector2(21.0, -50.0)
+	var crosshair_pos := viewport_size / 2 + crosshair_offset
+	var ray_origin := camera.project_ray_origin(crosshair_pos)
+	var ray_direction := camera.project_ray_normal(crosshair_pos)
+	var ray_end := ray_origin + ray_direction * attack_range
+
+	# Perform raycast
+	var space_state := get_world_3d().direct_space_state
+	var query := PhysicsRayQueryParameters3D.create(ray_origin, ray_end)
+	query.collision_mask = 1 | 4  # World layer (1) and Enemies layer (bit 2 = 4)
+	query.exclude = [self]
+
+	var result := space_state.intersect_ray(query)
+	if result:
+		var hit_object: Object = result.collider
+
+		# Check if it's an enemy
+		if hit_object.has_method("take_damage") and hit_object.collision_layer & 4:  # Enemy layer
+			print("[Player] Hit enemy %s (%.1f damage, %.1f knockback)" % [hit_object.name, damage, knockback])
+			hit_object.take_damage(damage, knockback, ray_direction)
+
+		# Check if it's an environmental object
+		elif hit_object.has_method("get_object_type") and hit_object.has_method("get_object_id"):
+			var object_type: String = hit_object.get_object_type()
+			var object_id: int = hit_object.get_object_id()
+			var chunk_pos: Vector2i = hit_object.chunk_position if "chunk_position" in hit_object else Vector2i.ZERO
+
+			print("[Player] Attacking %s (ID: %d in chunk %s)" % [object_type, object_id, chunk_pos])
+			_send_damage_request(chunk_pos, object_id, damage, result.position)
+
+## Helper: Deal damage to all enemies in an area
+func _deal_area_damage(center: Vector3, radius: float, damage: float) -> void:
+	# Get all enemies in the scene
+	var enemies = get_tree().get_nodes_in_group("enemies")
+	for enemy in enemies:
+		if not is_instance_valid(enemy):
+			continue
+
+		# Check if enemy is in range
+		var distance = enemy.global_position.distance_to(center)
+		if distance <= radius:
+			var direction = (enemy.global_position - center).normalized()
+			if enemy.has_method("take_damage"):
+				enemy.take_damage(damage, 2.0, direction)
+				print("[Player] Area damage hit %s at distance %.1fm" % [enemy.name, distance])
 
 ## Spawn a projectile for ranged weapons
 func _spawn_projectile(weapon_data: WeaponData, camera: Camera3D) -> void:
@@ -632,29 +1020,124 @@ func _update_body_animations(delta: float) -> void:
 	# Update attack animation
 	if is_attacking:
 		attack_timer += delta
-		if attack_timer >= ATTACK_ANIMATION_TIME:
+		if attack_timer >= current_attack_animation_time:
 			is_attacking = false
 			attack_timer = 0.0
+
+			# Reset weapon rotation after attack completes
+			if equipped_weapon_visual:
+				equipped_weapon_visual.rotation_degrees = Vector3(90, 0, 0)
+
+	# Update special attack animation
+	if is_special_attacking:
+		special_attack_timer += delta
+		if special_attack_timer >= current_special_attack_animation_time:
+			is_special_attacking = false
+			special_attack_timer = 0.0
+			# DON'T reset is_lunging here - it persists until landing!
+			# DON'T reset weapon rotation here - knife stays horizontal until landing!
 
 	# Stun animation overrides everything
 	if is_stunned:
 		_animate_stun(delta, left_arm, right_arm, left_leg, right_leg)
 		return
 
-	# Blocking animation overrides everything (arms forward like push-up stance)
-	if is_blocking:
+	# Lunge crouch animation overrides everything (ball shape for dramatic leap)
+	if is_lunging and body_container:
+		# Crouch the body into a ball shape with aggressive forward dive
+		body_container.rotation.x = lerp(body_container.rotation.x, 1.3, delta * 20.0)  # Lean forward aggressively (30 degrees more)
+		body_container.scale.y = lerp(body_container.scale.y, 0.7, delta * 20.0)  # Compress vertically
+
+		# Tuck arms and legs in
 		if left_arm:
-			left_arm.rotation.x = lerp(left_arm.rotation.x, -1.2, delta * 25.0)  # Arms forward at shoulder height (fast)
-			left_arm.rotation.z = lerp(left_arm.rotation.z, 0.0, delta * 25.0)  # Keep arms straight forward, not spread
+			left_arm.rotation.x = lerp(left_arm.rotation.x, -0.8, delta * 20.0)
+			left_arm.rotation.z = lerp(left_arm.rotation.z, 0.5, delta * 20.0)
 		if right_arm:
-			right_arm.rotation.x = lerp(right_arm.rotation.x, -1.2, delta * 25.0)  # Arms forward at shoulder height (fast)
-			right_arm.rotation.z = lerp(right_arm.rotation.z, 0.0, delta * 25.0)  # Keep arms straight forward, not spread
-	# Attack animation overrides arm movement
+			right_arm.rotation.x = lerp(right_arm.rotation.x, -0.8, delta * 20.0)
+			right_arm.rotation.z = lerp(right_arm.rotation.z, -0.5, delta * 20.0)
+		if left_leg:
+			left_leg.rotation.x = lerp(left_leg.rotation.x, 0.6, delta * 20.0)
+		if right_leg:
+			right_leg.rotation.x = lerp(right_leg.rotation.x, 0.6, delta * 20.0)
+		return  # Skip other animations while lunging
+
+	# Reset body container scale and rotation when not lunging
+	if body_container and not is_lunging and not is_stunned:
+		body_container.rotation.x = lerp(body_container.rotation.x, 0.0, delta * 10.0)
+		body_container.scale.y = lerp(body_container.scale.y, 1.0, delta * 10.0)
+
+		# Also reset limbs from lunge position
+		if left_arm and not is_blocking:
+			left_arm.rotation.x = lerp(left_arm.rotation.x, 0.0, delta * 10.0)
+			left_arm.rotation.z = lerp(left_arm.rotation.z, 0.0, delta * 10.0)
+		if right_arm and not is_attacking and not is_special_attacking:
+			right_arm.rotation.x = lerp(right_arm.rotation.x, 0.0, delta * 10.0)
+			right_arm.rotation.z = lerp(right_arm.rotation.z, 0.0, delta * 10.0)
+		if left_leg:
+			left_leg.rotation.x = lerp(left_leg.rotation.x, 0.0, delta * 10.0)
+		if right_leg:
+			right_leg.rotation.x = lerp(right_leg.rotation.x, 0.0, delta * 10.0)
+
+	# Blocking animation overrides everything (only LEFT arm raised for shield defense)
+	if is_blocking:
+		# Raise LEFT arm for blocking (shield is in left hand)
+		if left_arm:
+			left_arm.rotation.x = lerp(left_arm.rotation.x, -1.2, delta * 25.0)  # Left arm forward at shoulder height (fast)
+			left_arm.rotation.z = lerp(left_arm.rotation.z, 0.3, delta * 25.0)  # Slight outward angle for shield
+		# Right arm (weapon) stays relaxed or in natural position
+		if right_arm:
+			right_arm.rotation.x = lerp(right_arm.rotation.x, -0.3, delta * 15.0)  # Slightly forward, relaxed
+			right_arm.rotation.z = lerp(right_arm.rotation.z, -0.2, delta * 15.0)  # Slight inward angle
+	# Special attack animation overrides arm movement (more dramatic, RIGHT arm for weapons)
+	elif is_special_attacking and right_arm:
+		var attack_progress = special_attack_timer / current_special_attack_animation_time
+
+		# Strong overhead slash or thrust (more dramatic than normal attacks)
+		var swing_x = -sin(attack_progress * PI) * 2.0  # Very strong forward/down motion
+		var swing_z = sin(attack_progress * PI) * -0.5  # Some horizontal motion
+		right_arm.rotation.x = swing_x
+		right_arm.rotation.z = swing_z
+	# Attack animation overrides arm movement (RIGHT arm for weapons)
 	elif is_attacking and right_arm:
-		# Swing right arm forward then back
-		var attack_progress = attack_timer / ATTACK_ANIMATION_TIME
-		var swing_angle = -sin(attack_progress * PI) * 1.2  # Swing forward
-		right_arm.rotation.x = swing_angle
+		var attack_progress = attack_timer / current_attack_animation_time
+
+		# Different animations based on combo type
+		match current_combo_animation:
+			0:  # Right-to-left slash (starts right, sweeps left across body)
+				# Horizontal sweep from right to left
+				var start_z = -1.2  # Start extended to right
+				var end_z = 0.6     # End swept across to left
+				var horizontal_angle = lerp(start_z, end_z, attack_progress)
+				right_arm.rotation.z = horizontal_angle
+
+				# Forward motion during slash
+				var forward_angle = -sin(attack_progress * PI) * 0.8
+				right_arm.rotation.x = forward_angle
+
+			1:  # Left-to-right slash (reverse of first slash)
+				# Horizontal sweep from left to right
+				var start_z = 0.6   # Start crossed over to left
+				var end_z = -1.2    # End swept to right
+				var horizontal_angle = lerp(start_z, end_z, attack_progress)
+				right_arm.rotation.z = horizontal_angle
+
+				# Forward motion during slash
+				var forward_angle = -sin(attack_progress * PI) * 0.8
+				right_arm.rotation.x = forward_angle
+
+			2:  # Forward jab/thrust (finisher)
+				# Strong forward thrust (minimal horizontal movement)
+				var jab_angle = -sin(attack_progress * PI) * 1.8  # Strong forward jab
+				right_arm.rotation.x = jab_angle
+				right_arm.rotation.z = -0.3  # Slight angle for natural look
+
+			_:  # Default slash (same as animation 0)
+				var start_z = -1.0
+				var end_z = 0.5
+				var horizontal_angle = lerp(start_z, end_z, attack_progress)
+				right_arm.rotation.z = horizontal_angle
+				var forward_angle = -sin(attack_progress * PI) * 0.8
+				right_arm.rotation.x = forward_angle
 	elif right_arm:
 		# Normal arm swing will be handled below
 		pass
@@ -677,12 +1160,13 @@ func _update_body_animations(delta: float) -> void:
 		animation_phase += delta * 8.0 * speed_multiplier
 
 		if is_blocking:
-			# Defensive shuffle - small leg movements, arms stay forward
+			# Defensive shuffle - small leg movements, LEFT arm stays raised (shield)
 			var leg_angle = sin(animation_phase) * 0.15  # Half the normal swing
 			left_leg.rotation.x = leg_angle
 			right_leg.rotation.x = -leg_angle
 
-			# Arms stay in defensive position (already set above)
+			# Left arm (shield) stays in defensive position (already set above)
+			# Right arm (weapon) stays relaxed (already set above)
 			# No arm swinging during defensive movement
 
 			# Less torso sway when defending
@@ -706,7 +1190,7 @@ func _update_body_animations(delta: float) -> void:
 			# Arms swing opposite to legs (natural walking motion)
 			if left_arm and not is_blocking:
 				left_arm.rotation.x = -arm_angle  # Left arm swings opposite to left leg
-			if right_arm and not is_attacking and not is_blocking:
+			if right_arm and not is_attacking and not is_special_attacking and not is_blocking:
 				right_arm.rotation.x = arm_angle   # Right arm swings opposite to right leg
 
 			# Add subtle torso sway
@@ -725,11 +1209,13 @@ func _update_body_animations(delta: float) -> void:
 		left_leg.rotation.x = lerp(left_leg.rotation.x, 0.0, delta * 5.0)
 		right_leg.rotation.x = lerp(right_leg.rotation.x, 0.0, delta * 5.0)
 
-		# Don't reset arms if blocking or attacking
+		# Don't reset arms if blocking, attacking, or special attacking
+		# Left arm: reset unless blocking (shield raised)
 		if left_arm and not is_blocking:
 			left_arm.rotation.x = lerp(left_arm.rotation.x, 0.0, delta * 5.0)
 			left_arm.rotation.z = lerp(left_arm.rotation.z, 0.0, delta * 5.0)
-		if right_arm and not is_attacking and not is_blocking:
+		# Right arm: reset unless attacking or special attacking (weapon swinging)
+		if right_arm and not is_attacking and not is_special_attacking:
 			right_arm.rotation.x = lerp(right_arm.rotation.x, 0.0, delta * 5.0)
 			right_arm.rotation.z = lerp(right_arm.rotation.z, 0.0, delta * 5.0)
 
