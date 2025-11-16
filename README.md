@@ -21,7 +21,7 @@ Hamberg aims to capture the magic of Valheim while being:
 
 ## 🚀 Current Status: Phase 4 In Progress 🏗️
 
-**Phase 4: Multi-World System & Resource Gathering** is now partially implemented!
+**Phase 4: Building, Crafting & Inventory** is now partially implemented!
 
 ### What Works Now
 - ✅ Dedicated server support (headless mode capable)
@@ -44,6 +44,10 @@ Hamberg aims to capture the magic of Valheim while being:
 - ✅ **Resource gathering** (punch trees/rocks to destroy them)
 - ✅ **Health system** (trees: 100 HP, rocks: 150 HP)
 - ✅ **Resource drops configured** (wood from trees, stone from rocks)
+- ✅ **Inventory system** (30 slots, hotbar, item pickup)
+- ✅ **Workbench** (crafting station with 20m build radius)
+- ✅ **Building system** (walls, floors, doors, beams, roofs with snap points)
+- ✅ **Workbench requirement** (must be near workbench to build)
 
 ### Try It Out!
 
@@ -69,7 +73,14 @@ You can also override these with environment variables:
 WORLD_NAME=myworld WORLD_SEED=12345 ./launch_server.sh
 ```
 
-Connect clients to `127.0.0.1:7777`, explore the world, and **left-click to punch trees and rocks!**
+Connect clients to `127.0.0.1:7777`, explore the world, gather resources, and build structures!
+
+**Getting Started:**
+1. Punch trees and rocks to gather wood and stone
+2. Press **Tab** to open inventory
+3. Equip hammer (press **1-9** or Tab + click hammer)
+4. Place a **workbench** (press **Q** to open build menu)
+5. Build within 20m of the workbench (walls, floors, doors, beams, roofs)
 
 ---
 
@@ -90,14 +101,39 @@ Connect clients to `127.0.0.1:7777`, explore the world, and **left-click to punc
 - [x] Smart persistence (procedural + database)
 - [ ] Terrain editing (mining, building) - *deferred to Phase 4*
 
-### Phase 3: Combat & AI 🗡️ **(Deferred - doing Phase 4 first)**
-- [ ] Melee combat system
-- [ ] Ranged weapons (bow, spear)
-- [ ] Enemy AI with pathfinding
-- [ ] Boss encounters
+### Phase 3: Combat & AI 🗡️ **NEXT UP**
+- [ ] **Weapons System** (Valheim-style tiers and types)
+  - [ ] **Tier 1: Wood & Stone** (wood, stone, resin materials)
+    - [ ] Stone Sword (10 wood, 5 stone) - Medium speed, balanced damage
+    - [ ] Stone Axe/Head Smasher (20 wood, 10 stone) - Slow, heavy damage, 2x sword cost
+    - [ ] Stone Knife (5 wood, 2 stone) - Fast, low damage, 0.5x sword cost
+    - [ ] Fire Wand (3 wood, 7 resin) - Magic ranged weapon, fire projectiles
+    - [ ] Bow (10 wood, 1 resin) - Physical ranged weapon
+  - [ ] **Shields** (Valheim-style parry mechanics)
+    - [ ] Tower Shield (15 wood) - High block, no parry bonus
+    - [ ] Round Shield (10 wood) - Medium block, medium parry bonus
+    - [ ] Buckler (5 wood) - Low block, high parry bonus
+  - [ ] TSCN files for each weapon (spawned in player hand when equipped)
+  - [ ] Weapon stats (damage, speed, knockback, durability)
+- [ ] **Enhanced Equipment System**
+  - [ ] Tab menu + right-click to equip (Valheim-style)
+  - [ ] Equipment slots (weapon, shield, armor slots)
+  - [ ] Hotbar still works for quick-equip (1-9 keys)
+  - [ ] Visual feedback for equipped items
+- [ ] **Combat Mechanics**
+  - [ ] Melee attack patterns (swing animations, hitboxes)
+  - [ ] Blocking and parry system
+  - [ ] Stamina consumption
+  - [ ] Damage types (slash, blunt, pierce, fire)
+- [ ] **Enemy System** (for testing)
+  - [ ] Basic enemy spawner (natural spawns)
+  - [ ] Simple enemy AI (chase and attack)
+  - [ ] Health and damage for enemies
+  - [ ] Enemy loot drops
 - [ ] Death and respawn mechanics
+- [ ] Boss encounters (later)
 
-### Phase 4: Multi-World & Resource Gathering 🏗️ **IN PROGRESS**
+### Phase 4: Building, Crafting & Inventory 🏗️ **IN PROGRESS**
 - [x] Multi-world system (unique names and seeds)
 - [x] Per-world storage and persistence
 - [x] World config synchronization (server → clients)
@@ -105,11 +141,17 @@ Connect clients to `127.0.0.1:7777`, explore the world, and **left-click to punc
 - [x] Health system for trees, rocks, grass
 - [x] Client-side hit detection (punch/attack)
 - [x] Server-authoritative damage validation
-- [ ] Resource item pickups (wood, stone)
-- [ ] Inventory system
-- [ ] Crafting stations
-- [ ] Building system (walls, floors, roofs)
+- [x] Resource item pickups (wood, stone, resin)
+- [x] Inventory system (30 slots, hotbar 1-9)
+- [x] Workbench crafting station
+- [x] Building system (walls, floors, doors, beams, roofs)
+- [x] Workbench proximity requirement (20m radius)
+- [ ] **Enhanced inventory** (Tab + right-click to equip, armor slots)
+- [ ] **Weapons & Combat** (see Phase 3 details below)
+- [ ] **Enemy spawning** (test targets for combat)
+- [ ] Interactable doors
 - [ ] Structural integrity
+- [ ] More crafting recipes
 
 ### Phase 5: Progression & Content 📈
 - [ ] Player skills and leveling
@@ -199,46 +241,205 @@ GAME_PORT=8888 MAX_PLAYERS=20 ./launch_server.sh
 | Jump | Space |
 | Sprint | Left Shift |
 | Attack/Gather | Left Click |
-| Interact | E *(coming soon)* |
-| Inventory | Tab *(coming soon)* |
+| Destroy Building | Middle Mouse |
+| Pick Up Item | E |
+| Inventory | Tab |
+| Hotbar Slots | 1-9 |
+| Build Menu | Q (with hammer equipped) |
+| Rotate Building | R (in build mode) |
+| Character Select | C *(at spawn)* |
+| Pause Menu | Esc |
 
 ---
 
-## 🏗️ Project Structure
+## 🏗️ Architecture Guide
+
+### Directory Structure Overview
 
 ```
 hamberg/
 ├── server/              # Server-only scripts
-│   └── server.gd       # Player management, world authority
 ├── client/              # Client-only scripts
-│   └── client.gd       # UI, rendering, local player
-├── shared/              # Shared game logic
-│   ├── network_manager.gd      # RPC relay & network state (autoload)
-│   ├── player.gd               # Player entity with client authority
-│   ├── player.tscn             # Player scene
-│   ├── voxel_world.gd          # Voxel terrain management
-│   ├── voxel_world.tscn        # Voxel terrain scene
-│   ├── biome_generator.gd      # Procedural terrain generation
-│   ├── camera_controller.gd    # Player camera
-│   └── environmental/          # Environmental objects
-│       ├── chunk_manager.gd        # Server-authoritative chunk streaming
-│       ├── chunk_data.gd           # Chunk persistence data
-│       ├── chunk_database.gd       # Save/load system
-│       ├── environmental_spawner.gd # Deterministic object spawning
-│       ├── environmental_object.gd  # Base class for trees/rocks/grass
-│       ├── tree.tscn               # Tree visual
-│       ├── rock.tscn               # Rock visual
-│       └── grass_clump.tscn        # Grass visual
-├── scenes/              # Scene files
-│   ├── main.tscn       # Entry point
-│   ├── server.tscn     # Server scene
-│   └── client.tscn     # Client scene with UI
+├── shared/              # Shared game logic (runs on both client & server)
+├── scenes/              # Godot scene files (.tscn)
 ├── resources/           # Resource definitions (.tres)
-├── assets/              # Models, textures, audio
-├── main.gd              # Mode detection (server/client/SP)
-├── project.godot        # Godot project config
-└── launch_*.sh          # Helper launch scripts
+├── assets/              # Models, textures, audio, materials
+├── saves/               # Per-world save data (gitignored)
+├── main.gd              # Entry point - mode detection
+├── project.godot        # Godot project configuration
+└── launch_*.sh          # Helper scripts for running server/client
 ```
+
+### Detailed File Organization
+
+#### 🖥️ **Server/** - Server-Authoritative Systems
+Server-only code that never runs on clients. Authority over world state, validation, persistence.
+
+- **server/server.gd** - Main server controller
+  - Player management (spawn, despawn, position validation)
+  - Chunk streaming and environmental object authority
+  - Inventory validation and synchronization
+  - Building placement validation and persistence
+  - Combat damage validation
+
+#### 💻 **Client/** - Client-Only UI and Rendering
+Client-only code for rendering, UI, and local player control. Never runs on dedicated servers.
+
+- **client/client.gd** - Main client controller
+  - UI management (hotbar, inventory, build menu)
+  - Local player spawning and camera control
+  - Environmental object rendering (client-side chunk streaming)
+  - Build mode and placement mode activation
+  - Item pickup and interaction
+
+- **client/ui/** - User Interface Components
+  - **hotbar.gd** - Quick access bar (slots 1-9)
+  - **inventory_panel.gd** - Full inventory view (Tab key)
+  - **build_menu.gd** - Building piece selection (Q key with hammer)
+  - **character_selection.gd** - Player appearance selection
+  - **pause_menu.gd** - Settings and disconnect
+
+- **client/build_mode.gd** - Valheim-style building
+  - Ghost preview with snap points
+  - Workbench proximity checking
+  - Resource validation before placement
+  - Floor/wall/roof snapping logic
+
+- **client/placement_mode.gd** - Object placement (workbench, etc.)
+  - Simpler placement for single objects
+  - Ground placement with collision detection
+
+#### 🔗 **Shared/** - Cross-Platform Game Logic
+Code that runs on both client and server. Contains core game systems and network communication.
+
+- **shared/network_manager.gd** (Autoload)
+  - RPC relay pattern (all RPCs go through here)
+  - Network state management
+  - Client/server communication hub
+
+- **shared/player.gd** & **player.tscn**
+  - Player entity with segmented body
+  - Client-authoritative movement (validated by server)
+  - Attack, jump, sprint mechanics
+  - Inventory component (server-synced)
+
+- **shared/camera_controller.gd** & **camera_controller.tscn**
+  - Third-person camera with collision avoidance
+  - Mouse look and zoom
+  - Attached to local player only
+
+- **shared/voxel_world.gd** & **voxel_world.tscn**
+  - Voxel terrain integration (Godot Voxel Tools)
+  - Biome-based procedural generation
+  - LOD streaming and mesh generation
+
+- **shared/biome_generator.gd**
+  - Procedural terrain heightmap generation
+  - 7 biomes (Valley, Forest, Swamp, Mountain, Desert, Wizardland, Hell)
+  - Deterministic from world seed
+
+- **shared/crafting_recipes.gd** (Autoload)
+  - Central recipe database
+  - Building costs (wood, stone, resin)
+  - Item crafting recipes
+
+- **shared/inventory.gd**
+  - 30-slot inventory system
+  - Stack management
+  - Server-authoritative with client prediction
+
+- **shared/environmental/** - Trees, Rocks, Grass
+  - **chunk_manager.gd** - Server controls chunk loading/unloading
+  - **chunk_data.gd** - Chunk persistence format
+  - **chunk_database.gd** - SQLite save/load
+  - **environmental_spawner.gd** - Deterministic object spawning from seed
+  - **environmental_object.gd** - Base class (health, drops, destruction)
+  - **tree.tscn**, **rock.tscn**, **grass_clump.tscn** - Visual scenes
+
+- **shared/buildable/** - Building System
+  - **building_piece.gd** - Base for walls, floors, roofs
+    - Snap point system (corner, edge, top, bottom)
+    - Grid snapping and alignment
+    - Preview mode (ghost with color feedback)
+  - **buildable_object.gd** - Base for workbench and standalone objects
+    - Crafting station range checking
+    - Preview mode support
+  - **wooden_wall.tscn**, **wooden_floor.tscn**, **wooden_door.tscn**, etc.
+    - Individual building piece scenes (placeholder meshes)
+  - **workbench.tscn** - Crafting station (20m build radius)
+
+#### 🎬 **Scenes/** - Entry Point Scenes
+Main scene files that tie everything together.
+
+- **scenes/main.tscn** - Entry point
+  - Loads main.gd script
+  - Decides server vs client mode
+
+- **scenes/server.tscn** - Server scene
+  - Contains Server node
+  - World container
+  - No camera or UI
+
+- **scenes/client.tscn** - Client scene
+  - Contains Client node
+  - CanvasLayer with all UI
+  - VoxelViewer for terrain streaming
+
+#### 📦 **Resources/** - Data Definitions
+Godot resource files (.tres) for items, recipes, etc.
+
+- Currently minimal - will expand with item definitions
+
+#### 🎨 **Assets/** - Art and Audio
+Models, textures, materials, sounds. Currently using placeholder meshes.
+
+- **assets/materials/** - Shared materials for objects
+- **assets/models/** - 3D models (GLTF/OBJ)
+- **assets/textures/** - Textures and sprite sheets
+- **assets/audio/** - Music and sound effects
+
+### Key Architecture Patterns
+
+**1. Client/Server/Shared Separation**
+- Server code never runs on client (and vice versa)
+- Shared code runs everywhere
+- Clear authority boundaries
+
+**2. RPC Relay Pattern**
+All RPCs go through `NetworkManager` to work across boundaries:
+```gdscript
+# Always use NetworkManager for RPCs
+NetworkManager.rpc_place_buildable.rpc_id(1, piece_name, pos, rot)
+```
+
+**3. Autoload Singletons**
+- `NetworkManager` - Network communication
+- `CraftingRecipes` - Recipe database
+- More to come (ItemDatabase, etc.)
+
+**4. Scene-Based Design**
+- Every entity is a scene (.tscn)
+- Scenes are instantiated at runtime
+- Easy to replace placeholder art
+
+**5. Trust-Based Networking**
+- Client reports actions, server validates
+- Immediate client feedback
+- Server has final authority
+
+### Finding Specific Features
+
+| Feature | Files to Check |
+|---------|---------------|
+| Player movement | `shared/player.gd`, `client/client.gd` |
+| Inventory | `shared/inventory.gd`, `client/ui/inventory_panel.gd`, `client/ui/hotbar.gd` |
+| Building | `client/build_mode.gd`, `shared/buildable/building_piece.gd` |
+| World generation | `shared/biome_generator.gd`, `shared/voxel_world.gd` |
+| Chunk streaming | `shared/environmental/chunk_manager.gd` |
+| Resource gathering | `shared/environmental/environmental_object.gd`, `shared/player.gd` |
+| Networking | `shared/network_manager.gd`, `server/server.gd`, `client/client.gd` |
+| Crafting | `shared/crafting_recipes.gd` |
+| Workbench | `shared/buildable/workbench.tscn`, `shared/buildable/buildable_object.gd` |
 
 ---
 
