@@ -22,6 +22,7 @@ var camera_rotation: Vector2 = Vector2.ZERO  # x = yaw, y = pitch
 var target_zoom: float = 3.0  # Valheim-like default distance
 var is_mouse_captured: bool = false
 var is_first_person: bool = false
+var lock_rotation: bool = false  # When true, ignores mouse input (for blocking)
 
 func _ready() -> void:
 	# Set initial zoom
@@ -42,9 +43,9 @@ func _input(event: InputEvent) -> void:
 			_capture_mouse()
 		return
 
-	# Mouse look (only when captured)
+	# Mouse look (only when captured and not locked)
 	# Check actual mouse mode in case it was changed externally (e.g., by inventory UI)
-	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
+	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED and not lock_rotation:
 		_handle_mouse_look(event.relative)
 
 	# Scroll wheel zoom

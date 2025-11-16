@@ -76,6 +76,7 @@ func _register_weapon_fists() -> void:
 	weapon.knockback = 5.0  # Moderate knockback
 	weapon.durability = 999999  # Infinite durability
 	weapon.stamina_cost = 5.0  # Low stamina cost
+	weapon.parry_window = 0.15  # Short parry window for fists (skilled timing required)
 	weapon.weight = 0.0
 	# No weapon scene - fists are always visible (viewmodel arms)
 	items["fists"] = weapon

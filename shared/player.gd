@@ -138,8 +138,8 @@ func _physics_process(delta: float) -> void:
 	# CLIENT: Predict movement locally
 	var input_data := _gather_input()
 
-	# Handle attack input
-	if input_data.get("attack", false) and attack_cooldown <= 0:
+	# Handle attack input (can't attack while stunned)
+	if input_data.get("attack", false) and attack_cooldown <= 0 and not is_stunned:
 		_handle_attack()
 		attack_cooldown = ATTACK_COOLDOWN_TIME
 
@@ -402,6 +402,14 @@ func _handle_attack() -> void:
 		print("[Player] No camera found for attack")
 		return
 
+	# Rotate player mesh to face attack direction (one-time rotation at attack start)
+	if is_local_player and body_container:
+		# Get camera controller's independent yaw (not affected by player rotation)
+		var camera_controller = get_node_or_null("CameraController")
+		if camera_controller and "camera_rotation" in camera_controller:
+			var camera_yaw = camera_controller.camera_rotation.x  # Independent yaw
+			body_container.rotation.y = camera_yaw + PI  # Add PI to account for mesh facing +Z (needs 180° flip)
+
 	# Raycast from crosshair position
 	var viewport_size := get_viewport().get_visible_rect().size
 
@@ -478,7 +486,8 @@ func _handle_block_input(delta: float) -> void:
 	# Check if block button is pressed (right mouse button)
 	var block_pressed = Input.is_action_pressed("block") if InputMap.has_action("block") else false
 
-	if block_pressed and stamina > 0:
+	# Can't block while stunned
+	if block_pressed and stamina > 0 and not is_stunned:
 		if not is_blocking:
 			is_blocking = true
 			block_timer = 0.0
@@ -552,11 +561,11 @@ func _update_body_animations(delta: float) -> void:
 	# Blocking animation overrides everything (arms forward like push-up stance)
 	if is_blocking:
 		if left_arm:
-			left_arm.rotation.x = lerp(left_arm.rotation.x, -1.2, delta * 10.0)  # Arms forward at shoulder height
-			left_arm.rotation.z = lerp(left_arm.rotation.z, 0.0, delta * 10.0)  # Keep arms straight forward, not spread
+			left_arm.rotation.x = lerp(left_arm.rotation.x, -1.2, delta * 25.0)  # Arms forward at shoulder height (fast)
+			left_arm.rotation.z = lerp(left_arm.rotation.z, 0.0, delta * 25.0)  # Keep arms straight forward, not spread
 		if right_arm:
-			right_arm.rotation.x = lerp(right_arm.rotation.x, -1.2, delta * 10.0)  # Arms forward at shoulder height
-			right_arm.rotation.z = lerp(right_arm.rotation.z, 0.0, delta * 10.0)  # Keep arms straight forward, not spread
+			right_arm.rotation.x = lerp(right_arm.rotation.x, -1.2, delta * 25.0)  # Arms forward at shoulder height (fast)
+			right_arm.rotation.z = lerp(right_arm.rotation.z, 0.0, delta * 25.0)  # Keep arms straight forward, not spread
 	# Attack animation overrides arm movement
 	elif is_attacking and right_arm:
 		# Swing right arm forward then back
@@ -567,37 +576,65 @@ func _update_body_animations(delta: float) -> void:
 		# Normal arm swing will be handled below
 		pass
 
-	# Simple walking animation
+	# When blocking, rotate player mesh to face camera direction (camera stays free)
+	if is_local_player and is_blocking and body_container:
+		var camera_controller = get_node_or_null("CameraController")
+		if camera_controller and "camera_rotation" in camera_controller:
+			# Camera remains free to move - we only rotate the mesh
+			var camera_yaw = camera_controller.camera_rotation.x
+			var target_rotation = camera_yaw + PI  # Add PI to account for mesh facing +Z (needs 180° flip)
+			body_container.rotation.y = lerp_angle(body_container.rotation.y, target_rotation, delta * 10.0)
+
+	# Movement animations (walking or defensive shuffle)
 	var horizontal_speed = Vector2(velocity.x, velocity.z).length()
 
 	if horizontal_speed > 0.5:
-		# Walking - accumulate animation phase based on actual movement
-		# This ensures smooth animations that don't "scramble" during acceleration/deceleration
+		# Moving - different animation based on blocking state
 		var speed_multiplier = horizontal_speed / WALK_SPEED
 		animation_phase += delta * 8.0 * speed_multiplier
 
-		var leg_angle = sin(animation_phase) * 0.3
-		var arm_angle = sin(animation_phase) * 0.2
+		if is_blocking:
+			# Defensive shuffle - small leg movements, arms stay forward
+			var leg_angle = sin(animation_phase) * 0.15  # Half the normal swing
+			left_leg.rotation.x = leg_angle
+			right_leg.rotation.x = -leg_angle
 
-		# Legs swing opposite
-		left_leg.rotation.x = leg_angle
-		right_leg.rotation.x = -leg_angle
+			# Arms stay in defensive position (already set above)
+			# No arm swinging during defensive movement
 
-		# Arms swing opposite to legs (natural walking motion)
-		if left_arm:
-			left_arm.rotation.x = -arm_angle  # Left arm swings opposite to left leg
-		if right_arm and not is_attacking:
-			right_arm.rotation.x = arm_angle   # Right arm swings opposite to right leg (unless attacking)
+			# Less torso sway when defending
+			if torso:
+				var sway = sin(animation_phase) * 0.02
+				torso.rotation.z = sway
 
-		# Add subtle torso sway
-		if torso:
-			var sway = sin(animation_phase) * 0.05
-			torso.rotation.z = sway
+			# Minimal head bob
+			if head:
+				var bob = sin(animation_phase * 2.0) * 0.008
+				head.position.y = head_height + bob
+		else:
+			# Normal walking animation
+			var leg_angle = sin(animation_phase) * 0.3
+			var arm_angle = sin(animation_phase) * 0.2
 
-		# Add subtle head bob
-		if head:
-			var bob = sin(animation_phase * 2.0) * 0.015
-			head.position.y = head_height + bob
+			# Legs swing opposite
+			left_leg.rotation.x = leg_angle
+			right_leg.rotation.x = -leg_angle
+
+			# Arms swing opposite to legs (natural walking motion)
+			if left_arm and not is_blocking:
+				left_arm.rotation.x = -arm_angle  # Left arm swings opposite to left leg
+			if right_arm and not is_attacking and not is_blocking:
+				right_arm.rotation.x = arm_angle   # Right arm swings opposite to right leg
+
+			# Add subtle torso sway
+			if torso:
+				var sway = sin(animation_phase) * 0.05
+				torso.rotation.z = sway
+
+			# Add subtle head bob
+			if head:
+				var bob = sin(animation_phase * 2.0) * 0.015
+				head.position.y = head_height + bob
 	else:
 		# Standing still - return to neutral and reset animation phase
 		animation_phase = 0.0
@@ -605,10 +642,11 @@ func _update_body_animations(delta: float) -> void:
 		left_leg.rotation.x = lerp(left_leg.rotation.x, 0.0, delta * 5.0)
 		right_leg.rotation.x = lerp(right_leg.rotation.x, 0.0, delta * 5.0)
 
-		if left_arm:
+		# Don't reset arms if blocking or attacking
+		if left_arm and not is_blocking:
 			left_arm.rotation.x = lerp(left_arm.rotation.x, 0.0, delta * 5.0)
 			left_arm.rotation.z = lerp(left_arm.rotation.z, 0.0, delta * 5.0)
-		if right_arm and not is_attacking:
+		if right_arm and not is_attacking and not is_blocking:
 			right_arm.rotation.x = lerp(right_arm.rotation.x, 0.0, delta * 5.0)
 			right_arm.rotation.z = lerp(right_arm.rotation.z, 0.0, delta * 5.0)
 
@@ -681,18 +719,34 @@ func take_damage(damage: float, attacker_id: int = -1, knockback_dir: Vector3 = 
 	var final_damage = damage
 	var was_parried = false
 
+	# Apply stun damage multiplier if stunned
+	if is_stunned:
+		final_damage *= STUN_DAMAGE_MULTIPLIER
+		print("[Player] Taking extra damage while stunned! (%.1fx multiplier)" % STUN_DAMAGE_MULTIPLIER)
+
 	# Check for blocking/parrying
 	if is_blocking:
 		var shield_data = null
+		var weapon_data = null
 		if equipment:
 			shield_data = equipment.get_equipped_shield()
+			weapon_data = equipment.get_equipped_weapon()
+
+		# Default to fists if no weapon equipped
+		if not weapon_data:
+			weapon_data = ItemDatabase.get_item("fists")
+
+		# Get parry window from weapon
+		var parry_window = weapon_data.parry_window if weapon_data else 0.15
 
 		# Check for parry (within parry window)
-		if block_timer <= PARRY_WINDOW:
-			print("[Player] PARRY! Negating damage%s" % (" (fists)" if not shield_data else " (shield)"))
+		if block_timer <= parry_window:
+			print("[Player] PARRY! Negating damage and stunning attacker%s" % (" (fists)" if not shield_data else " (shield)"))
 			was_parried = true
 			final_damage = 0
-			# TODO: Apply brief stun to attacker
+
+			# Apply stun to attacker
+			_apply_stun_to_attacker(attacker_id)
 		else:
 			# Normal block
 			if shield_data:
@@ -717,6 +771,21 @@ func take_damage(damage: float, attacker_id: int = -1, knockback_dir: Vector3 = 
 	if health <= 0:
 		health = 0
 		_die()
+
+## Apply stun to attacker (when parry succeeds)
+func _apply_stun_to_attacker(attacker_id: int) -> void:
+	if attacker_id == -1:
+		return
+
+	# Find attacker by instance ID
+	var attacker = instance_from_id(attacker_id)
+	if not attacker or not is_instance_valid(attacker):
+		return
+
+	# Apply stun if the attacker has the apply_stun method (from AnimatedCharacter)
+	if attacker.has_method("apply_stun"):
+		attacker.apply_stun()
+		print("[Player] Stunned attacker: %s" % attacker.name)
 
 ## Handle player death
 func _die() -> void:

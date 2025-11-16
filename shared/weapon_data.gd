@@ -46,6 +46,7 @@ enum WeaponType {
 @export var knockback: float = 5.0
 @export var durability: int = 100
 @export var stamina_cost: float = 10.0
+@export var parry_window: float = 0.15  # Time window (seconds) to successfully parry after starting block
 
 # For ranged weapons
 @export var projectile_scene: PackedScene = null
@@ -75,5 +76,6 @@ func to_dict() -> Dictionary:
 	base["knockback"] = knockback
 	base["durability"] = durability
 	base["stamina_cost"] = stamina_cost
+	base["parry_window"] = parry_window
 	base["projectile_speed"] = projectile_speed
 	return base

@@ -9,6 +9,12 @@ var animation_phase: float = 0.0
 var is_attacking: bool = false
 var attack_timer: float = 0.0
 
+# Stun state
+var is_stunned: bool = false
+var stun_timer: float = 0.0
+const STUN_DURATION: float = 1.5  # How long the stun lasts
+const STUN_DAMAGE_MULTIPLIER: float = 1.5  # Extra damage taken while stunned
+
 # Animation configuration (override in subclasses)
 @export var walk_speed: float = 5.0
 @export var attack_animation_time: float = 0.3  # Match player attack timing
@@ -30,11 +36,23 @@ func update_animations(delta: float) -> void:
 	if not body_container or not left_leg or not right_leg:
 		return
 
+	# Update stun timer
+	if is_stunned:
+		stun_timer -= delta
+		if stun_timer <= 0:
+			is_stunned = false
+			stun_timer = 0.0
+
 	# Update attack timer
 	if is_attacking:
 		attack_timer += delta
 		if attack_timer >= attack_animation_time:
 			is_attacking = false
+
+	# Stun animation overrides everything
+	if is_stunned:
+		_animate_stun(delta)
+		return
 
 	# Check if moving based on velocity
 	var horizontal_speed = Vector2(velocity.x, velocity.z).length()
@@ -114,3 +132,38 @@ func _animate_attack(delta: float) -> void:
 func start_attack_animation() -> void:
 	is_attacking = true
 	attack_timer = 0.0
+
+## Animate stun (wobble effect)
+func _animate_stun(delta: float) -> void:
+	if not body_container:
+		return
+
+	# Wobble the entire body container
+	var wobble_speed = 15.0  # Fast wobble
+	var wobble_intensity = 0.25  # Strong wobble (radians)
+
+	# Use stun_timer for continuous wobble
+	var time = (STUN_DURATION - stun_timer) * wobble_speed
+	var wobble_x = sin(time) * wobble_intensity
+	var wobble_z = cos(time * 1.3) * wobble_intensity  # Different frequency for more chaotic wobble
+
+	body_container.rotation.x = wobble_x
+	body_container.rotation.z = wobble_z
+
+	# Also make arms flail a bit
+	if left_arm:
+		left_arm.rotation.x = sin(time * 2.0) * 0.5
+	if right_arm:
+		right_arm.rotation.x = cos(time * 2.0) * 0.5
+
+	# Legs wobble
+	if left_leg:
+		left_leg.rotation.x = sin(time * 1.5) * 0.3
+	if right_leg:
+		right_leg.rotation.x = -sin(time * 1.5) * 0.3
+
+## Apply stun to this character
+func apply_stun(duration: float = STUN_DURATION) -> void:
+	is_stunned = true
+	stun_timer = duration
+	print("[AnimatedCharacter] Stunned for %.1f seconds!" % duration)

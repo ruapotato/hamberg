@@ -232,6 +232,12 @@ func _physics_process(delta: float) -> void:
 
 ## AI Update (server-only)
 func _update_ai(delta: float) -> void:
+	# Stunned enemies can't move or attack
+	if is_stunned:
+		velocity.x = 0
+		velocity.z = 0
+		return
+
 	# Find nearest player if we don't have a target
 	if not target_player or not is_instance_valid(target_player):
 		target_player = _find_nearest_player()
@@ -324,8 +330,15 @@ func take_damage(damage: float, knockback: float = 0.0, direction: Vector3 = Vec
 	if is_dead:
 		return
 
-	health -= damage
-	print("[Enemy] %s took %.1f damage, health: %.1f, knockback: %.1f" % [enemy_name, damage, health, knockback])
+	var final_damage = damage
+
+	# Apply stun damage multiplier if stunned
+	if is_stunned:
+		final_damage *= STUN_DAMAGE_MULTIPLIER
+		print("[Enemy] %s taking extra damage while stunned! (%.1fx multiplier)" % [enemy_name, STUN_DAMAGE_MULTIPLIER])
+
+	health -= final_damage
+	print("[Enemy] %s took %.1f damage, health: %.1f, knockback: %.1f" % [enemy_name, final_damage, health, knockback])
 
 	# Create health bar on first damage (lazy loading for performance)
 	if not health_bar:
