@@ -55,9 +55,13 @@ Hamberg aims to capture the magic of Valheim while being:
 - ✅ **Weapons & Combat** (5 weapons: stone sword, axe, knife, fire wand, bow)
 - ✅ **Shields & Blocking** (3 shields: buckler, round shield, tower shield)
 - ✅ **Parry system** (block at right moment to negate damage and stun attacker)
+- ✅ **Weapon combos** (knife 3-hit combo: slash, slash, powerful jab)
+- ✅ **Special attacks** (middle-mouse: knife lunge, sword stab, fire wand area effect)
 - ✅ **Projectile system** (fireballs from fire wand, shared for players/enemies)
 - ✅ **Crafting menu** (E on workbench, item discovery tracking per-character)
 - ✅ **Character-specific saves** (per-character inventory and item discoveries)
+- ✅ **Inventory drag-and-drop** (rearrange items by dragging between slots)
+- ✅ **Equipment toggle** (press same hotbar number twice to unequip)
 
 ### Try It Out!
 
@@ -88,12 +92,14 @@ Connect clients to `127.0.0.1:7777`, explore the world, gather resources, and bu
 **Getting Started:**
 1. Punch trees and rocks to gather wood, stone, and resin
 2. Press **Tab** to open inventory
-3. Press **E** on the workbench to open crafting menu
-4. Craft weapons and shields (stone knife, fire wand, buckler, etc.)
-5. **Right-click items** in inventory to equip them
-6. Press **1-9** to auto-equip items from hotbar
-7. **Left-click** to attack, **Right-click** to block (with shield)
-8. Equip hammer and press **Q** to build (walls, floors, doors, etc.)
+3. **Drag items** between slots to organize your inventory
+4. Press **E** on the workbench to open crafting menu
+5. Craft weapons and shields (stone knife, fire wand, buckler, etc.)
+6. **Right-click items** in inventory/hotbar to equip/unequip them
+7. Press **1-9** to auto-equip items from hotbar (press same number twice to unequip)
+8. **Left-click** to attack, **Right-click** to block (with shield equipped)
+9. **Middle-click** for special attacks (knife lunge, sword stab, fire wand area fire)
+10. Equip hammer and press **Q** to build (walls, floors, doors, etc.)
 
 ---
 
@@ -139,10 +145,13 @@ Connect clients to `127.0.0.1:7777`, explore the world, gather resources, and bu
 - [x] **Combat Mechanics**
   - [x] Melee attack patterns (swing animations, raycast hitboxes)
   - [x] Blocking and parry system (perfect timing stuns attacker)
+  - [x] Weapon combos (knife 3-hit combo with finisher)
+  - [x] Special attacks (middle-mouse: knife lunge, sword stab, fire wand area effect)
+  - [x] Procedural body animations (crouch, lean, limb movement)
   - [x] Stamina consumption on attacks
   - [x] Damage types (slash, blunt, pierce, fire implemented)
   - [x] Projectile system (fireballs for fire wand)
-  - [ ] Full animation system (placeholder animations working)
+  - [x] Area-of-effect damage (fire wand ground fire)
 - [x] **Enemy System** (basic implementation)
   - [x] Basic enemy spawner (natural spawns)
   - [x] Simple enemy AI (chase and attack)
@@ -163,11 +172,16 @@ Connect clients to `127.0.0.1:7777`, explore the world, gather resources, and bu
 - [x] Server-authoritative damage validation
 - [x] Resource item pickups (wood, stone, resin)
 - [x] Inventory system (30 slots, hotbar 1-9)
+- [x] **Enhanced inventory UI**
+  - [x] Tab menu to open full inventory
+  - [x] Right-click to equip/unequip items
+  - [x] Drag-and-drop to rearrange items
+  - [x] Hotbar toggle (press number twice to unequip)
+  - [x] Visual feedback for equipped items (yellow outline)
 - [x] Workbench crafting station
 - [x] Building system (walls, floors, doors, beams, roofs)
 - [x] Workbench proximity requirement (20m radius)
-- [ ] **Enhanced inventory** (Tab + right-click to equip, armor slots)
-- [ ] **Weapons & Combat** (see Phase 3 details above)
+- [x] **Weapons & Combat** (see Phase 3 details above)
 - [x] **Enemy spawning** (Gahnomes spawn naturally around players)
 - [ ] Interactable doors
 - [ ] Structural integrity
