@@ -1017,14 +1017,20 @@ func _update_weapon_visual() -> void:
 	if right_hand_attach:
 		right_hand_attach.add_child(equipped_weapon_visual)
 		# Rotate weapon 90 degrees forward (X-axis) so it points forward instead of down
-		equipped_weapon_visual.rotation_degrees = Vector3(-90, 0, 0)
+		equipped_weapon_visual.rotation_degrees = Vector3(90, 0, 0)
+
+		# Apply mount point offset if weapon has a MountPoint node
+		if equipped_weapon_visual.has_node("MountPoint"):
+			var mount_point = equipped_weapon_visual.get_node("MountPoint")
+			equipped_weapon_visual.position = -mount_point.position
+
 		print("[Player] Equipped weapon visual: %s" % weapon_id)
 	else:
 		# Fallback: attach to body container
 		if body_container:
 			body_container.add_child(equipped_weapon_visual)
 			equipped_weapon_visual.position = Vector3(0.3, 1.2, 0)  # Approximate hand position
-			equipped_weapon_visual.rotation_degrees = Vector3(-90, 0, 0)
+			equipped_weapon_visual.rotation_degrees = Vector3(90, 0, 0)
 			print("[Player] Equipped weapon visual (fallback): %s" % weapon_id)
 		else:
 			equipped_weapon_visual.queue_free()
@@ -1063,14 +1069,20 @@ func _update_shield_visual() -> void:
 	if left_hand_attach:
 		left_hand_attach.add_child(equipped_shield_visual)
 		# Rotate shield 90 degrees forward (X-axis) so it faces forward
-		equipped_shield_visual.rotation_degrees = Vector3(-90, 0, 0)
+		equipped_shield_visual.rotation_degrees = Vector3(90, 0, 0)
+
+		# Apply mount point offset if shield has a MountPoint node
+		if equipped_shield_visual.has_node("MountPoint"):
+			var mount_point = equipped_shield_visual.get_node("MountPoint")
+			equipped_shield_visual.position = -mount_point.position
+
 		print("[Player] Equipped shield visual: %s" % shield_id)
 	else:
 		# Fallback: attach to body container
 		if body_container:
 			body_container.add_child(equipped_shield_visual)
 			equipped_shield_visual.position = Vector3(-0.3, 1.2, 0)  # Approximate hand position
-			equipped_shield_visual.rotation_degrees = Vector3(-90, 0, 0)
+			equipped_shield_visual.rotation_degrees = Vector3(90, 0, 0)
 			print("[Player] Equipped shield visual (fallback): %s" % shield_id)
 		else:
 			equipped_shield_visual.queue_free()

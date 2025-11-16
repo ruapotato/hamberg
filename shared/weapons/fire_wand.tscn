@@ -16,6 +16,9 @@ emission_energy_multiplier = 2.0
 
 [node name="FireWand" type="Node3D"]
 
+[node name="MountPoint" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.1, 0)
+
 [node name="Staff" type="MeshInstance3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.3, 0)
 mesh = SubResource("staff_mesh")

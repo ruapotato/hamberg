@@ -5,6 +5,9 @@ size = Vector3(0.05, 0.8, 0.05)
 
 [node name="Bow" type="Node3D"]
 
+[node name="MountPoint" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.15, 0)
+
 [node name="LeftArm" type="MeshInstance3D" parent="."]
 transform = Transform3D(0.966, 0.259, 0, -0.259, 0.966, 0, 0, 0, 1, -0.1, 0.3, 0)
 mesh = SubResource("bow_mesh")
