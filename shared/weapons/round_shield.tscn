@@ -1,31 +1,16 @@
-[gd_scene load_steps=2 format=3 uid="uid://round_shield_001"]
+[gd_scene load_steps=3 format=3 uid="uid://round_shield_001"]
 
 [sub_resource type="CylinderMesh" id="shield_mesh"]
-top_radius = 0.5
-bottom_radius = 0.5
+top_radius = 0.35
+bottom_radius = 0.35
 height = 0.1
-radial_segments = 16
 
-[sub_resource type="StandardMaterial3D" id="shield_mat"]
-albedo_color = Color(0.5, 0.35, 0.2, 1)
-
-[sub_resource type="TorusMesh" id="rim_mesh"]
-inner_radius = 0.45
-outer_radius = 0.52
-ring_segments = 16
-rings = 8
-
-[sub_resource type="StandardMaterial3D" id="rim_mat"]
-albedo_color = Color(0.35, 0.35, 0.35, 1)
+[sub_resource type="StandardMaterial3D" id="wood_mat"]
+albedo_color = Color(0.6, 0.4, 0.2, 1)
 
 [node name="RoundShield" type="Node3D"]
 
 [node name="Shield" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0, 0)
+transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 0, 0.3, 0)
 mesh = SubResource("shield_mesh")
-surface_material_override/0 = SubResource("shield_mat")
-
-[node name="Rim" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0, 0)
-mesh = SubResource("rim_mesh")
-surface_material_override/0 = SubResource("rim_mat")
+surface_material_override/0 = SubResource("wood_mat")

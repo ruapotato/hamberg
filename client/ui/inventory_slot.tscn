@@ -1,4 +1,4 @@
-[gd_scene load_steps=3 format=3 uid="uid://inventory_slot_001"]
+[gd_scene load_steps=4 format=3 uid="uid://inventory_slot_001"]
 
 [ext_resource type="Script" path="res://client/ui/inventory_slot.gd" id="1"]
 
@@ -9,6 +9,14 @@ border_width_top = 3
 border_width_right = 3
 border_width_bottom = 3
 border_color = Color(1, 1, 0, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_equipped"]
+bg_color = Color(0, 0, 0, 0)
+border_width_left = 4
+border_width_top = 4
+border_width_right = 4
+border_width_bottom = 4
+border_color = Color(1, 0.9, 0, 1)
 
 [node name="InventorySlot" type="Panel"]
 custom_minimum_size = Vector2(64, 64)
@@ -88,3 +96,14 @@ grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_border")
+
+[node name="EquippedBorder" type="Panel" parent="."]
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_equipped")

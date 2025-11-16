@@ -1045,7 +1045,8 @@ func handle_save_request(peer_id: int) -> void:
 	print("[Server] Manual save complete")
 
 ## Handle equipment request (server-authoritative)
-func handle_equip_request(peer_id: int, slot: int, item_id: String) -> void:
+## Valheim-style: Items stay in inventory when equipped, just track equipped item_id
+func handle_equip_request(peer_id: int, equip_slot: int, item_id: String) -> void:
 	if not spawned_players.has(peer_id):
 		return
 
@@ -1059,35 +1060,24 @@ func handle_equip_request(peer_id: int, slot: int, item_id: String) -> void:
 	var equipment = player.get_node("Equipment")
 	var inventory = player.get_node("Inventory")
 
-	# Validate player has the item in inventory
+	# Validate player has the item in inventory (Valheim-style: item stays in inventory)
 	if not inventory.has_item(item_id, 1):
 		print("[Server] Player %d doesn't have %s to equip" % [peer_id, item_id])
 		return
 
-	# Get current equipped item in this slot (if any)
-	var current_item = equipment.get_equipped_item(slot)
+	# Equip the new item (item remains in inventory)
+	if equipment.equip_item(equip_slot, item_id):
+		print("[Server] Player %d equipped %s to equipment slot %d (item stays in inventory)" % [peer_id, item_id, equip_slot])
 
-	# Equip the new item
-	if equipment.equip_item(slot, item_id):
-		# Return old item to inventory if there was one
-		if not current_item.is_empty():
-			inventory.add_item(current_item, 1)
-
-		# Remove new item from inventory
-		inventory.remove_item(item_id, 1)
-
-		print("[Server] Player %d equipped %s to slot %d" % [peer_id, item_id, slot])
-
-		# Sync equipment and inventory to client
+		# Sync equipment to client (inventory unchanged)
 		var equipment_data = equipment.get_equipment_data()
-		var inventory_data = inventory.get_inventory_data()
 		NetworkManager.rpc_sync_equipment.rpc_id(peer_id, equipment_data)
-		NetworkManager.rpc_sync_inventory.rpc_id(peer_id, inventory_data)
 	else:
-		print("[Server] Player %d failed to equip %s to slot %d" % [peer_id, item_id, slot])
+		print("[Server] Player %d failed to equip %s to slot %d" % [peer_id, item_id, equip_slot])
 
 ## Handle unequip request (server-authoritative)
-func handle_unequip_request(peer_id: int, slot: int) -> void:
+## Valheim-style: Items stay in inventory, just clear the equipped slot
+func handle_unequip_request(peer_id: int, equip_slot: int) -> void:
 	if not spawned_players.has(peer_id):
 		return
 
@@ -1095,36 +1085,25 @@ func handle_unequip_request(peer_id: int, slot: int) -> void:
 	if not player or not is_instance_valid(player):
 		return
 
-	if not player.has_node("Equipment") or not player.has_node("Inventory"):
+	if not player.has_node("Equipment"):
 		return
 
 	var equipment = player.get_node("Equipment")
-	var inventory = player.get_node("Inventory")
 
 	# Get current equipped item
-	var item_id = equipment.get_equipped_item(slot)
+	var item_id = equipment.get_equipped_item(equip_slot)
 	if item_id.is_empty():
-		print("[Server] Player %d tried to unequip empty slot %d" % [peer_id, slot])
+		print("[Server] Player %d tried to unequip empty slot %d" % [peer_id, equip_slot])
 		return
 
-	# Unequip the item
-	equipment.unequip_slot(slot)
+	# Unequip the item (item stays in inventory)
+	equipment.unequip_slot(equip_slot)
 
-	# Return item to inventory
-	var remaining = inventory.add_item(item_id, 1)
-	if remaining > 0:
-		print("[Server] Player %d inventory full, couldn't unequip %s" % [peer_id, item_id])
-		# Re-equip the item since inventory is full
-		equipment.equip_item(slot, item_id)
-		return
+	print("[Server] Player %d unequipped slot %d (%s, item stays in inventory)" % [peer_id, equip_slot, item_id])
 
-	print("[Server] Player %d unequipped slot %d (%s)" % [peer_id, slot, item_id])
-
-	# Sync equipment and inventory to client
+	# Sync equipment to client (inventory unchanged)
 	var equipment_data = equipment.get_equipment_data()
-	var inventory_data = inventory.get_inventory_data()
 	NetworkManager.rpc_sync_equipment.rpc_id(peer_id, equipment_data)
-	NetworkManager.rpc_sync_inventory.rpc_id(peer_id, inventory_data)
 
 ## Handle enemy damage request (server-authoritative)
 func handle_enemy_damage(peer_id: int, enemy_path: NodePath, damage: float, knockback: float, direction: Vector3) -> void:

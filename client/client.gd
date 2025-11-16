@@ -10,6 +10,7 @@ var hotbar_scene := preload("res://client/ui/hotbar.tscn")
 var inventory_panel_scene := preload("res://client/ui/inventory_panel.tscn")
 var player_hud_scene := preload("res://client/ui/player_hud.tscn")
 var build_menu_scene := preload("res://client/ui/build_menu.tscn")
+var crafting_menu_scene := preload("res://client/ui/crafting_menu.tscn")
 var character_selection_scene := preload("res://client/ui/character_selection.tscn")
 var pause_menu_scene := preload("res://client/ui/pause_menu.tscn")
 
@@ -27,6 +28,7 @@ var spawned_enemies: Dictionary = {} # NodePath -> Enemy node (visual only)
 var hotbar_ui: Control = null
 var inventory_panel_ui: Control = null
 var build_menu_ui: Control = null
+var crafting_menu_ui: Control = null
 var character_selection_ui: Control = null
 var pause_menu_ui: Control = null
 var player_hud_ui: Control = null
@@ -35,6 +37,9 @@ var player_hud_ui: Control = null
 var build_mode: Node = null
 var placement_mode: Node = null
 var current_equipped_item: String = ""
+
+# Item discovery tracker
+var item_discovery_tracker: Node = null
 
 # Environmental objects
 var environmental_chunks: Dictionary = {} # Vector2i -> Dictionary of objects
@@ -51,6 +56,7 @@ var environmental_objects_container: Node3D
 @onready var ping_label: Label = $CanvasLayer/HUD/PingLabel
 @onready var players_label: Label = $CanvasLayer/HUD/PlayersLabel
 @onready var build_status_label: Label = $CanvasLayer/HUD/StatusLabel
+@onready var notification_label: Label = $CanvasLayer/HUD/NotificationLabel
 
 # World and camera
 @onready var world: Node3D = $World
@@ -76,6 +82,18 @@ func _ready() -> void:
 	placement_mode = PlacementMode.new()
 	add_child(placement_mode)
 	placement_mode.item_placed.connect(_on_item_placed)
+
+	# Create item discovery tracker
+	var ItemDiscoveryTracker = preload("res://client/item_discovery_tracker.gd")
+	item_discovery_tracker = ItemDiscoveryTracker.new()
+	item_discovery_tracker.name = "ItemDiscoveryTracker"
+	add_child(item_discovery_tracker)
+	item_discovery_tracker.recipes_unlocked.connect(_on_recipes_unlocked)
+
+	# Create crafting menu UI
+	crafting_menu_ui = crafting_menu_scene.instantiate()
+	canvas_layer.add_child(crafting_menu_ui)
+	crafting_menu_ui.set_discovery_tracker(item_discovery_tracker)
 
 	# Create character selection UI
 	character_selection_ui = character_selection_scene.instantiate()
@@ -107,6 +125,7 @@ func _process(_delta: float) -> void:
 	if is_in_game:
 		_update_hud()
 		_handle_build_input()
+		_handle_interaction_input()
 
 	# Handle pause menu
 	if Input.is_action_just_pressed("ui_cancel") and is_in_game:
@@ -252,6 +271,64 @@ func _destroy_object_under_cursor() -> void:
 					print("[Client] WARNING: Buildable found but doesn't have proper network ID in name: %s" % buildable_name)
 				return
 			buildable = buildable.get_parent()
+
+func _handle_interaction_input() -> void:
+	# Don't handle interaction if inventory or crafting menu is open
+	if inventory_panel_ui and inventory_panel_ui.is_inventory_open():
+		return
+	if crafting_menu_ui and crafting_menu_ui.is_open:
+		return
+
+	# Check for E key press to interact with objects
+	if Input.is_action_just_pressed("interact"):
+		_interact_with_object_under_cursor()
+
+func _interact_with_object_under_cursor() -> void:
+	var camera = _get_camera()
+	if not camera:
+		return
+
+	# Raycast from camera forward
+	var from = camera.global_position
+	var to = from + (-camera.global_transform.basis.z * 5.0)  # 5m interaction range
+
+	var space_state = world.get_world_3d().direct_space_state
+	var query = PhysicsRayQueryParameters3D.create(from, to)
+	query.collision_mask = 1  # World layer
+
+	var result = space_state.intersect_ray(query)
+
+	if result and result.collider:
+		var hit_object = result.collider
+		# Check if it's a buildable object (workbench, etc.)
+		var buildable = hit_object
+		while buildable:
+			# Check if it's a crafting station (workbench)
+			if buildable.has_method("is_position_in_range") and buildable.get("is_crafting_station"):
+				var station_type = buildable.get("station_type")
+				if station_type == "workbench":
+					print("[Client] Interacting with workbench")
+					_open_crafting_menu()
+					return
+			buildable = buildable.get_parent()
+
+func _open_crafting_menu() -> void:
+	if not crafting_menu_ui:
+		push_error("[Client] Crafting menu UI not found!")
+		return
+
+	if not local_player:
+		push_error("[Client] No local player!")
+		return
+
+	# Set player inventory reference
+	if local_player.has_node("Inventory"):
+		var inventory = local_player.get_node("Inventory")
+		crafting_menu_ui.set_player_inventory(inventory)
+
+	# Open the menu
+	crafting_menu_ui.show_menu()
+	print("[Client] Opened crafting menu")
 
 # ============================================================================
 # PLAYER MANAGEMENT (CLIENT-SIDE)
@@ -519,6 +596,28 @@ func _on_pause_quit() -> void:
 	NetworkManager.disconnect_network()
 
 # ============================================================================
+# ITEM DISCOVERY
+# ============================================================================
+
+func _on_recipes_unlocked(recipe_names: Array) -> void:
+	# Show notification for newly unlocked recipes
+	for recipe_name in recipe_names:
+		var item_data = ItemDatabase.get_item(recipe_name)
+		var display_name = item_data.display_name if item_data else CraftingRecipes.get_item_display_name(recipe_name)
+		_show_discovery_notification("New item available at workbench: %s" % display_name)
+
+func _show_discovery_notification(message: String) -> void:
+	print("[Client] Discovery: %s" % message)
+	if notification_label:
+		notification_label.text = message
+		notification_label.visible = true
+		# Clear the message after 5 seconds
+		await get_tree().create_timer(5.0).timeout
+		if notification_label and notification_label.text == message:
+			notification_label.visible = false
+			notification_label.text = ""
+
+# ============================================================================
 # WORLD CONFIGURATION
 # ============================================================================
 
@@ -551,6 +650,10 @@ func receive_character_list(characters: Array) -> void:
 func _on_character_selected(character_id: String, character_name: String, is_new: bool) -> void:
 	print("[Client] Character selected: %s (%s), new: %s" % [character_name, character_id, is_new])
 
+	# Set character name in discovery tracker
+	if item_discovery_tracker:
+		item_discovery_tracker.set_character(character_name)
+
 	# Send character load request to server
 	NetworkManager.rpc_load_character.rpc_id(1, character_id, character_name, is_new)
 
@@ -562,6 +665,14 @@ func receive_inventory_sync(inventory_data: Array) -> void:
 		var inventory = local_player.get_node("Inventory")
 		inventory.set_inventory_data(inventory_data)
 		print("[Client] Updated local player inventory")
+
+		# Track discovered items
+		if item_discovery_tracker:
+			for slot in inventory_data:
+				if slot is Dictionary and slot.has("item"):
+					var item_id = slot["item"]
+					if not item_id.is_empty():
+						item_discovery_tracker.discover_item(item_id)
 
 		# Update hotbar UI if it exists
 		if hotbar_ui:

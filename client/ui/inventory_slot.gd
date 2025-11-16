@@ -4,6 +4,7 @@ extends Panel
 ## Displays item icon, amount, and selection state
 
 signal slot_clicked(slot_index: int)
+signal slot_right_clicked(slot_index: int)
 signal drag_started(slot_index: int)
 signal drag_ended(from_slot: int, to_slot: int)
 
@@ -13,6 +14,7 @@ signal drag_ended(from_slot: int, to_slot: int)
 var item_name: String = ""
 var item_amount: int = 0
 var is_selected: bool = false
+var is_equipped: bool = false  # Is this item equipped?
 var is_dragging: bool = false
 var drag_preview: Control = null
 
@@ -20,6 +22,7 @@ var drag_preview: Control = null
 @onready var item_name_label: Label = $ItemNameLabel
 @onready var amount_label: Label = $AmountLabel
 @onready var selection_border: Panel = $SelectionBorder
+@onready var equipped_border: Panel = $EquippedBorder
 
 func _ready() -> void:
 	# Set up click detection
@@ -45,6 +48,10 @@ func _on_gui_input(event: InputEvent) -> void:
 				else:
 					# Just a click
 					slot_clicked.emit(slot_index)
+		elif event.button_index == MOUSE_BUTTON_RIGHT:
+			if event.pressed and not item_name.is_empty():
+				# Right-click to equip
+				slot_right_clicked.emit(slot_index)
 
 ## Set the item data for this slot
 func set_item_data(data: Dictionary) -> void:
@@ -62,6 +69,12 @@ func set_selected(selected: bool) -> void:
 	is_selected = selected
 	if selection_border:
 		selection_border.visible = selected
+
+## Set equipped state (shows yellow outline)
+func set_equipped(equipped: bool) -> void:
+	is_equipped = equipped
+	if equipped_border:
+		equipped_border.visible = equipped
 
 ## Update the visual display
 func update_display() -> void:
@@ -91,6 +104,9 @@ func update_display() -> void:
 
 	if selection_border:
 		selection_border.visible = is_selected
+
+	if equipped_border:
+		equipped_border.visible = is_equipped
 
 ## Get a display-friendly name for an item
 func _get_display_name(item: String) -> String:

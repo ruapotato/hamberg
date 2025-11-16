@@ -7,6 +7,7 @@ extends CharacterBody3D
 const Equipment = preload("res://shared/equipment.gd")
 const WeaponData = preload("res://shared/weapon_data.gd")
 const ShieldData = preload("res://shared/shield_data.gd")
+const Projectile = preload("res://shared/projectiles/projectile.gd")
 
 # Movement parameters
 const WALK_SPEED: float = 5.0
@@ -67,6 +68,10 @@ var viewmodel_arms: Node3D = null
 
 # Player body visuals
 var body_container: Node3D = null
+
+# Equipped weapon/shield visuals
+var equipped_weapon_visual: Node3D = null  # Main hand weapon
+var equipped_shield_visual: Node3D = null  # Off hand shield
 
 # Player identity
 var player_name: String = "Unknown"
@@ -409,7 +414,7 @@ func _handle_attack() -> void:
 	is_attacking = true
 	attack_timer = 0.0
 
-	# Get camera for raycasting
+	# Get camera for raycasting/aiming
 	var camera := _get_camera()
 	if not camera:
 		print("[Player] No camera found for attack")
@@ -423,47 +428,107 @@ func _handle_attack() -> void:
 			var camera_yaw = camera_controller.camera_rotation.x  # Independent yaw
 			body_container.rotation.y = camera_yaw + PI  # Add PI to account for mesh facing +Z (needs 180° flip)
 
-	# Raycast from crosshair position
-	var viewport_size := get_viewport().get_visible_rect().size
+	# Check if this is a ranged weapon (magic or ranged)
+	var is_ranged = weapon_data.weapon_type == WeaponData.WeaponType.MAGIC or weapon_data.weapon_type == WeaponData.WeaponType.RANGED
 
-	# Crosshair is offset to match crosshair.tscn (20px right, 50px up)
+	if is_ranged:
+		# RANGED ATTACK: Spawn projectile
+		_spawn_projectile(weapon_data, camera)
+	else:
+		# MELEE ATTACK: Raycast from crosshair position
+		var viewport_size := get_viewport().get_visible_rect().size
+
+		# Crosshair is offset to match crosshair.tscn (20px right, 50px up)
+		var crosshair_offset := Vector2(21.0, -50.0)
+		var crosshair_pos := viewport_size / 2 + crosshair_offset
+		var ray_origin := camera.project_ray_origin(crosshair_pos)
+		var ray_direction := camera.project_ray_normal(crosshair_pos)
+		var ray_end := ray_origin + ray_direction * attack_range
+
+		# Perform raycast
+		var space_state := get_world_3d().direct_space_state
+		var query := PhysicsRayQueryParameters3D.create(ray_origin, ray_end)
+		query.collision_mask = 1 | 4  # World layer (1) and Enemies layer (bit 2 = 4)
+		query.exclude = [self]  # Exclude the player themselves from the raycast
+
+		var result := space_state.intersect_ray(query)
+		if result:
+			var hit_object: Object = result.collider
+
+			# Check if it's an enemy
+			if hit_object.has_method("take_damage") and hit_object.collision_layer & 4:  # Enemy layer
+				print("[Player] Attacking enemy %s with %s (%.1f damage, %.1f knockback)" % [hit_object.name, weapon_data.display_name, damage, knockback])
+				# CLIENT-AUTHORITATIVE: Damage enemy directly on client
+				hit_object.take_damage(damage, knockback, ray_direction)
+
+			# Check if it's an environmental object
+			elif hit_object.has_method("get_object_type") and hit_object.has_method("get_object_id"):
+				var object_type: String = hit_object.get_object_type()
+				var object_id: int = hit_object.get_object_id()
+				var chunk_pos: Vector2i = hit_object.chunk_position if "chunk_position" in hit_object else Vector2i.ZERO
+
+				print("[Player] Attacking %s (ID: %d in chunk %s)" % [object_type, object_id, chunk_pos])
+
+				# Send damage request to server
+				_send_damage_request(chunk_pos, object_id, damage, result.position)
+			else:
+				print("[Player] Hit non-damageable object")
+		else:
+			# Attack missed (no raycast hit)
+			pass
+
+## Spawn a projectile for ranged weapons
+func _spawn_projectile(weapon_data: WeaponData, camera: Camera3D) -> void:
+	# Check if weapon has a projectile scene
+	if not weapon_data.projectile_scene:
+		print("[Player] Weapon %s has no projectile scene" % weapon_data.item_id)
+		return
+
+	# Calculate spawn position (from wand tip or hand)
+	var spawn_pos := global_position + Vector3(0, 1.5, 0)  # Default: chest height
+
+	# Try to get wand/weapon tip position
+	if equipped_weapon_visual and is_instance_valid(equipped_weapon_visual):
+		# Find the tip node if it exists, otherwise use the weapon position
+		if equipped_weapon_visual.has_node("Tip"):
+			var tip = equipped_weapon_visual.get_node("Tip")
+			spawn_pos = tip.global_position
+		else:
+			spawn_pos = equipped_weapon_visual.global_position
+			# Offset forward a bit from weapon position
+			spawn_pos += equipped_weapon_visual.global_transform.basis.z * 0.3
+
+	# Calculate target position from crosshair
+	var viewport_size := get_viewport().get_visible_rect().size
 	var crosshair_offset := Vector2(21.0, -50.0)
 	var crosshair_pos := viewport_size / 2 + crosshair_offset
 	var ray_origin := camera.project_ray_origin(crosshair_pos)
 	var ray_direction := camera.project_ray_normal(crosshair_pos)
-	var ray_end := ray_origin + ray_direction * 5.0  # 5 meter reach
 
-	# Perform raycast
+	# Raycast to find target position
+	var target_pos := ray_origin + ray_direction * 100.0  # Default: far away
+
 	var space_state := get_world_3d().direct_space_state
-	var query := PhysicsRayQueryParameters3D.create(ray_origin, ray_end)
-	query.collision_mask = 1 | 4  # World layer (1) and Enemies layer (bit 2 = 4)
-	query.exclude = [self]  # Exclude the player themselves from the raycast
+	var query := PhysicsRayQueryParameters3D.create(ray_origin, ray_origin + ray_direction * 100.0)
+	query.collision_mask = 1 | 2 | 4  # World, Players, Enemies
+	query.exclude = [self]
 
 	var result := space_state.intersect_ray(query)
 	if result:
-		var hit_object: Object = result.collider
+		target_pos = result.position
 
-		# Check if it's an enemy
-		if hit_object.has_method("take_damage") and hit_object.collision_layer & 4:  # Enemy layer
-			print("[Player] Attacking enemy %s with %s (%.1f damage, %.1f knockback)" % [hit_object.name, weapon_data.display_name, damage, knockback])
-			# CLIENT-AUTHORITATIVE: Damage enemy directly on client
-			hit_object.take_damage(damage, knockback, ray_direction)
+	# Calculate direction from spawn position to target
+	var direction := (target_pos - spawn_pos).normalized()
 
-		# Check if it's an environmental object
-		elif hit_object.has_method("get_object_type") and hit_object.has_method("get_object_id"):
-			var object_type: String = hit_object.get_object_type()
-			var object_id: int = hit_object.get_object_id()
-			var chunk_pos: Vector2i = hit_object.chunk_position if "chunk_position" in hit_object else Vector2i.ZERO
+	# Instantiate projectile
+	var projectile: Projectile = weapon_data.projectile_scene.instantiate()
+	get_tree().root.add_child(projectile)
 
-			print("[Player] Attacking %s (ID: %d in chunk %s)" % [object_type, object_id, chunk_pos])
+	# Set up projectile with weapon stats
+	var speed := weapon_data.projectile_speed if weapon_data.projectile_speed > 0 else 30.0
+	projectile.setup(spawn_pos, direction, speed, weapon_data.damage, get_instance_id())
 
-			# Send damage request to server
-			_send_damage_request(chunk_pos, object_id, damage, result.position)
-		else:
-			print("[Player] Hit non-damageable object")
-	else:
-		# Attack missed (no raycast hit)
-		pass
+	print("[Player] Spawned %s projectile toward %s" % [weapon_data.item_id, target_pos])
 
 ## Get the camera for raycasting
 func _get_camera() -> Camera3D:
@@ -905,7 +970,137 @@ func respawn_at(spawn_position: Vector3) -> void:
 ## Called when equipment changes (spawn/despawn visuals)
 func _on_equipment_changed(slot) -> void:  # slot is Equipment.EquipmentSlot
 	print("[Player] Equipment changed in slot: %s" % slot)
-	# TODO: Update visual representation
-	# - Spawn weapon/shield models in hand
-	# - Update armor visuals
-	# This will be implemented when we create the weapon/shield scenes
+
+	# Update visual representation based on slot
+	match slot:
+		Equipment.EquipmentSlot.MAIN_HAND:
+			_update_weapon_visual()
+		Equipment.EquipmentSlot.OFF_HAND:
+			_update_shield_visual()
+		Equipment.EquipmentSlot.HEAD, Equipment.EquipmentSlot.CHEST, Equipment.EquipmentSlot.LEGS:
+			# TODO: Implement armor visuals
+			pass
+
+## Update the main hand weapon visual
+func _update_weapon_visual() -> void:
+	# Remove existing weapon visual
+	if equipped_weapon_visual:
+		equipped_weapon_visual.queue_free()
+		equipped_weapon_visual = null
+
+	# Get equipped weapon
+	var weapon_id = equipment.get_equipped_item(Equipment.EquipmentSlot.MAIN_HAND)
+	if weapon_id.is_empty():
+		return
+
+	# Get weapon data
+	var weapon_data = ItemDatabase.get_item(weapon_id)
+	if not weapon_data:
+		push_error("[Player] Unknown weapon: %s" % weapon_id)
+		return
+
+	# Special case: fists have no visual (just the arms)
+	if weapon_id == "fists":
+		return
+
+	# Load weapon scene
+	var weapon_scene = weapon_data.get("weapon_scene")
+	if not weapon_scene:
+		push_warning("[Player] No weapon scene for: %s" % weapon_id)
+		return
+
+	# Instantiate weapon visual
+	equipped_weapon_visual = weapon_scene.instantiate()
+
+	# Find right hand bone attachment point
+	var right_hand_attach = _find_hand_attach_point("RightHand")
+	if right_hand_attach:
+		right_hand_attach.add_child(equipped_weapon_visual)
+		# Rotate weapon 90 degrees forward (X-axis) so it points forward instead of down
+		equipped_weapon_visual.rotation_degrees = Vector3(-90, 0, 0)
+		print("[Player] Equipped weapon visual: %s" % weapon_id)
+	else:
+		# Fallback: attach to body container
+		if body_container:
+			body_container.add_child(equipped_weapon_visual)
+			equipped_weapon_visual.position = Vector3(0.3, 1.2, 0)  # Approximate hand position
+			equipped_weapon_visual.rotation_degrees = Vector3(-90, 0, 0)
+			print("[Player] Equipped weapon visual (fallback): %s" % weapon_id)
+		else:
+			equipped_weapon_visual.queue_free()
+			equipped_weapon_visual = null
+			push_warning("[Player] No attachment point for weapon")
+
+## Update the off hand shield visual
+func _update_shield_visual() -> void:
+	# Remove existing shield visual
+	if equipped_shield_visual:
+		equipped_shield_visual.queue_free()
+		equipped_shield_visual = null
+
+	# Get equipped shield
+	var shield_id = equipment.get_equipped_item(Equipment.EquipmentSlot.OFF_HAND)
+	if shield_id.is_empty():
+		return
+
+	# Get shield data
+	var shield_data = ItemDatabase.get_item(shield_id)
+	if not shield_data:
+		push_error("[Player] Unknown shield: %s" % shield_id)
+		return
+
+	# Load shield scene
+	var shield_scene = shield_data.get("shield_scene")
+	if not shield_scene:
+		push_warning("[Player] No shield scene for: %s" % shield_id)
+		return
+
+	# Instantiate shield visual
+	equipped_shield_visual = shield_scene.instantiate()
+
+	# Find left hand bone attachment point
+	var left_hand_attach = _find_hand_attach_point("LeftHand")
+	if left_hand_attach:
+		left_hand_attach.add_child(equipped_shield_visual)
+		# Rotate shield 90 degrees forward (X-axis) so it faces forward
+		equipped_shield_visual.rotation_degrees = Vector3(-90, 0, 0)
+		print("[Player] Equipped shield visual: %s" % shield_id)
+	else:
+		# Fallback: attach to body container
+		if body_container:
+			body_container.add_child(equipped_shield_visual)
+			equipped_shield_visual.position = Vector3(-0.3, 1.2, 0)  # Approximate hand position
+			equipped_shield_visual.rotation_degrees = Vector3(-90, 0, 0)
+			print("[Player] Equipped shield visual (fallback): %s" % shield_id)
+		else:
+			equipped_shield_visual.queue_free()
+			equipped_shield_visual = null
+			push_warning("[Player] No attachment point for shield")
+
+## Find a hand attachment point (HandAttach node in arm)
+func _find_hand_attach_point(hand_name: String) -> Node3D:
+	if not body_container:
+		return null
+
+	# Map hand name to arm node name
+	var arm_name = ""
+	if hand_name == "RightHand":
+		arm_name = "RightArm"
+	elif hand_name == "LeftHand":
+		arm_name = "LeftArm"
+	else:
+		return null
+
+	# Find the arm node in body container
+	if not body_container.has_node(arm_name):
+		return null
+
+	var arm = body_container.get_node(arm_name)
+	if not arm or not is_instance_valid(arm):
+		return null
+
+	# Find HandAttach node in the arm
+	if arm.has_node("HandAttach"):
+		return arm.get_node("HandAttach")
+
+	return null

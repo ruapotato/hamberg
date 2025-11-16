@@ -47,10 +47,23 @@ func equip_item(slot: EquipmentSlot, item_id: String) -> bool:
 			push_warning("[Equipment] Item %s cannot be equipped to slot %s" % [item_id, slot])
 			return false
 
-		# Two-handed weapons occupy both hands
+		# Valheim-style two-handed weapon restrictions:
+		# 1. Two-handed weapons occupy both hands - clear off-hand when equipping
 		if item_data is WeaponData and item_data.weapon_type == WeaponData.WeaponType.MELEE_TWO_HAND:
+			if not equipped_items[EquipmentSlot.OFF_HAND].is_empty():
+				print("[Equipment] Two-handed weapon equipped - clearing off-hand shield")
 			equipped_items[EquipmentSlot.OFF_HAND] = ""  # Clear off-hand
 			equipment_changed.emit(EquipmentSlot.OFF_HAND)
+
+		# 2. Shields cannot be equipped with two-handed weapons - clear main hand if two-handed
+		if item_data is ShieldData and slot == EquipmentSlot.OFF_HAND:
+			var main_hand_item_id = equipped_items.get(EquipmentSlot.MAIN_HAND, "")
+			if not main_hand_item_id.is_empty():
+				var main_hand_item = ItemDatabase.get_item(main_hand_item_id)
+				if main_hand_item is WeaponData and main_hand_item.weapon_type == WeaponData.WeaponType.MELEE_TWO_HAND:
+					print("[Equipment] Shield cannot be equipped with two-handed weapon - clearing main hand")
+					equipped_items[EquipmentSlot.MAIN_HAND] = ""
+					equipment_changed.emit(EquipmentSlot.MAIN_HAND)
 
 	# Equip item
 	equipped_items[slot] = item_id

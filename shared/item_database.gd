@@ -145,7 +145,7 @@ func _register_weapon_fire_wand() -> void:
 	weapon.projectile_speed = 30.0
 	weapon.weight = 1.5
 	weapon.weapon_scene = load("res://shared/weapons/fire_wand.tscn")
-	# TODO: Set projectile_scene when fireball scene is created
+	weapon.projectile_scene = load("res://shared/projectiles/fireball.tscn")
 	items["fire_wand"] = weapon
 
 func _register_weapon_bow() -> void:

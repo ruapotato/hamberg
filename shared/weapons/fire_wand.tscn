@@ -1,19 +1,17 @@
-[gd_scene load_steps=2 format=3 uid="uid://fire_wand_001"]
+[gd_scene load_steps=4 format=3 uid="uid://fire_wand_001"]
 
-[sub_resource type="BoxMesh" id="staff_mesh"]
-size = Vector3(0.04, 0.6, 0.04)
-
-[sub_resource type="StandardMaterial3D" id="wood_mat"]
-albedo_color = Color(0.3, 0.2, 0.15, 1)
+[sub_resource type="CylinderMesh" id="staff_mesh"]
+top_radius = 0.02
+bottom_radius = 0.02
+height = 0.6
 
 [sub_resource type="SphereMesh" id="orb_mesh"]
 radius = 0.08
-height = 0.16
 
 [sub_resource type="StandardMaterial3D" id="fire_mat"]
-albedo_color = Color(1.0, 0.4, 0.1, 1)
+albedo_color = Color(1, 0.3, 0, 1)
 emission_enabled = true
-emission = Color(1.0, 0.3, 0.0, 1)
+emission = Color(1, 0.5, 0, 1)
 emission_energy_multiplier = 2.0
 
 [node name="FireWand" type="Node3D"]
@@ -21,9 +19,11 @@ emission_energy_multiplier = 2.0
 [node name="Staff" type="MeshInstance3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.3, 0)
 mesh = SubResource("staff_mesh")
-surface_material_override/0 = SubResource("wood_mat")
 
-[node name="FireOrb" type="MeshInstance3D" parent="."]
+[node name="Orb" type="MeshInstance3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.65, 0)
 mesh = SubResource("orb_mesh")
 surface_material_override/0 = SubResource("fire_mat")
+
+[node name="Tip" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.73, 0)
