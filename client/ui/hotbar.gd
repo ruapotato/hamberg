@@ -137,7 +137,7 @@ func select_slot(index: int) -> void:
 						print("[Hotbar] Toggling off %s from equipment slot %d" % [item_id, equip_slot])
 						NetworkManager.rpc_request_unequip_slot.rpc_id(1, equip_slot)
 						return
-		return
+					# If not equipped, fall through to equip logic below
 
 	# Auto-equip the item ONLY if it's an equippable item (weapon, tool, or shield)
 	if not item_id.is_empty():

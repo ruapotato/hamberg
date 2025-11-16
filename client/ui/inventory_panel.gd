@@ -148,6 +148,9 @@ func set_player_inventory(inventory: Node) -> void:
 		var equipment = player.get_node("Equipment")
 		if equipment and not equipment.equipment_changed.is_connected(_on_equipment_changed):
 			equipment.equipment_changed.connect(_on_equipment_changed)
+			print("[InventoryPanel] Connected to equipment_changed signal")
+		else:
+			print("[InventoryPanel] Already connected to equipment_changed signal")
 
 	refresh_display()
 
@@ -193,7 +196,8 @@ func refresh_display() -> void:
 			slots[i].set_equipped(false)
 
 ## Called when equipment changes
-func _on_equipment_changed(_slot) -> void:
+func _on_equipment_changed(slot) -> void:
+	print("[InventoryPanel] Equipment changed in slot %d, refreshing display" % slot)
 	# Refresh display to update equipped borders
 	refresh_display()
 
