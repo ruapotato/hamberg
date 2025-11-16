@@ -166,6 +166,9 @@ func refresh_display() -> void:
 	if player and player.has_node("Equipment"):
 		equipment = player.get_node("Equipment")
 
+	# Track which item IDs we've already marked as equipped (to avoid duplicates)
+	var equipped_item_ids_seen: Array[String] = []
+
 	for i in HOTBAR_SIZE:
 		if i < inventory_data.size():
 			slots[i].set_item_data(inventory_data[i])
@@ -178,8 +181,12 @@ func refresh_display() -> void:
 			if equipment and not item_id.is_empty():
 				# Check all equipment slots
 				for equip_slot in Equipment.EquipmentSlot.values():
-					if equipment.get_equipped_item(equip_slot) == item_id:
-						is_equipped = true
+					var equipped_id = equipment.get_equipped_item(equip_slot)
+					if equipped_id == item_id:
+						# Only mark as equipped if this is the FIRST occurrence of this item
+						if not equipped_item_ids_seen.has(item_id):
+							is_equipped = true
+							equipped_item_ids_seen.append(item_id)
 						break
 
 			slots[i].set_equipped(is_equipped)
