@@ -1,65 +1,114 @@
-[gd_scene load_steps=10 format=3 uid="uid://playerbody001"]
+[gd_scene load_steps=16 format=3 uid="uid://dy2dmljwoeeqq"]
 
+[ext_resource type="Material" uid="uid://cbrwxrkrp6y70" path="res://assets/player_body_shirt.tres" id="1_e4lme"]
+[ext_resource type="Material" uid="uid://b5mvpbdp86wsg" path="res://assets/player_body_skin.tres" id="1_eio23"]
 [ext_resource type="PackedScene" uid="uid://playerleg001" path="res://shared/player_leg.tscn" id="1_leg"]
 [ext_resource type="PackedScene" uid="uid://playerarm001" path="res://shared/player_arm.tscn" id="2_arm"]
-
-[sub_resource type="SphereMesh" id="SphereMesh_head"]
-radius = 0.1
-height = 0.2
-
-[sub_resource type="StandardMaterial3D" id="Material_head"]
-shading_mode = 1
-albedo_color = Color(0.9, 0.8, 0.7, 1)
-
-[sub_resource type="CapsuleMesh" id="CapsuleMesh_neck"]
-radius = 0.03
-height = 0.1
-
-[sub_resource type="CapsuleMesh" id="CapsuleMesh_torso"]
-radius = 0.08
-height = 0.4
-
-[sub_resource type="StandardMaterial3D" id="Material_torso"]
-shading_mode = 1
-albedo_color = Color(0.3, 0.5, 0.7, 1)
 
 [sub_resource type="BoxMesh" id="BoxMesh_hips"]
 size = Vector3(0.18, 0.15, 0.1)
 
 [sub_resource type="StandardMaterial3D" id="Material_hips"]
-shading_mode = 1
 albedo_color = Color(0.2, 0.3, 0.5, 1)
+
+[sub_resource type="PrismMesh" id="PrismMesh_8t77h"]
+size = Vector3(0.26, 0.395, 0.075)
+
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_0aqjy"]
+radius = 0.08
+height = 0.445
+
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_neck"]
+radius = 0.03
+height = 0.1
+
+[sub_resource type="SphereMesh" id="SphereMesh_head"]
+radius = 0.1
+height = 0.2
+
+[sub_resource type="PrismMesh" id="PrismMesh_e4lme"]
+size = Vector3(0.033, 0.009, 0.004)
+
+[sub_resource type="SphereMesh" id="SphereMesh_e4lme"]
+radius = 0.034
+height = 0.015
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_8t77h"]
+albedo_color = Color(0.2577303, 0.15496999, 0.0019461429, 1)
+
+[sub_resource type="SphereMesh" id="SphereMesh_0aqjy"]
+material = SubResource("StandardMaterial3D_8t77h")
+radius = 0.101
+height = 0.173
+
+[sub_resource type="SphereMesh" id="SphereMesh_eio23"]
+radius = 0.009
+height = 0.02
 
 [node name="PlayerBody" type="Node3D"]
 
 [node name="Hips" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.85, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.8754581, 0)
 mesh = SubResource("BoxMesh_hips")
 surface_material_override/0 = SubResource("Material_hips")
 
 [node name="Torso" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.15, 0)
-mesh = SubResource("CapsuleMesh_torso")
-surface_material_override/0 = SubResource("Material_torso")
+transform = Transform3D(1, 0, 0, 0, -1, 8.742278e-08, 0, -8.742278e-08, -1, 0, 1.15, 0)
+material_override = ExtResource("1_e4lme")
+mesh = SubResource("PrismMesh_8t77h")
+surface_material_override/0 = ExtResource("1_e4lme")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Torso"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0012689829, -1.1093704e-10)
+material_override = ExtResource("1_e4lme")
+mesh = SubResource("CapsuleMesh_0aqjy")
 
 [node name="Neck" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.42, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.3952864, 0)
 mesh = SubResource("CapsuleMesh_neck")
-surface_material_override/0 = SubResource("Material_head")
+surface_material_override/0 = ExtResource("1_eio23")
 
 [node name="Head" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.55, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.498777, 0)
+material_override = ExtResource("1_eio23")
 mesh = SubResource("SphereMesh_head")
-surface_material_override/0 = SubResource("Material_head")
+surface_material_override/0 = ExtResource("1_eio23")
+
+[node name="Nose" type="MeshInstance3D" parent="Head"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.005732894, 0.1015252)
+material_override = ExtResource("1_eio23")
+mesh = SubResource("PrismMesh_e4lme")
+
+[node name="Mouth" type="MeshInstance3D" parent="Head"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.041802883, 0.059720933)
+material_override = ExtResource("1_eio23")
+mesh = SubResource("SphereMesh_e4lme")
+
+[node name="Hair" type="MeshInstance3D" parent="Head"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.022569656, -0.013020799)
+mesh = SubResource("SphereMesh_0aqjy")
+
+[node name="Mouth2" type="MeshInstance3D" parent="Head"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.046458125, 0.05718551)
+material_override = ExtResource("1_eio23")
+mesh = SubResource("SphereMesh_e4lme")
+
+[node name="eye" type="MeshInstance3D" parent="Head"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.029285973, 0.018294334, 0.09492657)
+mesh = SubResource("SphereMesh_eio23")
+
+[node name="eye2" type="MeshInstance3D" parent="Head"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.03295605, 0.018294334, 0.09492657)
+mesh = SubResource("SphereMesh_eio23")
 
 [node name="LeftArm" parent="." instance=ExtResource("2_arm")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.15, 1.25, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.13678724, 1.3299514, 0)
 
 [node name="RightArm" parent="." instance=ExtResource("2_arm")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.15, 1.25, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.13762757, 1.3299514, 0)
 
 [node name="LeftLeg" parent="." instance=ExtResource("1_leg")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.08, 0.8, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.08, 0.8794864, 0)
 
 [node name="RightLeg" parent="." instance=ExtResource("1_leg")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.08, 0.8, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.08, 0.8794864, 0)

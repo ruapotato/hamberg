@@ -1,16 +1,23 @@
-[gd_scene load_steps=3 format=3 uid="uid://playerleg001"]
+[gd_scene load_steps=4 format=3 uid="uid://playerleg001"]
+
+[ext_resource type="Material" uid="uid://dd8jd52o2yfab" path="res://assets/player_leg.tres" id="1_iov2g"]
 
 [sub_resource type="CapsuleMesh" id="CapsuleMesh_leg"]
-height = 0.8
 radius = 0.05
+height = 0.8
 
-[sub_resource type="StandardMaterial3D" id="Material_leg"]
-shading_mode = 1
-albedo_color = Color(0, 0, 0, 1)
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_iov2g"]
+radius = 0.055
+height = 0.215
 
 [node name="PlayerLeg" type="Node3D"]
 
 [node name="LegMesh" type="MeshInstance3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.4, 0)
 mesh = SubResource("CapsuleMesh_leg")
-surface_material_override/0 = SubResource("Material_leg")
+surface_material_override/0 = ExtResource("1_iov2g")
+
+[node name="foot" type="MeshInstance3D" parent="."]
+transform = Transform3D(-0.9999999, -8.742277e-08, 3.821371e-15, 0, -4.3711385e-08, -1, 8.742277e-08, -0.9999999, 4.371139e-08, -0.004653886, -0.7725667, 0.050863788)
+material_override = ExtResource("1_iov2g")
+mesh = SubResource("CapsuleMesh_iov2g")

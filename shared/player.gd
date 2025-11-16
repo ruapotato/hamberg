@@ -10,6 +10,7 @@ const JUMP_VELOCITY: float = 8.0
 const ACCELERATION: float = 10.0
 const FRICTION: float = 8.0
 const AIR_CONTROL: float = 0.3
+const head_height: float = 1.50
 
 # Gravity
 var gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
@@ -449,7 +450,7 @@ func _update_body_animations(delta: float) -> void:
 		# Add subtle head bob
 		if head:
 			var bob = sin(animation_phase * 2.0) * 0.015
-			head.position.y = 1.55 + bob
+			head.position.y = head_height + bob
 	else:
 		# Standing still - return to neutral and reset animation phase
 		animation_phase = 0.0
@@ -466,7 +467,7 @@ func _update_body_animations(delta: float) -> void:
 			torso.rotation.z = lerp(torso.rotation.z, 0.0, delta * 5.0)
 
 		if head:
-			head.position.y = lerp(head.position.y, 1.55, delta * 5.0)
+			head.position.y = lerp(head.position.y, head_height, delta * 5.0)
 
 ## Called after camera controller is attached
 func setup_viewmodel() -> void:
