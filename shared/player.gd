@@ -56,6 +56,12 @@ const PARRY_WINDOW: float = 0.2  # Parry window at start of block
 const BLOCK_DAMAGE_REDUCTION: float = 0.8  # 80% damage reduction when blocking
 const BLOCK_SPEED_MULTIPLIER: float = 0.4  # Move at 40% speed while blocking
 
+# Stun state
+var is_stunned: bool = false
+var stun_timer: float = 0.0
+const STUN_DURATION: float = 1.5  # How long the stun lasts
+const STUN_DAMAGE_MULTIPLIER: float = 1.5  # Extra damage taken while stunned
+
 # Viewmodel (first-person arms)
 var viewmodel_arms: Node3D = null
 
@@ -128,6 +134,13 @@ func _physics_process(delta: float) -> void:
 	# Update attack cooldown
 	if attack_cooldown > 0:
 		attack_cooldown -= delta
+
+	# Update stun timer
+	if is_stunned:
+		stun_timer -= delta
+		if stun_timer <= 0:
+			is_stunned = false
+			stun_timer = 0.0
 
 	# Update stamina regeneration
 	_update_stamina(delta)
@@ -558,6 +571,11 @@ func _update_body_animations(delta: float) -> void:
 			is_attacking = false
 			attack_timer = 0.0
 
+	# Stun animation overrides everything
+	if is_stunned:
+		_animate_stun(delta, left_arm, right_arm, left_leg, right_leg)
+		return
+
 	# Blocking animation overrides everything (arms forward like push-up stance)
 	if is_blocking:
 		if left_arm:
@@ -786,6 +804,41 @@ func _apply_stun_to_attacker(attacker_id: int) -> void:
 	if attacker.has_method("apply_stun"):
 		attacker.apply_stun()
 		print("[Player] Stunned attacker: %s" % attacker.name)
+
+## Animate stun wobble effect
+func _animate_stun(delta: float, left_arm: Node3D, right_arm: Node3D, left_leg: Node3D, right_leg: Node3D) -> void:
+	if not body_container:
+		return
+
+	# Wobble the entire body container
+	var wobble_speed = 15.0  # Fast wobble
+	var wobble_intensity = 0.25  # Strong wobble (radians)
+
+	# Use stun_timer for continuous wobble
+	var time = (STUN_DURATION - stun_timer) * wobble_speed
+	var wobble_x = sin(time) * wobble_intensity
+	var wobble_z = cos(time * 1.3) * wobble_intensity  # Different frequency for more chaotic wobble
+
+	body_container.rotation.x = wobble_x
+	body_container.rotation.z = wobble_z
+
+	# Also make arms flail a bit
+	if left_arm:
+		left_arm.rotation.x = sin(time * 2.0) * 0.5
+	if right_arm:
+		right_arm.rotation.x = cos(time * 2.0) * 0.5
+
+	# Legs wobble
+	if left_leg:
+		left_leg.rotation.x = sin(time * 1.5) * 0.3
+	if right_leg:
+		right_leg.rotation.x = -sin(time * 1.5) * 0.3
+
+## Apply stun to this player
+func apply_stun(duration: float = STUN_DURATION) -> void:
+	is_stunned = true
+	stun_timer = duration
+	print("[Player] Stunned for %.1f seconds!" % duration)
 
 ## Handle player death
 func _die() -> void:
