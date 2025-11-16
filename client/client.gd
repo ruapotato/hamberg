@@ -275,12 +275,15 @@ func _destroy_object_under_cursor() -> void:
 func _handle_interaction_input() -> void:
 	# Don't handle interaction if inventory or crafting menu is open
 	if inventory_panel_ui and inventory_panel_ui.is_inventory_open():
+		print("[Client] Interact blocked - inventory is open")
 		return
 	if crafting_menu_ui and crafting_menu_ui.is_open:
+		print("[Client] Interact blocked - crafting menu is open")
 		return
 
 	# Check for E key press to interact with objects
 	if Input.is_action_just_pressed("interact"):
+		print("[Client] Interact key pressed!")
 		_interact_with_object_under_cursor()
 
 func _interact_with_object_under_cursor() -> void:
@@ -300,17 +303,22 @@ func _interact_with_object_under_cursor() -> void:
 
 	if result and result.collider:
 		var hit_object = result.collider
+		print("[Client] Raycast hit: %s" % hit_object.name)
 		# Check if it's a buildable object (workbench, etc.)
 		var buildable = hit_object
 		while buildable:
+			print("[Client] Checking object: %s, has method: %s, is_crafting_station: %s" % [buildable.name, buildable.has_method("is_position_in_range"), buildable.get("is_crafting_station")])
 			# Check if it's a crafting station (workbench)
 			if buildable.has_method("is_position_in_range") and buildable.get("is_crafting_station"):
 				var station_type = buildable.get("station_type")
+				print("[Client] Found crafting station: %s" % station_type)
 				if station_type == "workbench":
 					print("[Client] Interacting with workbench")
 					_open_crafting_menu()
 					return
 			buildable = buildable.get_parent()
+	else:
+		print("[Client] Raycast hit nothing")
 
 func _open_crafting_menu() -> void:
 	if not crafting_menu_ui:
