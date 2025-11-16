@@ -8,15 +8,20 @@ var player_scene := preload("res://shared/player.tscn")
 var camera_controller_scene := preload("res://shared/camera_controller.tscn")
 var hotbar_scene := preload("res://client/ui/hotbar.tscn")
 var inventory_panel_scene := preload("res://client/ui/inventory_panel.tscn")
+var player_hud_scene := preload("res://client/ui/player_hud.tscn")
 var build_menu_scene := preload("res://client/ui/build_menu.tscn")
 var character_selection_scene := preload("res://client/ui/character_selection.tscn")
 var pause_menu_scene := preload("res://client/ui/pause_menu.tscn")
+
+# Enemy scenes
+var gahnome_scene := preload("res://shared/enemies/gahnome.tscn")
 
 # Client state
 var is_connected: bool = false
 var is_in_game: bool = false
 var local_player: Node3D = null
 var remote_players: Dictionary = {} # peer_id -> Player node
+var spawned_enemies: Dictionary = {} # NodePath -> Enemy node (visual only)
 
 # Inventory UI
 var hotbar_ui: Control = null
@@ -24,6 +29,7 @@ var inventory_panel_ui: Control = null
 var build_menu_ui: Control = null
 var character_selection_ui: Control = null
 var pause_menu_ui: Control = null
+var player_hud_ui: Control = null
 
 # Build mode
 var build_mode: Node = null
@@ -310,6 +316,16 @@ func despawn_player(peer_id: int) -> void:
 				player.queue_free()
 			remote_players.erase(peer_id)
 
+## Handle local player respawn (called by NetworkManager)
+func handle_player_respawned(spawn_position: Vector3) -> void:
+	print("[Client] Local player respawning at %s" % spawn_position)
+
+	if local_player and is_instance_valid(local_player):
+		if local_player.has_method("respawn_at"):
+			local_player.respawn_at(spawn_position)
+	else:
+		print("[Client] ERROR: No local player to respawn!")
+
 ## Receive player states from server for interpolation (called by NetworkManager)
 func receive_player_states(states: Array) -> void:
 	# Apply states to remote players (not local player, which uses prediction)
@@ -371,6 +387,12 @@ func _setup_inventory_ui(player: Node3D) -> void:
 		return
 
 	var player_inventory = player.get_node("Inventory")
+
+	# Create player HUD (health and stamina bars)
+	player_hud_ui = player_hud_scene.instantiate()
+	canvas_layer.add_child(player_hud_ui)
+	player_hud_ui.set_player(player)
+	print("[Client] Player HUD created and linked to player")
 
 	# Create hotbar UI (always visible)
 	hotbar_ui = hotbar_scene.instantiate()
@@ -556,6 +578,18 @@ func receive_inventory_slot_update(slot: int, item: String, amount: int) -> void
 			if hotbar_ui:
 				hotbar_ui.refresh_display()
 
+## Receive equipment sync from server
+func receive_equipment_sync(equipment_data: Dictionary) -> void:
+	print("[Client] Received equipment sync")
+
+	if local_player and local_player.has_node("Equipment"):
+		var equipment = local_player.get_node("Equipment")
+		equipment.set_equipment_data(equipment_data)
+		print("[Client] Updated local player equipment")
+
+		# TODO: Update equipment UI when we create it
+		# Update inventory panel to show equipped items with visual indicators
+
 # ============================================================================
 # ENVIRONMENTAL OBJECT MANAGEMENT (CLIENT-SIDE VISUAL ONLY)
 # ============================================================================
@@ -731,3 +765,40 @@ func _cleanup_environmental_objects() -> void:
 	for chunk_pos in environmental_chunks.keys():
 		despawn_environmental_objects(chunk_pos)
 	environmental_chunks.clear()
+
+## Spawn an enemy (visual only on client)
+func spawn_enemy(enemy_path: NodePath, enemy_type: String, position: Vector3, enemy_name: String) -> void:
+	# Don't spawn if already exists
+	if spawned_enemies.has(enemy_path):
+		return
+
+	# Get the correct scene based on enemy type
+	var enemy_scene: PackedScene = null
+	match enemy_type:
+		"Gahnome":
+			enemy_scene = gahnome_scene
+		_:
+			print("[Client] Unknown enemy type: %s" % enemy_type)
+			return
+
+	# Instantiate enemy (client-side visual only)
+	var enemy = enemy_scene.instantiate()
+	enemy.name = str(enemy_path).get_file()  # Use the path's last part as name
+	world.add_child(enemy)
+	enemy.global_position = position
+
+	# Track enemy
+	spawned_enemies[enemy_path] = enemy
+
+	print("[Client] Spawned enemy %s at %s" % [enemy_name, position])
+
+## Despawn an enemy
+func despawn_enemy(enemy_path: NodePath) -> void:
+	var enemy = spawned_enemies.get(enemy_path)
+	if enemy and is_instance_valid(enemy):
+		enemy.queue_free()
+		spawned_enemies.erase(enemy_path)
+		print("[Client] Despawned enemy %s" % enemy_path)
+
+# CLIENT-AUTHORITATIVE: Each client simulates enemies independently
+# No server state updates needed - enemies run full AI/physics on all clients

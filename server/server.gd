@@ -51,9 +51,20 @@ func _ready() -> void:
 	# Wait for voxel_world to finish initialization
 	await get_tree().process_frame
 
+	# Initialize enemy spawner
+	_setup_enemy_spawner()
+
 	# Set up console input (for dedicated servers)
 	if DisplayServer.get_name() == "headless":
 		_setup_console_input()
+
+## Setup enemy spawner (server-only)
+func _setup_enemy_spawner() -> void:
+	var EnemySpawner = preload("res://server/enemy_spawner.gd")
+	var spawner = EnemySpawner.new()
+	spawner.name = "EnemySpawner"
+	add_child(spawner)
+	print("[Server] Enemy spawner initialized")
 
 ## Load or create world configuration
 func _load_or_create_world() -> void:
@@ -302,6 +313,37 @@ func _send_buildables_to_player(peer_id: int) -> void:
 
 	print("[Server] Sent %d buildables to player %d" % [buildables_sent, peer_id])
 
+func _send_enemies_to_player(peer_id: int) -> void:
+	# Get enemy spawner
+	var enemy_spawner = get_node_or_null("EnemySpawner")
+	if not enemy_spawner or not "spawned_enemies" in enemy_spawner:
+		print("[Server] No enemies to send to player %d" % peer_id)
+		return
+
+	var enemies = enemy_spawner.spawned_enemies
+	if enemies.is_empty():
+		print("[Server] No enemies to send to player %d" % peer_id)
+		return
+
+	var enemies_sent := 0
+
+	# Send each enemy to the new player
+	for enemy in enemies:
+		if not enemy or not is_instance_valid(enemy):
+			continue
+
+		var enemy_path = enemy.get_path()
+		var enemy_name = enemy.enemy_name if "enemy_name" in enemy else "Enemy"
+		# IMPORTANT: Use enemy_name not node.name (which changes at runtime)
+		var enemy_type = enemy_name  # Always "Gahnome", not "@CharacterBody3D@5366"
+		var position = [enemy.global_position.x, enemy.global_position.y, enemy.global_position.z]
+
+		# Send to this specific client only
+		NetworkManager.rpc_spawn_enemy.rpc_id(peer_id, enemy_path, enemy_type, position, enemy_name)
+		enemies_sent += 1
+
+	print("[Server] Sent %d enemies to player %d" % [enemies_sent, peer_id])
+
 # ============================================================================
 # PLAYER MANAGEMENT (SERVER-AUTHORITATIVE)
 # ============================================================================
@@ -365,6 +407,9 @@ func _spawn_player(peer_id: int, player_name: String) -> void:
 
 	# Send all existing buildables to the new player
 	_send_buildables_to_player(peer_id)
+
+	# Send all existing enemies to the new player
+	_send_enemies_to_player(peer_id)
 
 	# Notify all clients to spawn this player through NetworkManager
 	print("[Server] Broadcasting spawn for player %d to all clients" % peer_id)
@@ -855,13 +900,18 @@ func _spawn_player_with_data(peer_id: int, player_data: Dictionary) -> void:
 	if player_data.has("character_name"):
 		player.player_name = player_data["character_name"]
 
-	# Get spawn position from saved data or default
-	var spawn_pos: Vector3
+	# Get spawn position - always use safe spawn point for now
+	# TODO: Validate saved positions are safe before using them
+	var spawn_pos: Vector3 = _get_spawn_point()
+
+	# If player has a saved position with valid Y coordinate, use XZ but recalculate Y
 	if player_data.has("position"):
 		var pos = player_data["position"]
-		spawn_pos = Vector3(pos[0], pos[1], pos[2])
-	else:
-		spawn_pos = _get_spawn_point()
+		var saved_xz = Vector2(pos[0], pos[2])
+		# Only use saved XZ if Y was reasonable (not falling through world)
+		if pos[1] > -100 and pos[1] < 1000:
+			var terrain_height = voxel_world.get_terrain_height_at(saved_xz)
+			spawn_pos = Vector3(pos[0], terrain_height + 3.0, pos[2])
 
 	# Add to world FIRST (required before setting global_position)
 	world.add_child(player, true)
@@ -993,3 +1043,143 @@ func handle_save_request(peer_id: int) -> void:
 	_save_world_state()
 	_save_environmental_chunks()
 	print("[Server] Manual save complete")
+
+## Handle equipment request (server-authoritative)
+func handle_equip_request(peer_id: int, slot: int, item_id: String) -> void:
+	if not spawned_players.has(peer_id):
+		return
+
+	var player = spawned_players[peer_id]
+	if not player or not is_instance_valid(player):
+		return
+
+	if not player.has_node("Equipment") or not player.has_node("Inventory"):
+		return
+
+	var equipment = player.get_node("Equipment")
+	var inventory = player.get_node("Inventory")
+
+	# Validate player has the item in inventory
+	if not inventory.has_item(item_id, 1):
+		print("[Server] Player %d doesn't have %s to equip" % [peer_id, item_id])
+		return
+
+	# Get current equipped item in this slot (if any)
+	var current_item = equipment.get_equipped_item(slot)
+
+	# Equip the new item
+	if equipment.equip_item(slot, item_id):
+		# Return old item to inventory if there was one
+		if not current_item.is_empty():
+			inventory.add_item(current_item, 1)
+
+		# Remove new item from inventory
+		inventory.remove_item(item_id, 1)
+
+		print("[Server] Player %d equipped %s to slot %d" % [peer_id, item_id, slot])
+
+		# Sync equipment and inventory to client
+		var equipment_data = equipment.get_equipment_data()
+		var inventory_data = inventory.get_inventory_data()
+		NetworkManager.rpc_sync_equipment.rpc_id(peer_id, equipment_data)
+		NetworkManager.rpc_sync_inventory.rpc_id(peer_id, inventory_data)
+	else:
+		print("[Server] Player %d failed to equip %s to slot %d" % [peer_id, item_id, slot])
+
+## Handle unequip request (server-authoritative)
+func handle_unequip_request(peer_id: int, slot: int) -> void:
+	if not spawned_players.has(peer_id):
+		return
+
+	var player = spawned_players[peer_id]
+	if not player or not is_instance_valid(player):
+		return
+
+	if not player.has_node("Equipment") or not player.has_node("Inventory"):
+		return
+
+	var equipment = player.get_node("Equipment")
+	var inventory = player.get_node("Inventory")
+
+	# Get current equipped item
+	var item_id = equipment.get_equipped_item(slot)
+	if item_id.is_empty():
+		print("[Server] Player %d tried to unequip empty slot %d" % [peer_id, slot])
+		return
+
+	# Unequip the item
+	equipment.unequip_slot(slot)
+
+	# Return item to inventory
+	var remaining = inventory.add_item(item_id, 1)
+	if remaining > 0:
+		print("[Server] Player %d inventory full, couldn't unequip %s" % [peer_id, item_id])
+		# Re-equip the item since inventory is full
+		equipment.equip_item(slot, item_id)
+		return
+
+	print("[Server] Player %d unequipped slot %d (%s)" % [peer_id, slot, item_id])
+
+	# Sync equipment and inventory to client
+	var equipment_data = equipment.get_equipment_data()
+	var inventory_data = inventory.get_inventory_data()
+	NetworkManager.rpc_sync_equipment.rpc_id(peer_id, equipment_data)
+	NetworkManager.rpc_sync_inventory.rpc_id(peer_id, inventory_data)
+
+## Handle enemy damage request (server-authoritative)
+func handle_enemy_damage(peer_id: int, enemy_path: NodePath, damage: float, knockback: float, direction: Vector3) -> void:
+	# Get the enemy node
+	var enemy = get_node_or_null(enemy_path)
+	if not enemy or not is_instance_valid(enemy):
+		print("[Server] Enemy not found: %s" % enemy_path)
+		return
+
+	# Validate enemy has take_damage method
+	if not enemy.has_method("take_damage"):
+		print("[Server] Enemy %s doesn't have take_damage method" % enemy_path)
+		return
+
+	# Apply damage
+	print("[Server] Applying %d damage to enemy %s" % [damage, enemy_path])
+	enemy.take_damage(damage, knockback, direction)
+
+## Handle player death (server-authoritative)
+func handle_player_death(peer_id: int) -> void:
+	print("[Server] Player %d died" % peer_id)
+
+	if not spawned_players.has(peer_id):
+		return
+
+	var player = spawned_players[peer_id]
+	if not player or not is_instance_valid(player):
+		return
+
+	# Mark player as dead on server
+	if "is_dead" in player:
+		player.is_dead = true
+
+	# TODO: Drop items on death?
+	# TODO: Apply death penalty?
+
+## Handle respawn request (server-authoritative)
+func handle_respawn_request(peer_id: int) -> void:
+	print("[Server] Player %d requested respawn" % peer_id)
+
+	if not spawned_players.has(peer_id):
+		return
+
+	var player = spawned_players[peer_id]
+	if not player or not is_instance_valid(player):
+		return
+
+	# Determine spawn position (default spawn point for now)
+	var spawn_position = _get_spawn_point()
+
+	# Respawn the player on server
+	if player.has_method("respawn_at"):
+		player.respawn_at(spawn_position)
+		print("[Server] Player %d respawned at %s" % [peer_id, spawn_position])
+
+	# Notify the client to respawn their local player
+	var pos_array = [spawn_position.x, spawn_position.y, spawn_position.z]
+	NetworkManager.rpc_player_respawned.rpc_id(peer_id, pos_array)

@@ -23,6 +23,10 @@ var current_lod: int = 0
 var current_health: float = 100.0
 var is_destroyed: bool = false
 
+# Health bar
+var health_bar: Node3D = null
+const HEALTH_BAR_SCENE = preload("res://shared/health_bar_3d.tscn")
+
 # Fade-in state
 var is_fading_in: bool = false
 var fade_timer: float = 0.0
@@ -47,6 +51,9 @@ func _ready() -> void:
 	if lod_nodes.size() > 0:
 		for i in lod_nodes.size():
 			lod_nodes[i].visible = (i == 0)
+
+	# Don't create health bar until damaged (performance optimization)
+	# It will be created in take_damage() when first hit
 
 	# Start fade-in effect (only if far enough from player)
 	if fade_in_duration > 0.0 and not skip_fade_in and initial_distance > fade_in_distance:
@@ -143,6 +150,16 @@ func take_damage(damage: float) -> bool:
 
 	current_health -= damage
 	print("[EnvironmentalObject] %s took %.1f damage (%.1f/%.1f HP)" % [get_object_type(), damage, current_health, max_health])
+
+	# Create health bar on first damage (lazy loading for performance)
+	if not health_bar:
+		health_bar = HEALTH_BAR_SCENE.instantiate()
+		add_child(health_bar)
+		health_bar.set_height_offset(3.0)  # Position above object
+
+	# Update health bar
+	if health_bar:
+		health_bar.update_health(current_health, max_health)
 
 	if current_health <= 0.0:
 		_on_destroyed()

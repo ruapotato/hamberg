@@ -30,10 +30,21 @@ func _initialize_recipes() -> void:
 	recipes.clear()
 
 	# Basic starting tools (no workbench required)
-	add_recipe("wooden_club", 1, {"wood": 10})
 	add_recipe("hammer", 1, {"wood": 10})
 	add_recipe("torch", 1, {"wood": 1, "resin": 1})
 	# Note: workbench is now buildable via hammer, not craftable
+
+	# Tier 1 Weapons - Wood & Stone (no workbench required for Tier 1)
+	add_recipe("stone_sword", 1, {"wood": 10, "stone": 5})
+	add_recipe("stone_axe", 1, {"wood": 20, "stone": 10})  # 2x sword cost
+	add_recipe("stone_knife", 1, {"wood": 5, "stone": 2})  # 0.5x sword cost
+	add_recipe("fire_wand", 1, {"wood": 3, "resin": 7})
+	add_recipe("bow", 1, {"wood": 10, "resin": 1})
+
+	# Shields (no workbench required for Tier 1)
+	add_recipe("tower_shield", 1, {"wood": 15})
+	add_recipe("round_shield", 1, {"wood": 10})
+	add_recipe("buckler", 1, {"wood": 5})
 
 	print("[CraftingRecipes] Initialized %d recipes" % recipes.size())
 

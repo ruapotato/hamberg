@@ -1,0 +1,25 @@
+[gd_scene load_steps=2 format=3 uid="uid://stone_axe_001"]
+
+[sub_resource type="BoxMesh" id="axe_head"]
+size = Vector3(0.4, 0.15, 0.1)
+
+[sub_resource type="StandardMaterial3D" id="stone_mat"]
+albedo_color = Color(0.5, 0.5, 0.55, 1)
+
+[sub_resource type="BoxMesh" id="handle_mesh"]
+size = Vector3(0.08, 1.2, 0.08)
+
+[sub_resource type="StandardMaterial3D" id="handle_mat"]
+albedo_color = Color(0.4, 0.25, 0.15, 1)
+
+[node name="StoneAxe" type="Node3D"]
+
+[node name="Handle" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.6, 0)
+mesh = SubResource("handle_mesh")
+surface_material_override/0 = SubResource("handle_mat")
+
+[node name="AxeHead" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.15, 1.1, 0)
+mesh = SubResource("axe_head")
+surface_material_override/0 = SubResource("stone_mat")

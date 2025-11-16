@@ -1,0 +1,25 @@
+[gd_scene load_steps=2 format=3 uid="uid://bow_001"]
+
+[sub_resource type="BoxMesh" id="limb_mesh"]
+size = Vector3(0.05, 0.8, 0.05)
+
+[sub_resource type="StandardMaterial3D" id="wood_mat"]
+albedo_color = Color(0.45, 0.3, 0.2, 1)
+
+[sub_resource type="BoxMesh" id="string_mesh"]
+size = Vector3(0.01, 0.75, 0.01)
+
+[sub_resource type="StandardMaterial3D" id="string_mat"]
+albedo_color = Color(0.9, 0.9, 0.85, 1)
+
+[node name="Bow" type="Node3D"]
+
+[node name="Limb" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.4, 0)
+mesh = SubResource("limb_mesh")
+surface_material_override/0 = SubResource("wood_mat")
+
+[node name="String" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.08, 0.4, 0)
+mesh = SubResource("string_mesh")
+surface_material_override/0 = SubResource("string_mat")

@@ -42,12 +42,15 @@ Hamberg aims to capture the magic of Valheim while being:
 - ✅ **Multi-world system** (unique world names and seeds)
 - ✅ **Per-world storage** (isolated save data)
 - ✅ **Resource gathering** (punch trees/rocks to destroy them)
-- ✅ **Health system** (trees: 100 HP, rocks: 150 HP)
-- ✅ **Resource drops configured** (wood from trees, stone from rocks)
+- ✅ **Environmental object health** (trees: 100 HP, rocks: 150 HP)
+- ✅ **Resource drops** (wood from trees, stone from rocks)
 - ✅ **Inventory system** (30 slots, hotbar, item pickup)
 - ✅ **Workbench** (crafting station with 20m build radius)
 - ✅ **Building system** (walls, floors, doors, beams, roofs with snap points)
 - ✅ **Workbench requirement** (must be near workbench to build)
+- ✅ **Health system** (100 HP, damage from enemies)
+- ✅ **Stamina system** (100 stamina, drains on sprint/jump, regenerates)
+- ✅ **Enemy AI** (Gahnomes spawn naturally, chase and attack players)
 
 ### Try It Out!
 
@@ -101,7 +104,7 @@ Connect clients to `127.0.0.1:7777`, explore the world, gather resources, and bu
 - [x] Smart persistence (procedural + database)
 - [ ] Terrain editing (mining, building) - *deferred to Phase 4*
 
-### Phase 3: Combat & AI 🗡️ **NEXT UP**
+### Phase 3: Combat & AI 🗡️ **IN PROGRESS**
 - [ ] **Weapons System** (Valheim-style tiers and types)
   - [ ] **Tier 1: Wood & Stone** (wood, stone, resin materials)
     - [ ] Stone Sword (10 wood, 5 stone) - Medium speed, balanced damage
@@ -125,12 +128,14 @@ Connect clients to `127.0.0.1:7777`, explore the world, gather resources, and bu
   - [ ] Blocking and parry system
   - [ ] Stamina consumption
   - [ ] Damage types (slash, blunt, pierce, fire)
-- [ ] **Enemy System** (for testing)
-  - [ ] Basic enemy spawner (natural spawns)
-  - [ ] Simple enemy AI (chase and attack)
-  - [ ] Health and damage for enemies
-  - [ ] Enemy loot drops
-- [ ] Death and respawn mechanics
+- [x] **Enemy System** (basic implementation)
+  - [x] Basic enemy spawner (natural spawns)
+  - [x] Simple enemy AI (chase and attack)
+  - [x] Health and damage for enemies
+  - [x] Gahnome enemy (gnome-like creature)
+  - [ ] Enemy loot drops (structure in place, needs implementation)
+- [x] Death mechanics (player death implemented)
+- [ ] Respawn mechanics
 - [ ] Boss encounters (later)
 
 ### Phase 4: Building, Crafting & Inventory 🏗️ **IN PROGRESS**
@@ -147,8 +152,8 @@ Connect clients to `127.0.0.1:7777`, explore the world, gather resources, and bu
 - [x] Building system (walls, floors, doors, beams, roofs)
 - [x] Workbench proximity requirement (20m radius)
 - [ ] **Enhanced inventory** (Tab + right-click to equip, armor slots)
-- [ ] **Weapons & Combat** (see Phase 3 details below)
-- [ ] **Enemy spawning** (test targets for combat)
+- [ ] **Weapons & Combat** (see Phase 3 details above)
+- [x] **Enemy spawning** (Gahnomes spawn naturally around players)
 - [ ] Interactable doors
 - [ ] Structural integrity
 - [ ] More crafting recipes

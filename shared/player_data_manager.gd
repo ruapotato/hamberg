@@ -134,6 +134,7 @@ func create_new_character(character_name: String) -> Dictionary:
 		"position": [0.0, 10.0, 0.0],  # Spawn point
 		"rotation_y": 0.0,
 		"inventory": [],  # Will be populated with 30 empty slots
+		"equipment": {},  # Will be populated with empty equipment slots
 		"health": 100.0,
 		"max_health": 100.0,
 		"created_at": Time.get_unix_time_from_system(),
@@ -144,6 +145,11 @@ func create_new_character(character_name: String) -> Dictionary:
 	# Initialize empty inventory (30 slots)
 	for i in range(30):
 		player_data["inventory"].append({})
+
+	# Initialize empty equipment (5 slots: main_hand, off_hand, head, chest, legs)
+	# Equipment uses enum values as keys (0-4)
+	for i in range(5):
+		player_data["equipment"][i] = ""
 
 	# Save to disk
 	if save_player_data(character_id, player_data):
@@ -179,6 +185,7 @@ static func serialize_player(player: Node) -> Dictionary:
 		"position": [player.global_position.x, player.global_position.y, player.global_position.z],
 		"rotation_y": player.rotation.y,
 		"inventory": [],
+		"equipment": {},
 		"health": 100.0,  # Will be updated when health system exists
 		"max_health": 100.0
 	}
@@ -191,6 +198,11 @@ static func serialize_player(player: Node) -> Dictionary:
 		# Empty inventory
 		for i in range(30):
 			data["inventory"].append({})
+
+	# Serialize equipment if exists
+	if player.has_node("Equipment"):
+		var equipment = player.get_node("Equipment")
+		data["equipment"] = equipment.get_equipment_data()
 
 	return data
 
@@ -209,6 +221,11 @@ static func deserialize_player(player: Node, data: Dictionary) -> void:
 	if data.has("inventory") and player.has_node("Inventory"):
 		var inventory = player.get_node("Inventory")
 		inventory.set_inventory_data(data["inventory"])
+
+	# Set equipment
+	if data.has("equipment") and player.has_node("Equipment"):
+		var equipment = player.get_node("Equipment")
+		equipment.set_equipment_data(data["equipment"])
 
 	# Set health (when implemented)
 	# if data.has("health"):

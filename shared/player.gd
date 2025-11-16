@@ -3,6 +3,11 @@ extends CharacterBody3D
 ## Player - Networked player entity with client-side prediction
 ## This entity works on both client and server, with different logic paths
 
+# Preload classes
+const Equipment = preload("res://shared/equipment.gd")
+const WeaponData = preload("res://shared/weapon_data.gd")
+const ShieldData = preload("res://shared/shield_data.gd")
+
 # Movement parameters
 const WALK_SPEED: float = 5.0
 const SPRINT_SPEED: float = 8.0
@@ -37,12 +42,19 @@ var render_timestamp: float = 0.0
 
 # Attack cooldown
 var attack_cooldown: float = 0.0
-const ATTACK_COOLDOWN_TIME: float = 0.5
+const ATTACK_COOLDOWN_TIME: float = 0.3  # Match animation time for responsive combat
 
 # Attack animation
 var is_attacking: bool = false
 var attack_timer: float = 0.0
 const ATTACK_ANIMATION_TIME: float = 0.3
+
+# Block/Parry system
+var is_blocking: bool = false
+var block_timer: float = 0.0
+const PARRY_WINDOW: float = 0.2  # Parry window at start of block
+const BLOCK_DAMAGE_REDUCTION: float = 0.8  # 80% damage reduction when blocking
+const BLOCK_SPEED_MULTIPLIER: float = 0.4  # Move at 40% speed while blocking
 
 # Viewmodel (first-person arms)
 var viewmodel_arms: Node3D = null
@@ -53,8 +65,29 @@ var body_container: Node3D = null
 # Player identity
 var player_name: String = "Unknown"
 
-# Inventory (client-authoritative)
+# Inventory (server-authoritative)
 var inventory: Node = null
+
+# Equipment (server-authoritative)
+var equipment = null  # Equipment instance
+
+# Stamina system
+const MAX_STAMINA: float = 100.0
+const STAMINA_REGEN_RATE: float = 15.0  # Per second
+const STAMINA_REGEN_DELAY: float = 1.0  # Delay after using stamina
+const SPRINT_STAMINA_DRAIN: float = 10.0  # Per second
+const JUMP_STAMINA_COST: float = 10.0
+
+var stamina: float = MAX_STAMINA
+var stamina_regen_timer: float = 0.0  # Time since last stamina use
+
+# Health system
+const MAX_HEALTH: float = 100.0
+var health: float = MAX_HEALTH
+var is_dead: bool = false
+
+# Blocking start time (for shield parry timing)
+var block_start_time: float = 0.0
 
 func _ready() -> void:
 	# Create inventory
@@ -62,6 +95,12 @@ func _ready() -> void:
 	inventory = Inventory.new(get_multiplayer_authority())
 	inventory.name = "Inventory"
 	add_child(inventory)
+
+	# Create equipment
+	equipment = Equipment.new(get_multiplayer_authority())
+	equipment.name = "Equipment"
+	add_child(equipment)
+	equipment.equipment_changed.connect(_on_equipment_changed)
 	# Determine if this is the local player
 	is_local_player = is_multiplayer_authority()
 
@@ -89,6 +128,12 @@ func _physics_process(delta: float) -> void:
 	# Update attack cooldown
 	if attack_cooldown > 0:
 		attack_cooldown -= delta
+
+	# Update stamina regeneration
+	_update_stamina(delta)
+
+	# Handle blocking input
+	_handle_block_input(delta)
 
 	# CLIENT: Predict movement locally
 	var input_data := _gather_input()
@@ -181,12 +226,21 @@ func _apply_movement(input_data: Dictionary, delta: float) -> void:
 	if not is_on_floor():
 		velocity.y -= gravity * delta
 
-	# Jumping
+	# Jumping (with stamina cost)
 	if jump_pressed and is_on_floor():
-		velocity.y = JUMP_VELOCITY
+		if consume_stamina(JUMP_STAMINA_COST):
+			velocity.y = JUMP_VELOCITY
 
-	# Movement speed
-	var target_speed := SPRINT_SPEED if is_sprinting else WALK_SPEED
+	# Movement speed (sprint drains stamina, blocking reduces speed)
+	var can_sprint = is_sprinting and stamina > 0 and not is_blocking  # Can't sprint while blocking
+	if can_sprint:
+		consume_stamina(SPRINT_STAMINA_DRAIN * delta)
+	var target_speed := SPRINT_SPEED if can_sprint else WALK_SPEED
+
+	# Apply blocking speed reduction
+	if is_blocking:
+		target_speed *= BLOCK_SPEED_MULTIPLIER
+
 	var control_factor := 1.0 if is_on_floor() else AIR_CONTROL
 
 	# Horizontal movement
@@ -309,7 +363,33 @@ func _interpolate_remote_player(delta: float) -> void:
 
 ## Handle attack input (CLIENT-SIDE)
 func _handle_attack() -> void:
-	if not is_local_player:
+	if not is_local_player or is_dead:
+		return
+
+	# Check if blocking (can't attack while blocking)
+	if is_blocking:
+		return
+
+	# Get equipped weapon (or default to fists)
+	var weapon_data = null  # WeaponData
+
+	if equipment:
+		weapon_data = equipment.get_equipped_weapon()
+
+	# Default to fists if no weapon equipped
+	if not weapon_data:
+		weapon_data = ItemDatabase.get_item("fists")
+
+	# Use weapon stats
+	var damage: float = weapon_data.damage
+	var knockback: float = weapon_data.knockback
+	var attack_speed: float = weapon_data.attack_speed
+	var stamina_cost: float = weapon_data.stamina_cost
+	var attack_range: float = 5.0  # Melee range (TODO: make this weapon-specific)
+
+	# Check stamina cost
+	if not consume_stamina(stamina_cost):
+		print("[Player] Not enough stamina to attack!")
 		return
 
 	# Trigger attack animation
@@ -335,16 +415,21 @@ func _handle_attack() -> void:
 	# Perform raycast
 	var space_state := get_world_3d().direct_space_state
 	var query := PhysicsRayQueryParameters3D.create(ray_origin, ray_end)
-	query.collision_mask = 1  # Only check world layer (environmental objects, terrain)
+	query.collision_mask = 1 | 4  # World layer (1) and Enemies layer (bit 2 = 4)
 	query.exclude = [self]  # Exclude the player themselves from the raycast
 
 	var result := space_state.intersect_ray(query)
 	if result:
 		var hit_object: Object = result.collider
-		print("[Player] Hit object: %s at %s" % [hit_object.name, result.position])
+
+		# Check if it's an enemy
+		if hit_object.has_method("take_damage") and hit_object.collision_layer & 4:  # Enemy layer
+			print("[Player] Attacking enemy %s with %s (%.1f damage, %.1f knockback)" % [hit_object.name, weapon_data.display_name, damage, knockback])
+			# CLIENT-AUTHORITATIVE: Damage enemy directly on client
+			hit_object.take_damage(damage, knockback, ray_direction)
 
 		# Check if it's an environmental object
-		if hit_object.has_method("get_object_type") and hit_object.has_method("get_object_id"):
+		elif hit_object.has_method("get_object_type") and hit_object.has_method("get_object_id"):
 			var object_type: String = hit_object.get_object_type()
 			var object_id: int = hit_object.get_object_id()
 			var chunk_pos: Vector2i = hit_object.chunk_position if "chunk_position" in hit_object else Vector2i.ZERO
@@ -352,11 +437,12 @@ func _handle_attack() -> void:
 			print("[Player] Attacking %s (ID: %d in chunk %s)" % [object_type, object_id, chunk_pos])
 
 			# Send damage request to server
-			_send_damage_request(chunk_pos, object_id, 25.0, result.position)
+			_send_damage_request(chunk_pos, object_id, damage, result.position)
 		else:
-			print("[Player] Hit non-environmental object")
+			print("[Player] Hit non-damageable object")
 	else:
-		print("[Player] Attack missed")
+		# Attack missed (no raycast hit)
+		pass
 
 ## Get the camera for raycasting
 func _get_camera() -> Camera3D:
@@ -369,6 +455,59 @@ func _get_camera() -> Camera3D:
 func _send_damage_request(chunk_pos: Vector2i, object_id: int, damage: float, hit_position: Vector3) -> void:
 	# Send RPC to server via NetworkManager
 	NetworkManager.rpc_damage_environmental_object.rpc_id(1, [chunk_pos.x, chunk_pos.y], object_id, damage, hit_position)
+
+## Send enemy damage request to server
+func _send_enemy_damage_request(enemy_path: NodePath, damage: float, knockback: float, direction: Vector3) -> void:
+	# Send RPC to server via NetworkManager
+	NetworkManager.rpc_damage_enemy.rpc_id(1, enemy_path, damage, knockback, direction)
+
+# ============================================================================
+# BLOCKING & PARRY SYSTEM
+# ============================================================================
+
+## Handle block input (CLIENT-SIDE)
+func _handle_block_input(delta: float) -> void:
+	if not is_local_player or is_dead:
+		return
+
+	# Check if player has a shield equipped
+	var shield_data = null  # ShieldData
+	if equipment:
+		shield_data = equipment.get_equipped_shield()
+
+	# Check if block button is pressed (right mouse button)
+	var block_pressed = Input.is_action_pressed("block") if InputMap.has_action("block") else false
+
+	if block_pressed and stamina > 0:
+		if not is_blocking:
+			is_blocking = true
+			block_timer = 0.0
+			block_start_time = Time.get_ticks_msec() / 1000.0
+			print("[Player] Started blocking%s" % (" (fists)" if not shield_data else " (shield)"))
+
+		# Update block timer
+		block_timer += delta
+
+		# Blocking drains stamina (less with shield)
+		if shield_data:
+			consume_stamina(shield_data.stamina_drain_per_hit * delta * 0.2)
+		else:
+			# Fist blocking drains more stamina
+			consume_stamina(2.0 * delta)
+	else:
+		if is_blocking:
+			print("[Player] Stopped blocking")
+		is_blocking = false
+		block_timer = 0.0
+
+## Check if attack can be parried (called when taking damage)
+func can_parry(shield_data) -> bool:  # shield_data is ShieldData
+	if not is_blocking or not shield_data:
+		return false
+
+	# Check if within parry window
+	var time_blocking = (Time.get_ticks_msec() / 1000.0) - block_start_time
+	return time_blocking <= shield_data.parry_window
 
 # ============================================================================
 # PLAYER BODY VISUALS
@@ -410,8 +549,16 @@ func _update_body_animations(delta: float) -> void:
 			is_attacking = false
 			attack_timer = 0.0
 
+	# Blocking animation overrides everything (arms forward like push-up stance)
+	if is_blocking:
+		if left_arm:
+			left_arm.rotation.x = lerp(left_arm.rotation.x, -1.2, delta * 10.0)  # Arms forward at shoulder height
+			left_arm.rotation.z = lerp(left_arm.rotation.z, 0.0, delta * 10.0)  # Keep arms straight forward, not spread
+		if right_arm:
+			right_arm.rotation.x = lerp(right_arm.rotation.x, -1.2, delta * 10.0)  # Arms forward at shoulder height
+			right_arm.rotation.z = lerp(right_arm.rotation.z, 0.0, delta * 10.0)  # Keep arms straight forward, not spread
 	# Attack animation overrides arm movement
-	if is_attacking and right_arm:
+	elif is_attacking and right_arm:
 		# Swing right arm forward then back
 		var attack_progress = attack_timer / ATTACK_ANIMATION_TIME
 		var swing_angle = -sin(attack_progress * PI) * 1.2  # Swing forward
@@ -460,8 +607,10 @@ func _update_body_animations(delta: float) -> void:
 
 		if left_arm:
 			left_arm.rotation.x = lerp(left_arm.rotation.x, 0.0, delta * 5.0)
+			left_arm.rotation.z = lerp(left_arm.rotation.z, 0.0, delta * 5.0)
 		if right_arm and not is_attacking:
 			right_arm.rotation.x = lerp(right_arm.rotation.x, 0.0, delta * 5.0)
+			right_arm.rotation.z = lerp(right_arm.rotation.z, 0.0, delta * 5.0)
 
 		if torso:
 			torso.rotation.z = lerp(torso.rotation.z, 0.0, delta * 5.0)
@@ -503,3 +652,138 @@ func pickup_item(item_name: String, amount: int) -> bool:
 		print("[Player] Inventory full! Couldn't pick up %d x %s" % [remaining, item_name])
 
 	return remaining < amount
+
+# ============================================================================
+# STAMINA & HEALTH SYSTEM
+# ============================================================================
+
+## Update stamina regeneration
+func _update_stamina(delta: float) -> void:
+	# Regenerate stamina after delay
+	stamina_regen_timer += delta
+
+	if stamina_regen_timer >= STAMINA_REGEN_DELAY:
+		stamina = min(stamina + STAMINA_REGEN_RATE * delta, MAX_STAMINA)
+
+## Consume stamina (returns true if enough stamina available)
+func consume_stamina(amount: float) -> bool:
+	if stamina >= amount:
+		stamina -= amount
+		stamina_regen_timer = 0.0  # Reset regen delay
+		return true
+	return false
+
+## Take damage (with blocking/parry support)
+func take_damage(damage: float, attacker_id: int = -1, knockback_dir: Vector3 = Vector3.ZERO) -> void:
+	if is_dead:
+		return
+
+	var final_damage = damage
+	var was_parried = false
+
+	# Check for blocking/parrying
+	if is_blocking:
+		var shield_data = null
+		if equipment:
+			shield_data = equipment.get_equipped_shield()
+
+		# Check for parry (within parry window)
+		if block_timer <= PARRY_WINDOW:
+			print("[Player] PARRY! Negating damage%s" % (" (fists)" if not shield_data else " (shield)"))
+			was_parried = true
+			final_damage = 0
+			# TODO: Apply brief stun to attacker
+		else:
+			# Normal block
+			if shield_data:
+				# Shield blocking (high reduction)
+				final_damage = max(0, damage - shield_data.block_armor)
+				consume_stamina(shield_data.stamina_drain_per_hit)
+				print("[Player] Blocked with shield! Damage reduced from %d to %d" % [damage, final_damage])
+			else:
+				# Fist blocking (moderate reduction)
+				final_damage = damage * (1.0 - BLOCK_DAMAGE_REDUCTION)
+				consume_stamina(10.0)  # Fist blocking costs more stamina
+				print("[Player] Blocked with fists! Damage reduced from %d to %d" % [damage, final_damage])
+
+	# Apply damage
+	health -= final_damage
+	print("[Player] Took %d damage, health: %d" % [final_damage, health])
+
+	# Apply knockback (if not parried)
+	if not was_parried and knockback_dir.length() > 0:
+		velocity += knockback_dir * 5.0  # Knockback multiplier
+
+	if health <= 0:
+		health = 0
+		_die()
+
+## Handle player death
+func _die() -> void:
+	if is_dead:
+		return
+
+	is_dead = true
+	print("[Player] Player died!")
+
+	# Disable physics
+	set_physics_process(false)
+
+	# Play death animation (programmatic - fall over)
+	if body_container:
+		var tween = create_tween()
+		tween.tween_property(body_container, "rotation:x", PI / 2, 1.0)
+		tween.parallel().tween_property(body_container, "position:y", -0.5, 1.0)
+
+	# Notify server of death
+	if is_local_player and NetworkManager.is_client:
+		NetworkManager.rpc_player_died.rpc_id(1)
+
+	# Respawn after delay
+	if is_local_player:
+		await get_tree().create_timer(5.0).timeout
+		_request_respawn()
+
+## Request respawn from server
+func _request_respawn() -> void:
+	if not is_local_player:
+		return
+
+	print("[Player] Requesting respawn...")
+	if NetworkManager.is_client:
+		NetworkManager.rpc_request_respawn.rpc_id(1)
+
+## Respawn player (called by server via RPC)
+func respawn_at(spawn_position: Vector3) -> void:
+	is_dead = false
+	health = MAX_HEALTH
+	stamina = MAX_STAMINA
+	global_position = spawn_position
+	velocity = Vector3.ZERO
+
+	print("[Player] Player respawned at %s!" % spawn_position)
+
+	# Reset body rotation and position
+	if body_container:
+		body_container.rotation = Vector3.ZERO
+		body_container.position = Vector3.ZERO
+
+	# Re-enable physics (for all instances)
+	set_physics_process(true)
+
+	# Reset camera if this is the local player
+	if is_local_player:
+		# Camera will follow the repositioned player automatically
+		pass
+
+# ============================================================================
+# EQUIPMENT SYSTEM
+# ============================================================================
+
+## Called when equipment changes (spawn/despawn visuals)
+func _on_equipment_changed(slot) -> void:  # slot is Equipment.EquipmentSlot
+	print("[Player] Equipment changed in slot: %s" % slot)
+	# TODO: Update visual representation
+	# - Spawn weapon/shield models in hand
+	# - Update armor visuals
+	# This will be implemented when we create the weapon/shield scenes

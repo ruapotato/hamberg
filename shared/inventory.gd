@@ -4,17 +4,13 @@ extends Node
 ## Handles item storage, stacking, and management
 
 const MAX_SLOTS: int = 30  # 5 rows x 6 columns
-const MAX_STACK_SIZE: Dictionary = {
-	"wood": 50,
-	"stone": 50,
-	"iron": 50,
-	"copper": 50,
-	"resin": 50,
-	"wooden_club": 1,
-	"hammer": 1,
-	"torch": 20,
-	"workbench": 1,
-}
+
+## Get max stack size for an item (uses ItemDatabase if available, fallback to 99)
+func _get_max_stack_size(item_name: String) -> int:
+	if ItemDatabase:
+		return ItemDatabase.get_max_stack_size(item_name)
+	# Fallback for legacy items or if ItemDatabase isn't loaded yet
+	return 99
 
 # Inventory data: Array of {item: String, amount: int}
 var slots: Array[Dictionary] = []
@@ -38,7 +34,7 @@ func add_item(item_name: String, amount: int) -> int:
 
 		if slots[i].get("item") == item_name:
 			var current_amount: int = slots[i].get("amount", 0)
-			var max_stack: int = MAX_STACK_SIZE.get(item_name, 99)
+			var max_stack: int = _get_max_stack_size(item_name)
 			var can_add := mini(remaining, max_stack - current_amount)
 
 			if can_add > 0:
@@ -51,7 +47,7 @@ func add_item(item_name: String, amount: int) -> int:
 	# Then, fill empty slots
 	for i in MAX_SLOTS:
 		if slots[i].is_empty():
-			var max_stack: int = MAX_STACK_SIZE.get(item_name, 99)
+			var max_stack: int = _get_max_stack_size(item_name)
 			var can_add := mini(remaining, max_stack)
 
 			slots[i] = {

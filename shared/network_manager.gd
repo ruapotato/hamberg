@@ -273,6 +273,17 @@ func rpc_damage_environmental_object(chunk_pos: Array, object_id: int, damage: f
 		var chunk_pos_v2i := Vector2i(chunk_pos[0], chunk_pos[1])
 		server_node.handle_environmental_damage(peer_id, chunk_pos_v2i, object_id, damage, hit_position)
 
+## CLIENT -> SERVER: Damage enemy
+@rpc("any_peer", "call_remote", "reliable")
+func rpc_damage_enemy(enemy_path: NodePath, damage: float, knockback: float, direction: Vector3) -> void:
+	if not is_server:
+		return
+
+	var peer_id := multiplayer.get_remote_sender_id()
+	var server_node := get_node_or_null("/root/Main/Server")
+	if server_node and server_node.has_method("handle_enemy_damage"):
+		server_node.handle_enemy_damage(peer_id, enemy_path, damage, knockback, direction)
+
 ## CLIENT -> SERVER: Place a buildable object
 @rpc("any_peer", "call_remote", "reliable")
 func rpc_place_buildable(piece_name: String, position: Array, rotation_y: float) -> void:
@@ -486,6 +497,15 @@ func rpc_update_inventory_slot(slot: int, item: String, amount: int) -> void:
 	if client_node and client_node.has_method("receive_inventory_slot_update"):
 		client_node.receive_inventory_slot_update(slot, item, amount)
 
+## SERVER -> CLIENT: Send full equipment data
+@rpc("authority", "call_remote", "reliable")
+func rpc_sync_equipment(equipment_data: Dictionary) -> void:
+	print("[NetworkManager] RPC received: sync_equipment")
+
+	var client_node := get_node_or_null("/root/Main/Client")
+	if client_node and client_node.has_method("receive_equipment_sync"):
+		client_node.receive_equipment_sync(equipment_data)
+
 ## CLIENT -> SERVER: Request to pick up an item (server validates and updates inventory)
 @rpc("any_peer", "call_remote", "reliable")
 func rpc_request_pickup_item(item_name: String, amount: int, network_id: String) -> void:
@@ -518,3 +538,88 @@ func rpc_request_save() -> void:
 	var server_node := get_node_or_null("/root/Main/Server")
 	if server_node and server_node.has_method("handle_save_request"):
 		server_node.handle_save_request(peer_id)
+
+## CLIENT -> SERVER: Request to equip an item
+@rpc("any_peer", "call_remote", "reliable")
+func rpc_request_equip_item(slot: int, item_id: String) -> void:
+	if not is_server:
+		return
+
+	var peer_id := multiplayer.get_remote_sender_id()
+	var server_node := get_node_or_null("/root/Main/Server")
+	if server_node and server_node.has_method("handle_equip_request"):
+		server_node.handle_equip_request(peer_id, slot, item_id)
+
+## CLIENT -> SERVER: Request to unequip a slot
+@rpc("any_peer", "call_remote", "reliable")
+func rpc_request_unequip_slot(slot: int) -> void:
+	if not is_server:
+		return
+
+	var peer_id := multiplayer.get_remote_sender_id()
+	var server_node := get_node_or_null("/root/Main/Server")
+	if server_node and server_node.has_method("handle_unequip_request"):
+		server_node.handle_unequip_request(peer_id, slot)
+
+## CLIENT -> SERVER: Player died
+@rpc("any_peer", "call_remote", "reliable")
+func rpc_player_died() -> void:
+	if not is_server:
+		return
+
+	var peer_id := multiplayer.get_remote_sender_id()
+	var server_node := get_node_or_null("/root/Main/Server")
+	if server_node and server_node.has_method("handle_player_death"):
+		server_node.handle_player_death(peer_id)
+
+## CLIENT -> SERVER: Request respawn
+@rpc("any_peer", "call_remote", "reliable")
+func rpc_request_respawn() -> void:
+	if not is_server:
+		return
+
+	var peer_id := multiplayer.get_remote_sender_id()
+	var server_node := get_node_or_null("/root/Main/Server")
+	if server_node and server_node.has_method("handle_respawn_request"):
+		server_node.handle_respawn_request(peer_id)
+
+## SERVER -> CLIENT: Tell client their player respawned
+@rpc("authority", "call_remote", "reliable")
+func rpc_player_respawned(spawn_position: Array) -> void:
+	if is_server:
+		return
+
+	var client_node := get_node_or_null("/root/Main/Client")
+	if client_node and client_node.has_method("handle_player_respawned"):
+		var pos = Vector3(spawn_position[0], spawn_position[1], spawn_position[2])
+		client_node.handle_player_respawned(pos)
+
+## SERVER -> CLIENTS: Spawn an enemy
+@rpc("authority", "call_remote", "reliable")
+func rpc_spawn_enemy(enemy_path: NodePath, enemy_type: String, position: Array, enemy_name: String) -> void:
+	if is_server:
+		return
+
+	var client_node := get_node_or_null("/root/Main/Client")
+	if client_node and client_node.has_method("spawn_enemy"):
+		client_node.spawn_enemy(enemy_path, enemy_type, Vector3(position[0], position[1], position[2]), enemy_name)
+
+## SERVER -> CLIENTS: Despawn an enemy
+@rpc("authority", "call_remote", "reliable")
+func rpc_despawn_enemy(enemy_path: NodePath) -> void:
+	if is_server:
+		return
+
+	var client_node := get_node_or_null("/root/Main/Client")
+	if client_node and client_node.has_method("despawn_enemy"):
+		client_node.despawn_enemy(enemy_path)
+
+## SERVER -> CLIENTS: Update enemy states (position, animation)
+@rpc("authority", "call_remote", "unreliable_ordered")
+func rpc_update_enemy_states(states: Array) -> void:
+	if is_server:
+		return
+
+	var client_node := get_node_or_null("/root/Main/Client")
+	if client_node and client_node.has_method("update_enemy_states"):
+		client_node.update_enemy_states(states)
