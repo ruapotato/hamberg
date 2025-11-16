@@ -49,8 +49,15 @@ Hamberg aims to capture the magic of Valheim while being:
 - ✅ **Building system** (walls, floors, doors, beams, roofs with snap points)
 - ✅ **Workbench requirement** (must be near workbench to build)
 - ✅ **Health system** (100 HP, damage from enemies)
-- ✅ **Stamina system** (100 stamina, drains on sprint/jump, regenerates)
+- ✅ **Stamina system** (100 stamina, drains on sprint/jump/attack, regenerates)
 - ✅ **Enemy AI** (Gahnomes spawn naturally, chase and attack players)
+- ✅ **Equipment system** (Valheim-style: right-click to equip, items stay in inventory)
+- ✅ **Weapons & Combat** (5 weapons: stone sword, axe, knife, fire wand, bow)
+- ✅ **Shields & Blocking** (3 shields: buckler, round shield, tower shield)
+- ✅ **Parry system** (block at right moment to negate damage and stun attacker)
+- ✅ **Projectile system** (fireballs from fire wand, shared for players/enemies)
+- ✅ **Crafting menu** (E on workbench, item discovery tracking per-character)
+- ✅ **Character-specific saves** (per-character inventory and item discoveries)
 
 ### Try It Out!
 
@@ -79,11 +86,14 @@ WORLD_NAME=myworld WORLD_SEED=12345 ./launch_server.sh
 Connect clients to `127.0.0.1:7777`, explore the world, gather resources, and build structures!
 
 **Getting Started:**
-1. Punch trees and rocks to gather wood and stone
+1. Punch trees and rocks to gather wood, stone, and resin
 2. Press **Tab** to open inventory
-3. Equip hammer (press **1-9** or Tab + click hammer)
-4. Place a **workbench** (press **Q** to open build menu)
-5. Build within 20m of the workbench (walls, floors, doors, beams, roofs)
+3. Press **E** on the workbench to open crafting menu
+4. Craft weapons and shields (stone knife, fire wand, buckler, etc.)
+5. **Right-click items** in inventory to equip them
+6. Press **1-9** to auto-equip items from hotbar
+7. **Left-click** to attack, **Right-click** to block (with shield)
+8. Equip hammer and press **Q** to build (walls, floors, doors, etc.)
 
 ---
 
@@ -104,30 +114,35 @@ Connect clients to `127.0.0.1:7777`, explore the world, gather resources, and bu
 - [x] Smart persistence (procedural + database)
 - [ ] Terrain editing (mining, building) - *deferred to Phase 4*
 
-### Phase 3: Combat & AI 🗡️ **IN PROGRESS**
-- [ ] **Weapons System** (Valheim-style tiers and types)
-  - [ ] **Tier 1: Wood & Stone** (wood, stone, resin materials)
-    - [ ] Stone Sword (10 wood, 5 stone) - Medium speed, balanced damage
-    - [ ] Stone Axe/Head Smasher (20 wood, 10 stone) - Slow, heavy damage, 2x sword cost
-    - [ ] Stone Knife (5 wood, 2 stone) - Fast, low damage, 0.5x sword cost
-    - [ ] Fire Wand (3 wood, 7 resin) - Magic ranged weapon, fire projectiles
-    - [ ] Bow (10 wood, 1 resin) - Physical ranged weapon
-  - [ ] **Shields** (Valheim-style parry mechanics)
-    - [ ] Tower Shield (15 wood) - High block, no parry bonus
-    - [ ] Round Shield (10 wood) - Medium block, medium parry bonus
-    - [ ] Buckler (5 wood) - Low block, high parry bonus
-  - [ ] TSCN files for each weapon (spawned in player hand when equipped)
-  - [ ] Weapon stats (damage, speed, knockback, durability)
-- [ ] **Enhanced Equipment System**
-  - [ ] Tab menu + right-click to equip (Valheim-style)
-  - [ ] Equipment slots (weapon, shield, armor slots)
-  - [ ] Hotbar still works for quick-equip (1-9 keys)
-  - [ ] Visual feedback for equipped items
-- [ ] **Combat Mechanics**
-  - [ ] Melee attack patterns (swing animations, hitboxes)
-  - [ ] Blocking and parry system
-  - [ ] Stamina consumption
-  - [ ] Damage types (slash, blunt, pierce, fire)
+### Phase 3: Combat & AI 🗡️ **MOSTLY COMPLETE**
+- [x] **Weapons System** (Valheim-style tiers and types)
+  - [x] **Tier 1: Wood & Stone** (wood, stone, resin materials)
+    - [x] Stone Sword (10 wood, 5 stone) - Medium speed, balanced damage
+    - [x] Stone Axe/Head Smasher (20 wood, 10 stone) - Slow, heavy damage, 2x sword cost
+    - [x] Stone Knife (5 wood, 2 stone) - Fast, low damage, 0.5x sword cost
+    - [x] Fire Wand (3 wood, 7 resin) - Magic ranged weapon, fire projectiles
+    - [x] Bow (10 wood, 1 resin) - Physical ranged weapon (visual only, no arrows yet)
+  - [x] **Shields** (Valheim-style parry mechanics)
+    - [x] Tower Shield (15 wood) - High block armor, no parry bonus
+    - [x] Round Shield (10 wood) - Medium block, medium parry bonus
+    - [x] Buckler (5 wood) - Low block, high parry bonus
+  - [x] TSCN files for each weapon (spawned in player hand when equipped)
+  - [x] Weapon stats (damage, speed, knockback, durability)
+  - [x] Mount points for proper hand alignment
+- [x] **Enhanced Equipment System**
+  - [x] Tab menu + right-click to equip (Valheim-style)
+  - [x] Equipment slots (weapon, shield, armor slots defined)
+  - [x] Hotbar auto-equips on number key press (1-9 keys)
+  - [x] Visual feedback for equipped items (yellow outline)
+  - [x] Items stay in inventory when equipped (Valheim approach)
+  - [x] Two-handed weapon restrictions (auto-unequips shield)
+- [x] **Combat Mechanics**
+  - [x] Melee attack patterns (swing animations, raycast hitboxes)
+  - [x] Blocking and parry system (perfect timing stuns attacker)
+  - [x] Stamina consumption on attacks
+  - [x] Damage types (slash, blunt, pierce, fire implemented)
+  - [x] Projectile system (fireballs for fire wand)
+  - [ ] Full animation system (placeholder animations working)
 - [x] **Enemy System** (basic implementation)
   - [x] Basic enemy spawner (natural spawns)
   - [x] Simple enemy AI (chase and attack)
@@ -246,14 +261,22 @@ GAME_PORT=8888 MAX_PLAYERS=20 ./launch_server.sh
 | Jump | Space |
 | Sprint | Left Shift |
 | Attack/Gather | Left Click |
+| Block/Parry | Right Click (with shield) |
 | Destroy Building | Middle Mouse |
-| Pick Up Item | E |
+| Pick Up Item / Interact | E |
 | Inventory | Tab |
-| Hotbar Slots | 1-9 |
+| Hotbar Slots (Auto-Equip) | 1-9 |
 | Build Menu | Q (with hammer equipped) |
 | Rotate Building | R (in build mode) |
 | Character Select | C *(at spawn)* |
 | Pause Menu | Esc |
+
+**Combat Tips:**
+- **Right-click in inventory/hotbar** to equip/unequip items
+- **Yellow outline** shows equipped items
+- **Two-handed weapons** auto-unequip shields
+- **Block** reduces damage (right-click with shield)
+- **Parry** - Block at the moment of enemy attack to stun them
 
 ---
 
@@ -298,11 +321,18 @@ Client-only code for rendering, UI, and local player control. Never runs on dedi
   - Item pickup and interaction
 
 - **client/ui/** - User Interface Components
-  - **hotbar.gd** - Quick access bar (slots 1-9)
-  - **inventory_panel.gd** - Full inventory view (Tab key)
+  - **hotbar.gd** - Quick access bar (slots 1-9, auto-equip on press)
+  - **inventory_panel.gd** - Full inventory view (Tab key, right-click to equip)
+  - **inventory_slot.gd** - Individual slot with equip status (yellow outline)
+  - **crafting_menu.gd** - Workbench crafting UI (E on workbench)
   - **build_menu.gd** - Building piece selection (Q key with hammer)
   - **character_selection.gd** - Player appearance selection
   - **pause_menu.gd** - Settings and disconnect
+
+- **client/item_discovery_tracker.gd** - Per-character item discovery
+  - Tracks which items player has touched
+  - Saves to `user://discoveries/{character_name}_discoveries.save`
+  - Shows crafting recipes only when materials discovered
 
 - **client/build_mode.gd** - Valheim-style building
   - Ghost preview with snap points
@@ -323,10 +353,31 @@ Code that runs on both client and server. Contains core game systems and network
   - Client/server communication hub
 
 - **shared/player.gd** & **player.tscn**
-  - Player entity with segmented body
+  - Player entity with segmented body (arms, legs, torso)
   - Client-authoritative movement (validated by server)
-  - Attack, jump, sprint mechanics
+  - Attack, jump, sprint, block mechanics
   - Inventory component (server-synced)
+  - Equipment component (weapon, shield, armor)
+  - Weapon/shield visuals attach to hand mount points
+  - Projectile spawning for ranged weapons
+
+- **shared/equipment.gd** - Equipment management system
+  - Server-authoritative equipment state
+  - Slots: MAIN_HAND, OFF_HAND, HEAD, CHEST, LEGS
+  - Two-handed weapon restrictions
+  - Equipment change signals for visual updates
+
+- **shared/weapon_data.gd** & **shield_data.gd** - Item stats
+  - Weapon types: MELEE_ONE_HAND, MELEE_TWO_HAND, RANGED, MAGIC
+  - Damage, knockback, attack speed, stamina cost
+  - Projectile scene references for ranged weapons
+  - Shield block armor and parry window timing
+
+- **shared/projectiles/** - Projectile system
+  - **projectile.gd** - Base class for all projectiles
+  - **fireball.tscn** - Fire wand projectile (orange glowing sphere)
+  - Shared system: works for both players and enemies
+  - Lifetime management, collision detection, damage application
 
 - **shared/camera_controller.gd** & **camera_controller.tscn**
   - Third-person camera with collision avoidance
@@ -361,6 +412,13 @@ Code that runs on both client and server. Contains core game systems and network
   - **environmental_object.gd** - Base class (health, drops, destruction)
   - **tree.tscn**, **rock.tscn**, **grass_clump.tscn** - Visual scenes
 
+- **shared/weapons/** - Weapon & Shield Visuals
+  - **stone_sword.tscn**, **stone_axe.tscn**, **stone_knife.tscn** - Melee weapons
+  - **fire_wand.tscn** - Magic staff with glowing orb (has Tip node for projectile spawn)
+  - **bow.tscn** - Ranged weapon (visual only, arrows not yet implemented)
+  - **buckler.tscn**, **round_shield.tscn**, **tower_shield.tscn** - Shields
+  - Each has **MountPoint** node for proper hand grip alignment
+
 - **shared/buildable/** - Building System
   - **building_piece.gd** - Base for walls, floors, roofs
     - Snap point system (corner, edge, top, bottom)
@@ -371,7 +429,7 @@ Code that runs on both client and server. Contains core game systems and network
     - Preview mode support
   - **wooden_wall.tscn**, **wooden_floor.tscn**, **wooden_door.tscn**, etc.
     - Individual building piece scenes (placeholder meshes)
-  - **workbench.tscn** - Crafting station (20m build radius)
+  - **workbench.tscn** - Crafting station (20m build radius, E to interact)
 
 #### 🎬 **Scenes/** - Entry Point Scenes
 Main scene files that tie everything together.
@@ -437,14 +495,21 @@ NetworkManager.rpc_place_buildable.rpc_id(1, piece_name, pos, rot)
 | Feature | Files to Check |
 |---------|---------------|
 | Player movement | `shared/player.gd`, `client/client.gd` |
+| Combat & attacking | `shared/player.gd` (_handle_attack, _spawn_projectile) |
+| Equipment system | `shared/equipment.gd`, `shared/player.gd` (_on_equipment_changed) |
+| Weapons & shields | `shared/weapon_data.gd`, `shared/shield_data.gd`, `shared/item_database.gd` |
+| Weapon visuals | `shared/weapons/*.tscn`, `shared/player.gd` (_update_weapon_visual) |
+| Projectiles | `shared/projectiles/projectile.gd`, `shared/projectiles/fireball.tscn` |
+| Blocking & parry | `shared/player.gd` (take_damage, check_parry_window) |
 | Inventory | `shared/inventory.gd`, `client/ui/inventory_panel.gd`, `client/ui/hotbar.gd` |
+| Item discovery | `client/item_discovery_tracker.gd` |
+| Crafting menu | `client/ui/crafting_menu.gd` |
 | Building | `client/build_mode.gd`, `shared/buildable/building_piece.gd` |
 | World generation | `shared/biome_generator.gd`, `shared/voxel_world.gd` |
 | Chunk streaming | `shared/environmental/chunk_manager.gd` |
 | Resource gathering | `shared/environmental/environmental_object.gd`, `shared/player.gd` |
 | Networking | `shared/network_manager.gd`, `server/server.gd`, `client/client.gd` |
-| Crafting | `shared/crafting_recipes.gd` |
-| Workbench | `shared/buildable/workbench.tscn`, `shared/buildable/buildable_object.gd` |
+| Enemy AI | `shared/enemies/enemy.gd`, `server/enemy_spawner.gd` |
 
 ---
 

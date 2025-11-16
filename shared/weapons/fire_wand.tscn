@@ -1,4 +1,4 @@
-[gd_scene load_steps=4 format=3 uid="uid://fire_wand_001"]
+[gd_scene load_steps=4 format=3 uid="uid://bwdgrgq11oupw"]
 
 [sub_resource type="CylinderMesh" id="staff_mesh"]
 top_radius = 0.02
@@ -17,7 +17,7 @@ emission_energy_multiplier = 2.0
 [node name="FireWand" type="Node3D"]
 
 [node name="MountPoint" type="Node3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.1, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0417772, 0)
 
 [node name="Staff" type="MeshInstance3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.3, 0)
