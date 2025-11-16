@@ -31,12 +31,14 @@ func _ready() -> void:
 
 func _on_gui_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton:
+		print("[InventorySlot] Mouse event: button=%d, pressed=%s, slot=%d, item=%s" % [event.button_index, event.pressed, slot_index, item_name])
 		if event.button_index == MOUSE_BUTTON_LEFT:
 			if event.pressed:
 				# Start potential drag
 				if not item_name.is_empty():
 					is_dragging = true
 					drag_started.emit(slot_index)
+					print("[InventorySlot] Started dragging slot %d" % slot_index)
 			else:
 				# Released - end drag if dragging
 				if is_dragging:
@@ -44,13 +46,16 @@ func _on_gui_input(event: InputEvent) -> void:
 					# Find slot under mouse
 					var target_slot = _get_slot_under_mouse()
 					if target_slot != null and target_slot != self:
+						print("[InventorySlot] Drag ended: %d -> %d" % [slot_index, target_slot.slot_index])
 						drag_ended.emit(slot_index, target_slot.slot_index)
 				else:
 					# Just a click
+					print("[InventorySlot] Left clicked slot %d" % slot_index)
 					slot_clicked.emit(slot_index)
 		elif event.button_index == MOUSE_BUTTON_RIGHT:
 			if event.pressed and not item_name.is_empty():
 				# Right-click to equip
+				print("[InventorySlot] Right clicked slot %d with item %s" % [slot_index, item_name])
 				slot_right_clicked.emit(slot_index)
 
 ## Set the item data for this slot
