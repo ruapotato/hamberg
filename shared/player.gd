@@ -1087,8 +1087,15 @@ func _show_terrain_preview(operation: String, position: Vector3) -> void:
 	var is_sphere_operation := operation in ["dig_circle", "place_circle", "level_circle"]
 
 	if is_sphere_operation:
-		# Show sphere
+		# Show sphere with appropriate size based on operation
 		terrain_preview_sphere.global_position = position
+
+		# Scale sphere based on operation (level_circle uses 4.0 radius, others use 1.0)
+		if operation == "level_circle":
+			terrain_preview_sphere.scale = Vector3(4.0, 4.0, 4.0)  # Match smooth_radius
+		else:
+			terrain_preview_sphere.scale = Vector3(1.0, 1.0, 1.0)  # Match CIRCLE_RADIUS
+
 		terrain_preview_sphere.visible = true
 		terrain_preview_cube.visible = false
 	else:
