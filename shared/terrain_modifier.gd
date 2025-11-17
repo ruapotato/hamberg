@@ -163,38 +163,22 @@ func dig_square(world_position: Vector3, tool_name: String = "stone_pickaxe") ->
 	return earth_collected
 
 ## Level terrain to a target height in a circle
-## This raises or lowers terrain to match the player's standing position
+## Smooths and flattens terrain using blur algorithm
 func level_circle(world_position: Vector3, target_height: float) -> void:
 	if not voxel_tool:
 		push_error("[TerrainModifier] Cannot level - voxel_tool not initialized")
 		return
 
-	print("[TerrainModifier] Leveling circle at %s to height %f" % [world_position, target_height])
-
-	# Get current terrain height at this position
-	var current_height := _get_terrain_height_at(world_position)
-
-	if abs(current_height - target_height) < 0.5:
-		print("[TerrainModifier] Already at target height")
-		return
+	print("[TerrainModifier] Leveling/smoothing circle at %s" % world_position)
 
 	voxel_tool.channel = VoxelBuffer.CHANNEL_SDF
-	voxel_tool.sdf_strength = 1.0  # Full strength
 
-	if current_height < target_height:
-		# Need to raise terrain (add mode)
-		voxel_tool.mode = VoxelTool.MODE_ADD
-		var raise_amount := target_height - current_height
-		var raise_position := Vector3(world_position.x, current_height + raise_amount / 2, world_position.z)
-		voxel_tool.do_sphere(raise_position, CIRCLE_RADIUS)
-		print("[TerrainModifier] Raised terrain by %f" % raise_amount)
-	else:
-		# Need to lower terrain (remove mode)
-		voxel_tool.mode = VoxelTool.MODE_REMOVE
-		var lower_amount := current_height - target_height
-		var lower_position := Vector3(world_position.x, target_height + lower_amount / 2, world_position.z)
-		voxel_tool.do_sphere(lower_position, CIRCLE_RADIUS)
-		print("[TerrainModifier] Lowered terrain by %f" % lower_amount)
+	# Use smooth_sphere for proper terrain flattening
+	# blur_radius controls how aggressive the smoothing is (higher = flatter but slower)
+	var blur_radius := 3  # Good balance between smoothness and performance
+	voxel_tool.smooth_sphere(world_position, CIRCLE_RADIUS * 2.0, blur_radius)
+
+	print("[TerrainModifier] Smoothed terrain with radius %.2f, blur %d" % [CIRCLE_RADIUS * 2.0, blur_radius])
 
 	# Stream disabled - using in-memory history replay system
 	# No disk persistence needed
