@@ -18,6 +18,7 @@ func _initialize_items() -> void:
 	# Resources
 	_register_resource("wood", "Wood", "Basic building material from trees.", 50, 1.0)
 	_register_resource("stone", "Stone", "Heavy building material from rocks.", 50, 2.0)
+	_register_resource("earth", "Earth", "Dirt and soil dug from the ground. Can be placed to build up terrain.", 50, 2.0)
 	_register_resource("resin", "Resin", "Sticky substance from trees. Used for torches and fire.", 50, 0.5)
 	_register_resource("iron", "Iron", "Strong metal ore.", 50, 3.0)
 	_register_resource("copper", "Copper", "Reddish metal ore.", 50, 2.5)
@@ -25,6 +26,8 @@ func _initialize_items() -> void:
 	# Tools (existing)
 	_register_tool("hammer", "Hammer", "Used for building structures.", 1)
 	_register_tool("torch", "Torch", "Provides light in dark places.", 20)
+	_register_tool("stone_pickaxe", "Stone Pickaxe", "Used for digging terrain. Left click: dig circle, Right click: dig square.", 1)
+	_register_tool("stone_hoe", "Stone Hoe", "Used for leveling terrain to your standing position. Shift terrain up or down.", 1)
 
 	# Tier 0: Unarmed
 	_register_weapon_fists()

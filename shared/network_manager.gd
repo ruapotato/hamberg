@@ -306,6 +306,50 @@ func rpc_destroy_buildable(network_id: String) -> void:
 	if server_node and server_node.has_method("handle_destroy_buildable"):
 		server_node.handle_destroy_buildable(peer_id, network_id)
 
+## CLIENT -> SERVER: Modify terrain (dig, place, level)
+@rpc("any_peer", "call_remote", "reliable")
+func rpc_modify_terrain(operation: String, position: Array, data: Dictionary) -> void:
+	if not is_server:
+		return
+
+	var peer_id := multiplayer.get_remote_sender_id()
+	var server_node := get_node_or_null("/root/Main/Server")
+	if server_node and server_node.has_method("handle_terrain_modification"):
+		var pos_v3 := Vector3(position[0], position[1], position[2])
+		server_node.handle_terrain_modification(peer_id, operation, pos_v3, data)
+
+## SERVER -> ALL CLIENTS: Apply terrain modification
+@rpc("authority", "call_remote", "reliable")
+func rpc_apply_terrain_modification(operation: String, position: Array, data: Dictionary) -> void:
+	print("[NetworkManager] Received terrain modification from server: %s at %s" % [operation, position])
+
+	# Get the voxel world on the client
+	var voxel_world = get_node_or_null("/root/Main/Client/World/VoxelWorld")
+	if not voxel_world:
+		push_warning("[NetworkManager] Client: VoxelWorld not found at /root/Main/Client/World/VoxelWorld")
+		return
+
+	var pos_v3 := Vector3(position[0], position[1], position[2])
+	var tool_name: String = data.get("tool", "stone_pickaxe")
+
+	# Apply the modification locally on the client
+	match operation:
+		"dig_circle":
+			voxel_world.dig_circle(pos_v3, tool_name)
+		"dig_square":
+			voxel_world.dig_square(pos_v3, tool_name)
+		"level_circle":
+			var target_height: float = data.get("target_height", pos_v3.y)
+			voxel_world.level_circle(pos_v3, target_height)
+		"place_circle":
+			var earth_amount: int = data.get("earth_amount", 100)
+			voxel_world.place_circle(pos_v3, earth_amount)
+		"place_square":
+			var earth_amount: int = data.get("earth_amount", 100)
+			voxel_world.place_square(pos_v3, earth_amount)
+
+	print("[NetworkManager] Client applied terrain modification: %s" % operation)
+
 @rpc("authority", "call_remote", "reliable")
 func rpc_remove_buildable(network_id: String) -> void:
 	print("[NetworkManager] RPC received: remove_buildable(%s)" % network_id)

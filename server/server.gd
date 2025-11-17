@@ -344,6 +344,25 @@ func _send_enemies_to_player(peer_id: int) -> void:
 
 	print("[Server] Sent %d enemies to player %d" % [enemies_sent, peer_id])
 
+## Replay all terrain modifications to a newly connected player
+func _replay_terrain_modifications_to_player(peer_id: int) -> void:
+	if terrain_modification_history.is_empty():
+		print("[Server] No terrain modifications to replay to player %d" % peer_id)
+		return
+
+	print("[Server] Replaying %d terrain modifications to player %d..." % [terrain_modification_history.size(), peer_id])
+
+	# Send each modification to the new player
+	for modification in terrain_modification_history:
+		var operation: String = modification.operation
+		var position: Array = modification.position
+		var data: Dictionary = modification.data
+
+		# Send to this specific client only
+		NetworkManager.rpc_apply_terrain_modification.rpc_id(peer_id, operation, position, data)
+
+	print("[Server] Replayed %d terrain modifications to player %d" % [terrain_modification_history.size(), peer_id])
+
 # ============================================================================
 # PLAYER MANAGEMENT (SERVER-AUTHORITATIVE)
 # ============================================================================
@@ -410,6 +429,9 @@ func _spawn_player(peer_id: int, player_name: String) -> void:
 
 	# Send all existing enemies to the new player
 	_send_enemies_to_player(peer_id)
+
+	# Replay all terrain modifications to the new player
+	_replay_terrain_modifications_to_player(peer_id)
 
 	# Notify all clients to spawn this player through NetworkManager
 	print("[Server] Broadcasting spawn for player %d to all clients" % peer_id)
@@ -707,6 +729,128 @@ func handle_destroy_buildable(peer_id: int, network_id: String) -> void:
 
 	print("[Server] Buildable %s destroyed successfully" % network_id)
 
+## Track all terrain modifications for replication to new clients
+var terrain_modification_history: Array = []  # Array of {operation, position, data}
+
+## Handle terrain modification request (server-authoritative)
+func handle_terrain_modification(peer_id: int, operation: String, position: Vector3, data: Dictionary) -> void:
+	print("[Server] ========================================")
+	print("[Server] Player %d requesting terrain modification: %s at %s" % [peer_id, operation, position])
+	print("[Server] Tool: %s, Data: %s" % [data.get("tool", "unknown"), data])
+
+	# Check if voxel_world exists
+	if not voxel_world:
+		push_error("[Server] voxel_world is null! Cannot modify terrain")
+		return
+
+	print("[Server] VoxelWorld found: %s" % voxel_world)
+
+	# Check if player exists
+	if not spawned_players.has(peer_id):
+		push_warning("[Server] Player %d not found for terrain modification" % peer_id)
+		return
+
+	var player = spawned_players[peer_id]
+	if not player or not is_instance_valid(player):
+		push_warning("[Server] Player %d is invalid" % peer_id)
+		return
+
+	if not player.has_node("Inventory"):
+		push_warning("[Server] Player %d has no inventory" % peer_id)
+		return
+
+	var inventory = player.get_node("Inventory")
+	var tool_name: String = data.get("tool", "stone_pickaxe")
+
+	print("[Server] Performing operation: %s" % operation)
+
+	# Perform the operation
+	match operation:
+		"dig_circle":
+			# Dig and collect earth
+			print("[Server] Calling voxel_world.dig_circle...")
+			var earth_collected: int = voxel_world.dig_circle(position, tool_name)
+			print("[Server] dig_circle returned: %d earth" % earth_collected)
+			if earth_collected > 0:
+				inventory.add_item("earth", earth_collected)
+				print("[Server] Player %d collected %d earth from digging" % [peer_id, earth_collected])
+				# Sync inventory to client
+				var inventory_data = inventory.get_inventory_data()
+				NetworkManager.rpc_sync_inventory.rpc_id(peer_id, inventory_data)
+			else:
+				print("[Server] No earth collected from dig_circle")
+
+		"dig_square":
+			# Dig and collect earth
+			print("[Server] Calling voxel_world.dig_square...")
+			var earth_collected: int = voxel_world.dig_square(position, tool_name)
+			print("[Server] dig_square returned: %d earth" % earth_collected)
+			if earth_collected > 0:
+				inventory.add_item("earth", earth_collected)
+				print("[Server] Player %d collected %d earth from digging" % [peer_id, earth_collected])
+				# Sync inventory to client
+				var inventory_data = inventory.get_inventory_data()
+				NetworkManager.rpc_sync_inventory.rpc_id(peer_id, inventory_data)
+			else:
+				print("[Server] No earth collected from dig_square")
+
+		"level_circle":
+			# Level terrain to target height
+			var target_height: float = data.get("target_height", position.y)
+			voxel_world.level_circle(position, target_height)
+			print("[Server] Player %d leveled terrain at %s to height %f" % [peer_id, position, target_height])
+
+		"place_circle":
+			# Check if player has earth
+			var earth_amount: int = inventory.get_item_count("earth")
+			if earth_amount <= 0:
+				print("[Server] Player %d has no earth to place" % peer_id)
+				return
+
+			var earth_used: int = voxel_world.place_circle(position, earth_amount)
+			if earth_used > 0:
+				inventory.remove_item("earth", earth_used)
+				print("[Server] Player %d placed %d earth" % [peer_id, earth_used])
+				# Sync inventory to client
+				var inventory_data = inventory.get_inventory_data()
+				NetworkManager.rpc_sync_inventory.rpc_id(peer_id, inventory_data)
+
+		"place_square":
+			# Check if player has earth
+			var earth_amount: int = inventory.get_item_count("earth")
+			if earth_amount <= 0:
+				print("[Server] Player %d has no earth to place" % peer_id)
+				return
+
+			var earth_used: int = voxel_world.place_square(position, earth_amount)
+			if earth_used > 0:
+				inventory.remove_item("earth", earth_used)
+				print("[Server] Player %d placed %d earth" % [peer_id, earth_used])
+				# Sync inventory to client
+				var inventory_data = inventory.get_inventory_data()
+				NetworkManager.rpc_sync_inventory.rpc_id(peer_id, inventory_data)
+
+		_:
+			push_warning("[Server] Unknown terrain modification operation: %s" % operation)
+			return  # Don't broadcast unknown operations
+
+	# Broadcast terrain modification to all clients for explicit sync
+	# This ensures all clients apply the same modification locally
+	print("[Server] Broadcasting terrain modification to all clients...")
+	var position_array := [position.x, position.y, position.z]
+	NetworkManager.rpc_apply_terrain_modification.rpc(operation, position_array, data)
+
+	# Add to history for replaying to new clients
+	terrain_modification_history.append({
+		"operation": operation,
+		"position": position_array,
+		"data": data
+	})
+	print("[Server] Added modification to history (total: %d)" % terrain_modification_history.size())
+
+	print("[Server] Terrain modification complete - broadcasted to all clients")
+	print("[Server] ========================================")
+
 # ============================================================================
 # CONSOLE COMMANDS (for dedicated server)
 # ============================================================================
@@ -946,6 +1090,9 @@ func _spawn_player_with_data(peer_id: int, player_data: Dictionary) -> void:
 
 	# Send all existing buildables to the new player
 	_send_buildables_to_player(peer_id)
+
+	# Replay all terrain modifications to the new player
+	_replay_terrain_modifications_to_player(peer_id)
 
 	# Notify all clients to spawn this player through NetworkManager
 	var player_name = player_data.get("character_name", "Unknown")

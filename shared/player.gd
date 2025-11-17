@@ -197,13 +197,22 @@ func _physics_process(delta: float) -> void:
 	# CLIENT: Predict movement locally
 	var input_data := _gather_input()
 
-	# Handle special attack input (can't attack while stunned or blocking)
-	if input_data.get("special_attack", false) and attack_cooldown <= 0 and not is_stunned and not is_blocking:
+	# Handle terrain modification input (pickaxe/hoe/placing)
+	if input_data.get("attack", false) or input_data.get("secondary_action", false):
+		var handled_terrain_action = _handle_terrain_modification_input(input_data)
+		# Only process combat if terrain modification wasn't handled
+		if not handled_terrain_action:
+			# Handle special attack input (can't attack while stunned or blocking)
+			if input_data.get("special_attack", false) and attack_cooldown <= 0 and not is_stunned and not is_blocking:
+				_handle_special_attack()
+				attack_cooldown = ATTACK_COOLDOWN_TIME
+			# Handle normal attack input (can't attack while stunned or blocking)
+			elif input_data.get("attack", false) and attack_cooldown <= 0 and not is_stunned and not is_blocking:
+				_handle_attack()
+				attack_cooldown = ATTACK_COOLDOWN_TIME
+	# Handle special attack input when no other input (can't attack while stunned or blocking)
+	elif input_data.get("special_attack", false) and attack_cooldown <= 0 and not is_stunned and not is_blocking:
 		_handle_special_attack()
-		attack_cooldown = ATTACK_COOLDOWN_TIME
-	# Handle normal attack input (can't attack while stunned or blocking)
-	elif input_data.get("attack", false) and attack_cooldown <= 0 and not is_stunned and not is_blocking:
-		_handle_attack()
 		attack_cooldown = ATTACK_COOLDOWN_TIME
 
 	# Apply movement prediction
@@ -246,6 +255,11 @@ func _gather_input() -> Dictionary:
 	if Input.is_action_just_pressed("attack") if InputMap.has_action("attack") else Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
 		attack_pressed = true
 
+	# Secondary action input (right mouse button)
+	var secondary_action_pressed := false
+	if Input.is_action_just_pressed("secondary_action") if InputMap.has_action("secondary_action") else Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT):
+		secondary_action_pressed = true
+
 	# Special attack input (middle mouse button)
 	var special_attack_pressed := false
 	if Input.is_action_just_pressed("special_attack"):
@@ -257,6 +271,7 @@ func _gather_input() -> Dictionary:
 		"sprint": is_sprinting,
 		"jump": jump_pressed,
 		"attack": attack_pressed,
+		"secondary_action": secondary_action_pressed,
 		"special_attack": special_attack_pressed,
 		"camera_basis": _get_camera_basis()
 	}
@@ -959,6 +974,133 @@ func _send_enemy_damage_request(enemy_path: NodePath, damage: float, knockback: 
 	NetworkManager.rpc_damage_enemy.rpc_id(1, enemy_path, damage, knockback, direction)
 
 # ============================================================================
+# TERRAIN MODIFICATION (PICKAXE, HOE, PLACING)
+# ============================================================================
+
+## Handle terrain modification input (CLIENT-SIDE)
+## Returns true if a terrain action was handled, false if normal combat should proceed
+func _handle_terrain_modification_input(input_data: Dictionary) -> bool:
+	if not is_local_player or is_dead:
+		return false
+
+	# Check equipped main hand item
+	var main_hand_id := ""
+	if equipment:
+		main_hand_id = equipment.get_equipped_item(Equipment.EquipmentSlot.MAIN_HAND)
+
+	# Check if it's a terrain tool or if we have placeable material
+	var is_pickaxe := main_hand_id == "stone_pickaxe"
+	var is_hoe := main_hand_id == "stone_hoe"
+	var is_placeable_material := main_hand_id == "earth" if inventory and inventory.has_item("earth", 1) else false
+
+	# Check if any terrain action applies
+	if not is_pickaxe and not is_hoe and not is_placeable_material:
+		# Debug: Show what's equipped when player tries to use terrain tools
+		if main_hand_id.is_empty():
+			print("[Player] No terrain tool - nothing equipped to main hand")
+		else:
+			print("[Player] No terrain tool - equipped: %s" % main_hand_id)
+		return false  # No terrain tool, proceed with normal combat
+
+	# Debug: Confirm terrain tool is equipped
+	print("[Player] Terrain tool equipped: %s" % main_hand_id)
+
+	# Get camera for raycasting
+	var camera := _get_camera()
+	if not camera:
+		print("[Player] ERROR: No camera found for terrain raycast")
+		return false
+
+	# Raycast to find target position on terrain
+	var target_pos := _raycast_terrain_target(camera)
+	if target_pos == Vector3.ZERO:
+		print("[Player] No valid terrain target found - aim at the ground/terrain")
+		return false
+
+	# Determine operation based on tool and input
+	var operation := ""
+	var left_click: bool = input_data.get("attack", false)
+	var right_click: bool = input_data.get("secondary_action", false)
+
+	if is_pickaxe:
+		if left_click:
+			operation = "dig_circle"
+		elif right_click:
+			operation = "dig_square"
+	elif is_hoe:
+		if left_click or right_click:
+			operation = "level_circle"
+	elif is_placeable_material:
+		if left_click:
+			operation = "place_circle"
+		elif right_click:
+			operation = "place_square"
+
+	# Send terrain modification request to server
+	if not operation.is_empty():
+		_send_terrain_modification_request(operation, target_pos, main_hand_id)
+		print("[Player] Sent terrain modification: %s at %s" % [operation, target_pos])
+
+		# Trigger visual feedback animation
+		_trigger_terrain_tool_animation(operation)
+
+		return true
+
+	return false
+
+## Trigger animation for terrain tool usage
+func _trigger_terrain_tool_animation(operation: String) -> void:
+	# Trigger attack animation for visual feedback
+	is_attacking = true
+	attack_timer = 0.0
+
+	# Use different animation times based on operation
+	if operation in ["dig_circle", "place_circle"]:
+		current_attack_animation_time = 0.25  # Quick animation for circles
+	else:
+		current_attack_animation_time = 0.3  # Slightly slower for squares
+
+	# Weapon swing animation (if we had a weapon visual, it would swing)
+	if equipped_weapon_visual:
+		# Rotate the tool for visual feedback
+		var tween = create_tween()
+		tween.tween_property(equipped_weapon_visual, "rotation_degrees:x", -30.0, 0.1)
+		tween.tween_property(equipped_weapon_visual, "rotation_degrees:x", 90.0, 0.2)
+
+## Raycast to find terrain target position
+func _raycast_terrain_target(camera: Camera3D) -> Vector3:
+	var viewport_size := get_viewport().get_visible_rect().size
+	var crosshair_pos := viewport_size / 2
+	var ray_origin := camera.project_ray_origin(crosshair_pos)
+	var ray_direction := camera.project_ray_normal(crosshair_pos)
+
+	# Raycast for terrain (layer 1 = world/terrain)
+	var space_state := get_world_3d().direct_space_state
+	var query := PhysicsRayQueryParameters3D.create(ray_origin, ray_origin + ray_direction * 50.0)
+	query.collision_mask = 1  # World layer only
+	query.exclude = [self]
+
+	var result := space_state.intersect_ray(query)
+	if result:
+		return result.position
+
+	return Vector3.ZERO
+
+## Send terrain modification request to server
+func _send_terrain_modification_request(operation: String, position: Vector3, tool: String) -> void:
+	var data := {
+		"tool": tool
+	}
+
+	# For hoe leveling, include player's standing height
+	if operation == "level_circle":
+		data["target_height"] = global_position.y
+
+	# Send RPC to server via NetworkManager
+	var pos_array := [position.x, position.y, position.z]
+	NetworkManager.rpc_modify_terrain.rpc_id(1, operation, pos_array, data)
+
+# ============================================================================
 # BLOCKING & PARRY SYSTEM
 # ============================================================================
 
@@ -971,6 +1113,20 @@ func _handle_block_input(delta: float) -> void:
 	var shield_data = null  # ShieldData
 	if equipment:
 		shield_data = equipment.get_equipped_shield()
+
+	# Don't block if holding a terrain tool (pickaxe, hoe, or placeable material)
+	var main_hand_id := ""
+	if equipment:
+		main_hand_id = equipment.get_equipped_item(Equipment.EquipmentSlot.MAIN_HAND)
+
+	var is_terrain_tool := main_hand_id == "stone_pickaxe" or main_hand_id == "stone_hoe" or main_hand_id == "earth"
+
+	if is_terrain_tool:
+		# Clear blocking state if we have a terrain tool equipped
+		if is_blocking:
+			is_blocking = false
+			block_timer = 0.0
+		return
 
 	# Check if block button is pressed (right mouse button)
 	var block_pressed = Input.is_action_pressed("block") if InputMap.has_action("block") else false

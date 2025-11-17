@@ -9,6 +9,9 @@ extends Node3D
 # Environmental objects
 var chunk_manager
 
+# Terrain modification
+var terrain_modifier
+
 # World generation settings
 var world_seed: int = 42  # Will be set by WorldConfig
 var world_name: String = "default"  # Will be set by WorldConfig
@@ -57,6 +60,9 @@ func _ready() -> void:
 	else:
 		_setup_client()
 
+	# Initialize terrain modifier (for both server and client)
+	_setup_terrain_modifier()
+
 	is_initialized = true
 	print("[VoxelWorld] Voxel terrain initialized (Server: %s)" % is_server)
 
@@ -70,7 +76,14 @@ func _setup_server() -> void:
 	# collision_layer and collision_mask are set there
 
 	# Server generates and manages the terrain
-	# Multiplayer synchronizer will handle sending data to clients
+	# Set server as authority for terrain
+	terrain.set_multiplayer_authority(1)  # Server is always peer ID 1
+
+	# Configure multiplayer synchronizer if present
+	if multiplayer_sync:
+		print("[VoxelWorld] Configuring VoxelTerrainMultiplayerSynchronizer for server")
+		# Server has authority over terrain modifications
+		multiplayer_sync.set_multiplayer_authority(1)
 
 func _setup_client() -> void:
 	print("[VoxelWorld] Configuring client-side terrain...")
@@ -82,6 +95,14 @@ func _setup_client() -> void:
 	# collision_layer and collision_mask are set in scene file
 
 	# Client will receive terrain data from server via multiplayer sync
+	# Ensure server has authority
+	terrain.set_multiplayer_authority(1)  # Server is always peer ID 1
+
+	# Configure multiplayer synchronizer if present
+	if multiplayer_sync:
+		print("[VoxelWorld] Configuring VoxelTerrainMultiplayerSynchronizer for client")
+		# Server has authority, client receives updates
+		multiplayer_sync.set_multiplayer_authority(1)
 
 ## Initialize world with a specific seed and name
 ## Must be called after _ready() to configure the world
@@ -116,8 +137,25 @@ func _setup_generator() -> void:
 
 	print("[VoxelWorld] Generator configured: Biome-based (distance + height)")
 
+	# DISABLED: Stream causes LOD metadata conflicts
+	# Using in-memory history replay system instead (see server.gd::terrain_modification_history)
+	# Terrain modifications persist during server session and are replayed to new clients
+	print("[VoxelWorld] Terrain stream disabled - using in-memory history replay system")
+
 	# Set up basic terrain material
 	_setup_terrain_material()
+
+func _setup_stream() -> void:
+	print("[VoxelWorld] Setting up terrain stream for modifications...")
+
+	# Use VoxelStreamRegionFiles for saving terrain modifications
+	var stream := VoxelStreamRegionFiles.new()
+	stream.directory = "user://worlds/%s/terrain/" % world_name
+
+	# Assign stream to terrain
+	terrain.stream = stream
+
+	print("[VoxelWorld] Stream configured: %s" % stream.directory)
 
 func _setup_terrain_material() -> void:
 	print("[VoxelWorld] Setting up terrain material...")
@@ -151,6 +189,23 @@ func _setup_chunk_manager() -> void:
 	chunk_manager.initialize(self)
 
 	print("[VoxelWorld] ChunkManager initialized")
+
+func _setup_terrain_modifier() -> void:
+	print("[VoxelWorld] Setting up terrain modifier...")
+
+	# Load and create terrain modifier
+	var TerrainModifierScript = load("res://shared/terrain_modifier.gd")
+	terrain_modifier = TerrainModifierScript.new()
+	terrain_modifier.name = "TerrainModifier"
+	add_child(terrain_modifier)
+
+	# Wait a frame for terrain to be fully ready
+	await get_tree().process_frame
+
+	# Initialize with this terrain
+	terrain_modifier.initialize(terrain)
+
+	print("[VoxelWorld] TerrainModifier initialized")
 
 ## Register a player for environmental object spawning
 func register_player_for_spawning(peer_id: int, player_node: Node3D) -> void:
@@ -232,9 +287,9 @@ func set_terrain_active(active: bool) -> void:
 
 ## Save modified terrain blocks (call this when player saves)
 func save_terrain() -> void:
-	if terrain.stream:
-		terrain.save_modified_blocks()
-		print("[VoxelWorld] Saved modified terrain blocks")
+	# Stream disabled - using in-memory history replay system
+	# Terrain modifications persist during server session only
+	print("[VoxelWorld] Terrain persistence: in-memory only (history replay system active)")
 
 ## Save all modified environmental chunks (call on server shutdown/save)
 func save_environmental_chunks() -> void:
@@ -242,3 +297,36 @@ func save_environmental_chunks() -> void:
 		chunk_manager.save_all_modified_chunks()
 	else:
 		print("[VoxelWorld] No chunk manager to save chunks")
+
+# ============================================================================
+# TERRAIN MODIFICATION API
+# ============================================================================
+
+## Dig a circular hole at the target position
+func dig_circle(world_position: Vector3, tool_name: String = "stone_pickaxe") -> int:
+	if terrain_modifier:
+		return terrain_modifier.dig_circle(world_position, tool_name)
+	return 0
+
+## Dig a square hole at the target position
+func dig_square(world_position: Vector3, tool_name: String = "stone_pickaxe") -> int:
+	if terrain_modifier:
+		return terrain_modifier.dig_square(world_position, tool_name)
+	return 0
+
+## Level terrain to a target height in a circle
+func level_circle(world_position: Vector3, target_height: float) -> void:
+	if terrain_modifier:
+		terrain_modifier.level_circle(world_position, target_height)
+
+## Place earth in a circular pattern
+func place_circle(world_position: Vector3, earth_amount: int) -> int:
+	if terrain_modifier:
+		return terrain_modifier.place_circle(world_position, earth_amount)
+	return 0
+
+## Place earth in a square pattern
+func place_square(world_position: Vector3, earth_amount: int) -> int:
+	if terrain_modifier:
+		return terrain_modifier.place_square(world_position, earth_amount)
+	return 0

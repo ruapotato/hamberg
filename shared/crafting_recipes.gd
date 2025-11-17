@@ -32,6 +32,8 @@ func _initialize_recipes() -> void:
 	# Basic starting tools (no workbench required)
 	add_recipe("hammer", 1, {"wood": 10})
 	add_recipe("torch", 1, {"wood": 1, "resin": 1})
+	add_recipe("stone_pickaxe", 1, {"wood": 5, "stone": 10})
+	add_recipe("stone_hoe", 1, {"wood": 5, "stone": 5})
 	# Note: workbench is now buildable via hammer, not craftable
 
 	# Tier 1 Weapons - Wood & Stone (no workbench required for Tier 1)
