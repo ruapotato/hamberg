@@ -175,10 +175,11 @@ func level_circle(world_position: Vector3, target_height: float) -> void:
 
 	# Use smooth_sphere for proper terrain flattening
 	# blur_radius controls how aggressive the smoothing is (higher = flatter but slower)
+	var smooth_radius := 4.0  # Larger area for better flattening
 	var blur_radius := 3  # Good balance between smoothness and performance
-	voxel_tool.smooth_sphere(world_position, CIRCLE_RADIUS * 2.0, blur_radius)
+	voxel_tool.smooth_sphere(world_position, smooth_radius, blur_radius)
 
-	print("[TerrainModifier] Smoothed terrain with radius %.2f, blur %d" % [CIRCLE_RADIUS * 2.0, blur_radius])
+	print("[TerrainModifier] Smoothed terrain with radius %.2f, blur %d" % [smooth_radius, blur_radius])
 
 	# Stream disabled - using in-memory history replay system
 	# No disk persistence needed
