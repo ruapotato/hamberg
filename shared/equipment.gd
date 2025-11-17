@@ -94,7 +94,8 @@ func get_equipped_item_data(slot: EquipmentSlot):
 func _is_valid_for_slot(item_data, slot: EquipmentSlot) -> bool:  # item_data is ItemData
 	match slot:
 		EquipmentSlot.MAIN_HAND:
-			return item_data.item_type in [ItemData.ItemType.WEAPON, ItemData.ItemType.TOOL]
+			# Allow weapons, tools, and placeable resources (like earth)
+			return item_data.item_type in [ItemData.ItemType.WEAPON, ItemData.ItemType.TOOL, ItemData.ItemType.RESOURCE]
 		EquipmentSlot.OFF_HAND:
 			return item_data.item_type == ItemData.ItemType.SHIELD
 		EquipmentSlot.HEAD, EquipmentSlot.CHEST, EquipmentSlot.LEGS:

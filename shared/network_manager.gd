@@ -355,6 +355,14 @@ func rpc_apply_terrain_modification(operation: String, position: Array, data: Di
 		"place_square":
 			var earth_amount: int = data.get("earth_amount", 100)
 			voxel_world.place_square(pos_v3, earth_amount)
+		"grow_sphere":
+			var strength: float = data.get("strength", 5.0)
+			var radius: float = data.get("radius", 3.0)
+			voxel_world.grow_sphere(pos_v3, radius, strength)
+		"erode_sphere":
+			var strength: float = data.get("strength", 5.0)
+			var radius: float = data.get("radius", 3.0)
+			voxel_world.erode_sphere(pos_v3, radius, strength)
 
 	print("[NetworkManager] Client applied terrain modification: %s" % operation)
 

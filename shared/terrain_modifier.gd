@@ -25,8 +25,8 @@ var current_mining_progress: Dictionary = {}  # position -> {progress: float, to
 
 # Shape parameters
 const CIRCLE_RADIUS: float = 1.0  # Radius for circle operations (reduced from 2.0)
-const SQUARE_SIZE: float = 4.0    # Size for square operations (4x4, aligned to voxel grid)
-const SQUARE_DEPTH: float = 3.0   # How deep to dig for square operations (centered on click)
+const SQUARE_SIZE: float = 2.0    # Size for square operations (2x2, aligned to voxel grid) - reduced to prevent player clipping
+const SQUARE_DEPTH: float = 2.0   # How deep to dig for square operations (centered on click) - reduced to prevent player clipping
 const DEPTH_PER_DIG: float = 1.5  # How deep to dig per operation (for other uses)
 
 # Material collection
@@ -263,6 +263,40 @@ func place_square(world_position: Vector3, earth_amount: int) -> int:
 
 	print("[TerrainModifier] Placed square, used %d earth" % earth_used)
 	return earth_used
+
+## Grow terrain in a spherical area (adds terrain with gradient falloff)
+func grow_sphere(world_position: Vector3, radius: float, strength: float) -> void:
+	if not voxel_tool:
+		push_error("[TerrainModifier] Cannot grow - voxel_tool not initialized")
+		return
+
+	print("[TerrainModifier] Growing terrain at %s with radius %.1f, strength %.1f" % [world_position, radius, strength])
+
+	# Set mode to add
+	voxel_tool.mode = VoxelTool.MODE_ADD
+	voxel_tool.channel = VoxelBuffer.CHANNEL_SDF
+
+	# Use grow_sphere for gradual terrain growth
+	voxel_tool.grow_sphere(world_position, radius, strength)
+
+	print("[TerrainModifier] Terrain grown successfully")
+
+## Erode terrain in a spherical area (removes terrain with gradient falloff)
+func erode_sphere(world_position: Vector3, radius: float, strength: float) -> void:
+	if not voxel_tool:
+		push_error("[TerrainModifier] Cannot erode - voxel_tool not initialized")
+		return
+
+	print("[TerrainModifier] Eroding terrain at %s with radius %.1f, strength %.1f" % [world_position, radius, strength])
+
+	# Set mode to remove
+	voxel_tool.mode = VoxelTool.MODE_REMOVE
+	voxel_tool.channel = VoxelBuffer.CHANNEL_SDF
+
+	# Use grow_sphere with remove mode for gradual erosion
+	voxel_tool.grow_sphere(world_position, radius, strength)
+
+	print("[TerrainModifier] Terrain eroded successfully")
 
 ## Helper: Get approximate terrain height at a position
 func _get_terrain_height_at(world_position: Vector3) -> float:

@@ -826,6 +826,8 @@ func handle_terrain_modification(peer_id: int, operation: String, position: Vect
 			if earth_used > 0:
 				inventory.remove_item("earth", earth_used)
 				print("[Server] Player %d placed %d earth" % [peer_id, earth_used])
+				# Add earth_amount to data for client broadcast
+				data["earth_amount"] = earth_amount
 				# Sync inventory to client
 				var inventory_data = inventory.get_inventory_data()
 				NetworkManager.rpc_sync_inventory.rpc_id(peer_id, inventory_data)
@@ -841,9 +843,25 @@ func handle_terrain_modification(peer_id: int, operation: String, position: Vect
 			if earth_used > 0:
 				inventory.remove_item("earth", earth_used)
 				print("[Server] Player %d placed %d earth" % [peer_id, earth_used])
+				# Add earth_amount to data for client broadcast
+				data["earth_amount"] = earth_amount
 				# Sync inventory to client
 				var inventory_data = inventory.get_inventory_data()
 				NetworkManager.rpc_sync_inventory.rpc_id(peer_id, inventory_data)
+
+		"grow_sphere":
+			# Grow terrain (adds terrain with gradient)
+			var strength: float = data.get("strength", 5.0)
+			var radius: float = data.get("radius", 3.0)
+			voxel_world.grow_sphere(position, radius, strength)
+			print("[Server] Player %d grew terrain at %s (strength: %.1f, radius: %.1f)" % [peer_id, position, strength, radius])
+
+		"erode_sphere":
+			# Erode terrain (removes terrain with gradient)
+			var strength: float = data.get("strength", 5.0)
+			var radius: float = data.get("radius", 3.0)
+			voxel_world.erode_sphere(position, radius, strength)
+			print("[Server] Player %d eroded terrain at %s (strength: %.1f, radius: %.1f)" % [peer_id, position, strength, radius])
 
 		_:
 			push_warning("[Server] Unknown terrain modification operation: %s" % operation)
