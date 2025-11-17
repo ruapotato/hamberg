@@ -10,12 +10,18 @@ The name "Hamberg" is a tribute to the developers' origins - a fusion of **Hamne
 
 ## 🎮 Vision
 
-Hamberg aims to capture the magic of Valheim while being:
-- **Open Source** - Fully transparent, community-driven development
-- **Moddable** - Clean, documented code designed for extensibility
-- **Responsive** - Client-side prediction for instant, satisfying gameplay
-- **Community-Focused** - Trust-based networking for cooperative play with friends
-- **Cross-Platform** - Linux, Windows, and Mac support via Godot
+**A Dark Fantasy Survival Adventure**
+
+Hamberg is an open-source multiplayer survival game that blends the co-op magic of Valheim with a unique dark fantasy aesthetic. Explore otherworldly biomes filled with mysterious creatures, wield magical staffs powered by Brain Power (BP), and descend into crystalline caves and nightmarish dimensions.
+
+**Core Pillars:**
+- **Dark Fantasy World** - Explore surreal biomes: serene purple meadows, bioluminescent dark forests, toxic poison pits, crystalline caverns, and fleshy void dimensions
+- **Brain-Powered Magic** - Harness BP (Brain Power) alongside traditional HP and Stamina to cast spells, summon shields, and wield elemental weapons
+- **Otherworldly Creatures** - Face ethereal dandelion bombers, rock trolls, gahnomes, and horrors from the void
+- **Open Source & Moddable** - Fully transparent, community-driven development with clean, documented code
+- **Responsive Multiplayer** - Client-side prediction for instant, satisfying co-op gameplay
+- **Trust-Based Networking** - Designed for cooperative play with friends, not paranoid anti-cheat
+- **Cross-Platform** - Linux, Windows, and Mac support via Godot Engine
 
 ---
 
@@ -33,7 +39,7 @@ Hamberg aims to capture the magic of Valheim while being:
 - ✅ **Valheim-style player body** (segmented body with programmatic animations)
 - ✅ **Proper crosshair** (positioned top-right for better visibility)
 - ✅ Procedural voxel terrain generation (Godot Voxel Tools)
-- ✅ Multi-biome world generation (Valley, Forest, Swamp, Mountain, Desert, Wizardland, Hell)
+- ✅ Multi-biome world generation (Meadow, Dark Forest, Poison Pit, Crystal Peaks, Hellscape, The Void)
 - ✅ Server-authoritative environmental objects (trees, rocks, grass)
 - ✅ Chunk-based streaming with load/unload
 - ✅ Deterministic procedural generation (consistent across clients)
@@ -50,6 +56,7 @@ Hamberg aims to capture the magic of Valheim while being:
 - ✅ **Workbench requirement** (must be near workbench to build)
 - ✅ **Health system** (100 HP, damage from enemies)
 - ✅ **Stamina system** (100 stamina, drains on sprint/jump/attack, regenerates)
+- ✅ **Brain Power system** (100 BP, used by magic weapons instead of stamina, slower regen)
 - ✅ **Enemy AI** (Gahnomes spawn naturally, chase and attack players)
 - ✅ **Equipment system** (Valheim-style: right-click to equip, items stay in inventory)
 - ✅ **Weapons & Combat** (5 weapons: stone sword, axe, knife, fire wand, bow)
@@ -114,7 +121,7 @@ Connect clients to `127.0.0.1:7777`, explore the world, gather resources, and bu
 ### Phase 2: Voxel Terrain ✅ **COMPLETE**
 - [x] Integration with Godot Voxel Tools
 - [x] Procedural terrain generation (biome-based)
-- [x] Multiple biomes (Valley, Forest, Swamp, Mountain, Desert, Wizardland, Hell)
+- [x] Multiple biomes (Meadow, Dark Forest, Poison Pit, Crystal Peaks, Hellscape, The Void)
 - [x] Chunk streaming with server-authoritative environmental objects
 - [x] Server-client world consistency
 - [x] Smart persistence (procedural + database)
@@ -405,8 +412,9 @@ Code that runs on both client and server. Contains core game systems and network
 
 - **shared/biome_generator.gd**
   - Procedural terrain heightmap generation
-  - 7 biomes (Valley, Forest, Swamp, Mountain, Desert, Wizardland, Hell)
+  - 6 biomes (Meadow, Dark Forest, Poison Pit, Crystal Peaks, Hellscape, The Void)
   - Deterministic from world seed
+  - Unique fantasy aesthetics (purple grass meadows, bioluminescent forests, toxic swamps, crystalline caves)
 
 - **shared/crafting_recipes.gd** (Autoload)
   - Central recipe database

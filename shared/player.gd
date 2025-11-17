@@ -114,6 +114,14 @@ const JUMP_STAMINA_COST: float = 10.0
 var stamina: float = MAX_STAMINA
 var stamina_regen_timer: float = 0.0  # Time since last stamina use
 
+# Brain Power system (for magic)
+const MAX_BRAIN_POWER: float = 100.0
+const BRAIN_POWER_REGEN_RATE: float = 10.0  # Per second (slower than stamina)
+const BRAIN_POWER_REGEN_DELAY: float = 2.0  # Delay after using brain power (longer than stamina)
+
+var brain_power: float = MAX_BRAIN_POWER
+var brain_power_regen_timer: float = 0.0  # Time since last brain power use
+
 # Health system
 const MAX_HEALTH: float = 100.0
 var health: float = MAX_HEALTH
@@ -179,6 +187,9 @@ func _physics_process(delta: float) -> void:
 
 	# Update stamina regeneration
 	_update_stamina(delta)
+
+	# Update brain power regeneration
+	_update_brain_power(delta)
 
 	# Handle blocking input
 	_handle_block_input(delta)
@@ -543,10 +554,16 @@ func _handle_attack() -> void:
 	var stamina_cost: float = weapon_data.stamina_cost
 	var attack_range: float = 5.0  # Melee range (TODO: make this weapon-specific)
 
-	# Check stamina cost
-	if not consume_stamina(stamina_cost):
-		print("[Player] Not enough stamina to attack!")
-		return
+	# Check resource cost (brain power for magic weapons, stamina for others)
+	var is_magic_weapon = weapon_data.weapon_type == WeaponData.WeaponType.MAGIC
+	if is_magic_weapon:
+		if not consume_brain_power(stamina_cost):  # For magic weapons, stamina_cost is actually brain power cost
+			print("[Player] Not enough brain power to attack!")
+			return
+	else:
+		if not consume_stamina(stamina_cost):
+			print("[Player] Not enough stamina to attack!")
+			return
 
 	# Trigger attack animation
 	is_attacking = true
@@ -740,14 +757,14 @@ func _special_attack_sword_stab(weapon_data: WeaponData, camera: Camera3D) -> vo
 
 ## Fire wand special: Area fire effect at mouse position (ground fire)
 func _special_attack_fire_wand_area(weapon_data: WeaponData, camera: Camera3D) -> void:
-	var stamina_cost: float = 30.0  # Very high stamina cost
+	var brain_power_cost: float = 30.0  # Very high brain power cost
 	var damage: float = weapon_data.damage * 1.2  # 1.2x damage per tick
 	var area_radius: float = 5.0  # 5 meter radius
 	var duration: float = 3.0  # 3 seconds of burning
 
-	# Check stamina cost
-	if not consume_stamina(stamina_cost):
-		print("[Player] Not enough stamina for fire area!")
+	# Check brain power cost (fire wand is a MAGIC weapon)
+	if not consume_brain_power(brain_power_cost):
+		print("[Player] Not enough brain power for fire area!")
 		return
 
 	print("[Player] Fire wand AREA EFFECT!")
@@ -786,15 +803,21 @@ func _special_attack_fire_wand_area(weapon_data: WeaponData, camera: Camera3D) -
 
 ## Default special attack (1.5x damage, same as normal attack otherwise)
 func _special_attack_default(weapon_data: WeaponData, camera: Camera3D) -> void:
-	var stamina_cost: float = weapon_data.stamina_cost * 2.0
+	var resource_cost: float = weapon_data.stamina_cost * 2.0
 	var damage: float = weapon_data.damage * 1.5
 	var knockback: float = weapon_data.knockback
 	var attack_range: float = 5.0
 
-	# Check stamina cost
-	if not consume_stamina(stamina_cost):
-		print("[Player] Not enough stamina for special attack!")
-		return
+	# Check resource cost (brain power for magic weapons, stamina for others)
+	var is_magic_weapon = weapon_data.weapon_type == WeaponData.WeaponType.MAGIC
+	if is_magic_weapon:
+		if not consume_brain_power(resource_cost):
+			print("[Player] Not enough brain power for special attack!")
+			return
+	else:
+		if not consume_stamina(resource_cost):
+			print("[Player] Not enough stamina for special attack!")
+			return
 
 	print("[Player] Special attack!")
 
@@ -1280,6 +1303,22 @@ func consume_stamina(amount: float) -> bool:
 		return true
 	return false
 
+## Update brain power regeneration
+func _update_brain_power(delta: float) -> void:
+	# Regenerate brain power after delay
+	brain_power_regen_timer += delta
+
+	if brain_power_regen_timer >= BRAIN_POWER_REGEN_DELAY:
+		brain_power = min(brain_power + BRAIN_POWER_REGEN_RATE * delta, MAX_BRAIN_POWER)
+
+## Consume brain power (returns true if enough brain power available)
+func consume_brain_power(amount: float) -> bool:
+	if brain_power >= amount:
+		brain_power -= amount
+		brain_power_regen_timer = 0.0  # Reset regen delay
+		return true
+	return false
+
 ## Take damage (with blocking/parry support)
 func take_damage(damage: float, attacker_id: int = -1, knockback_dir: Vector3 = Vector3.ZERO) -> void:
 	if is_dead:
@@ -1431,6 +1470,7 @@ func respawn_at(spawn_position: Vector3) -> void:
 	is_dead = false
 	health = MAX_HEALTH
 	stamina = MAX_STAMINA
+	brain_power = MAX_BRAIN_POWER
 	global_position = spawn_position
 	velocity = Vector3.ZERO
 

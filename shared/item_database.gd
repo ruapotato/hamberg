@@ -134,14 +134,14 @@ func _register_weapon_fire_wand() -> void:
 	var weapon = WeaponData.new()
 	weapon.item_id = "fire_wand"
 	weapon.display_name = "Fire Wand"
-	weapon.description = "A magical wand that shoots fireballs. Ranged magic damage."
+	weapon.description = "A magical wand that shoots fireballs. Uses Brain Power (BP) instead of stamina."
 	weapon.weapon_type = WeaponData.WeaponType.MAGIC
 	weapon.damage = 12.0
 	weapon.damage_type = WeaponData.DamageType.FIRE
 	weapon.attack_speed = 1.0
 	weapon.knockback = 3.0
 	weapon.durability = 60
-	weapon.stamina_cost = 15.0  # Magic uses more stamina
+	weapon.stamina_cost = 15.0  # For magic weapons, this is actually brain power cost
 	weapon.projectile_speed = 30.0
 	weapon.weight = 1.5
 	weapon.weapon_scene = load("res://shared/weapons/fire_wand.tscn")
