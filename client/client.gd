@@ -13,6 +13,7 @@ var build_menu_scene := preload("res://client/ui/build_menu.tscn")
 var crafting_menu_scene := preload("res://client/ui/crafting_menu.tscn")
 var character_selection_scene := preload("res://client/ui/character_selection.tscn")
 var pause_menu_scene := preload("res://client/ui/pause_menu.tscn")
+var loading_screen_scene := preload("res://client/ui/loading_screen.tscn")
 
 # Enemy scenes
 var gahnome_scene := preload("res://shared/enemies/gahnome.tscn")
@@ -20,9 +21,22 @@ var gahnome_scene := preload("res://shared/enemies/gahnome.tscn")
 # Client state
 var is_connected: bool = false
 var is_in_game: bool = false
+var is_loading: bool = false
 var local_player: Node3D = null
 var remote_players: Dictionary = {} # peer_id -> Player node
 var spawned_enemies: Dictionary = {} # NodePath -> Enemy node (visual only)
+
+# Loading state
+var loading_screen_ui: Control = null
+var queued_terrain_modifications: Array = []
+var loading_steps_complete: Dictionary = {
+	"world_config": false,
+	"buildables": false,
+	"player_spawned": false,
+	"terrain_ready": false,
+	"environmental_objects": false,
+	"terrain_modifications": false
+}
 
 # Inventory UI
 var hotbar_ui: Control = null
@@ -107,6 +121,10 @@ func _ready() -> void:
 	pause_menu_ui.save_pressed.connect(_on_pause_save)
 	pause_menu_ui.quit_pressed.connect(_on_pause_quit)
 
+	# Create loading screen
+	loading_screen_ui = loading_screen_scene.instantiate()
+	canvas_layer.add_child(loading_screen_ui)
+
 	# Hide HUD initially
 	hud.visible = false
 
@@ -130,6 +148,10 @@ func _process(_delta: float) -> void:
 	# Handle pause menu
 	if Input.is_action_just_pressed("ui_cancel") and is_in_game:
 		_toggle_pause_menu()
+
+	# Handle manual save
+	if Input.is_action_just_pressed("manual_save") and is_in_game:
+		_request_server_save()
 
 func auto_connect_to_localhost() -> void:
 	"""Auto-connect to localhost for singleplayer mode"""
@@ -338,7 +360,7 @@ func _open_crafting_menu() -> void:
 func spawn_player(peer_id: int, player_name: String, spawn_pos: Vector3) -> void:
 	print("[Client] Spawning player: %s (ID: %d)" % [player_name, peer_id])
 
-	var is_local := peer_id == NetworkManager.get_local_player_id()
+	var is_local: bool = peer_id == NetworkManager.get_local_player_id()
 
 	# Check if player already exists
 	if is_local and local_player:
@@ -362,7 +384,6 @@ func spawn_player(peer_id: int, player_name: String, spawn_pos: Vector3) -> void
 	if is_local:
 		# This is our local player
 		local_player = player
-		is_in_game = true
 		print("[Client] Local player spawned at %s" % spawn_pos)
 
 		# Show HUD
@@ -373,6 +394,20 @@ func spawn_player(peer_id: int, player_name: String, spawn_pos: Vector3) -> void
 
 		# Setup inventory UI
 		_setup_inventory_ui(player)
+
+		# Mark loading step complete and start waiting for terrain
+		_mark_loading_step_complete("player_spawned")
+
+		# Wait for buildables (give server time to send them)
+		await get_tree().create_timer(0.5).timeout
+		_mark_loading_step_complete("buildables")
+
+		# Wait for environmental objects (assume first chunk loads quickly)
+		await get_tree().create_timer(1.0).timeout
+		_mark_loading_step_complete("environmental_objects")
+
+		# Start checking if terrain is ready
+		_check_terrain_ready()
 	else:
 		# This is a remote player
 		remote_players[peer_id] = player
@@ -635,6 +670,9 @@ func receive_world_config(world_data: Dictionary) -> void:
 	else:
 		push_error("[Client] VoxelWorld not found!")
 
+	# Mark loading step complete
+	_mark_loading_step_complete("world_config")
+
 # ============================================================================
 # CHARACTER SELECTION AND PERSISTENCE
 # ============================================================================
@@ -649,6 +687,9 @@ func receive_character_list(characters: Array) -> void:
 ## Handle character selection
 func _on_character_selected(character_id: String, character_name: String, is_new: bool) -> void:
 	print("[Client] Character selected: %s (%s), new: %s" % [character_name, character_id, is_new])
+
+	# Start loading sequence
+	_start_loading()
 
 	# Set character name in discovery tracker
 	if item_discovery_tracker:
@@ -913,3 +954,204 @@ func despawn_enemy(enemy_path: NodePath) -> void:
 
 # CLIENT-AUTHORITATIVE: Each client simulates enemies independently
 # No server state updates needed - enemies run full AI/physics on all clients
+
+## Request server to perform a manual save (triggered by F5 key)
+func _request_server_save() -> void:
+	print("[Client] Requesting manual save (F5 pressed)...")
+	NetworkManager.rpc_request_save.rpc_id(1)
+
+## Show save notification when server completes the save
+func show_save_notification() -> void:
+	print("[Client] Server save completed!")
+	_show_discovery_notification("Game Saved")
+
+# ============================================================================
+# LOADING SCREEN MANAGEMENT
+# ============================================================================
+
+## Start loading sequence
+func _start_loading() -> void:
+	print("[Client] Starting loading sequence")
+	is_loading = true
+
+	# Reset loading state
+	for key in loading_steps_complete.keys():
+		loading_steps_complete[key] = false
+
+	queued_terrain_modifications.clear()
+
+	# Show loading screen
+	if loading_screen_ui:
+		loading_screen_ui.show_loading()
+		loading_screen_ui.enable_skip()  # Allow ESC to skip for debugging
+
+	# Disable player physics if spawned
+	if local_player:
+		_disable_player_physics()
+
+## Mark a loading step as complete
+func _mark_loading_step_complete(step: String) -> void:
+	if not loading_steps_complete.has(step):
+		push_warning("[Client] Unknown loading step: %s" % step)
+		return
+
+	loading_steps_complete[step] = true
+	print("[Client] Loading step complete: %s" % step)
+	_update_loading_progress()
+	_check_loading_complete()
+
+## Update loading progress bar
+func _update_loading_progress() -> void:
+	if not loading_screen_ui or not is_loading:
+		return
+
+	var completed_steps: int = 0
+	var total_steps: int = loading_steps_complete.size()
+
+	for step in loading_steps_complete.keys():
+		if loading_steps_complete[step]:
+			completed_steps += 1
+
+	var progress: float = float(completed_steps) / float(total_steps)
+	loading_screen_ui.set_progress(progress)
+
+	# Update status based on current step
+	if not loading_steps_complete["world_config"]:
+		loading_screen_ui.set_status("Receiving world configuration...")
+	elif not loading_steps_complete["buildables"]:
+		loading_screen_ui.set_status("Loading structures...")
+	elif not loading_steps_complete["player_spawned"]:
+		loading_screen_ui.set_status("Spawning player...")
+	elif not loading_steps_complete["terrain_ready"]:
+		loading_screen_ui.set_status("Generating terrain...")
+	elif not loading_steps_complete["environmental_objects"]:
+		loading_screen_ui.set_status("Spawning environmental objects...")
+	elif not loading_steps_complete["terrain_modifications"]:
+		loading_screen_ui.set_status("Applying terrain modifications...")
+
+## Check if all loading steps are complete
+func _check_loading_complete() -> void:
+	if not is_loading:
+		return
+
+	# Check if all steps are done
+	var all_complete: bool = true
+	for step in loading_steps_complete.keys():
+		if not loading_steps_complete[step]:
+			all_complete = false
+			break
+
+	if all_complete:
+		_finish_loading()
+
+## Finish loading and enter game
+func _finish_loading() -> void:
+	print("[Client] Loading complete!")
+	is_loading = false
+
+	# Enable player physics
+	if local_player:
+		_enable_player_physics()
+
+	# Hide loading screen
+	if loading_screen_ui:
+		loading_screen_ui.hide_loading()
+
+	# Show HUD and enable gameplay
+	is_in_game = true
+
+## Debug skip loading screen
+func loading_screen_skipped() -> void:
+	print("[Client] Loading screen skipped (debug)")
+	_finish_loading()
+
+## Disable player physics during loading
+func _disable_player_physics() -> void:
+	if not local_player:
+		return
+
+	# Disable player's CharacterBody3D physics
+	if local_player.has_method("set_physics_process"):
+		local_player.set_physics_process(false)
+
+	# Freeze position
+	if local_player is CharacterBody3D:
+		local_player.set_physics_process(false)
+
+	print("[Client] Player physics disabled during loading")
+
+## Enable player physics after loading
+func _enable_player_physics() -> void:
+	if not local_player:
+		return
+
+	# Enable player's CharacterBody3D physics
+	if local_player.has_method("set_physics_process"):
+		local_player.set_physics_process(true)
+
+	if local_player is CharacterBody3D:
+		local_player.set_physics_process(true)
+
+	print("[Client] Player physics enabled")
+
+## Check if terrain is ready (chunks loaded around player)
+func _check_terrain_ready() -> void:
+	if not local_player or not is_loading:
+		return
+
+	# For now, wait a few frames for terrain to generate
+	# TODO: Could check VoxelLodTerrain's loaded blocks
+	await get_tree().create_timer(2.0).timeout
+
+	if is_loading:  # Still loading
+		print("[Client] Terrain ready")
+		_mark_loading_step_complete("terrain_ready")
+
+		# Start applying queued terrain modifications
+		_apply_queued_terrain_modifications()
+
+## Queue terrain modification for later application
+func queue_terrain_modification(operation: String, position: Array, data: Dictionary) -> void:
+	queued_terrain_modifications.append({
+		"operation": operation,
+		"position": position,
+		"data": data
+	})
+	print("[Client] Queued terrain modification: %s (total: %d)" % [operation, queued_terrain_modifications.size()])
+
+## Apply all queued terrain modifications
+func _apply_queued_terrain_modifications() -> void:
+	if queued_terrain_modifications.is_empty():
+		print("[Client] No queued terrain modifications to apply")
+		_mark_loading_step_complete("terrain_modifications")
+		return
+
+	print("[Client] Applying %d queued terrain modifications..." % queued_terrain_modifications.size())
+
+	for mod in queued_terrain_modifications:
+		_apply_terrain_modification_internal(mod.operation, mod.position, mod.data)
+
+	queued_terrain_modifications.clear()
+	_mark_loading_step_complete("terrain_modifications")
+
+## Internal terrain modification application
+func _apply_terrain_modification_internal(operation: String, position: Array, data: Dictionary) -> void:
+	if not voxel_world:
+		return
+
+	var pos_v3 := Vector3(position[0], position[1], position[2])
+	var tool_name: String = data.get("tool", "stone_pickaxe")
+	var earth_amount: int = data.get("earth_amount", 0)
+
+	match operation:
+		"dig_circle":
+			voxel_world.dig_circle(pos_v3, tool_name)
+		"dig_square":
+			voxel_world.dig_square(pos_v3, tool_name)
+		"level_circle":
+			var target_height: float = data.get("target_height", pos_v3.y)
+			voxel_world.level_circle(pos_v3, target_height)
+		"place_circle":
+			voxel_world.place_circle(pos_v3, earth_amount)
+		"place_square":
+			voxel_world.place_square(pos_v3, earth_amount)

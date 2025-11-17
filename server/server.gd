@@ -58,6 +58,13 @@ func _ready() -> void:
 	if DisplayServer.get_name() == "headless":
 		_setup_console_input()
 
+func _notification(what: int) -> void:
+	# Handle shutdown notifications to ensure data is saved
+	if what == NOTIFICATION_WM_CLOSE_REQUEST or what == NOTIFICATION_PREDELETE:
+		if is_running:
+			print("[Server] Received shutdown signal, saving data...")
+			stop_server()
+
 ## Setup enemy spawner (server-only)
 func _setup_enemy_spawner() -> void:
 	var EnemySpawner = preload("res://server/enemy_spawner.gd")
@@ -120,6 +127,9 @@ func start_server(port: int = 7777, max_players: int = 10) -> void:
 	# Load world state (buildables, etc.)
 	_load_world_state()
 
+	# Load terrain modification history
+	_load_terrain_history()
+
 	if NetworkManager.start_server(port, max_players):
 		is_running = true
 		print("[Server] ===========================================")
@@ -147,6 +157,9 @@ func stop_server() -> void:
 
 	# Save environmental chunks (trees, rocks, etc.)
 	_save_environmental_chunks()
+
+	# Save terrain modification history
+	_save_terrain_history()
 
 	# Kick all players
 	for peer_id in spawned_players.keys():
@@ -187,6 +200,7 @@ func _auto_save() -> void:
 	_save_all_players()
 	_save_world_state()
 	_save_environmental_chunks()
+	_save_terrain_history()
 	print("[Server] Auto-save complete")
 
 func _broadcast_player_states() -> void:
@@ -731,6 +745,7 @@ func handle_destroy_buildable(peer_id: int, network_id: String) -> void:
 
 ## Track all terrain modifications for replication to new clients
 var terrain_modification_history: Array = []  # Array of {operation, position, data}
+const TERRAIN_HISTORY_FILE := "user://worlds/%s/terrain_history.json"
 
 ## Handle terrain modification request (server-authoritative)
 func handle_terrain_modification(peer_id: int, operation: String, position: Vector3, data: Dictionary) -> void:
@@ -851,6 +866,129 @@ func handle_terrain_modification(peer_id: int, operation: String, position: Vect
 	print("[Server] Terrain modification complete - broadcasted to all clients")
 	print("[Server] ========================================")
 
+## Handle manual save request from client
+func handle_manual_save_request(peer_id: int) -> void:
+	print("[Server] Player %d requested manual save" % peer_id)
+
+	# Perform full save
+	print("[Server] Executing manual save...")
+	_save_all_players()
+	_save_world_state()
+	_save_environmental_chunks()
+	_save_terrain_history()
+	print("[Server] Manual save complete")
+
+	# Notify all clients that save is complete
+	NetworkManager.rpc_save_completed.rpc()
+
+## Save terrain modification history to disk
+func _save_terrain_history() -> void:
+	if terrain_modification_history.is_empty():
+		print("[Server] No terrain modifications to save")
+		return
+
+	var history_file_path := TERRAIN_HISTORY_FILE % world_config.world_name
+	var file := FileAccess.open(history_file_path, FileAccess.WRITE)
+
+	if not file:
+		push_error("[Server] Failed to open terrain history file for writing: %s" % history_file_path)
+		return
+
+	var json_string := JSON.stringify(terrain_modification_history, "\t")
+	file.store_string(json_string)
+	file.close()
+
+	print("[Server] Saved %d terrain modifications to %s" % [terrain_modification_history.size(), history_file_path])
+
+## Load terrain modification history from disk
+func _load_terrain_history() -> void:
+	var history_file_path := TERRAIN_HISTORY_FILE % world_config.world_name
+
+	if not FileAccess.file_exists(history_file_path):
+		print("[Server] No terrain history file found at %s - starting fresh" % history_file_path)
+		terrain_modification_history = []
+		return
+
+	var file := FileAccess.open(history_file_path, FileAccess.READ)
+
+	if not file:
+		push_error("[Server] Failed to open terrain history file for reading: %s" % history_file_path)
+		terrain_modification_history = []
+		return
+
+	var json_string := file.get_as_text()
+	file.close()
+
+	var json := JSON.new()
+	var parse_result := json.parse(json_string)
+
+	if parse_result != OK:
+		push_error("[Server] Failed to parse terrain history JSON: %s" % json.get_error_message())
+		terrain_modification_history = []
+		return
+
+	var loaded_data = json.get_data()
+	if loaded_data is Array:
+		terrain_modification_history = loaded_data
+		print("[Server] Loaded %d terrain modifications from %s" % [terrain_modification_history.size(), history_file_path])
+
+		# Apply all loaded modifications to server's terrain
+		_apply_loaded_terrain_history()
+	else:
+		push_error("[Server] Terrain history file contains invalid data (expected Array)")
+		terrain_modification_history = []
+
+## Apply loaded terrain history to the server's terrain
+func _apply_loaded_terrain_history() -> void:
+	if terrain_modification_history.is_empty():
+		return
+
+	if not voxel_world:
+		push_warning("[Server] Cannot apply terrain history - voxel_world not ready yet")
+		# Schedule application for when voxel_world is ready
+		call_deferred("_apply_loaded_terrain_history_deferred")
+		return
+
+	print("[Server] Applying %d loaded terrain modifications to server terrain..." % terrain_modification_history.size())
+
+	for modification in terrain_modification_history:
+		var operation: String = modification.operation
+		var position: Array = modification.position
+		var pos_v3 := Vector3(position[0], position[1], position[2])
+		var data: Dictionary = modification.data
+
+		# Apply modification directly to server's terrain (no inventory checks for loaded data)
+		match operation:
+			"dig_circle":
+				var tool_name: String = data.get("tool", "stone_pickaxe")
+				voxel_world.dig_circle(pos_v3, tool_name)
+
+			"dig_square":
+				var tool_name: String = data.get("tool", "stone_pickaxe")
+				voxel_world.dig_square(pos_v3, tool_name)
+
+			"level_circle":
+				var target_height: float = data.get("target_height", pos_v3.y)
+				voxel_world.level_circle(pos_v3, target_height)
+
+			"place_circle":
+				# Place with a large amount since we're restoring saved state
+				voxel_world.place_circle(pos_v3, 999999)
+
+			"place_square":
+				# Place with a large amount since we're restoring saved state
+				voxel_world.place_square(pos_v3, 999999)
+
+	print("[Server] Applied %d terrain modifications to server terrain" % terrain_modification_history.size())
+
+## Deferred application of terrain history (when voxel_world becomes ready)
+func _apply_loaded_terrain_history_deferred() -> void:
+	# Wait for voxel_world to be initialized
+	if not voxel_world:
+		await get_tree().process_frame
+
+	_apply_loaded_terrain_history()
+
 # ============================================================================
 # CONSOLE COMMANDS (for dedicated server)
 # ============================================================================
@@ -879,7 +1017,7 @@ func _execute_console_command(command: String) -> void:
 		"players":
 			print("[Server] Connected players (%d):" % NetworkManager.connected_players.size())
 			for peer_id in NetworkManager.connected_players:
-				var info := NetworkManager.get_player_info(peer_id)
+				var info: Dictionary = NetworkManager.get_player_info(peer_id)
 				print("  [%d] %s" % [peer_id, info.get("name", "Unknown")])
 
 		"kick":
@@ -899,6 +1037,7 @@ func _execute_console_command(command: String) -> void:
 			_save_all_players()
 			_save_world_state()
 			_save_environmental_chunks()
+			_save_terrain_history()
 			print("[Server] Save complete")
 
 		"shutdown":

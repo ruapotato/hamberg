@@ -323,6 +323,14 @@ func rpc_modify_terrain(operation: String, position: Array, data: Dictionary) ->
 func rpc_apply_terrain_modification(operation: String, position: Array, data: Dictionary) -> void:
 	print("[NetworkManager] Received terrain modification from server: %s at %s" % [operation, position])
 
+	# Check if client is still loading
+	var client_node := get_node_or_null("/root/Main/Client")
+	if client_node and client_node.get("is_loading"):
+		# Queue modification for later application
+		if client_node.has_method("queue_terrain_modification"):
+			client_node.queue_terrain_modification(operation, position, data)
+		return
+
 	# Get the voxel world on the client
 	var voxel_world = get_node_or_null("/root/Main/Client/World/VoxelWorld")
 	if not voxel_world:
@@ -579,9 +587,21 @@ func rpc_request_save() -> void:
 		return
 
 	var peer_id := multiplayer.get_remote_sender_id()
+	print("[NetworkManager] Player %d requested manual save" % peer_id)
+
 	var server_node := get_node_or_null("/root/Main/Server")
-	if server_node and server_node.has_method("handle_save_request"):
-		server_node.handle_save_request(peer_id)
+	if server_node and server_node.has_method("handle_manual_save_request"):
+		server_node.handle_manual_save_request(peer_id)
+
+## SERVER -> CLIENT: Confirm save completed
+@rpc("authority", "call_remote", "reliable")
+func rpc_save_completed() -> void:
+	print("[NetworkManager] Server save completed")
+
+	# Show notification to client
+	var client_node := get_node_or_null("/root/Main/Client")
+	if client_node and client_node.has_method("show_save_notification"):
+		client_node.show_save_notification()
 
 ## CLIENT -> SERVER: Request to equip an item
 @rpc("any_peer", "call_remote", "reliable")
