@@ -24,12 +24,13 @@ var tool_effectiveness: Dictionary = {
 var current_mining_progress: Dictionary = {}  # position -> {progress: float, total_required: float}
 
 # Shape parameters
-const CIRCLE_RADIUS: float = 2.0  # Radius for circle operations
-const SQUARE_SIZE: float = 4.0    # Size for square operations (4x4)
-const DEPTH_PER_DIG: float = 2.0  # How deep to dig per operation
+const CIRCLE_RADIUS: float = 1.0  # Radius for circle operations (reduced from 2.0)
+const SQUARE_SIZE: float = 4.0    # Size for square operations (4x4, aligned to voxel grid)
+const SQUARE_DEPTH: float = 3.0   # How deep to dig for square operations (centered on click)
+const DEPTH_PER_DIG: float = 1.5  # How deep to dig per operation (for other uses)
 
 # Material collection
-const EARTH_PER_VOXEL: int = 1  # How much earth to give per voxel removed
+const EARTH_PER_VOXEL: float = 0.25  # How much earth to give per voxel removed (reduced from 1.0)
 
 func _ready() -> void:
 	print("[TerrainModifier] Terrain modifier ready")
@@ -118,32 +119,44 @@ func dig_square(world_position: Vector3, tool_name: String = "stone_pickaxe") ->
 	# Calculate mining difficulty based on depth
 	var mining_speed := get_mining_speed_at_depth(world_position.y, tool_name)
 
-	# Set mode to remove
+	# Set mode to remove with stronger settings for sharper cube edges
 	voxel_tool.mode = VoxelTool.MODE_REMOVE
 	voxel_tool.channel = VoxelBuffer.CHANNEL_SDF
-	voxel_tool.sdf_strength = 1.0  # Full strength
+	voxel_tool.sdf_strength = 5.0  # Higher strength for sharper cube edges
+	voxel_tool.sdf_scale = 0.5  # Tighter scale for crisper cuts
 
-	# Dig a box at the target position
-	var half_size := SQUARE_SIZE / 2
+	# Dig a box centered on the target position (works for floor, ceiling, and walls)
+	# Align to voxel grid by rounding the center position first
+	var center_x := roundi(world_position.x)
+	var center_y := roundi(world_position.y)
+	var center_z := roundi(world_position.z)
+
+	var half_size := int(SQUARE_SIZE / 2)
+	var half_depth := int(SQUARE_DEPTH / 2)
+
 	var begin := Vector3i(
-		int(world_position.x - half_size),
-		int(world_position.y - DEPTH_PER_DIG),
-		int(world_position.z - half_size)
+		center_x - half_size,
+		center_y - half_depth,  # Center the box vertically on click point
+		center_z - half_size
 	)
 	var end := Vector3i(
-		int(world_position.x + half_size),
-		int(world_position.y),
-		int(world_position.z + half_size)
+		center_x + half_size,
+		center_y + half_depth,  # Dig equally up and down from center
+		center_z + half_size
 	)
 
 	print("[TerrainModifier] Calling do_box from %s to %s" % [begin, end])
 	voxel_tool.do_box(begin, end)
 
+	# Reset SDF settings to default after box operation
+	voxel_tool.sdf_strength = 1.0
+	voxel_tool.sdf_scale = 1.0
+
 	# Stream disabled - using in-memory history replay system
 	# No disk persistence needed
 
 	# Calculate earth collected (box volume)
-	var volume := SQUARE_SIZE * SQUARE_SIZE * DEPTH_PER_DIG
+	var volume := SQUARE_SIZE * SQUARE_SIZE * SQUARE_DEPTH
 	var earth_collected := int(volume * EARTH_PER_VOXEL * mining_speed)
 
 	print("[TerrainModifier] Dug square, collected %d earth (speed: %.2f)" % [earth_collected, mining_speed])
@@ -223,32 +236,44 @@ func place_square(world_position: Vector3, earth_amount: int) -> int:
 
 	print("[TerrainModifier] Placing square at %s" % world_position)
 
-	# Set mode to add
+	# Set mode to add with stronger settings for sharper cube edges
 	voxel_tool.mode = VoxelTool.MODE_ADD
 	voxel_tool.channel = VoxelBuffer.CHANNEL_SDF
-	voxel_tool.sdf_strength = 1.0  # Full strength
+	voxel_tool.sdf_strength = 5.0  # Higher strength for sharper cube edges
+	voxel_tool.sdf_scale = 0.5  # Tighter scale for crisper placement
 
-	# Place a box at the target position
-	var half_size := SQUARE_SIZE / 2
+	# Place a box centered on the target position (consistent with dig behavior)
+	# Align to voxel grid by rounding the center position first
+	var center_x := roundi(world_position.x)
+	var center_y := roundi(world_position.y)
+	var center_z := roundi(world_position.z)
+
+	var half_size := int(SQUARE_SIZE / 2)
+	var half_depth := int(SQUARE_DEPTH / 2)
+
 	var begin := Vector3i(
-		int(world_position.x - half_size),
-		int(world_position.y),
-		int(world_position.z - half_size)
+		center_x - half_size,
+		center_y - half_depth,  # Center the box vertically on click point
+		center_z - half_size
 	)
 	var end := Vector3i(
-		int(world_position.x + half_size),
-		int(world_position.y + DEPTH_PER_DIG),
-		int(world_position.z + half_size)
+		center_x + half_size,
+		center_y + half_depth,  # Place equally up and down from center
+		center_z + half_size
 	)
 
 	print("[TerrainModifier] Calling do_box (ADD mode) from %s to %s" % [begin, end])
 	voxel_tool.do_box(begin, end)
 
+	# Reset SDF settings to default after box operation
+	voxel_tool.sdf_strength = 1.0
+	voxel_tool.sdf_scale = 1.0
+
 	# Stream disabled - using in-memory history replay system
 	# No disk persistence needed
 
 	# Calculate earth used (box volume)
-	var volume := SQUARE_SIZE * SQUARE_SIZE * DEPTH_PER_DIG
+	var volume := SQUARE_SIZE * SQUARE_SIZE * SQUARE_DEPTH
 	var earth_used := int(min(volume * EARTH_PER_VOXEL, earth_amount))
 
 	print("[TerrainModifier] Placed square, used %d earth" % earth_used)

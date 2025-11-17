@@ -95,6 +95,12 @@ var body_container: Node3D = null
 var equipped_weapon_visual: Node3D = null  # Main hand weapon
 var equipped_shield_visual: Node3D = null  # Off hand shield
 
+# Terrain dig visual feedback
+var terrain_preview_sphere: MeshInstance3D = null
+var terrain_preview_cube: MeshInstance3D = null
+var terrain_preview_timer: float = 0.0
+const TERRAIN_PREVIEW_DURATION: float = 0.8  # How long to show the preview shape
+
 # Player identity
 var player_name: String = "Unknown"
 
@@ -154,12 +160,23 @@ func _ready() -> void:
 	# Setup player body visuals
 	_setup_player_body()
 
+	# Setup terrain preview shapes (only for local player)
+	if is_local_player:
+		_setup_terrain_preview_shapes()
+
 	if is_local_player:
 		# Local player uses client prediction
 		set_physics_process(true)
 	else:
 		# Remote players use interpolation
 		set_physics_process(false)
+
+func _exit_tree() -> void:
+	"""Clean up terrain preview shapes when player is removed"""
+	if terrain_preview_sphere and is_instance_valid(terrain_preview_sphere):
+		terrain_preview_sphere.queue_free()
+	if terrain_preview_cube and is_instance_valid(terrain_preview_cube):
+		terrain_preview_cube.queue_free()
 
 func _physics_process(delta: float) -> void:
 	if not is_local_player:
@@ -239,6 +256,16 @@ func _process(delta: float) -> void:
 	if not is_local_player:
 		# Remote players: Interpolate between states
 		_interpolate_remote_player(delta)
+	else:
+		# Local player: Update terrain preview timer
+		if terrain_preview_timer > 0.0:
+			terrain_preview_timer -= delta
+			if terrain_preview_timer <= 0.0:
+				# Hide both preview shapes when timer expires
+				if terrain_preview_sphere:
+					terrain_preview_sphere.visible = false
+				if terrain_preview_cube:
+					terrain_preview_cube.visible = false
 
 # ============================================================================
 # INPUT HANDLING (CLIENT-SIDE)
@@ -1044,9 +1071,37 @@ func _handle_terrain_modification_input(input_data: Dictionary) -> bool:
 		# Trigger visual feedback animation
 		_trigger_terrain_tool_animation(operation)
 
+		# Show terrain preview shape
+		_show_terrain_preview(operation, target_pos)
+
 		return true
 
 	return false
+
+## Show terrain preview shape
+func _show_terrain_preview(operation: String, position: Vector3) -> void:
+	if not terrain_preview_sphere or not terrain_preview_cube:
+		return
+
+	# Determine which shape to show based on operation
+	var is_sphere_operation := operation in ["dig_circle", "place_circle", "level_circle"]
+
+	if is_sphere_operation:
+		# Show sphere
+		terrain_preview_sphere.global_position = position
+		terrain_preview_sphere.visible = true
+		terrain_preview_cube.visible = false
+	else:
+		# Show cube, aligned to voxel grid like the actual dig
+		var center_x := roundi(position.x)
+		var center_y := roundi(position.y)
+		var center_z := roundi(position.z)
+		terrain_preview_cube.global_position = Vector3(center_x, center_y, center_z)
+		terrain_preview_cube.visible = true
+		terrain_preview_sphere.visible = false
+
+	# Reset the timer to keep shape visible
+	terrain_preview_timer = TERRAIN_PREVIEW_DURATION
 
 ## Trigger animation for terrain tool usage
 func _trigger_terrain_tool_animation(operation: String) -> void:
@@ -1178,6 +1233,43 @@ func _setup_player_body() -> void:
 
 	print("[Player] Player body loaded from player_body.tscn")
 	print("[Player] Body container parent: %s" % body_container.get_parent().name)
+
+func _setup_terrain_preview_shapes() -> void:
+	"""Create preview shapes for terrain modification feedback"""
+	# Create sphere preview
+	terrain_preview_sphere = MeshInstance3D.new()
+	var sphere_mesh = SphereMesh.new()
+	sphere_mesh.radius = 1.0  # Will match CIRCLE_RADIUS from terrain_modifier
+	sphere_mesh.height = 2.0
+	terrain_preview_sphere.mesh = sphere_mesh
+
+	# Semi-transparent white material
+	var sphere_material = StandardMaterial3D.new()
+	sphere_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	sphere_material.albedo_color = Color(1.0, 1.0, 1.0, 0.3)  # White, 30% opacity
+	sphere_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	terrain_preview_sphere.material_override = sphere_material
+
+	terrain_preview_sphere.visible = false
+	get_tree().root.add_child(terrain_preview_sphere)  # Add to scene root, not player
+
+	# Create cube preview
+	terrain_preview_cube = MeshInstance3D.new()
+	var cube_mesh = BoxMesh.new()
+	cube_mesh.size = Vector3(4.0, 3.0, 4.0)  # Will match SQUARE_SIZE and SQUARE_DEPTH
+	terrain_preview_cube.mesh = cube_mesh
+
+	# Semi-transparent white material
+	var cube_material = StandardMaterial3D.new()
+	cube_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	cube_material.albedo_color = Color(1.0, 1.0, 1.0, 0.3)  # White, 30% opacity
+	cube_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	terrain_preview_cube.material_override = cube_material
+
+	terrain_preview_cube.visible = false
+	get_tree().root.add_child(terrain_preview_cube)  # Add to scene root, not player
+
+	print("[Player] Terrain preview shapes created")
 
 func _update_body_animations(delta: float) -> void:
 	"""Animate the legs, arms, and torso based on movement"""

@@ -63,7 +63,7 @@ func _on_slot_right_clicked(slot_index: int) -> void:
 	# Determine which equipment slot to equip to based on item type
 	var equip_slot = -1
 	match item_data.item_type:
-		ItemData.ItemType.WEAPON, ItemData.ItemType.TOOL:
+		ItemData.ItemType.WEAPON, ItemData.ItemType.TOOL, ItemData.ItemType.RESOURCE:
 			equip_slot = Equipment.EquipmentSlot.MAIN_HAND
 		ItemData.ItemType.SHIELD:
 			equip_slot = Equipment.EquipmentSlot.OFF_HAND
@@ -121,7 +121,7 @@ func select_slot(index: int) -> void:
 		if item_data:
 			var equip_slot = -1
 			match item_data.item_type:
-				ItemData.ItemType.WEAPON, ItemData.ItemType.TOOL:
+				ItemData.ItemType.WEAPON, ItemData.ItemType.TOOL, ItemData.ItemType.RESOURCE:
 					equip_slot = Equipment.EquipmentSlot.MAIN_HAND
 				ItemData.ItemType.SHIELD:
 					equip_slot = Equipment.EquipmentSlot.OFF_HAND
@@ -145,7 +145,7 @@ func select_slot(index: int) -> void:
 		if item_data:
 			var equip_slot = -1
 			match item_data.item_type:
-				ItemData.ItemType.WEAPON, ItemData.ItemType.TOOL:
+				ItemData.ItemType.WEAPON, ItemData.ItemType.TOOL, ItemData.ItemType.RESOURCE:
 					equip_slot = Equipment.EquipmentSlot.MAIN_HAND
 				ItemData.ItemType.SHIELD:
 					equip_slot = Equipment.EquipmentSlot.OFF_HAND

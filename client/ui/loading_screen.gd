@@ -17,7 +17,9 @@ func _input(event: InputEvent) -> void:
 	if event.is_action_pressed("ui_cancel") and can_skip:
 		print("[LoadingScreen] Debug skip requested")
 		hide()
-		get_parent().loading_screen_skipped()
+		# Notify parent if it has the callback method
+		if get_parent().has_method("loading_screen_skipped"):
+			get_parent().loading_screen_skipped()
 
 ## Show the loading screen
 func show_loading() -> void:

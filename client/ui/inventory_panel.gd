@@ -77,7 +77,7 @@ func _on_slot_right_clicked(slot_index: int) -> void:
 	# Determine which slot to equip to based on item type
 	var equip_slot = -1
 	match item_data.item_type:
-		ItemData.ItemType.WEAPON, ItemData.ItemType.TOOL:
+		ItemData.ItemType.WEAPON, ItemData.ItemType.TOOL, ItemData.ItemType.RESOURCE:
 			equip_slot = Equipment.EquipmentSlot.MAIN_HAND
 		ItemData.ItemType.SHIELD:
 			equip_slot = Equipment.EquipmentSlot.OFF_HAND
