@@ -1138,7 +1138,8 @@ func _start_loading() -> void:
 	# Show loading screen
 	if loading_screen_ui:
 		loading_screen_ui.show_loading()
-		loading_screen_ui.enable_skip()  # Allow ESC to skip for debugging
+		# Debug skip disabled - was causing premature loading completion
+		# loading_screen_ui.enable_skip()  # Allow ESC to skip for debugging
 
 	# Disable player physics if spawned
 	if local_player:

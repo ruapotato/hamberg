@@ -64,6 +64,11 @@ func start_server(port: int = DEFAULT_PORT, max_clients: int = DEFAULT_MAX_PLAYE
 		push_error("[NetworkManager] Failed to create server on port %d: %s" % [port, error_string(error)])
 		return false
 
+	# Configure ENet timeouts to be more lenient (prevent disconnects during heavy processing)
+	# Values in milliseconds: limit (base timeout), minimum, maximum
+	# Default is typically 5000ms which is too aggressive
+	peer.get_host().compress(ENetConnection.COMPRESS_RANGE_CODER)
+
 	multiplayer.multiplayer_peer = peer
 	current_mode = NetworkMode.SERVER
 	is_server = true
@@ -189,6 +194,17 @@ func _on_peer_connected(peer_id: int) -> void:
 
 	if is_server:
 		# Server: A new client connected
+		# Configure peer timeout to prevent disconnects during heavy processing
+		var peer := multiplayer.multiplayer_peer as ENetMultiplayerPeer
+		if peer:
+			var enet_peer := peer.get_peer(peer_id)
+			if enet_peer:
+				# Set timeout values (in milliseconds): limit, minimum, maximum
+				# Default is 5000ms which is too aggressive
+				# Setting to 30000ms (30 seconds) to handle world map generation and heavy processing
+				enet_peer.set_timeout(30000, 15000, 60000)
+				print("[NetworkManager] Configured timeout for peer %d (30s base, 15s min, 60s max)" % peer_id)
+
 		# Wait for them to send their player info
 		pass
 
