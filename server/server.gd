@@ -13,6 +13,7 @@ var player_scene := preload("res://shared/player.tscn")
 var spawned_players: Dictionary = {} # peer_id -> Player node
 var player_viewers: Dictionary = {} # peer_id -> VoxelViewer node
 var player_characters: Dictionary = {} # peer_id -> character_id (for saving on disconnect)
+var player_map_pins: Dictionary = {} # peer_id -> Array of map pins
 var player_spawn_area_center: Vector2 = Vector2(0, 0) # Center of spawn area
 
 # Buildable management
@@ -1109,8 +1110,11 @@ func _save_all_players() -> void:
 		if character_id.is_empty():
 			continue
 
-		# Serialize player data
-		var player_data = PlayerDataManager.serialize_player(player)
+		# Get map pins for this player
+		var pins = player_map_pins.get(peer_id, [])
+
+		# Serialize player data (including map pins)
+		var player_data = PlayerDataManager.serialize_player(player, pins)
 
 		# Preserve important fields from existing save
 		var existing_data = player_data_manager.load_player_data(character_id)
@@ -1267,6 +1271,12 @@ func _spawn_player_with_data(peer_id: int, player_data: Dictionary) -> void:
 	# Send inventory to client
 	if player_data.has("inventory"):
 		NetworkManager.rpc_sync_inventory.rpc_id(peer_id, player_data["inventory"])
+
+	# Send full character data (including map pins) to client
+	NetworkManager.rpc_send_character_data.rpc_id(peer_id, player_data)
+
+	# Load map pins for this player
+	player_map_pins[peer_id] = player_data.get("map_pins", [])
 
 ## Handle item pickup request (server-authoritative)
 func handle_pickup_request(peer_id: int, item_name: String, amount: int, network_id: String) -> void:
@@ -1489,3 +1499,16 @@ func handle_respawn_request(peer_id: int) -> void:
 	# Notify the client to respawn their local player
 	var pos_array = [spawn_position.x, spawn_position.y, spawn_position.z]
 	NetworkManager.rpc_player_respawned.rpc_id(peer_id, pos_array)
+
+# ============================================================================
+# MAP SYSTEM - PINS
+# ============================================================================
+
+func update_player_map_pins(peer_id: int, pins_data: Array) -> void:
+	"""Update map pins for a player (called from NetworkManager)"""
+	print("[Server] Updating map pins for peer %d (%d pins)" % [peer_id, pins_data.size()])
+
+	# Store pins for this player
+	player_map_pins[peer_id] = pins_data
+
+	# Pins will be saved when player disconnects or server saves

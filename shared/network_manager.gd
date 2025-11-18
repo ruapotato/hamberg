@@ -706,3 +706,62 @@ func rpc_update_enemy_states(states: Array) -> void:
 	var client_node := get_node_or_null("/root/Main/Client")
 	if client_node and client_node.has_method("update_enemy_states"):
 		client_node.update_enemy_states(states)
+
+# ============================================================================
+# MAP SYSTEM - PINGS
+# ============================================================================
+
+## CLIENT -> SERVER: Send a ping at world position
+@rpc("any_peer", "call_remote", "reliable")
+func rpc_send_ping(world_pos: Array) -> void:
+	var sender_id := multiplayer.get_remote_sender_id()
+
+	if is_server:
+		# Server received ping from client - broadcast to all clients
+		print("[NetworkManager] Broadcasting ping from peer %d at %s" % [sender_id, world_pos])
+		rpc_receive_ping.rpc(world_pos, sender_id)
+	else:
+		# Client sending to server (should be sent to server ID 1)
+		pass
+
+## SERVER -> CLIENTS: Receive a ping from another player
+@rpc("authority", "call_remote", "reliable")
+func rpc_receive_ping(world_pos: Array, from_peer: int) -> void:
+	if is_server:
+		return
+
+	print("[NetworkManager] Received ping from peer %d at %s" % [from_peer, world_pos])
+
+	var client_node := get_node_or_null("/root/Main/Client")
+	if client_node and client_node.has_method("receive_ping"):
+		client_node.receive_ping(Vector2(world_pos[0], world_pos[1]), from_peer)
+
+# ============================================================================
+# MAP SYSTEM - PINS
+# ============================================================================
+
+## CLIENT -> SERVER: Update map pins for persistence
+@rpc("any_peer", "call_remote", "reliable")
+func rpc_update_map_pins(pins_data: Array) -> void:
+	var sender_id := multiplayer.get_remote_sender_id()
+
+	if is_server:
+		# Server received pins update from client
+		print("[NetworkManager] Received map pins update from peer %d (%d pins)" % [sender_id, pins_data.size()])
+
+		# Forward to server for saving
+		var server_node := get_node_or_null("/root/Main/Server")
+		if server_node and server_node.has_method("update_player_map_pins"):
+			server_node.update_player_map_pins(sender_id, pins_data)
+
+## SERVER -> CLIENT: Send character data (including map pins)
+@rpc("authority", "call_remote", "reliable")
+func rpc_send_character_data(character_data: Dictionary) -> void:
+	if is_server:
+		return
+
+	print("[NetworkManager] Received character data")
+
+	var client_node := get_node_or_null("/root/Main/Client")
+	if client_node and client_node.has_method("receive_character_data"):
+		client_node.receive_character_data(character_data)

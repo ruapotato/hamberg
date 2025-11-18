@@ -14,6 +14,8 @@ var crafting_menu_scene := preload("res://client/ui/crafting_menu.tscn")
 var character_selection_scene := preload("res://client/ui/character_selection.tscn")
 var pause_menu_scene := preload("res://client/ui/pause_menu.tscn")
 var loading_screen_scene := preload("res://client/ui/loading_screen.tscn")
+var world_map_scene := preload("res://client/ui/world_map.tscn")
+var mini_map_scene := preload("res://client/ui/mini_map.tscn")
 
 # Enemy scenes
 var gahnome_scene := preload("res://shared/enemies/gahnome.tscn")
@@ -35,7 +37,8 @@ var loading_steps_complete: Dictionary = {
 	"player_spawned": false,
 	"terrain_ready": false,
 	"environmental_objects": false,
-	"terrain_modifications": false
+	"terrain_modifications": false,
+	"world_map": false
 }
 
 # Inventory UI
@@ -46,6 +49,12 @@ var crafting_menu_ui: Control = null
 var character_selection_ui: Control = null
 var pause_menu_ui: Control = null
 var player_hud_ui: Control = null
+
+# Map UI
+var world_map_ui: Control = null
+var mini_map_ui: Control = null
+var ping_indicator_script = preload("res://client/ping_indicator.gd")
+var active_ping_indicators: Array = []  # 3D ping indicators in the world
 
 # Build mode
 var build_mode: Node = null
@@ -125,6 +134,16 @@ func _ready() -> void:
 	loading_screen_ui = loading_screen_scene.instantiate()
 	canvas_layer.add_child(loading_screen_ui)
 
+	# Create map UI (will be initialized after world config is received)
+	world_map_ui = world_map_scene.instantiate()
+	canvas_layer.add_child(world_map_ui)
+	if world_map_ui.has_signal("ping_sent"):
+		world_map_ui.ping_sent.connect(_on_map_ping_sent)
+
+	# Create mini-map UI
+	mini_map_ui = mini_map_scene.instantiate()
+	canvas_layer.add_child(mini_map_ui)
+
 	# Hide HUD initially
 	hud.visible = false
 
@@ -152,6 +171,10 @@ func _process(_delta: float) -> void:
 	# Handle manual save
 	if Input.is_action_just_pressed("manual_save") and is_in_game:
 		_request_server_save()
+
+	# Handle map toggle
+	if Input.is_action_just_pressed("toggle_map") and is_in_game:
+		_toggle_world_map()
 
 func auto_connect_to_localhost() -> void:
 	"""Auto-connect to localhost for singleplayer mode"""
@@ -394,6 +417,9 @@ func spawn_player(peer_id: int, player_name: String, spawn_pos: Vector3) -> void
 
 		# Setup inventory UI
 		_setup_inventory_ui(player)
+
+		# Initialize map system with player
+		_initialize_maps_with_player(player)
 
 		# Mark loading step complete and start waiting for terrain
 		_mark_loading_step_complete("player_spawned")
@@ -667,11 +693,66 @@ func receive_world_config(world_data: Dictionary) -> void:
 	if voxel_world:
 		voxel_world.initialize_world(world_seed, world_name)
 		print("[Client] Initialized world '%s' with seed %d" % [world_name, world_seed])
+
+		# Initialize map system with BiomeGenerator
+		_initialize_map_system()
 	else:
 		push_error("[Client] VoxelWorld not found!")
 
 	# Mark loading step complete
 	_mark_loading_step_complete("world_config")
+
+func _initialize_map_system() -> void:
+	"""Initialize map and mini-map with BiomeGenerator"""
+	if not voxel_world or not voxel_world.terrain:
+		push_error("[Client] Cannot initialize map - voxel world not ready")
+		return
+
+	var generator = voxel_world.terrain.generator
+	if not generator or not generator.has_method("get_height_at_position"):
+		push_error("[Client] Cannot initialize map - BiomeGenerator not found")
+		return
+
+	print("[Client] Map system ready - waiting for player spawn")
+
+func _initialize_maps_with_player(player: Node3D) -> void:
+	"""Initialize maps with BiomeGenerator and player reference"""
+	if not voxel_world or not voxel_world.terrain:
+		return
+
+	var generator = voxel_world.terrain.generator
+	if not generator:
+		return
+
+	print("[Client] Initializing maps with player and BiomeGenerator")
+
+	# Initialize world map
+	if world_map_ui and world_map_ui.has_method("initialize"):
+		world_map_ui.initialize(generator, player)
+		if world_map_ui.has_signal("pin_placed"):
+			world_map_ui.pin_placed.connect(_on_pin_placed)
+		print("[Client] World map initialized")
+
+	# Initialize mini-map
+	if mini_map_ui and mini_map_ui.has_method("initialize"):
+		mini_map_ui.initialize(generator, player)
+		print("[Client] Mini-map initialized")
+
+func _on_pin_placed(world_pos: Vector2, pin_name: String) -> void:
+	"""Called when a pin is placed on the map"""
+	print("[Client] Pin placed at %s: %s" % [world_pos, pin_name])
+
+	# Sync pins to mini-map
+	if world_map_ui and mini_map_ui:
+		var pins = world_map_ui.get_pins()
+		mini_map_ui.set_pins(pins)
+
+	# Send to server for persistence
+	var pins_data = []
+	if world_map_ui:
+		pins_data = world_map_ui.get_pins()
+
+	NetworkManager.rpc_update_map_pins.rpc_id(1, pins_data)
 
 # ============================================================================
 # CHARACTER SELECTION AND PERSISTENCE
@@ -718,6 +799,22 @@ func receive_inventory_sync(inventory_data: Array) -> void:
 		# Update hotbar UI if it exists
 		if hotbar_ui:
 			hotbar_ui.refresh_display()
+
+## Receive character data including map pins
+func receive_character_data(character_data: Dictionary) -> void:
+	"""Called when character is fully loaded from server"""
+	print("[Client] Received full character data")
+
+	# Load map pins if they exist
+	if character_data.has("map_pins"):
+		var pins = character_data.get("map_pins", [])
+		print("[Client] Loading %d map pins" % pins.size())
+
+		if world_map_ui:
+			world_map_ui.load_pins(pins)
+
+		if mini_map_ui:
+			mini_map_ui.set_pins(pins)
 
 ## Receive inventory slot update from server
 func receive_inventory_slot_update(slot: int, item: String, amount: int) -> void:
@@ -966,6 +1063,64 @@ func show_save_notification() -> void:
 	_show_discovery_notification("Game Saved")
 
 # ============================================================================
+# MAP SYSTEM
+# ============================================================================
+
+func _toggle_world_map() -> void:
+	if world_map_ui:
+		world_map_ui.toggle_map()
+
+		# Update remote players reference
+		if world_map_ui.visible:
+			world_map_ui.set_remote_players(remote_players)
+
+	# Also update mini-map remote players reference
+	if mini_map_ui:
+		mini_map_ui.set_remote_players(remote_players)
+
+func _on_map_ping_sent(world_pos: Vector2) -> void:
+	"""Called when player sends a ping from the map"""
+	print("[Client] Sending ping to server at %s" % world_pos)
+
+	# Send to server
+	NetworkManager.rpc_send_ping.rpc_id(1, [world_pos.x, world_pos.y])
+
+	# Create local 3D ping indicator
+	_create_ping_indicator(world_pos, NetworkManager.get_local_player_id())
+
+func receive_ping(world_pos: Vector2, from_peer: int) -> void:
+	"""Called by NetworkManager when receiving a ping from another player"""
+	print("[Client] Received ping from peer %d at %s" % [from_peer, world_pos])
+
+	# Add to map UIs
+	if world_map_ui:
+		world_map_ui.add_ping(world_pos, from_peer)
+
+	if mini_map_ui:
+		mini_map_ui.add_ping(world_pos, from_peer)
+
+	# Create 3D ping indicator
+	_create_ping_indicator(world_pos, from_peer)
+
+func _create_ping_indicator(world_pos: Vector2, from_peer: int) -> void:
+	"""Create a 3D ping indicator in the world"""
+	var indicator = Node3D.new()
+	indicator.set_script(ping_indicator_script)
+	world.add_child(indicator)
+
+	# Initialize after adding to tree
+	if indicator.has_method("initialize"):
+		indicator.initialize(world_pos, from_peer)
+
+	active_ping_indicators.append(indicator)
+
+	# Clean up expired indicators
+	for i in range(active_ping_indicators.size() - 1, -1, -1):
+		var ping = active_ping_indicators[i]
+		if not is_instance_valid(ping):
+			active_ping_indicators.remove_at(i)
+
+# ============================================================================
 # LOADING SCREEN MANAGEMENT
 # ============================================================================
 
@@ -1028,6 +1183,8 @@ func _update_loading_progress() -> void:
 		loading_screen_ui.set_status("Spawning environmental objects...")
 	elif not loading_steps_complete["terrain_modifications"]:
 		loading_screen_ui.set_status("Applying terrain modifications...")
+	elif not loading_steps_complete["world_map"]:
+		loading_screen_ui.set_status("Generating world map...")
 
 ## Check if all loading steps are complete
 func _check_loading_complete() -> void:
@@ -1134,6 +1291,9 @@ func _apply_queued_terrain_modifications() -> void:
 	queued_terrain_modifications.clear()
 	_mark_loading_step_complete("terrain_modifications")
 
+	# Generate world map cache after terrain is ready
+	_generate_world_map_cache()
+
 ## Internal terrain modification application
 func _apply_terrain_modification_internal(operation: String, position: Array, data: Dictionary) -> void:
 	if not voxel_world:
@@ -1155,3 +1315,13 @@ func _apply_terrain_modification_internal(operation: String, position: Array, da
 			voxel_world.place_circle(pos_v3, earth_amount)
 		"place_square":
 			voxel_world.place_square(pos_v3, earth_amount)
+
+## Generate world map cache during loading
+func _generate_world_map_cache() -> void:
+	print("[Client] Generating world map cache...")
+
+	if world_map_ui and world_map_ui.has_method("_generate_world_cache"):
+		world_map_ui._generate_world_cache()
+		print("[Client] World map cache generated successfully")
+
+	_mark_loading_step_complete("world_map")

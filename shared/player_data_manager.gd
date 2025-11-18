@@ -139,7 +139,8 @@ func create_new_character(character_name: String) -> Dictionary:
 		"max_health": 100.0,
 		"created_at": Time.get_unix_time_from_system(),
 		"last_played": Time.get_unix_time_from_system(),
-		"play_time": 0
+		"play_time": 0,
+		"map_pins": []  # Map pins (persistent per character)
 	}
 
 	# Initialize empty inventory (30 slots)
@@ -179,7 +180,7 @@ func delete_character(character_id: String) -> bool:
 		return false
 
 # Helper to convert player node to saveable data
-static func serialize_player(player: Node) -> Dictionary:
+static func serialize_player(player: Node, map_pins: Array = []) -> Dictionary:
 	var data = {
 		"character_name": player.player_name if "player_name" in player else "Unknown",
 		"position": [player.global_position.x, player.global_position.y, player.global_position.z],
@@ -187,7 +188,8 @@ static func serialize_player(player: Node) -> Dictionary:
 		"inventory": [],
 		"equipment": {},
 		"health": 100.0,  # Will be updated when health system exists
-		"max_health": 100.0
+		"max_health": 100.0,
+		"map_pins": map_pins  # Save map pins
 	}
 
 	# Serialize inventory if exists
