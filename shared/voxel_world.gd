@@ -158,20 +158,16 @@ func _setup_stream() -> void:
 	print("[VoxelWorld] Stream configured: %s" % stream.directory)
 
 func _setup_terrain_material() -> void:
-	print("[VoxelWorld] Setting up terrain material...")
+	print("[VoxelWorld] Setting up terrain material with biome shader...")
 
-	# Create a simple material with green color for now
-	var material = StandardMaterial3D.new()
-	material.albedo_color = Color(0.3, 0.6, 0.3)  # Green grass color
-	material.roughness = 0.9
-
-	# Try to apply to the mesher
-	var mesher = terrain.mesher
-	if mesher and mesher.has_method("set_material"):
-		mesher.set_material(material, 0)
-		print("[VoxelWorld] Material applied to mesher")
+	# The material is already set in the scene file (VoxelLodTerrain.material)
+	# We just need to update the world_seed parameter to match the world
+	if terrain.material and terrain.material is ShaderMaterial:
+		var shader_mat: ShaderMaterial = terrain.material as ShaderMaterial
+		shader_mat.set_shader_parameter("world_seed", world_seed)
+		print("[VoxelWorld] Updated terrain material world_seed to %d" % world_seed)
 	else:
-		print("[VoxelWorld] Could not apply material - mesher doesn't support it")
+		print("[VoxelWorld] Warning: Terrain material is not a ShaderMaterial!")
 
 func _setup_chunk_manager() -> void:
 	print("[VoxelWorld] Setting up environmental object spawning...")
