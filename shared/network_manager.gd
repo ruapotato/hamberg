@@ -195,10 +195,10 @@ func _on_peer_connected(peer_id: int) -> void:
 			var enet_peer := peer.get_peer(peer_id)
 			if enet_peer:
 				# Set timeout values (in milliseconds): limit, minimum, maximum
-				# Default is 5000ms which is too aggressive
-				# Setting to 30000ms (30 seconds) to handle world map generation and heavy processing
-				enet_peer.set_timeout(30000, 15000, 60000)
-				print("[NetworkManager] Configured timeout for peer %d (30s base, 15s min, 60s max)" % peer_id)
+				# Values must satisfy: limit < minimum < maximum
+				# Setting generous timeouts to handle world map generation and heavy processing
+				enet_peer.set_timeout(10000, 20000, 60000)  # 10s limit, 20s min, 60s max
+				print("[NetworkManager] Configured timeout for peer %d (10s limit, 20s min, 60s max)" % peer_id)
 
 		# Wait for them to send their player info
 		pass
