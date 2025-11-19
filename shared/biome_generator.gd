@@ -18,10 +18,12 @@ var biome_warp_z: FastNoiseLite     # Domain warping for Z
 var biome_scale_noise: FastNoiseLite # Controls biome size variation
 
 # Biome difficulty zones (distances from origin - used as weights, not hard boundaries)
-const SAFE_ZONE_RADIUS := 800.0      # Starting area - valley/forest likely
-const MID_ZONE_RADIUS := 2000.0      # Mid-game biomes
-const DANGER_ZONE_RADIUS := 4000.0   # Dangerous biomes
-# Beyond DANGER_ZONE_RADIUS: Hell biome becomes more common
+# Evenly distributed across the world - each zone gets ~5000 units
+const SAFE_ZONE_RADIUS := 5000.0      # Starting area - valley/forest only
+const MID_ZONE_RADIUS := 10000.0      # Mid-game biomes (swamp/desert appear)
+const DANGER_ZONE_RADIUS := 15000.0   # Dangerous biomes (mountains/wizardland)
+const EXTREME_ZONE_RADIUS := 20000.0  # Extreme biomes (heavy hell presence)
+# Beyond EXTREME_ZONE_RADIUS (20k-25k): Mostly hell biome
 
 # Terrain parameters per biome
 var biome_heights := {
@@ -151,20 +153,22 @@ func _get_biome_at_position(xz_pos: Vector2) -> String:
 	elif distance < MID_ZONE_RADIUS:
 		difficulty_tier = 1  # Mid-game biomes (forest, swamp, desert)
 	elif distance < DANGER_ZONE_RADIUS:
-		difficulty_tier = 2  # Dangerous biomes (mountain, wizardland, hell)
+		difficulty_tier = 2  # Dangerous biomes (mountain, wizardland, some hell)
+	elif distance < EXTREME_ZONE_RADIUS:
+		difficulty_tier = 3  # Very dangerous (heavy hell, wizardland, mountain)
 	else:
-		difficulty_tier = 3  # Mostly hell with some other dangerous biomes
+		difficulty_tier = 4  # Extreme zone - mostly hell
 
 	# Select biome based on noise value and difficulty tier
 	# This creates irregular shapes while respecting distance-based progression
 	match difficulty_tier:
-		0:  # Safe zone - valley and forest
+		0:  # Safe zone - valley and forest only
 			if normalized < 0.5:
 				return "valley"
 			else:
 				return "forest"
 
-		1:  # Mid zone - more variety
+		1:  # Mid zone - more variety with swamp and desert
 			if normalized < 0.25:
 				return "valley"  # Some safe areas still exist
 			elif normalized < 0.5:
@@ -174,7 +178,7 @@ func _get_biome_at_position(xz_pos: Vector2) -> String:
 			else:
 				return "desert"
 
-		2:  # Danger zone - challenging biomes
+		2:  # Danger zone - mountains and wizardland appear
 			if normalized < 0.15:
 				return "forest"  # Occasional safe pockets
 			elif normalized < 0.3:
@@ -183,18 +187,28 @@ func _get_biome_at_position(xz_pos: Vector2) -> String:
 				return "desert"
 			elif normalized < 0.7:
 				return "mountain"
-			elif normalized < 0.85:
+			elif normalized < 0.9:
 				return "wizardland"
 			else:
 				return "hell"  # Hell starts appearing
 
-		_:  # Far zone - mostly hell with dangerous biomes
-			if normalized < 0.2:
-				return "mountain"
+		3:  # Extreme zone - heavy hell presence
+			if normalized < 0.15:
+				return "desert"
 			elif normalized < 0.3:
+				return "mountain"
+			elif normalized < 0.45:
 				return "wizardland"
 			else:
-				return "hell"  # Dominant in far regions
+				return "hell"  # Hell is dominant
+
+		_:  # Beyond extreme - mostly pure hell
+			if normalized < 0.15:
+				return "mountain"
+			elif normalized < 0.25:
+				return "wizardland"
+			else:
+				return "hell"  # Hell overwhelms
 
 	return "valley"  # Fallback
 
@@ -217,7 +231,7 @@ func _get_blended_height_at_position(xz_pos: Vector2) -> float:
 	var combined_value := biome_value + (scale_value * 0.3)
 	var normalized := (combined_value + 1.0) * 0.5
 
-	# Get difficulty tier
+	# Get difficulty tier (must match _get_biome_at_position)
 	var difficulty_tier := 0
 	if distance < SAFE_ZONE_RADIUS:
 		difficulty_tier = 0
@@ -225,8 +239,10 @@ func _get_blended_height_at_position(xz_pos: Vector2) -> float:
 		difficulty_tier = 1
 	elif distance < DANGER_ZONE_RADIUS:
 		difficulty_tier = 2
-	else:
+	elif distance < EXTREME_ZONE_RADIUS:
 		difficulty_tier = 3
+	else:
+		difficulty_tier = 4
 
 	# Sample terrain noise once (used for all biome heights)
 	var noise_value := noise.get_noise_2d(xz_pos.x, xz_pos.y)
@@ -266,7 +282,7 @@ func _get_blended_height_at_position(xz_pos: Vector2) -> float:
 				var h2: float = calculate_height.call("desert")
 				final_height = lerp(h1, h2, t)
 
-		2:  # Danger zone - all biomes
+		2:  # Danger zone - mountains and wizardland appear, little hell
 			# Multi-stage blending across 6 biomes
 			if normalized < 0.3:
 				# forest (0.0-0.15) to swamp (0.15-0.3)
@@ -286,40 +302,60 @@ func _get_blended_height_at_position(xz_pos: Vector2) -> float:
 				var h1: float = calculate_height.call("desert")
 				var h2: float = calculate_height.call("mountain")
 				final_height = lerp(h1, h2, t)
-			elif normalized < 0.85:
-				# mountain (0.7) to wizardland (0.85)
-				var t: float = clamp((normalized - 0.7) / 0.15, 0.0, 1.0)
+			elif normalized < 0.9:
+				# mountain (0.7) to wizardland (0.9)
+				var t: float = clamp((normalized - 0.7) / 0.2, 0.0, 1.0)
 				var h1: float = calculate_height.call("mountain")
 				var h2: float = calculate_height.call("wizardland")
 				final_height = lerp(h1, h2, t)
 			else:
-				# wizardland (0.85) to hell (1.0)
-				var t: float = clamp((normalized - 0.85) / 0.15, 0.0, 1.0)
+				# wizardland (0.9) to hell (1.0)
+				var t: float = clamp((normalized - 0.9) / 0.1, 0.0, 1.0)
 				var h1: float = calculate_height.call("wizardland")
 				var h2: float = calculate_height.call("hell")
 				final_height = lerp(h1, h2, t)
 
-		_:  # Far zone - mountain, wizardland, hell
-			if normalized < 0.2:
-				# Full mountain
-				var h: float = calculate_height.call("mountain")
+		3:  # Extreme zone - heavy hell presence
+			if normalized < 0.15:
+				# Full desert
+				var h: float = calculate_height.call("desert")
 				final_height = h
 			elif normalized < 0.3:
-				# mountain (0.2) to wizardland (0.3)
-				var t: float = clamp((normalized - 0.2) / 0.1, 0.0, 1.0)
+				# desert (0.15) to mountain (0.3)
+				var t: float = clamp((normalized - 0.15) / 0.15, 0.0, 1.0)
+				var h1: float = calculate_height.call("desert")
+				var h2: float = calculate_height.call("mountain")
+				final_height = lerp(h1, h2, t)
+			elif normalized < 0.45:
+				# mountain (0.3) to wizardland (0.45)
+				var t: float = clamp((normalized - 0.3) / 0.15, 0.0, 1.0)
 				var h1: float = calculate_height.call("mountain")
 				var h2: float = calculate_height.call("wizardland")
 				final_height = lerp(h1, h2, t)
-			elif normalized < 0.5:
-				# wizardland (0.3) to hell (0.5)
-				var t: float = clamp((normalized - 0.3) / 0.2, 0.0, 1.0)
+			else:
+				# wizardland (0.45) to hell (1.0) - hell dominates
+				var t: float = clamp((normalized - 0.45) / 0.55, 0.0, 1.0)
 				var h1: float = calculate_height.call("wizardland")
 				var h2: float = calculate_height.call("hell")
 				final_height = lerp(h1, h2, t)
-			else:
-				# Full hell
-				var h: float = calculate_height.call("hell")
+
+		_:  # Beyond extreme - mostly pure hell
+			if normalized < 0.15:
+				# Full mountain
+				var h: float = calculate_height.call("mountain")
 				final_height = h
+			elif normalized < 0.25:
+				# mountain (0.15) to wizardland (0.25)
+				var t: float = clamp((normalized - 0.15) / 0.1, 0.0, 1.0)
+				var h1: float = calculate_height.call("mountain")
+				var h2: float = calculate_height.call("wizardland")
+				final_height = lerp(h1, h2, t)
+			else:
+				# wizardland (0.25) to hell (1.0) - hell overwhelms
+				var t: float = clamp((normalized - 0.25) / 0.75, 0.0, 1.0)
+				var h1: float = calculate_height.call("wizardland")
+				var h2: float = calculate_height.call("hell")
+				final_height = lerp(h1, h2, t)
 
 	return final_height
 
