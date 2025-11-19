@@ -1325,4 +1325,13 @@ func _generate_world_map_cache() -> void:
 		world_map_ui._generate_world_cache()
 		print("[Client] World map cache generated successfully")
 
+		# Share the cached texture with the mini-map
+		if mini_map_ui and mini_map_ui.has_method("set_world_texture"):
+			mini_map_ui.set_world_texture(
+				world_map_ui.cached_world_texture,
+				world_map_ui.world_texture_size,
+				world_map_ui.world_map_radius
+			)
+			print("[Client] Shared world texture cache with mini-map")
+
 	_mark_loading_step_complete("world_map")

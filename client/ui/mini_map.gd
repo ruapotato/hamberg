@@ -10,6 +10,10 @@ var map_generator = null  # WorldMapGenerator
 var local_player: Node3D = null
 var remote_players: Dictionary = {}
 var biome_generator: BiomeGenerator = null
+var cached_world_texture: ImageTexture = null  # Pre-rendered entire world (shared with world map)
+var atlas_texture: AtlasTexture = null  # Atlas texture for region display
+var world_texture_size: int = 2048  # Size of pre-rendered world texture
+var world_map_radius: float = 25000.0  # Half-width of world in units
 
 # Mini-map settings
 const MINI_MAP_SIZE := 200  # Pixels
@@ -25,7 +29,7 @@ var active_pings: Array = []
 
 func _ready() -> void:
 	# Setup refresh timer
-	refresh_timer.wait_time = 1.0  # Refresh every second
+	refresh_timer.wait_time = 0.1  # Refresh mini-map position 10 times per second
 	refresh_timer.timeout.connect(_on_refresh_timeout)
 	refresh_timer.start()
 
@@ -38,7 +42,23 @@ func initialize(generator: BiomeGenerator, player: Node3D) -> void:
 
 	print("[MiniMap] Initialized with BiomeGenerator and player")
 
-	# Generate initial map
+func set_world_texture(texture: ImageTexture, texture_size: int, map_radius: float) -> void:
+	"""Set the shared cached world texture from the world map"""
+	cached_world_texture = texture
+	world_texture_size = texture_size
+	world_map_radius = map_radius
+
+	# Create AtlasTexture to show portions of it
+	atlas_texture = AtlasTexture.new()
+	atlas_texture.atlas = cached_world_texture
+	atlas_texture.region = Rect2(0, 0, MINI_MAP_SIZE, MINI_MAP_SIZE)
+
+	# Set it to the TextureRect
+	map_texture_rect.texture = atlas_texture
+
+	print("[MiniMap] Set cached world texture (size: %d, radius: %.0f)" % [texture_size, map_radius])
+
+	# Refresh to show current player position
 	refresh_map()
 
 func _process(delta: float) -> void:
@@ -58,15 +78,32 @@ func _draw() -> void:
 	_draw_player_markers()
 
 func refresh_map() -> void:
-	if not map_generator or not local_player:
+	if not atlas_texture or not local_player:
 		return
 
 	# Center on player
 	var player_xz := Vector2(local_player.global_position.x, local_player.global_position.z)
 
-	# Generate map texture
-	var texture: ImageTexture = map_generator.generate_map_texture(player_xz, MINI_MAP_WORLD_SIZE, MINI_MAP_SIZE)
-	map_texture_rect.texture = texture
+	# Calculate how many texture pixels correspond to the visible world size
+	var world_to_texture_scale := float(world_texture_size) / (world_map_radius * 2.0)
+	var visible_texture_size := MINI_MAP_WORLD_SIZE * world_to_texture_scale
+
+	# Convert player position from world coordinates to texture coordinates
+	# World coords: -world_map_radius to +world_map_radius
+	# Texture coords: 0 to world_texture_size
+	var center_texture_x := (player_xz.x + world_map_radius) * world_to_texture_scale
+	var center_texture_y := (player_xz.y + world_map_radius) * world_to_texture_scale
+
+	# Calculate region rect (what portion of the cached texture to display)
+	var region_x := center_texture_x - (visible_texture_size * 0.5)
+	var region_y := center_texture_y - (visible_texture_size * 0.5)
+
+	# Clamp to texture bounds
+	region_x = clamp(region_x, 0, world_texture_size - visible_texture_size)
+	region_y = clamp(region_y, 0, world_texture_size - visible_texture_size)
+
+	# Set the atlas region to display (just moves the viewport, no pixel redrawing!)
+	atlas_texture.region = Rect2(region_x, region_y, visible_texture_size, visible_texture_size)
 
 func _on_refresh_timeout() -> void:
 	refresh_map()
