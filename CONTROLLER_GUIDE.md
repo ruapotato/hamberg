@@ -62,6 +62,14 @@ Hamberg now has full controller support optimized for the Steam Deck!
 - **Y Button**: Close build menu
 - **X or Y Button**: Open build menu (when hammer equipped and inventory closed)
 
+### Crafting Menu (At Workbench)
+- **D-Pad Up/Down**: Navigate recipes list
+  - Selected recipe highlighted in yellow
+  - Auto-scrolls to keep selection visible
+  - Requirements shown in color (green = have enough, red = need more)
+- **A Button**: ✓ Craft selected recipe (auto-closes menu)
+- **B Button**: Close crafting menu
+
 ### Server/Character Selection (Start of Game)
 - **D-Pad Up/Down**: Navigate characters or options
   - Selected item highlighted in yellow

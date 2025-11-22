@@ -10,6 +10,7 @@ signal menu_closed()
 var is_open: bool = false
 var player_inventory: Node = null  # Reference to player's inventory
 var item_discovery_tracker: Node = null  # Reference to discovery tracker
+var selected_index: int = 0  # For controller D-pad navigation
 
 @onready var panel: Panel = $Panel
 @onready var recipe_list: VBoxContainer = $Panel/ScrollContainer/RecipeList
@@ -104,9 +105,14 @@ func _create_recipe_button(recipe: Dictionary) -> Control:
 
 	container.add_child(button)
 
-	# Add requirements label
-	var req_label = Label.new()
-	req_label.add_theme_font_size_override("font_size", 10)
+	# Add requirements label (use RichTextLabel for colored text)
+	var req_label = RichTextLabel.new()
+	req_label.custom_minimum_size = Vector2(300, 20)
+	req_label.fit_content = true
+	req_label.bbcode_enabled = true
+	req_label.scroll_active = false
+	req_label.add_theme_font_size_override("normal_font_size", 10)
+
 	var req_text = "Requires: "
 	var req_parts: Array = []
 	for item_name in requirements.keys():
@@ -121,7 +127,6 @@ func _create_recipe_button(recipe: Dictionary) -> Control:
 		req_parts.append("%s%s x%d[/color] (%d)" % [color, item_name_display, amount, current_amount])
 
 	req_label.text = req_text + ", ".join(req_parts)
-	req_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	container.add_child(req_label)
 
 	return container
@@ -143,6 +148,9 @@ func show_menu() -> void:
 
 	# Refresh the recipe list
 	_populate_recipe_list()
+
+	selected_index = 0
+	_update_selection_visual()
 
 	is_open = true
 	visible = true
@@ -173,6 +181,88 @@ func toggle_menu() -> void:
 		show_menu()
 
 func _process(_delta: float) -> void:
-	# Close menu with Escape
-	if is_open and Input.is_action_just_pressed("ui_cancel"):
+	if not is_open:
+		return
+
+	# Close menu with Escape or B button
+	if Input.is_action_just_pressed("ui_cancel") or Input.is_action_just_pressed("jump"):
 		hide_menu()
+		return
+
+	# D-pad navigation
+	if Input.is_action_just_pressed("hotbar_unequip"):  # D-pad Down
+		_move_selection(1)
+	elif Input.is_action_just_pressed("hotbar_equip"):  # D-pad Up
+		_move_selection(-1)
+
+	# A button to craft selected recipe
+	if Input.is_action_just_pressed("interact"):
+		_craft_selected_recipe()
+
+## Move selection up/down (controller D-pad)
+func _move_selection(direction: int) -> void:
+	var containers = recipe_list.get_children()
+	if containers.is_empty():
+		return
+
+	selected_index += direction
+
+	# Wrap around
+	if selected_index < 0:
+		selected_index = containers.size() - 1
+	elif selected_index >= containers.size():
+		selected_index = 0
+
+	_update_selection_visual()
+	_scroll_to_selected()
+
+## Update visual highlight for selected recipe
+func _update_selection_visual() -> void:
+	if not recipe_list:
+		return
+
+	var containers = recipe_list.get_children()
+	for i in containers.size():
+		var container = containers[i]
+		# Find the button in the container
+		for child in container.get_children():
+			if child is Button:
+				if i == selected_index:
+					child.modulate = Color(1.5, 1.5, 1.0)  # Highlight selected
+					child.grab_focus()
+				else:
+					child.modulate = Color.WHITE  # Normal
+				break
+
+## Scroll to show the selected recipe
+func _scroll_to_selected() -> void:
+	if not scroll_container or not recipe_list:
+		return
+
+	var containers = recipe_list.get_children()
+	if selected_index < 0 or selected_index >= containers.size():
+		return
+
+	var selected_container = containers[selected_index]
+	if selected_container:
+		# Calculate the position to scroll to
+		var container_pos = selected_container.position.y
+		var container_height = selected_container.size.y
+		var scroll_height = scroll_container.size.y
+
+		# Center the selected item in the scroll view
+		var target_scroll = container_pos - (scroll_height / 2.0) + (container_height / 2.0)
+		scroll_container.scroll_vertical = int(max(0, target_scroll))
+
+## Craft the currently selected recipe (controller A button)
+func _craft_selected_recipe() -> void:
+	var containers = recipe_list.get_children()
+	if selected_index < 0 or selected_index >= containers.size():
+		return
+
+	var container = containers[selected_index]
+	# Find the button in the container
+	for child in container.get_children():
+		if child is Button and not child.disabled:
+			child.pressed.emit()
+			break
