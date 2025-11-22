@@ -240,6 +240,10 @@ func _update_environmental_chunks() -> void:
 			if player and is_instance_valid(player):
 				voxel_world.update_player_spawn_position(peer_id, player.global_position)
 
+				# Check if player has moved near any unapplied chunks
+				# This ensures terrain modifications are applied as soon as player is in VoxelTool range
+				_check_unapplied_chunks_near_player(peer_id, player.global_position)
+
 func _on_chunk_loaded(chunk_pos: Vector2i) -> void:
 	# When server loads a chunk, broadcast its objects to all clients
 	if not voxel_world or not voxel_world.chunk_manager:
@@ -390,15 +394,14 @@ func _is_player_near_chunk(chunk_pos: Vector2i) -> bool:
 
 	var chunk_center := Vector3(chunk_pos.x * CHUNK_SIZE + CHUNK_SIZE / 2.0, 0, chunk_pos.y * CHUNK_SIZE + CHUNK_SIZE / 2.0)
 
-	for peer_id in NetworkManager.connected_players:
-		var player_info = NetworkManager.get_player_info(peer_id)
-		if player_info.has("player_node"):
-			var player_node = player_info.player_node
-			if is_instance_valid(player_node):
-				var player_pos: Vector3 = player_node.global_position
-				var distance := Vector2(player_pos.x, player_pos.z).distance_to(Vector2(chunk_center.x, chunk_center.z))
-				if distance <= MAX_DISTANCE:
-					return true
+	# Use spawned_players dictionary directly (more reliable than NetworkManager.get_player_info)
+	for peer_id in spawned_players:
+		var player = spawned_players[peer_id]
+		if player and is_instance_valid(player):
+			var player_pos: Vector3 = player.global_position
+			var distance := Vector2(player_pos.x, player_pos.z).distance_to(Vector2(chunk_center.x, chunk_center.z))
+			if distance <= MAX_DISTANCE:
+				return true
 
 	return false
 
@@ -446,6 +449,44 @@ func _check_unapplied_chunks_near_position(position: Vector3) -> void:
 		print("[Server] Position %s near chunk %s - applying pending terrain modifications" % [position, chunk_pos])
 		_apply_terrain_modifications_for_chunk(chunk_pos)
 		unapplied_chunks.erase(chunk_pos)
+
+## Check and apply unapplied chunks near a specific player (called every server tick)
+## Uses per-player tracking to avoid re-applying the same chunks
+func _check_unapplied_chunks_near_player(peer_id: int, position: Vector3) -> void:
+	if unapplied_chunks.is_empty():
+		return
+
+	# Initialize tracking for this player if needed
+	if not player_applied_chunks.has(peer_id):
+		player_applied_chunks[peer_id] = {}
+
+	const MAX_DISTANCE := 48.0  # VoxelTool range
+	var player_applied := player_applied_chunks[peer_id]
+	var chunks_to_apply: Array[Vector2i] = []
+
+	# Find unapplied chunks near this player that haven't been applied yet
+	for chunk_pos in unapplied_chunks.keys():
+		# Skip if this player already triggered application for this chunk
+		if player_applied.has(chunk_pos):
+			continue
+
+		var chunk_center := Vector3(chunk_pos.x * CHUNK_SIZE + CHUNK_SIZE / 2.0, 0, chunk_pos.y * CHUNK_SIZE + CHUNK_SIZE / 2.0)
+		var distance := Vector2(position.x, position.z).distance_to(Vector2(chunk_center.x, chunk_center.z))
+
+		if distance <= MAX_DISTANCE:
+			chunks_to_apply.append(chunk_pos)
+			# Mark as applied for this player
+			player_applied[chunk_pos] = true
+
+	# Apply modifications to these chunks
+	for chunk_pos in chunks_to_apply:
+		print("[Server] Player %d moved near chunk %s - applying pending terrain modifications" % [peer_id, chunk_pos])
+		_apply_terrain_modifications_for_chunk(chunk_pos)
+		unapplied_chunks.erase(chunk_pos)
+
+		# Clear this chunk from all players' tracking since it's now applied
+		for p_id in player_applied_chunks.keys():
+			player_applied_chunks[p_id].erase(chunk_pos)
 
 ## Apply terrain modifications for a specific chunk (called when chunk loads)
 func _apply_terrain_modifications_for_chunk(chunk_pos: Vector2i) -> void:
@@ -659,6 +700,9 @@ func _despawn_player(peer_id: int) -> void:
 		player.queue_free()
 
 	spawned_players.erase(peer_id)
+
+	# Clean up player terrain modification tracking
+	player_applied_chunks.erase(peer_id)
 
 	# Notify all clients to despawn through NetworkManager
 	NetworkManager.rpc_despawn_player.rpc(peer_id)
@@ -895,6 +939,7 @@ func handle_destroy_buildable(peer_id: int, network_id: String) -> void:
 ## Changed to chunk-based storage: Dictionary[Vector2i, Array] where key is chunk position
 var terrain_modification_history: Dictionary = {}  # chunk_pos -> Array of {operation, position, data}
 var unapplied_chunks: Dictionary = {}  # chunk_pos -> bool (chunks that need mods applied when player gets close)
+var player_applied_chunks: Dictionary = {}  # peer_id -> Dictionary[chunk_pos -> bool] (tracks which chunks each player has triggered application for)
 const TERRAIN_HISTORY_FILE := "user://worlds/%s/terrain_history.json"
 const CHUNK_SIZE: float = 32.0  # Must match chunk_manager.chunk_size
 
