@@ -6,6 +6,8 @@ extends Control
 signal hotbar_selection_changed(slot_index: int, item_name: String)
 
 const InventorySlot = preload("res://client/ui/inventory_slot.tscn")
+const ItemData = preload("res://shared/item_data.gd")
+const Equipment = preload("res://shared/equipment.gd")
 const HOTBAR_SIZE: int = 9
 
 var slots: Array[Node] = []

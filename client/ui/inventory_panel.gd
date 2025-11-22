@@ -4,6 +4,8 @@ extends Control
 ## Shows all 30 inventory slots + crafting panel
 
 const InventorySlot = preload("res://client/ui/inventory_slot.tscn")
+const ItemData = preload("res://shared/item_data.gd")
+const Equipment = preload("res://shared/equipment.gd")
 const MAX_SLOTS: int = 30
 const COLUMNS: int = 6
 

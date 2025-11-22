@@ -4,20 +4,23 @@ extends Control
 ## North-locked, zoomed in, shows nearby area
 
 const WorldMapGenerator = preload("res://client/ui/world_map_generator.gd")
+const BiomeGenerator = preload("res://shared/biome_generator.gd")
 
 # Map state
 var map_generator = null  # WorldMapGenerator
 var local_player: Node3D = null
 var remote_players: Dictionary = {}
 var biome_generator: BiomeGenerator = null
-var cached_world_texture: ImageTexture = null  # Pre-rendered entire world (shared with world map)
-var atlas_texture: AtlasTexture = null  # Atlas texture for region display
-var world_texture_size: int = 2048  # Size of pre-rendered world texture
-var world_map_radius: float = 25000.0  # Half-width of world in units
+var cached_map_texture: ImageTexture = null  # Large pre-generated buffer
+var atlas_texture: AtlasTexture = null  # Viewport into the buffer
+var buffer_center: Vector2 = Vector2.ZERO  # World position at center of buffer
+var buffer_world_size: float = 800.0  # World units covered by buffer (4x visible area)
+var buffer_pixel_size: int = 256  # Pixel size of buffer texture
 
 # Mini-map settings
-const MINI_MAP_SIZE := 200  # Pixels
+const MINI_MAP_SIZE := 64  # Pixels shown on screen
 const MINI_MAP_WORLD_SIZE := 200.0  # World units visible (fairly zoomed in)
+const BUFFER_EXPAND_THRESHOLD := 50.0  # Regenerate when within 50 units of edge
 
 # Map pins and pings
 var map_pins: Array = []
@@ -28,8 +31,8 @@ var active_pings: Array = []
 @onready var refresh_timer: Timer = $RefreshTimer
 
 func _ready() -> void:
-	# Setup refresh timer
-	refresh_timer.wait_time = 0.1  # Refresh mini-map position 10 times per second
+	# Setup refresh timer for viewport updates (cheap, just moves the viewport)
+	refresh_timer.wait_time = 0.1  # Update viewport position 10 times per second
 	refresh_timer.timeout.connect(_on_refresh_timeout)
 	refresh_timer.start()
 
@@ -40,26 +43,14 @@ func initialize(generator: BiomeGenerator, player: Node3D) -> void:
 	local_player = player
 	map_generator = WorldMapGenerator.new(generator)
 
+	# Generate initial mini-map once at spawn
+	_generate_initial_minimap()
+
 	print("[MiniMap] Initialized with BiomeGenerator and player")
 
 func set_world_texture(texture: ImageTexture, texture_size: int, map_radius: float) -> void:
-	"""Set the shared cached world texture from the world map"""
-	cached_world_texture = texture
-	world_texture_size = texture_size
-	world_map_radius = map_radius
-
-	# Create AtlasTexture to show portions of it
-	atlas_texture = AtlasTexture.new()
-	atlas_texture.atlas = cached_world_texture
-	atlas_texture.region = Rect2(0, 0, MINI_MAP_SIZE, MINI_MAP_SIZE)
-
-	# Set it to the TextureRect
-	map_texture_rect.texture = atlas_texture
-
-	print("[MiniMap] Set cached world texture (size: %d, radius: %.0f)" % [texture_size, map_radius])
-
-	# Refresh to show current player position
-	refresh_map()
+	"""Deprecated - mini-map now generates its own view on demand"""
+	pass
 
 func _process(delta: float) -> void:
 	# Update active pings (count down timers)
@@ -77,33 +68,72 @@ func _draw() -> void:
 	_draw_pings()
 	_draw_player_markers()
 
+func _generate_initial_minimap() -> void:
+	"""Generate buffered mini-map at player spawn location"""
+	if not map_generator or not local_player:
+		return
+
+	var player_xz := Vector2(local_player.global_position.x, local_player.global_position.z)
+	_regenerate_buffer(player_xz)
+
+func _regenerate_buffer(center: Vector2) -> void:
+	"""Regenerate the buffer texture centered at the given world position"""
+	print("[MiniMap] Generating %dx%d buffer covering %.0f units..." % [buffer_pixel_size, buffer_pixel_size, buffer_world_size])
+
+	buffer_center = center
+	cached_map_texture = map_generator.generate_map_texture(center, buffer_world_size, buffer_pixel_size)
+
+	# Create atlas texture to show a viewport into the buffer
+	atlas_texture = AtlasTexture.new()
+	atlas_texture.atlas = cached_map_texture
+	atlas_texture.region = Rect2(0, 0, MINI_MAP_SIZE, MINI_MAP_SIZE)
+
+	map_texture_rect.texture = atlas_texture
+	print("[MiniMap] Buffer generated")
+
 func refresh_map() -> void:
+	"""Update viewport position (cheap) or regenerate buffer if near edge"""
 	if not atlas_texture or not local_player:
 		return
 
-	# Center on player
 	var player_xz := Vector2(local_player.global_position.x, local_player.global_position.z)
 
-	# Calculate how many texture pixels correspond to the visible world size
-	var world_to_texture_scale := float(world_texture_size) / (world_map_radius * 2.0)
-	var visible_texture_size := MINI_MAP_WORLD_SIZE * world_to_texture_scale
+	# Check if player is near the edge of the buffer
+	var distance_from_center := player_xz.distance_to(buffer_center)
+	var buffer_radius := buffer_world_size * 0.5
 
-	# Convert player position from world coordinates to texture coordinates
-	# World coords: -world_map_radius to +world_map_radius
-	# Texture coords: 0 to world_texture_size
-	var center_texture_x := (player_xz.x + world_map_radius) * world_to_texture_scale
-	var center_texture_y := (player_xz.y + world_map_radius) * world_to_texture_scale
+	if distance_from_center > (buffer_radius - BUFFER_EXPAND_THRESHOLD):
+		# Too close to edge, regenerate buffer centered on player
+		print("[MiniMap] Player near buffer edge, regenerating...")
+		_regenerate_buffer(player_xz)
+		return
 
-	# Calculate region rect (what portion of the cached texture to display)
-	var region_x := center_texture_x - (visible_texture_size * 0.5)
-	var region_y := center_texture_y - (visible_texture_size * 0.5)
+	# Player still in buffer, just update the viewport
+	_update_viewport(player_xz)
 
-	# Clamp to texture bounds
-	region_x = clamp(region_x, 0, world_texture_size - visible_texture_size)
-	region_y = clamp(region_y, 0, world_texture_size - visible_texture_size)
+func _update_viewport(player_pos: Vector2) -> void:
+	"""Update the atlas viewport to center on player (no texture regeneration)"""
+	# Calculate world units per pixel in the buffer
+	var world_to_buffer_scale := float(buffer_pixel_size) / buffer_world_size
 
-	# Set the atlas region to display (just moves the viewport, no pixel redrawing!)
-	atlas_texture.region = Rect2(region_x, region_y, visible_texture_size, visible_texture_size)
+	# Convert player position relative to buffer center into buffer pixel coordinates
+	var relative_pos := player_pos - buffer_center
+	var buffer_pixel_x := (buffer_pixel_size * 0.5) + (relative_pos.x * world_to_buffer_scale)
+	var buffer_pixel_y := (buffer_pixel_size * 0.5) + (relative_pos.y * world_to_buffer_scale)
+
+	# Calculate how many pixels in the buffer correspond to the visible world size
+	var visible_buffer_pixels := MINI_MAP_WORLD_SIZE * world_to_buffer_scale
+
+	# Calculate viewport region (centered on player)
+	var region_x := buffer_pixel_x - (visible_buffer_pixels * 0.5)
+	var region_y := buffer_pixel_y - (visible_buffer_pixels * 0.5)
+
+	# Clamp to buffer bounds
+	region_x = clamp(region_x, 0, buffer_pixel_size - visible_buffer_pixels)
+	region_y = clamp(region_y, 0, buffer_pixel_size - visible_buffer_pixels)
+
+	# Update the atlas region (just moves the viewport, no pixel generation!)
+	atlas_texture.region = Rect2(region_x, region_y, visible_buffer_pixels, visible_buffer_pixels)
 
 func _on_refresh_timeout() -> void:
 	refresh_map()

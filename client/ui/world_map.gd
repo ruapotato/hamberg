@@ -4,6 +4,7 @@ extends Control
 ## Features: pan, zoom, pins, pings, player markers
 
 const WorldMapGenerator = preload("res://client/ui/world_map_generator.gd")
+const BiomeGenerator = preload("res://shared/biome_generator.gd")
 
 signal pin_placed(world_pos: Vector2, pin_name: String)
 signal ping_sent(world_pos: Vector2)
@@ -16,10 +17,9 @@ var is_dragging: bool = false
 var drag_start_pos: Vector2 = Vector2.ZERO
 var drag_start_center: Vector2 = Vector2.ZERO
 var is_toggling: bool = false  # Prevent rapid toggling
-var cached_world_texture: ImageTexture = null  # Pre-rendered entire world
-var atlas_texture: AtlasTexture = null  # Atlas texture for region display
-var world_texture_size: int = 2048  # Size of pre-rendered world texture
-var world_map_radius: float = 25000.0  # Half-width of world in units
+var current_map_texture: ImageTexture = null  # Currently visible map area (generated on demand)
+var world_texture_size: int = 128  # Size of map texture (reduced for performance)
+var world_map_radius: float = 5000.0  # Max view distance
 
 # Map display settings
 const MIN_ZOOM := 0.5       # Max zoom in (500 units visible)
@@ -146,56 +146,34 @@ func toggle_map() -> void:
 			is_toggling = false
 			return
 
-		refresh_map()
+		# Generate map for current view area
+		print("[WorldMap] Generating visible map area...")
+		_generate_current_view()
+		print("[WorldMap] Map generated")
+
 		is_toggling = false
 	else:
 		# Restore mouse capture for 3D camera
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 		is_toggling = false
 
-func _generate_world_cache() -> void:
-	"""Generate the cached world texture"""
+func _generate_current_view() -> void:
+	"""Generate map texture for the currently visible area only"""
 	if not map_generator:
-		return
-
-	# Generate the full world texture
-	cached_world_texture = map_generator.generate_map_texture(Vector2.ZERO, world_map_radius * 2.0, world_texture_size)
-
-	# Create AtlasTexture to show portions of it
-	atlas_texture = AtlasTexture.new()
-	atlas_texture.atlas = cached_world_texture
-	atlas_texture.region = Rect2(0, 0, world_texture_size, world_texture_size)
-
-	# Set it to the TextureRect
-	map_texture_rect.texture = atlas_texture
-
-func refresh_map() -> void:
-	if not atlas_texture:
 		return
 
 	# Calculate visible world size based on zoom
 	var visible_world_size := BASE_WORLD_SIZE * current_zoom_level
 
-	# Calculate how many texture pixels correspond to the visible world size
-	var world_to_texture_scale := float(world_texture_size) / (world_map_radius * 2.0)
-	var visible_texture_size := visible_world_size * world_to_texture_scale
+	# Generate texture for just this visible area
+	current_map_texture = map_generator.generate_map_texture(current_center, visible_world_size, world_texture_size)
 
-	# Convert current_center from world coordinates to texture coordinates
-	# World coords: -world_map_radius to +world_map_radius
-	# Texture coords: 0 to world_texture_size
-	var center_texture_x := (current_center.x + world_map_radius) * world_to_texture_scale
-	var center_texture_y := (current_center.y + world_map_radius) * world_to_texture_scale
+	# Set it directly to the TextureRect
+	map_texture_rect.texture = current_map_texture
 
-	# Calculate region rect (what portion of the cached texture to display)
-	var region_x := center_texture_x - (visible_texture_size * 0.5)
-	var region_y := center_texture_y - (visible_texture_size * 0.5)
-
-	# Clamp to texture bounds
-	region_x = clamp(region_x, 0, world_texture_size - visible_texture_size)
-	region_y = clamp(region_y, 0, world_texture_size - visible_texture_size)
-
-	# Set the atlas region to display
-	atlas_texture.region = Rect2(region_x, region_y, visible_texture_size, visible_texture_size)
+func refresh_map() -> void:
+	# When panning/zooming, regenerate the visible area
+	_generate_current_view()
 
 func _on_close_pressed() -> void:
 	visible = false

@@ -4,6 +4,8 @@ extends RefCounted
 ## WorldMapGenerator - Generates map data from BiomeGenerator
 ## This samples the world's terrain at any scale to create map representations
 
+const BiomeGenerator = preload("res://shared/biome_generator.gd")
+
 # Biome colors for map rendering (hybrid height + biome style)
 const BIOME_BASE_COLORS := {
 	"valley": Color(0.4, 0.7, 0.3),      # Green meadow

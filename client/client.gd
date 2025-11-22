@@ -1282,6 +1282,7 @@ func _apply_queued_terrain_modifications() -> void:
 	if queued_terrain_modifications.is_empty():
 		print("[Client] No queued terrain modifications to apply")
 		_mark_loading_step_complete("terrain_modifications")
+		_generate_world_map_cache()
 		return
 
 	print("[Client] Applying %d queued terrain modifications..." % queued_terrain_modifications.size())
@@ -1291,8 +1292,6 @@ func _apply_queued_terrain_modifications() -> void:
 
 	queued_terrain_modifications.clear()
 	_mark_loading_step_complete("terrain_modifications")
-
-	# Generate world map cache after terrain is ready
 	_generate_world_map_cache()
 
 ## Internal terrain modification application
@@ -1319,19 +1318,7 @@ func _apply_terrain_modification_internal(operation: String, position: Array, da
 
 ## Generate world map cache during loading
 func _generate_world_map_cache() -> void:
-	print("[Client] Generating world map cache...")
-
-	if world_map_ui and world_map_ui.has_method("_generate_world_cache"):
-		world_map_ui._generate_world_cache()
-		print("[Client] World map cache generated successfully")
-
-		# Share the cached texture with the mini-map
-		if mini_map_ui and mini_map_ui.has_method("set_world_texture"):
-			mini_map_ui.set_world_texture(
-				world_map_ui.cached_world_texture,
-				world_map_ui.world_texture_size,
-				world_map_ui.world_map_radius
-			)
-			print("[Client] Shared world texture cache with mini-map")
-
+	# OPTIMIZATION: Skip world map generation during loading
+	# Maps now generate on-demand showing only the visible area
+	# This prevents blocking the loading screen
 	_mark_loading_step_complete("world_map")
