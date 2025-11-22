@@ -10,9 +10,9 @@ The name "Hamberg" is a tribute to the developers' origins - a fusion of **Hamne
 
 ## 🎮 Vision
 
-**A Dark Fantasy Survival Adventure**
+**A Fantasy Survival Adventure**
 
-Hamberg is an open-source multiplayer survival game that blends the co-op magic of Valheim with a unique dark fantasy aesthetic. Explore otherworldly biomes filled with mysterious creatures, wield magical staffs powered by Brain Power (BP), and descend into crystalline caves and nightmarish dimensions.
+Hamberg is an open-source multiplayer survival game that blends the co-op magic of Valheim with a unique fantasy aesthetic. Explore otherworldly biomes filled with mysterious creatures, wield magical staffs powered by Brain Power (BP), and descend into crystalline caves and nightmarish dimensions.
 
 **Core Pillars:**
 - **Dark Fantasy World** - Explore surreal biomes: serene purple meadows, bioluminescent dark forests, toxic poison pits, crystalline caverns, and fleshy void dimensions
