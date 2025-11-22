@@ -5,6 +5,7 @@ class_name CameraController
 ## Attach this to the player and it will provide smooth camera controls
 
 @export var mouse_sensitivity: float = 0.003
+@export var gamepad_sensitivity: float = 3.0  # Controller is less precise, needs higher sensitivity
 @export var min_zoom: float = 0.0  # 0 = first-person
 @export var max_zoom: float = 10.0
 @export var zoom_speed: float = 0.5
@@ -69,6 +70,14 @@ func _process(delta: float) -> void:
 		if mesh:
 			mesh.visible = not is_first_person
 
+	# Handle gamepad camera look (right stick)
+	if Input.mouse_mode == Input.MOUSE_MODE_CAPTURED and not lock_rotation:
+		var look_x := Input.get_axis("look_left", "look_right")
+		var look_y := Input.get_axis("look_up", "look_down")
+
+		if abs(look_x) > 0.01 or abs(look_y) > 0.01:
+			_handle_gamepad_look(Vector2(look_x, look_y), delta)
+
 	# Apply camera rotation
 	rotation.y = camera_rotation.x
 	spring_arm.rotation.x = camera_rotation.y
@@ -79,6 +88,14 @@ func _handle_mouse_look(mouse_delta: Vector2) -> void:
 
 	# Pitch (up/down) with limits
 	camera_rotation.y -= mouse_delta.y * mouse_sensitivity
+	camera_rotation.y = clamp(camera_rotation.y, deg_to_rad(min_pitch), deg_to_rad(max_pitch))
+
+func _handle_gamepad_look(stick_input: Vector2, delta: float) -> void:
+	# Yaw (left/right) - inverted to match standard controller behavior
+	camera_rotation.x -= stick_input.x * gamepad_sensitivity * delta
+
+	# Pitch (up/down) with limits - Y axis inverted (stick up = look up)
+	camera_rotation.y += stick_input.y * gamepad_sensitivity * delta
 	camera_rotation.y = clamp(camera_rotation.y, deg_to_rad(min_pitch), deg_to_rad(max_pitch))
 
 func _capture_mouse() -> void:
