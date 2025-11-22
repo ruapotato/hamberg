@@ -1076,13 +1076,12 @@ func _handle_terrain_modification_input(input_data: Dictionary) -> bool:
 	elif is_placeable_material:
 		if left_click:
 			operation = "place_circle"
-		elif right_click:
+		elif right_click or middle_click:
+			# Right-click (mouse) or RB (controller) does square placement
 			operation = "place_square"
-		elif middle_click:
-			operation = "grow_sphere"
 
 	# Safety check: Don't allow terrain placement too close to player (prevents clipping through mesh)
-	if not operation.is_empty() and operation in ["place_circle", "place_square", "grow_sphere"]:
+	if not operation.is_empty() and operation in ["place_circle", "place_square"]:
 		var distance_to_player := global_position.distance_to(target_pos)
 		if distance_to_player < 2.0:
 			print("[Player] Too close to place terrain safely (min distance: 2.0m)")

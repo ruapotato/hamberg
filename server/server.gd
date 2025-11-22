@@ -453,10 +453,13 @@ func _apply_terrain_modifications_for_chunk(chunk_pos: Vector2i) -> void:
 				voxel_world.dig_square(pos_v3, tool_name)
 			"level_circle":
 				var target_height: float = data.get("target_height", pos_v3.y)
+				print("[Server] -> level_circle at height: %f" % target_height)
 				voxel_world.level_circle(pos_v3, target_height)
 			"place_circle":
+				print("[Server] -> place_circle with unlimited earth")
 				voxel_world.place_circle(pos_v3, 999999)
 			"place_square":
+				print("[Server] -> place_square with unlimited earth")
 				voxel_world.place_square(pos_v3, 999999)
 
 	# Broadcast these modifications to all clients
@@ -550,6 +553,9 @@ func _spawn_player(peer_id: int, player_name: String) -> void:
 	player_viewers[peer_id] = viewer
 
 	print("[Server] Spawned player %d at %s with VoxelViewer" % [peer_id, spawn_pos])
+
+	# Check for unapplied chunks near the spawn position (chunks that loaded before player connected)
+	_check_unapplied_chunks()
 
 	# Register player with chunk manager for environmental object spawning
 	if voxel_world:
@@ -978,20 +984,6 @@ func handle_terrain_modification(peer_id: int, operation: String, position: Vect
 				# Sync inventory to client
 				var inventory_data = inventory.get_inventory_data()
 				NetworkManager.rpc_sync_inventory.rpc_id(peer_id, inventory_data)
-
-		"grow_sphere":
-			# Grow terrain (adds terrain with gradient)
-			var strength: float = data.get("strength", 5.0)
-			var radius: float = data.get("radius", 3.0)
-			voxel_world.grow_sphere(position, radius, strength)
-			print("[Server] Player %d grew terrain at %s (strength: %.1f, radius: %.1f)" % [peer_id, position, strength, radius])
-
-		"erode_sphere":
-			# Erode terrain (removes terrain with gradient)
-			var strength: float = data.get("strength", 5.0)
-			var radius: float = data.get("radius", 3.0)
-			voxel_world.erode_sphere(position, radius, strength)
-			print("[Server] Player %d eroded terrain at %s (strength: %.1f, radius: %.1f)" % [peer_id, position, strength, radius])
 
 		_:
 			push_warning("[Server] Unknown terrain modification operation: %s" % operation)
