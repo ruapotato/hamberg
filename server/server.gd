@@ -461,7 +461,7 @@ func _check_unapplied_chunks_near_player(peer_id: int, position: Vector3) -> voi
 		player_applied_chunks[peer_id] = {}
 
 	const MAX_DISTANCE := 48.0  # VoxelTool range
-	var player_applied := player_applied_chunks[peer_id]
+	var player_applied: Dictionary = player_applied_chunks[peer_id]
 	var chunks_to_apply: Array[Vector2i] = []
 
 	# Find unapplied chunks near this player that haven't been applied yet
