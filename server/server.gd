@@ -137,6 +137,9 @@ func start_server(port: int = 7777, max_players: int = 10) -> void:
 		print("[Server] Server is now running!")
 		print("[Server] Port: %d" % port)
 		print("[Server] Max players: %d" % max_players)
+
+		# Start timer to periodically check for unapplied chunks near players
+		_start_unapplied_chunk_checker()
 		print("[Server] World: %s (seed: %d)" % [world_config.world_name, world_config.seed])
 		print("[Server] Loaded %d buildables from save" % placed_buildables.size())
 		print("[Server] ===========================================")
@@ -269,6 +272,10 @@ func _on_chunk_loaded(chunk_pos: Vector2i) -> void:
 	if objects_data.size() > 0:
 		NetworkManager.rpc_spawn_environmental_objects.rpc([chunk_pos.x, chunk_pos.y], objects_data)
 
+	# Apply terrain modifications after a delay to let LOD fully load
+	# The voxel LOD system needs time to load high-resolution detail
+	_apply_terrain_modifications_for_chunk_deferred(chunk_pos)
+
 func _on_chunk_unloaded(chunk_pos: Vector2i) -> void:
 	# When server unloads a chunk, tell clients to despawn it
 	NetworkManager.rpc_despawn_environmental_objects.rpc([chunk_pos.x, chunk_pos.y])
@@ -359,24 +366,136 @@ func _send_enemies_to_player(peer_id: int) -> void:
 
 	print("[Server] Sent %d enemies to player %d" % [enemies_sent, peer_id])
 
+## Deferred application of terrain modifications (waits for LOD to fully load)
+func _apply_terrain_modifications_for_chunk_deferred(chunk_pos: Vector2i) -> void:
+	# Wait longer for voxel LOD system to load high-resolution detail
+	# Square operations especially need full detail to work correctly
+	await get_tree().create_timer(2.0).timeout  # Wait 2 seconds for voxel detail to fully load
+
+	# Only apply if a player is very close to this chunk
+	# VoxelTool only works within the voxel viewer camera's active range
+	if not _is_player_near_chunk(chunk_pos):
+		print("[Server] Chunk %s loaded but no player nearby - marking for later application" % chunk_pos)
+		unapplied_chunks[chunk_pos] = true
+		return
+
+	_apply_terrain_modifications_for_chunk(chunk_pos)
+	# Remove from unapplied list if it was there
+	unapplied_chunks.erase(chunk_pos)
+
+## Check if any player is close enough to a chunk for voxel operations to work
+func _is_player_near_chunk(chunk_pos: Vector2i) -> bool:
+	const MAX_DISTANCE := 48.0  # VoxelTool requires player to be very close (1.5 chunks = 48 units)
+	# Square operations especially need the player to be nearby for proper detail
+
+	var chunk_center := Vector3(chunk_pos.x * CHUNK_SIZE + CHUNK_SIZE / 2.0, 0, chunk_pos.y * CHUNK_SIZE + CHUNK_SIZE / 2.0)
+
+	for peer_id in NetworkManager.connected_players:
+		var player_info = NetworkManager.get_player_info(peer_id)
+		if player_info.has("player_node"):
+			var player_node = player_info.player_node
+			if is_instance_valid(player_node):
+				var player_pos: Vector3 = player_node.global_position
+				var distance := Vector2(player_pos.x, player_pos.z).distance_to(Vector2(chunk_center.x, chunk_center.z))
+				if distance <= MAX_DISTANCE:
+					return true
+
+	return false
+
+## Periodically check for unapplied chunks that now have players nearby
+func _start_unapplied_chunk_checker() -> void:
+	while is_running:
+		await get_tree().create_timer(2.0).timeout  # Check every 2 seconds
+		_check_unapplied_chunks()
+
+func _check_unapplied_chunks() -> void:
+	if unapplied_chunks.is_empty():
+		return
+
+	var chunks_to_apply: Array[Vector2i] = []
+
+	# Find unapplied chunks that now have players nearby
+	for chunk_pos in unapplied_chunks.keys():
+		if _is_player_near_chunk(chunk_pos):
+			chunks_to_apply.append(chunk_pos)
+
+	# Apply modifications to these chunks
+	for chunk_pos in chunks_to_apply:
+		print("[Server] Player now near chunk %s - applying pending terrain modifications" % chunk_pos)
+		_apply_terrain_modifications_for_chunk(chunk_pos)
+		unapplied_chunks.erase(chunk_pos)
+
+## Apply terrain modifications for a specific chunk (called when chunk loads)
+func _apply_terrain_modifications_for_chunk(chunk_pos: Vector2i) -> void:
+	if not terrain_modification_history.has(chunk_pos):
+		return  # No modifications for this chunk
+
+	var chunk_mods = terrain_modification_history[chunk_pos]
+	print("[Server] Applying %d terrain modifications for chunk %s" % [chunk_mods.size(), chunk_pos])
+
+	for modification in chunk_mods:
+		var operation: String = modification.operation
+		var position: Array = modification.position
+		var pos_v3 := Vector3(position[0], position[1], position[2])
+		var data: Dictionary = modification.data
+
+		print("[Server] Replaying: %s at %s with data: %s" % [operation, pos_v3, data])
+
+		# Apply modification to server's terrain
+		match operation:
+			"dig_circle":
+				var tool_name: String = data.get("tool", "stone_pickaxe")
+				print("[Server] -> dig_circle with tool: %s" % tool_name)
+				voxel_world.dig_circle(pos_v3, tool_name)
+			"dig_square":
+				var tool_name: String = data.get("tool", "stone_pickaxe")
+				print("[Server] -> dig_square with tool: %s" % tool_name)
+				voxel_world.dig_square(pos_v3, tool_name)
+			"level_circle":
+				var target_height: float = data.get("target_height", pos_v3.y)
+				voxel_world.level_circle(pos_v3, target_height)
+			"place_circle":
+				voxel_world.place_circle(pos_v3, 999999)
+			"place_square":
+				voxel_world.place_square(pos_v3, 999999)
+
+	# Broadcast these modifications to all clients
+	for modification in chunk_mods:
+		var operation: String = modification.operation
+		var position: Array = modification.position
+		var data: Dictionary = modification.data
+		NetworkManager.rpc_apply_terrain_modification.rpc(operation, position, data)
+
+	print("[Server] Applied and broadcasted %d modifications for chunk %s" % [chunk_mods.size(), chunk_pos])
+
 ## Replay all terrain modifications to a newly connected player
+## Only replays modifications for currently loaded chunks
 func _replay_terrain_modifications_to_player(peer_id: int) -> void:
 	if terrain_modification_history.is_empty():
 		print("[Server] No terrain modifications to replay to player %d" % peer_id)
 		return
 
-	print("[Server] Replaying %d terrain modifications to player %d..." % [terrain_modification_history.size(), peer_id])
+	# Get loaded chunks from chunk_manager
+	var loaded_chunks := []
+	if voxel_world and voxel_world.chunk_manager:
+		loaded_chunks = voxel_world.chunk_manager.loaded_chunks.keys()
 
-	# Send each modification to the new player
-	for modification in terrain_modification_history:
-		var operation: String = modification.operation
-		var position: Array = modification.position
-		var data: Dictionary = modification.data
+	var total_replayed := 0
 
-		# Send to this specific client only
-		NetworkManager.rpc_apply_terrain_modification.rpc_id(peer_id, operation, position, data)
+	# Only replay modifications for chunks that are currently loaded
+	for chunk_pos in loaded_chunks:
+		if terrain_modification_history.has(chunk_pos):
+			var chunk_mods = terrain_modification_history[chunk_pos]
+			for modification in chunk_mods:
+				var operation: String = modification.operation
+				var position: Array = modification.position
+				var data: Dictionary = modification.data
 
-	print("[Server] Replayed %d terrain modifications to player %d" % [terrain_modification_history.size(), peer_id])
+				# Send to this specific client only
+				NetworkManager.rpc_apply_terrain_modification.rpc_id(peer_id, operation, position, data)
+				total_replayed += 1
+
+	print("[Server] Replayed %d terrain modifications from %d loaded chunks to player %d" % [total_replayed, loaded_chunks.size(), peer_id])
 
 # ============================================================================
 # PLAYER MANAGEMENT (SERVER-AUTHORITATIVE)
@@ -745,8 +864,18 @@ func handle_destroy_buildable(peer_id: int, network_id: String) -> void:
 	print("[Server] Buildable %s destroyed successfully" % network_id)
 
 ## Track all terrain modifications for replication to new clients
-var terrain_modification_history: Array = []  # Array of {operation, position, data}
+## Changed to chunk-based storage: Dictionary[Vector2i, Array] where key is chunk position
+var terrain_modification_history: Dictionary = {}  # chunk_pos -> Array of {operation, position, data}
+var unapplied_chunks: Dictionary = {}  # chunk_pos -> bool (chunks that need mods applied when player gets close)
 const TERRAIN_HISTORY_FILE := "user://worlds/%s/terrain_history.json"
+const CHUNK_SIZE: float = 32.0  # Must match chunk_manager.chunk_size
+
+## Convert world position to chunk position
+func _world_to_chunk_pos(world_pos: Vector3) -> Vector2i:
+	return Vector2i(
+		floori(world_pos.x / CHUNK_SIZE),
+		floori(world_pos.z / CHUNK_SIZE)
+	)
 
 ## Handle terrain modification request (server-authoritative)
 func handle_terrain_modification(peer_id: int, operation: String, position: Vector3, data: Dictionary) -> void:
@@ -874,13 +1003,20 @@ func handle_terrain_modification(peer_id: int, operation: String, position: Vect
 	var position_array := [position.x, position.y, position.z]
 	NetworkManager.rpc_apply_terrain_modification.rpc(operation, position_array, data)
 
-	# Add to history for replaying to new clients
-	terrain_modification_history.append({
+	# Add to chunk-based history for replaying to new clients
+	var chunk_pos := _world_to_chunk_pos(position)
+	if not terrain_modification_history.has(chunk_pos):
+		terrain_modification_history[chunk_pos] = []
+
+	terrain_modification_history[chunk_pos].append({
 		"operation": operation,
 		"position": position_array,
 		"data": data
 	})
-	print("[Server] Added modification to history (total: %d)" % terrain_modification_history.size())
+	var total_modifications = 0
+	for chunk_mods in terrain_modification_history.values():
+		total_modifications += chunk_mods.size()
+	print("[Server] Added modification to chunk %s history (total across all chunks: %d)" % [chunk_pos, total_modifications])
 
 	print("[Server] Terrain modification complete - broadcasted to all clients")
 	print("[Server] ========================================")
@@ -913,11 +1049,21 @@ func _save_terrain_history() -> void:
 		push_error("[Server] Failed to open terrain history file for writing: %s" % history_file_path)
 		return
 
-	var json_string := JSON.stringify(terrain_modification_history, "\t")
+	# Convert chunk-based dictionary to saveable format
+	# Format: {chunk_key: [modifications], ...} where chunk_key is "x,z"
+	var save_data := {}
+	for chunk_pos in terrain_modification_history.keys():
+		var chunk_key := "%d,%d" % [chunk_pos.x, chunk_pos.y]
+		save_data[chunk_key] = terrain_modification_history[chunk_pos]
+
+	var json_string := JSON.stringify(save_data, "\t")
 	file.store_string(json_string)
 	file.close()
 
-	print("[Server] Saved %d terrain modifications to %s" % [terrain_modification_history.size(), history_file_path])
+	var total_mods = 0
+	for chunk_mods in terrain_modification_history.values():
+		total_mods += chunk_mods.size()
+	print("[Server] Saved %d terrain modifications across %d chunks to %s" % [total_mods, terrain_modification_history.size(), history_file_path])
 
 ## Load terrain modification history from disk
 func _load_terrain_history() -> void:
@@ -925,14 +1071,14 @@ func _load_terrain_history() -> void:
 
 	if not FileAccess.file_exists(history_file_path):
 		print("[Server] No terrain history file found at %s - starting fresh" % history_file_path)
-		terrain_modification_history = []
+		terrain_modification_history = {}
 		return
 
 	var file := FileAccess.open(history_file_path, FileAccess.READ)
 
 	if not file:
 		push_error("[Server] Failed to open terrain history file for reading: %s" % history_file_path)
-		terrain_modification_history = []
+		terrain_modification_history = {}
 		return
 
 	var json_string := file.get_as_text()
@@ -943,70 +1089,48 @@ func _load_terrain_history() -> void:
 
 	if parse_result != OK:
 		push_error("[Server] Failed to parse terrain history JSON: %s" % json.get_error_message())
-		terrain_modification_history = []
+		terrain_modification_history = {}
 		return
 
 	var loaded_data = json.get_data()
-	if loaded_data is Array:
-		terrain_modification_history = loaded_data
-		print("[Server] Loaded %d terrain modifications from %s" % [terrain_modification_history.size(), history_file_path])
+	if loaded_data is Dictionary:
+		# New format: Dictionary with string keys "x,z"
+		# Convert string keys "x,z" back to Vector2i
+		terrain_modification_history = {}
+		for key_str in loaded_data.keys():
+			var coords = key_str.split(",")
+			if coords.size() == 2:
+				var chunk_pos = Vector2i(int(coords[0]), int(coords[1]))
+				terrain_modification_history[chunk_pos] = loaded_data[key_str]
 
-		# Apply all loaded modifications to server's terrain
-		_apply_loaded_terrain_history()
+		var total_mods = 0
+		for chunk_mods in terrain_modification_history.values():
+			total_mods += chunk_mods.size()
+		print("[Server] Loaded %d terrain modifications across %d chunks from %s" % [total_mods, terrain_modification_history.size(), history_file_path])
+
+		# Note: Modifications will be applied per-chunk when chunks load via _apply_terrain_modifications_for_chunk()
+	elif loaded_data is Array:
+		# Old format: Array of modifications - convert to chunk-based Dictionary
+		print("[Server] Converting old terrain history format to chunk-based format...")
+		terrain_modification_history = {}
+
+		for modification in loaded_data:
+			var position: Array = modification.get("position", [0, 0, 0])
+			var pos_v3 := Vector3(position[0], position[1], position[2])
+			var chunk_pos := _world_to_chunk_pos(pos_v3)
+
+			if not terrain_modification_history.has(chunk_pos):
+				terrain_modification_history[chunk_pos] = []
+			terrain_modification_history[chunk_pos].append(modification)
+
+		var total_mods = loaded_data.size()
+		print("[Server] Converted %d terrain modifications to %d chunks from %s" % [total_mods, terrain_modification_history.size(), history_file_path])
+
+		# Save in new format immediately
+		_save_terrain_history()
 	else:
-		push_error("[Server] Terrain history file contains invalid data (expected Array)")
-		terrain_modification_history = []
-
-## Apply loaded terrain history to the server's terrain
-func _apply_loaded_terrain_history() -> void:
-	if terrain_modification_history.is_empty():
-		return
-
-	if not voxel_world:
-		push_warning("[Server] Cannot apply terrain history - voxel_world not ready yet")
-		# Schedule application for when voxel_world is ready
-		call_deferred("_apply_loaded_terrain_history_deferred")
-		return
-
-	print("[Server] Applying %d loaded terrain modifications to server terrain..." % terrain_modification_history.size())
-
-	for modification in terrain_modification_history:
-		var operation: String = modification.operation
-		var position: Array = modification.position
-		var pos_v3 := Vector3(position[0], position[1], position[2])
-		var data: Dictionary = modification.data
-
-		# Apply modification directly to server's terrain (no inventory checks for loaded data)
-		match operation:
-			"dig_circle":
-				var tool_name: String = data.get("tool", "stone_pickaxe")
-				voxel_world.dig_circle(pos_v3, tool_name)
-
-			"dig_square":
-				var tool_name: String = data.get("tool", "stone_pickaxe")
-				voxel_world.dig_square(pos_v3, tool_name)
-
-			"level_circle":
-				var target_height: float = data.get("target_height", pos_v3.y)
-				voxel_world.level_circle(pos_v3, target_height)
-
-			"place_circle":
-				# Place with a large amount since we're restoring saved state
-				voxel_world.place_circle(pos_v3, 999999)
-
-			"place_square":
-				# Place with a large amount since we're restoring saved state
-				voxel_world.place_square(pos_v3, 999999)
-
-	print("[Server] Applied %d terrain modifications to server terrain" % terrain_modification_history.size())
-
-## Deferred application of terrain history (when voxel_world becomes ready)
-func _apply_loaded_terrain_history_deferred() -> void:
-	# Wait for voxel_world to be initialized
-	if not voxel_world:
-		await get_tree().process_frame
-
-	_apply_loaded_terrain_history()
+		push_error("[Server] Terrain history file contains invalid data (expected Dictionary or Array)")
+		terrain_modification_history = {}
 
 # ============================================================================
 # CONSOLE COMMANDS (for dedicated server)

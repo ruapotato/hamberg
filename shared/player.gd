@@ -290,7 +290,7 @@ func _gather_input() -> Dictionary:
 	if Input.is_action_just_pressed("attack") if InputMap.has_action("attack") else Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
 		attack_pressed = true
 
-	# Secondary action input (right mouse button)
+	# Secondary action input (right mouse button / right bumper for controller)
 	var secondary_action_pressed := false
 	if Input.is_action_just_pressed("secondary_action") if InputMap.has_action("secondary_action") else Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT):
 		secondary_action_pressed = true
@@ -1067,10 +1067,9 @@ func _handle_terrain_modification_input(input_data: Dictionary) -> bool:
 	if is_pickaxe:
 		if left_click:
 			operation = "dig_circle"
-		elif right_click:
+		elif right_click or middle_click:
+			# Right-click (mouse) or RB (controller) does square dig
 			operation = "dig_square"
-		elif middle_click:
-			operation = "erode_sphere"
 	elif is_hoe:
 		if left_click or right_click:
 			operation = "level_circle"
