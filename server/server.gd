@@ -425,6 +425,28 @@ func _check_unapplied_chunks() -> void:
 		_apply_terrain_modifications_for_chunk(chunk_pos)
 		unapplied_chunks.erase(chunk_pos)
 
+## Check and apply unapplied chunks near a specific position (e.g., spawn point)
+func _check_unapplied_chunks_near_position(position: Vector3) -> void:
+	if unapplied_chunks.is_empty():
+		return
+
+	const MAX_DISTANCE := 48.0  # Match _is_player_near_chunk distance
+	var chunks_to_apply: Array[Vector2i] = []
+
+	# Find unapplied chunks near this position
+	for chunk_pos in unapplied_chunks.keys():
+		var chunk_center := Vector3(chunk_pos.x * CHUNK_SIZE + CHUNK_SIZE / 2.0, 0, chunk_pos.y * CHUNK_SIZE + CHUNK_SIZE / 2.0)
+		var distance := Vector2(position.x, position.z).distance_to(Vector2(chunk_center.x, chunk_center.z))
+
+		if distance <= MAX_DISTANCE:
+			chunks_to_apply.append(chunk_pos)
+
+	# Apply modifications to these chunks
+	for chunk_pos in chunks_to_apply:
+		print("[Server] Position %s near chunk %s - applying pending terrain modifications" % [position, chunk_pos])
+		_apply_terrain_modifications_for_chunk(chunk_pos)
+		unapplied_chunks.erase(chunk_pos)
+
 ## Apply terrain modifications for a specific chunk (called when chunk loads)
 func _apply_terrain_modifications_for_chunk(chunk_pos: Vector2i) -> void:
 	if not terrain_modification_history.has(chunk_pos):
@@ -1334,6 +1356,10 @@ func _spawn_player_with_data(peer_id: int, player_data: Dictionary) -> void:
 			var terrain_height = voxel_world.get_terrain_height_at(saved_xz)
 			spawn_pos = Vector3(pos[0], terrain_height + 3.0, pos[2])
 
+	# Check for unapplied chunks near spawn position before spawning
+	# This ensures terrain modifications are applied before player spawns
+	_check_unapplied_chunks_near_position(spawn_pos)
+
 	# Add to world FIRST (required before setting global_position)
 	world.add_child(player, true)
 	spawned_players[peer_id] = player
@@ -1606,6 +1632,10 @@ func handle_respawn_request(peer_id: int) -> void:
 
 	# Determine spawn position (default spawn point for now)
 	var spawn_position = _get_spawn_point()
+
+	# Check for unapplied chunks near spawn position before respawning
+	# This ensures terrain modifications are applied before player spawns
+	_check_unapplied_chunks_near_position(spawn_position)
 
 	# Respawn the player on server
 	if player.has_method("respawn_at"):
