@@ -9,12 +9,27 @@ signal character_selected(character_id: String, character_name: String, is_new: 
 
 var characters: Array = []
 var character_button_scene: PackedScene
+var selected_index: int = 0  # For controller navigation
 
 func _ready() -> void:
 	create_button.pressed.connect(_on_create_button_pressed)
 
 	# Create character button scene programmatically
 	character_button_scene = _create_character_button_scene()
+
+func _process(_delta: float) -> void:
+	if not visible:
+		return
+
+	# D-pad up/down to navigate characters
+	if Input.is_action_just_pressed("hotbar_equip"):  # D-pad Up
+		_move_selection(-1)
+	elif Input.is_action_just_pressed("hotbar_unequip"):  # D-pad Down
+		_move_selection(1)
+
+	# A button to select character
+	if Input.is_action_just_pressed("interact"):
+		_select_current_character()
 
 func show_characters(character_data: Array) -> void:
 	characters = character_data
@@ -25,13 +40,17 @@ func show_characters(character_data: Array) -> void:
 
 	if characters.is_empty():
 		status_label.text = "No characters found. Create a new one!"
+		selected_index = -1  # No characters to select
 	else:
 		status_label.text = ""
+		selected_index = 0  # Select first character
 
 		# Create button for each character
 		for char_data in characters:
 			var button = _create_character_button(char_data)
 			character_list_vbox.add_child(button)
+
+		_update_selection_visual()
 
 	visible = true
 
@@ -99,3 +118,40 @@ func _format_timestamp(unix_time: int) -> String:
 		time_dict.hour,
 		time_dict.minute
 	]
+
+## Move selection up/down (controller D-pad)
+func _move_selection(direction: int) -> void:
+	if characters.is_empty():
+		return
+
+	selected_index += direction
+
+	# Wrap around
+	if selected_index < 0:
+		selected_index = characters.size() - 1
+	elif selected_index >= characters.size():
+		selected_index = 0
+
+	_update_selection_visual()
+
+## Update visual highlight for selected character
+func _update_selection_visual() -> void:
+	if not character_list_vbox:
+		return
+
+	var buttons = character_list_vbox.get_children()
+	for i in buttons.size():
+		if buttons[i] is Button:
+			if i == selected_index:
+				buttons[i].modulate = Color(1.5, 1.5, 1.0)  # Highlight selected
+				buttons[i].grab_focus()
+			else:
+				buttons[i].modulate = Color.WHITE  # Normal
+
+## Select the currently highlighted character (controller A button)
+func _select_current_character() -> void:
+	if selected_index >= 0 and selected_index < characters.size():
+		var char_data = characters[selected_index]
+		var character_id = char_data.get("character_id", "")
+		var character_name = char_data.get("character_name", "Unknown")
+		_on_character_button_pressed(character_id, character_name)

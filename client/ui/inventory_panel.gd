@@ -13,6 +13,8 @@ var slots: Array[Node] = []
 var player_inventory: Node = null
 var is_open: bool = false
 var nearby_stations: Array = []  # Crafting stations player is near (e.g., ["workbench"])
+var focused_slot: int = 0  # For controller navigation
+var picked_up_slot: int = -1  # Slot being moved (-1 = none)
 
 @onready var inventory_grid: GridContainer = $Panel/InventoryGrid
 @onready var panel: Panel = $Panel
@@ -33,6 +35,24 @@ func _process(_delta: float) -> void:
 	# Toggle inventory with Tab key
 	if Input.is_action_just_pressed("toggle_inventory"):
 		toggle_inventory()
+
+	# Handle D-pad navigation when inventory is open
+	if is_open:
+		# D-pad left/right navigates horizontally
+		if Input.is_action_just_pressed("hotbar_next"):
+			_move_focus(1, 0)  # Right
+		elif Input.is_action_just_pressed("hotbar_prev"):
+			_move_focus(-1, 0)  # Left
+
+		# D-pad up/down navigates vertically when inventory open
+		if Input.is_action_just_pressed("hotbar_equip"):
+			_move_focus(0, -1)  # Up
+		elif Input.is_action_just_pressed("hotbar_unequip"):
+			_move_focus(0, 1)  # Down
+
+		# A button: Pick up/drop item (for moving items)
+		if Input.is_action_just_pressed("interact"):
+			_handle_item_pickup_drop()
 
 func _create_slots() -> void:
 	slots.clear()
@@ -128,6 +148,9 @@ func show_inventory() -> void:
 	is_open = true
 	visible = true
 	refresh_display()
+
+	# Initialize focus visual for controller
+	_update_focus_visual()
 
 	# Capture mouse cursor
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
@@ -297,3 +320,135 @@ func _update_recipe_buttons() -> void:
 			# Update button appearance based on craftability
 			button.disabled = not can_craft
 			button.modulate = Color.WHITE if can_craft else Color(0.5, 0.5, 0.5)
+
+## Move focus in grid (for controller D-pad navigation)
+func _move_focus(dx: int, dy: int) -> void:
+	# Calculate current row and column
+	var current_row = focused_slot / COLUMNS
+	var current_col = focused_slot % COLUMNS
+
+	# Calculate new position
+	var new_row = current_row + dy
+	var new_col = current_col + dx
+
+	# Clamp to valid range
+	var max_rows = (MAX_SLOTS + COLUMNS - 1) / COLUMNS  # Ceiling division
+	new_row = clamp(new_row, 0, max_rows - 1)
+	new_col = clamp(new_col, 0, COLUMNS - 1)
+
+	# Calculate new focused slot
+	var new_focus = new_row * COLUMNS + new_col
+
+	# Clamp to valid slot range
+	new_focus = clamp(new_focus, 0, MAX_SLOTS - 1)
+
+	if new_focus != focused_slot:
+		focused_slot = new_focus
+		_update_focus_visual()
+
+## Update visual highlight for focused slot
+func _update_focus_visual() -> void:
+	for i in slots.size():
+		if slots[i].has_method("set_selected"):
+			# Show selection on focused slot OR picked up slot
+			var is_highlighted = (i == focused_slot) or (i == picked_up_slot)
+			slots[i].set_selected(is_highlighted)
+
+## Handle picking up and dropping items with A button
+func _handle_item_pickup_drop() -> void:
+	if picked_up_slot == -1:
+		# No item picked up - try to pick up focused item
+		if not player_inventory:
+			return
+
+		var inventory_data = player_inventory.get_inventory_data()
+		if focused_slot >= inventory_data.size():
+			return
+
+		var slot_data = inventory_data[focused_slot]
+		if slot_data.is_empty():
+			return  # Can't pick up empty slot
+
+		# Pick up this item
+		picked_up_slot = focused_slot
+		print("[InventoryPanel] Picked up item from slot %d" % picked_up_slot)
+		_update_focus_visual()
+	else:
+		# Item already picked up - drop it at focused slot
+		if picked_up_slot == focused_slot:
+			# Dropping on same slot - just cancel
+			print("[InventoryPanel] Cancelled move")
+			picked_up_slot = -1
+			_update_focus_visual()
+		else:
+			# Swap items
+			print("[InventoryPanel] Swapping slots %d and %d" % [picked_up_slot, focused_slot])
+			NetworkManager.rpc_request_swap_slots.rpc_id(1, picked_up_slot, focused_slot)
+			picked_up_slot = -1
+			_update_focus_visual()
+
+## Equip the focused item (controller A button when inventory open)
+func _equip_focused_item() -> void:
+	if not player_inventory:
+		return
+
+	var inventory_data = player_inventory.get_inventory_data()
+	if focused_slot >= inventory_data.size():
+		return
+
+	var slot_data = inventory_data[focused_slot]
+	if slot_data.is_empty():
+		return
+
+	var item_id = slot_data.get("item", "")
+	if item_id.is_empty():
+		return
+
+	# Check if this is an equippable item
+	var item_data = ItemDatabase.get_item(item_id)
+	if not item_data:
+		return
+
+	# Determine which equipment slot to equip to
+	var equip_slot = -1
+	match item_data.item_type:
+		ItemData.ItemType.WEAPON, ItemData.ItemType.TOOL, ItemData.ItemType.RESOURCE:
+			equip_slot = Equipment.EquipmentSlot.MAIN_HAND
+		ItemData.ItemType.SHIELD:
+			equip_slot = Equipment.EquipmentSlot.OFF_HAND
+		_:
+			print("[InventoryPanel] Item %s is not equippable" % item_id)
+			return
+
+	# Check if already equipped - if so, unequip
+	var player = player_inventory.get_parent()
+	if player and player.has_node("Equipment"):
+		var equipment = player.get_node("Equipment")
+		var currently_equipped = equipment.get_equipped_item(equip_slot)
+		if currently_equipped == item_id:
+			print("[InventoryPanel] Controller unequipping %s" % item_id)
+			NetworkManager.rpc_request_unequip_slot.rpc_id(1, equip_slot)
+			return
+
+	print("[InventoryPanel] Controller equipping %s" % item_id)
+	NetworkManager.rpc_request_equip_item.rpc_id(1, equip_slot, item_id)
+
+## Unequip current equipment (controller)
+func _unequip_focused_item() -> void:
+	var player = player_inventory.get_parent() if player_inventory else null
+	if not player or not player.has_node("Equipment"):
+		return
+
+	var equipment = player.get_node("Equipment")
+
+	# Unequip main hand
+	var main_hand = equipment.get_equipped_item(Equipment.EquipmentSlot.MAIN_HAND)
+	if not main_hand.is_empty():
+		print("[InventoryPanel] Controller unequipping main hand: %s" % main_hand)
+		NetworkManager.rpc_request_unequip_slot.rpc_id(1, Equipment.EquipmentSlot.MAIN_HAND)
+
+	# Unequip off hand
+	var off_hand = equipment.get_equipped_item(Equipment.EquipmentSlot.OFF_HAND)
+	if not off_hand.is_empty():
+		print("[InventoryPanel] Controller unequipping off hand: %s" % off_hand)
+		NetworkManager.rpc_request_unequip_slot.rpc_id(1, Equipment.EquipmentSlot.OFF_HAND)

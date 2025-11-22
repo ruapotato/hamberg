@@ -159,6 +159,14 @@ func _ready() -> void:
 	port_input.text = str(NetworkManager.DEFAULT_PORT)
 
 func _process(_delta: float) -> void:
+	# Handle connection UI controller input (when visible)
+	if connection_ui and connection_ui.visible:
+		_handle_connection_ui_input()
+
+	# Handle character selection controller input (when visible)
+	if character_selection_ui and character_selection_ui.visible:
+		_handle_character_selection_input()
+
 	if is_in_game:
 		_update_hud()
 		_handle_build_input()
@@ -264,9 +272,9 @@ func _handle_build_input() -> void:
 	if build_menu_ui and build_menu_ui.is_open:
 		return
 
-	# Right-click to open build menu when hammer is equipped
-	if Input.is_action_just_pressed("secondary_action"):
-		print("[Client] secondary_action pressed!")
+	# Right-click or X button to open build menu when hammer is equipped
+	if Input.is_action_just_pressed("secondary_action") or Input.is_action_just_pressed("open_build_menu"):
+		print("[Client] Build menu button pressed!")
 		print("[Client] current_equipped_item=%s, build_mode=%s, build_mode.is_active=%s, build_menu_ui=%s" % [
 			current_equipped_item,
 			build_mode != null,
@@ -279,6 +287,14 @@ func _handle_build_input() -> void:
 				build_menu_ui.toggle_menu()
 			else:
 				print("[Client] ERROR: build_menu_ui is null!")
+
+	# Y button opens build menu when hammer equipped (blocks inventory)
+	if Input.is_action_just_pressed("toggle_inventory"):
+		if current_equipped_item == "hammer" and build_mode and build_mode.is_active:
+			if build_menu_ui:
+				build_menu_ui.toggle_menu()
+			# Consume the input so inventory doesn't open
+			Input.action_release("toggle_inventory")
 
 	# Middle mouse button to destroy objects (when hammer equipped)
 	if Input.is_action_just_pressed("destroy_object"):
@@ -420,6 +436,13 @@ func spawn_player(peer_id: int, player_name: String, spawn_pos: Vector3) -> void
 
 		# Initialize map system with player
 		_initialize_maps_with_player(player)
+
+		# Connect to equipment changes to track what's actually equipped
+		if player.has_node("Equipment"):
+			var equipment = player.get_node("Equipment")
+			if equipment and equipment.has_signal("equipment_changed"):
+				equipment.equipment_changed.connect(_on_equipment_changed)
+				print("[Client] Connected to equipment_changed signal")
 
 		# Mark loading step complete and start waiting for terrain
 		_mark_loading_step_complete("player_spawned")
@@ -565,10 +588,26 @@ func _setup_inventory_ui(player: Node3D) -> void:
 	add_child(refresh_timer)
 	refresh_timer.start()
 
-## Handle hotbar selection changes (for build mode toggling)
+## Handle hotbar selection changes (called when D-pad cycles or number key pressed)
+## NOTE: This does NOT mean the item is equipped! Use _on_equipment_changed for that.
 func _on_hotbar_selection_changed(slot_index: int, item_name: String) -> void:
-	current_equipped_item = item_name
+	# Do nothing here - we track equipped items via _on_equipment_changed instead
+	pass
+
+## Handle equipment changes (called when item is actually equipped)
+func _on_equipment_changed(equipment_slot: int) -> void:
+	if not local_player or not local_player.has_node("Equipment"):
+		return
+
+	var equipment = local_player.get_node("Equipment")
 	var camera = _get_camera()
+
+	# Get what's equipped in main hand (where hammer/tools go)
+	const MAIN_HAND = 0  # Equipment.EquipmentSlot.MAIN_HAND
+	var main_hand_item = equipment.get_equipped_item(MAIN_HAND)
+	current_equipped_item = main_hand_item
+
+	print("[Client] Equipment changed - Main hand now has: %s" % main_hand_item)
 
 	# Deactivate all modes first
 	if build_mode.is_active:
@@ -577,14 +616,16 @@ func _on_hotbar_selection_changed(slot_index: int, item_name: String) -> void:
 		placement_mode.deactivate()
 
 	# Activate appropriate mode based on equipped item
-	if item_name == "hammer":
+	if main_hand_item == "hammer":
 		if camera and local_player:
 			build_mode.activate(local_player, camera, world, build_menu_ui, build_status_label)
+			print("[Client] Build mode activated")
 		else:
 			print("[Client] Cannot activate build mode - camera or player missing")
-	elif item_name == "workbench":
+	elif main_hand_item == "workbench":
 		if camera and local_player:
-			placement_mode.activate(local_player, camera, world, item_name)
+			placement_mode.activate(local_player, camera, world, main_hand_item)
+			print("[Client] Placement mode activated for workbench")
 
 ## Handle build piece selection from build menu
 func _on_build_piece_selected(piece_name: String) -> void:
@@ -1322,3 +1363,15 @@ func _generate_world_map_cache() -> void:
 	# Maps now generate on-demand showing only the visible area
 	# This prevents blocking the loading screen
 	_mark_loading_step_complete("world_map")
+
+## Handle controller input for connection UI
+func _handle_connection_ui_input() -> void:
+	# A button to connect
+	if Input.is_action_just_pressed("interact"):
+		if not connect_button.disabled:
+			_on_connect_button_pressed()
+
+## Handle controller input for character selection
+func _handle_character_selection_input() -> void:
+	# Let character selection handle its own controller input
+	pass

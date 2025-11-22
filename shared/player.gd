@@ -279,7 +279,11 @@ func _gather_input() -> Dictionary:
 	"""Gather input from the player"""
 	var input_dir := Input.get_vector("move_left", "move_right", "move_forward", "move_backward")
 	var is_sprinting := Input.is_action_pressed("sprint")
-	var jump_pressed := Input.is_action_just_pressed("jump")
+
+	# Don't allow jump when mouse is visible (menus are open)
+	var jump_pressed := false
+	if Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
+		jump_pressed = Input.is_action_just_pressed("jump")
 
 	# Attack input (left mouse button or custom action if defined)
 	var attack_pressed := false

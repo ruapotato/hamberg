@@ -15,10 +15,16 @@ Hamberg now has full controller support optimized for the Steam Deck!
 - **RB (Right Bumper)**: Secondary Attack (Middle Click)
 
 ### Actions
-- **A**: Interact (E)
-- **B**: Jump (Space)
-- **X**: Build Menu (Q)
-- **Y**: Inventory (Tab)
+- **A Button**: **PRIMARY SELECT** - Use this button for all selections and interactions
+  - In-game: Interact (E)
+  - All menus: Select/Confirm
+  - Inventory: Pick up / drop item
+  - Build menu: Select building piece
+  - Server/Character select: Choose option
+  - Launch screens: Confirm selections
+- **B Button**: Jump (Space) - disabled when menus are open
+- **X Button**: Build Menu (Q) - opens build menu when hammer equipped
+- **Y Button**: Inventory (Tab) - opens **build menu** when hammer equipped instead of inventory
 
 ### Menus & Map
 - **View/Back Button**: Toggle Map (M)
@@ -28,9 +34,41 @@ Hamberg now has full controller support optimized for the Steam Deck!
 - **D-Pad Left**: Previous Build Piece
 - **D-Pad Right**: Next Build Piece
 
-### Hotbar
-Use the number keys 1-9 on keyboard/mouse mode for hotbar selection.
-When using a controller, you can switch to keyboard/mouse at any time!
+### Hotbar (Controller D-Pad - When Inventory Closed)
+- **D-Pad Left/Right**: Cycle through hotbar slots (1-9)
+  - Shows selection border (yellow) on selected slot
+  - Equipped items show gold border
+- **D-Pad Up**: Equip selected hotbar item
+- **D-Pad Down**: Unequip main hand and off hand
+
+*Note: Keyboard/mouse still uses number keys 1-9 and auto-equips on selection*
+
+### Inventory Navigation (When Inventory Open)
+- **D-Pad**: Navigate inventory grid (all 4 directions)
+  - Shows selection border on focused slot
+  - Picked up items show dual borders (move mode)
+- **A Button**: Pick up / drop item (for moving items between slots)
+  - First press: Pick up item
+  - Second press: Drop item at new location (swaps items)
+  - Press A on same slot: Cancel move
+
+*Note: D-Pad changes function when inventory is open - it navigates instead of cycling hotbar*
+
+### Build Menu (When Open with Hammer Equipped)
+- **D-Pad Up/Down**: Navigate building pieces list
+  - Selected piece highlighted in yellow
+- **A Button**: ✓ Select and place highlighted building piece (auto-closes menu)
+- **B Button**: Close build menu without selecting
+- **Y Button**: Close build menu
+- **X or Y Button**: Open build menu (when hammer equipped and inventory closed)
+
+### Server/Character Selection (Start of Game)
+- **D-Pad Up/Down**: Navigate characters or options
+  - Selected item highlighted in yellow
+- **A Button**: ✓ Connect to server / select character
+
+## Quick Reference
+**A Button = SELECT EVERYTHING** - This is your primary action button for all menus, interactions, and confirmations throughout the game.
 
 ## Automatic Input Switching
 

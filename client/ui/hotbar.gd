@@ -26,6 +26,22 @@ func _process(_delta: float) -> void:
 		if Input.is_action_just_pressed("hotbar_" + str(i)):
 			select_slot(i - 1)
 
+	# Only handle D-pad for hotbar when inventory is closed (mouse captured = FPS mode)
+	var is_inventory_closed = (Input.mouse_mode == Input.MOUSE_MODE_CAPTURED)
+
+	if is_inventory_closed:
+		# Handle D-pad hotbar cycling
+		if Input.is_action_just_pressed("hotbar_next"):
+			cycle_hotbar(1)
+		elif Input.is_action_just_pressed("hotbar_prev"):
+			cycle_hotbar(-1)
+
+		# Handle D-pad equip/unequip
+		if Input.is_action_just_pressed("hotbar_equip"):
+			equip_selected_item()
+		elif Input.is_action_just_pressed("hotbar_unequip"):
+			unequip_selected_item()
+
 func _create_slots() -> void:
 	slots.clear()
 
@@ -92,8 +108,8 @@ func _on_slot_right_clicked(slot_index: int) -> void:
 func _on_slot_clicked(slot_index: int) -> void:
 	select_slot(slot_index)
 
-## Select a hotbar slot and auto-equip the item
-func select_slot(index: int) -> void:
+## Select a hotbar slot (keyboard/mouse auto-equips, controller requires D-pad up)
+func select_slot(index: int, auto_equip: bool = true) -> void:
 	if index < 0 or index >= HOTBAR_SIZE:
 		return
 
@@ -116,6 +132,10 @@ func select_slot(index: int) -> void:
 	# Notify player of selection change
 	if player_inventory and player_inventory.get_parent().has_method("on_hotbar_selection_changed"):
 		player_inventory.get_parent().on_hotbar_selection_changed(selected_slot)
+
+	# Only auto-equip if requested (keyboard/mouse behavior)
+	if not auto_equip:
+		return
 
 	# If selecting the same slot and item is equipped, unequip it (toggle behavior)
 	if is_same_slot and not item_id.is_empty():
@@ -156,11 +176,78 @@ func select_slot(index: int) -> void:
 				print("[Hotbar] Auto-equipping %s to equipment slot %d" % [item_id, equip_slot])
 				NetworkManager.rpc_request_equip_item.rpc_id(1, equip_slot, item_id)
 
-## Update visual selection (hotbar doesn't show selection, only equipped status)
+## Update visual selection - shows selection border on selected slot
 func _update_selection() -> void:
-	# Don't show selection border in hotbar - only equipped border matters
 	for i in slots.size():
-		slots[i].set_selected(false)
+		slots[i].set_selected(i == selected_slot)
+
+## Cycle hotbar selection left/right (for D-pad)
+func cycle_hotbar(direction: int) -> void:
+	var new_slot = selected_slot + direction
+	# Wrap around
+	if new_slot < 0:
+		new_slot = HOTBAR_SIZE - 1
+	elif new_slot >= HOTBAR_SIZE:
+		new_slot = 0
+
+	# Select without auto-equipping (controller requires explicit equip)
+	select_slot(new_slot, false)
+
+## Equip the currently selected item (D-pad up)
+func equip_selected_item() -> void:
+	if not player_inventory:
+		return
+
+	var inventory_data = player_inventory.get_inventory_data()
+	if selected_slot >= inventory_data.size():
+		return
+
+	var slot_data = inventory_data[selected_slot]
+	if slot_data.is_empty():
+		return
+
+	var item_id = slot_data.get("item", "")
+	if item_id.is_empty():
+		return
+
+	# Check if this is an equippable item
+	var item_data = ItemDatabase.get_item(item_id)
+	if not item_data:
+		return
+
+	# Determine which equipment slot to equip to
+	var equip_slot = -1
+	match item_data.item_type:
+		ItemData.ItemType.WEAPON, ItemData.ItemType.TOOL, ItemData.ItemType.RESOURCE:
+			equip_slot = Equipment.EquipmentSlot.MAIN_HAND
+		ItemData.ItemType.SHIELD:
+			equip_slot = Equipment.EquipmentSlot.OFF_HAND
+		_:
+			print("[Hotbar] Item %s is not equippable" % item_id)
+			return
+
+	print("[Hotbar] D-pad equipping %s to equipment slot %d" % [item_id, equip_slot])
+	NetworkManager.rpc_request_equip_item.rpc_id(1, equip_slot, item_id)
+
+## Unequip items in MAIN_HAND and OFF_HAND (D-pad down)
+func unequip_selected_item() -> void:
+	var player = player_inventory.get_parent() if player_inventory else null
+	if not player or not player.has_node("Equipment"):
+		return
+
+	var equipment = player.get_node("Equipment")
+
+	# Unequip main hand
+	var main_hand = equipment.get_equipped_item(Equipment.EquipmentSlot.MAIN_HAND)
+	if not main_hand.is_empty():
+		print("[Hotbar] D-pad unequipping main hand: %s" % main_hand)
+		NetworkManager.rpc_request_unequip_slot.rpc_id(1, Equipment.EquipmentSlot.MAIN_HAND)
+
+	# Unequip off hand
+	var off_hand = equipment.get_equipped_item(Equipment.EquipmentSlot.OFF_HAND)
+	if not off_hand.is_empty():
+		print("[Hotbar] D-pad unequipping off hand: %s" % off_hand)
+		NetworkManager.rpc_request_unequip_slot.rpc_id(1, Equipment.EquipmentSlot.OFF_HAND)
 
 ## Link to player's inventory for data sync
 func set_player_inventory(inventory: Node) -> void:
