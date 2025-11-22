@@ -383,9 +383,13 @@ func _apply_terrain_modifications_for_chunk_deferred(chunk_pos: Vector2i) -> voi
 		unapplied_chunks[chunk_pos] = true
 		return
 
-	_apply_terrain_modifications_for_chunk(chunk_pos)
-	# Remove from unapplied list if it was there
-	unapplied_chunks.erase(chunk_pos)
+	var success := _apply_terrain_modifications_for_chunk(chunk_pos)
+	if success:
+		# Remove from unapplied list if it was there
+		unapplied_chunks.erase(chunk_pos)
+	else:
+		print("[Server] Chunk %s modifications not fully applied - keeping in unapplied list" % chunk_pos)
+		unapplied_chunks[chunk_pos] = true
 
 ## Check if any player is close enough to a chunk for voxel operations to work
 func _is_player_near_chunk(chunk_pos: Vector2i) -> bool:
@@ -425,8 +429,11 @@ func _check_unapplied_chunks() -> void:
 	# Apply modifications to these chunks
 	for chunk_pos in chunks_to_apply:
 		print("[Server] Player now near chunk %s - applying pending terrain modifications" % chunk_pos)
-		_apply_terrain_modifications_for_chunk(chunk_pos)
-		unapplied_chunks.erase(chunk_pos)
+		var success := _apply_terrain_modifications_for_chunk(chunk_pos)
+		if success:
+			unapplied_chunks.erase(chunk_pos)
+		else:
+			print("[Server] Chunk %s modifications not fully applied - will retry later" % chunk_pos)
 
 ## Check and apply unapplied chunks near a specific position (e.g., spawn point)
 func _check_unapplied_chunks_near_position(position: Vector3) -> void:
@@ -447,8 +454,11 @@ func _check_unapplied_chunks_near_position(position: Vector3) -> void:
 	# Apply modifications to these chunks
 	for chunk_pos in chunks_to_apply:
 		print("[Server] Position %s near chunk %s - applying pending terrain modifications" % [position, chunk_pos])
-		_apply_terrain_modifications_for_chunk(chunk_pos)
-		unapplied_chunks.erase(chunk_pos)
+		var success := _apply_terrain_modifications_for_chunk(chunk_pos)
+		if success:
+			unapplied_chunks.erase(chunk_pos)
+		else:
+			print("[Server] Chunk %s modifications not fully applied - will retry later" % chunk_pos)
 
 ## Check and apply unapplied chunks near a specific player (called every server tick)
 ## Uses per-player tracking to avoid re-applying the same chunks
@@ -481,20 +491,29 @@ func _check_unapplied_chunks_near_player(peer_id: int, position: Vector3) -> voi
 	# Apply modifications to these chunks
 	for chunk_pos in chunks_to_apply:
 		print("[Server] Player %d moved near chunk %s - applying pending terrain modifications" % [peer_id, chunk_pos])
-		_apply_terrain_modifications_for_chunk(chunk_pos)
-		unapplied_chunks.erase(chunk_pos)
+		var success := _apply_terrain_modifications_for_chunk(chunk_pos)
+		if success:
+			unapplied_chunks.erase(chunk_pos)
 
-		# Clear this chunk from all players' tracking since it's now applied
-		for p_id in player_applied_chunks.keys():
-			player_applied_chunks[p_id].erase(chunk_pos)
+			# Clear this chunk from all players' tracking since it's now applied
+			for p_id in player_applied_chunks.keys():
+				player_applied_chunks[p_id].erase(chunk_pos)
+		else:
+			print("[Server] Chunk %s modifications not fully applied - will retry when player moves closer" % chunk_pos)
+			# Reset this player's tracking for this chunk so it can be retried
+			player_applied[chunk_pos] = false
 
 ## Apply terrain modifications for a specific chunk (called when chunk loads)
-func _apply_terrain_modifications_for_chunk(chunk_pos: Vector2i) -> void:
+## Returns true if all modifications were successfully applied, false otherwise
+func _apply_terrain_modifications_for_chunk(chunk_pos: Vector2i) -> bool:
 	if not terrain_modification_history.has(chunk_pos):
-		return  # No modifications for this chunk
+		return true  # No modifications for this chunk = success
 
 	var chunk_mods = terrain_modification_history[chunk_pos]
 	print("[Server] Applying %d terrain modifications for chunk %s" % [chunk_mods.size(), chunk_pos])
+
+	var all_successful := true
+	var successful_mods := []
 
 	for modification in chunk_mods:
 		var operation: String = modification.operation
@@ -504,35 +523,63 @@ func _apply_terrain_modifications_for_chunk(chunk_pos: Vector2i) -> void:
 
 		print("[Server] Replaying: %s at %s with data: %s" % [operation, pos_v3, data])
 
-		# Apply modification to server's terrain
+		# Apply modification to server's terrain and track success
+		var earth_result := 0
 		match operation:
 			"dig_circle":
 				var tool_name: String = data.get("tool", "stone_pickaxe")
 				print("[Server] -> dig_circle with tool: %s" % tool_name)
-				voxel_world.dig_circle(pos_v3, tool_name)
+				earth_result = voxel_world.dig_circle(pos_v3, tool_name)
+				if earth_result == 0:
+					print("[Server] WARNING: dig_circle returned 0 (area likely not editable yet)")
+					all_successful = false
+				else:
+					successful_mods.append(modification)
 			"dig_square":
 				var tool_name: String = data.get("tool", "stone_pickaxe")
 				print("[Server] -> dig_square with tool: %s" % tool_name)
-				voxel_world.dig_square(pos_v3, tool_name)
+				earth_result = voxel_world.dig_square(pos_v3, tool_name)
+				if earth_result == 0:
+					print("[Server] WARNING: dig_square returned 0 (area likely not editable yet)")
+					all_successful = false
+				else:
+					successful_mods.append(modification)
 			"level_circle":
 				var target_height: float = data.get("target_height", pos_v3.y)
 				print("[Server] -> level_circle at height: %f" % target_height)
 				voxel_world.level_circle(pos_v3, target_height)
+				# level_circle doesn't return a value, assume success
+				successful_mods.append(modification)
 			"place_circle":
 				print("[Server] -> place_circle with unlimited earth")
-				voxel_world.place_circle(pos_v3, 999999)
+				earth_result = voxel_world.place_circle(pos_v3, 999999)
+				if earth_result == 0:
+					print("[Server] WARNING: place_circle returned 0 (area likely not editable yet)")
+					all_successful = false
+				else:
+					successful_mods.append(modification)
 			"place_square":
 				print("[Server] -> place_square with unlimited earth")
-				voxel_world.place_square(pos_v3, 999999)
+				earth_result = voxel_world.place_square(pos_v3, 999999)
+				if earth_result == 0:
+					print("[Server] WARNING: place_square returned 0 (area likely not editable yet)")
+					all_successful = false
+				else:
+					successful_mods.append(modification)
 
-	# Broadcast these modifications to all clients
-	for modification in chunk_mods:
+	# Only broadcast modifications that were successfully applied
+	for modification in successful_mods:
 		var operation: String = modification.operation
 		var position: Array = modification.position
 		var data: Dictionary = modification.data
 		NetworkManager.rpc_apply_terrain_modification.rpc(operation, position, data)
 
-	print("[Server] Applied and broadcasted %d modifications for chunk %s" % [chunk_mods.size(), chunk_pos])
+	if all_successful:
+		print("[Server] Successfully applied and broadcasted %d modifications for chunk %s" % [chunk_mods.size(), chunk_pos])
+	else:
+		print("[Server] Partially applied %d/%d modifications for chunk %s (some areas not editable yet)" % [successful_mods.size(), chunk_mods.size(), chunk_pos])
+
+	return all_successful
 
 ## Replay all terrain modifications to a newly connected player
 ## Only replays modifications for currently loaded chunks
