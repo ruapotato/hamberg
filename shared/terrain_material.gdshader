@@ -5,14 +5,23 @@ shader_type spatial;
 
 uniform int world_seed = 42;
 
-// Biome colors
-const vec3 VALLEY_COLOR = vec3(0.4, 0.7, 0.3);      // Bright green
-const vec3 FOREST_COLOR = vec3(0.2, 0.5, 0.2);      // Dark green
-const vec3 SWAMP_COLOR = vec3(0.3, 0.4, 0.3);       // Murky green-brown
-const vec3 MOUNTAIN_COLOR = vec3(0.6, 0.6, 0.65);   // Gray rock
-const vec3 DESERT_COLOR = vec3(0.8, 0.7, 0.4);      // Sandy yellow
-const vec3 WIZARDLAND_COLOR = vec3(0.6, 0.4, 0.8);  // Purple/magical
-const vec3 HELL_COLOR = vec3(0.7, 0.2, 0.1);        // Red/lava
+// Biome grass colors (flat/low slope terrain)
+const vec3 VALLEY_GRASS = vec3(0.4, 0.7, 0.3);      // Bright green
+const vec3 FOREST_GRASS = vec3(0.2, 0.5, 0.2);      // Dark green
+const vec3 SWAMP_GRASS = vec3(0.3, 0.4, 0.3);       // Murky green-brown
+const vec3 MOUNTAIN_GRASS = vec3(0.5, 0.6, 0.5);    // Light gray-green
+const vec3 DESERT_GRASS = vec3(0.8, 0.7, 0.4);      // Sandy yellow
+const vec3 WIZARDLAND_GRASS = vec3(0.6, 0.4, 0.8);  // Purple/magical
+const vec3 HELL_GRASS = vec3(0.5, 0.2, 0.1);        // Dark red earth
+
+// Biome rock colors (steep/high slope terrain)
+const vec3 VALLEY_ROCK = vec3(0.5, 0.5, 0.5);       // Gray stone
+const vec3 FOREST_ROCK = vec3(0.4, 0.45, 0.4);      // Dark gray-green
+const vec3 SWAMP_ROCK = vec3(0.35, 0.3, 0.3);       // Dark muddy stone
+const vec3 MOUNTAIN_ROCK = vec3(0.6, 0.6, 0.65);    // Light gray rock
+const vec3 DESERT_ROCK = vec3(0.65, 0.55, 0.45);    // Sandy stone
+const vec3 WIZARDLAND_ROCK = vec3(0.5, 0.35, 0.6);  // Purple crystal
+const vec3 HELL_ROCK = vec3(0.3, 0.1, 0.05);        // Dark obsidian
 
 // Biome difficulty zones (match BiomeGenerator constants)
 const float SAFE_ZONE_RADIUS = 800.0;
@@ -154,15 +163,26 @@ int get_biome_index(vec2 xz_pos) {
 	return 0;  // Fallback to valley
 }
 
-vec3 get_biome_color(int biome_index) {
-	if (biome_index == 0) return VALLEY_COLOR;
-	else if (biome_index == 1) return FOREST_COLOR;
-	else if (biome_index == 2) return SWAMP_COLOR;
-	else if (biome_index == 3) return MOUNTAIN_COLOR;
-	else if (biome_index == 4) return DESERT_COLOR;
-	else if (biome_index == 5) return WIZARDLAND_COLOR;
-	else if (biome_index == 6) return HELL_COLOR;
-	return VALLEY_COLOR;  // Fallback
+vec3 get_biome_grass_color(int biome_index) {
+	if (biome_index == 0) return VALLEY_GRASS;
+	else if (biome_index == 1) return FOREST_GRASS;
+	else if (biome_index == 2) return SWAMP_GRASS;
+	else if (biome_index == 3) return MOUNTAIN_GRASS;
+	else if (biome_index == 4) return DESERT_GRASS;
+	else if (biome_index == 5) return WIZARDLAND_GRASS;
+	else if (biome_index == 6) return HELL_GRASS;
+	return VALLEY_GRASS;  // Fallback
+}
+
+vec3 get_biome_rock_color(int biome_index) {
+	if (biome_index == 0) return VALLEY_ROCK;
+	else if (biome_index == 1) return FOREST_ROCK;
+	else if (biome_index == 2) return SWAMP_ROCK;
+	else if (biome_index == 3) return MOUNTAIN_ROCK;
+	else if (biome_index == 4) return DESERT_ROCK;
+	else if (biome_index == 5) return WIZARDLAND_ROCK;
+	else if (biome_index == 6) return HELL_ROCK;
+	return VALLEY_ROCK;  // Fallback
 }
 
 // ============================================================================
@@ -177,11 +197,22 @@ void fragment() {
 	// Get biome at this position
 	vec2 xz_pos = world_pos.xz;
 	int biome = get_biome_index(xz_pos);
-	vec3 base_color = get_biome_color(biome);
+	vec3 grass_color = get_biome_grass_color(biome);
+	vec3 rock_color = get_biome_rock_color(biome);
+
+	// Calculate slope (0 = flat, 1 = vertical)
+	// NORMAL.y is 1.0 for flat ground, 0.0 for vertical walls
+	float slope = 1.0 - abs(NORMAL.y);
+
+	// Blend between grass and rock based on slope
+	// slope < 0.3 = mostly grass
+	// slope > 0.6 = mostly rock
+	float rock_blend = smoothstep(0.3, 0.6, slope);
+	vec3 base_color = mix(grass_color, rock_color, rock_blend);
 
 	// Add subtle height-based variation
 	float height_factor = clamp(world_pos.y / 50.0, 0.0, 1.0);
-	vec3 color = mix(base_color * 0.8, base_color * 1.2, height_factor);
+	vec3 color = mix(base_color * 0.85, base_color * 1.15, height_factor);
 
 	// Simple directional lighting
 	vec3 light_dir = normalize(vec3(0.5, 1.0, 0.3));
@@ -190,6 +221,8 @@ void fragment() {
 	float lighting = ambient + (1.0 - ambient) * ndotl;
 
 	ALBEDO = color * lighting;
-	ROUGHNESS = 0.9;
+
+	// Rocky areas are slightly rougher
+	ROUGHNESS = mix(0.85, 0.95, rock_blend);
 	METALLIC = 0.0;
 }
