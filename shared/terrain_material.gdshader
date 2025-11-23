@@ -333,108 +333,18 @@ void fragment() {
 	float rock_blend = 1.0 - smoothstep(0.70, 0.85, flatness);
 	vec3 base_color = mix(grass_color, rock_color, rock_blend);
 
-	// Add texture detail with noise and normal mapping
+	// Minimal height variation to preserve biome colors
 	vec3 color = base_color;
-	vec3 detail_normal = vec3(0.0, 0.0, 1.0);  // Start with flat (0,0,1) in tangent space
-	float detail_roughness = 0.0;
 
-	// GRASS DETAIL: Multi-scale blade patterns with normal mapping
-	float grass_strength = (1.0 - rock_blend);  // Stronger on flatter areas
-	if (grass_strength > 0.1) {
-		// SCALE 1: Fine grass blades (high frequency)
-		float grass_fine = fbm(xz_pos, world_seed + 500, 1.2, 4, 2.5, 0.5);
+	// Simple directional lighting (use world-space normal)
+	vec3 light_dir = normalize(vec3(0.5, 1.0, 0.3));
+	float ndotl = max(dot(world_normal, light_dir), 0.0);
+	float ambient = 0.6;  // Higher ambient so colors show through
+	float lighting = ambient + (1.0 - ambient) * ndotl;
 
-		// SCALE 2: Medium grass clumps
-		float grass_medium = fbm(xz_pos, world_seed + 501, 0.3, 3, 2.0, 0.5);
+	ALBEDO = color * lighting;
 
-		// SCALE 3: Large patches (terrain-scale variation)
-		float grass_large = fbm(xz_pos, world_seed + 502, 0.05, 2, 2.0, 0.5);
-
-		// Combine scales with different intensities
-		float grass_detail = grass_fine * 0.4 + grass_medium * 0.3 + grass_large * 0.2;
-
-		// Create sharp blade-like features
-		float grass_blades = abs(fract(grass_fine * 3.0) - 0.5) * 2.0;
-
-		// Color variation with visible blade patterns
-		float color_variation = grass_detail * 0.3 + grass_blades * 0.2;
-		color = color * (0.85 + color_variation);  // Range: 0.85 to 1.35
-
-		// NORMAL MAPPING: Calculate height derivative for grass bumps
-		float sample_offset = 0.1;  // World-space offset for derivative
-		float height_center = grass_detail + grass_blades * 0.5;
-		float height_x = fbm(xz_pos + vec2(sample_offset, 0.0), world_seed + 500, 1.2, 4, 2.5, 0.5) * 0.4 +
-		                 fbm(xz_pos + vec2(sample_offset, 0.0), world_seed + 501, 0.3, 3, 2.0, 0.5) * 0.3;
-		float height_z = fbm(xz_pos + vec2(0.0, sample_offset), world_seed + 500, 1.2, 4, 2.5, 0.5) * 0.4 +
-		                 fbm(xz_pos + vec2(0.0, sample_offset), world_seed + 501, 0.3, 3, 2.0, 0.5) * 0.3;
-
-		// Calculate normal from height differences
-		float normal_strength = 2.0 * grass_strength;  // Stronger normal perturbation
-		detail_normal.x = -(height_x - height_center) / sample_offset * normal_strength;
-		detail_normal.z = -(height_z - height_center) / sample_offset * normal_strength;
-		detail_normal.y = 1.0;
-		detail_normal = normalize(detail_normal);
-
-		// Grass is slightly rougher than base
-		detail_roughness = 0.1 * grass_strength;
-	}
-
-	// ROCK DETAIL: Multi-scale cracks and roughness with normal mapping
-	float rock_strength = rock_blend;
-	if (rock_strength > 0.1) {
-		// SCALE 1: Large rock formations
-		float rock_large = fbm(xz_pos, world_seed + 600, 0.08, 3, 2.0, 0.5);
-
-		// SCALE 2: Medium surface bumps
-		float rock_medium = fbm(xz_pos, world_seed + 601, 0.4, 4, 2.2, 0.5);
-
-		// SCALE 3: Fine cracks and details
-		float rock_fine = fbm(xz_pos, world_seed + 602, 1.5, 5, 2.5, 0.4);
-
-		// Combine scales
-		float rock_detail = rock_large * 0.4 + rock_medium * 0.3 + rock_fine * 0.2;
-
-		// Create dramatic cracks (sharp dark lines)
-		float crack_pattern = abs(fract(rock_fine * 4.0) - 0.5) * 2.0;
-		float crack_strength = smoothstep(0.7, 0.9, crack_pattern);
-
-		// Color variation with visible cracks
-		float color_variation = rock_detail * 0.25 - crack_strength * 0.2;
-		color = color * (0.9 + color_variation);  // Range: 0.7 to 1.15 (brighter overall)
-
-		// NORMAL MAPPING: Calculate height derivative for rock bumps
-		float sample_offset = 0.15;
-		float height_center = rock_detail - crack_strength * 0.3;
-		float height_x = fbm(xz_pos + vec2(sample_offset, 0.0), world_seed + 600, 0.08, 3, 2.0, 0.5) * 0.4 +
-		                 fbm(xz_pos + vec2(sample_offset, 0.0), world_seed + 601, 0.4, 4, 2.2, 0.5) * 0.3;
-		float height_z = fbm(xz_pos + vec2(0.0, sample_offset), world_seed + 600, 0.08, 3, 2.0, 0.5) * 0.4 +
-		                 fbm(xz_pos + vec2(0.0, sample_offset), world_seed + 601, 0.4, 4, 2.2, 0.5) * 0.3;
-
-		// Calculate normal from height differences (stronger for rock)
-		float normal_strength = 3.0 * rock_strength;
-		vec3 rock_normal;
-		rock_normal.x = -(height_x - height_center) / sample_offset * normal_strength;
-		rock_normal.z = -(height_z - height_center) / sample_offset * normal_strength;
-		rock_normal.y = 1.0;
-		rock_normal = normalize(rock_normal);
-
-		// Blend with grass normal if in transition
-		detail_normal = normalize(mix(detail_normal, rock_normal, rock_strength));
-
-		// Rock is much rougher, especially in cracks
-		detail_roughness += (0.2 + crack_strength * 0.15) * rock_strength;
-	}
-
-	// Set final material properties
-	// Let Godot handle ALL lighting - no custom lighting calculation
-	ALBEDO = color;
-
-	// Set detail normal for bump mapping (tangent space)
-	// Godot will handle lighting calculations automatically
-	NORMAL = detail_normal;
-
-	// Apply detail roughness variation
-	float base_roughness = mix(0.8, 0.9, rock_blend);
-	ROUGHNESS = clamp(base_roughness + detail_roughness, 0.0, 1.0);
+	// Rocky areas are slightly rougher
+	ROUGHNESS = mix(0.85, 0.95, rock_blend);
 	METALLIC = 0.0;
 }
