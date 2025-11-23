@@ -24,8 +24,10 @@ func _process(_delta: float) -> void:
 	if not visible:
 		return
 
-	# Close menu with Escape, B button, or Button 6
-	if Input.is_action_just_pressed("ui_cancel") or Input.is_action_just_pressed("jump") or Input.is_action_just_pressed("toggle_pause"):
+	# Close menu with B button (jump)
+	# Note: Don't check for ui_cancel or toggle_pause here - let client.gd handle toggle
+	# to avoid immediate close in the same frame as opening
+	if Input.is_action_just_pressed("jump"):
 		hide_menu()
 		return
 
