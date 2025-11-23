@@ -1104,17 +1104,7 @@ func _handle_terrain_modification_input(input_data: Dictionary) -> bool:
 		print("[Player] ERROR: No camera found for terrain raycast")
 		return false
 
-	# Raycast to find target position on terrain
-	var target_pos := _raycast_terrain_target(camera)
-	if target_pos == Vector3.ZERO:
-		print("[Player] No valid terrain target found - aim at the ground/terrain")
-		return false
-
-	# Snap to grid for pickaxe operations (square-based)
-	if is_pickaxe:
-		target_pos = _snap_to_grid(target_pos)
-
-	# Determine operation based on tool and input
+	# Determine operation based on tool and input first (to know which raycast to use)
 	var operation := ""
 	var left_click: bool = input_data.get("attack", false)
 	var right_click: bool = input_data.get("secondary_action", false)
@@ -1122,16 +1112,32 @@ func _handle_terrain_modification_input(input_data: Dictionary) -> bool:
 
 	if is_pickaxe:
 		if left_click:
-			# Left-click digs square
 			operation = "dig_square"
 		elif middle_click:
-			# Middle-click places earth square (if player has earth in inventory)
+			# Check if player has earth for placing
 			if inventory and inventory.has_item("earth", 1):
 				operation = "place_square"
 			else:
 				print("[Player] Cannot place earth - need earth in inventory!")
 				return false
-	elif is_hoe:
+
+	# Get target position using appropriate raycast method
+	var target_pos := Vector3.ZERO
+	if operation == "dig_square":
+		# For digging: raycast in camera direction to find grid cell (can dig walls/air)
+		target_pos = _raycast_grid_cell_from_camera(camera)
+	else:
+		# For placing: raycast to ground and snap to grid
+		target_pos = _raycast_terrain_target(camera)
+		if target_pos != Vector3.ZERO and is_pickaxe:
+			target_pos = _snap_to_grid(target_pos)
+
+	if target_pos == Vector3.ZERO:
+		print("[Player] No valid target found")
+		return false
+
+	# Handle hoe separately (not implemented yet in pickaxe block)
+	if is_hoe:
 		if left_click or right_click:
 			operation = "level_circle"
 
@@ -1167,6 +1173,29 @@ func _snap_to_grid(pos: Vector3) -> Vector3:
 		floor(pos.z / grid_size) * grid_size + grid_size / 2.0
 	)
 
+## Raycast from camera to find grid cell (for digging walls/air blocks)
+func _raycast_grid_cell_from_camera(camera: Camera3D) -> Vector3:
+	# Raycast in camera direction to find which grid cell player is pointing at
+	var from := camera.global_position
+	var direction := -camera.global_transform.basis.z.normalized()
+	var to := from + direction * 50.0  # 50 meter max range
+
+	# Perform raycast using physics space
+	var space_state := get_world_3d().direct_space_state
+	var query := PhysicsRayQueryParameters3D.create(from, to)
+	query.collision_mask = 1  # World layer
+
+	var result := space_state.intersect_ray(query)
+	if result:
+		# Hit something - snap hit point to grid
+		return _snap_to_grid(result.position)
+	else:
+		# No hit - calculate grid cell along ray at reasonable distance (5 meters)
+		var point_in_air := from + direction * 5.0
+		return _snap_to_grid(point_in_air)
+
+	return Vector3.ZERO
+
 ## Update persistent terrain preview (shows cube when tool equipped)
 func _update_persistent_terrain_preview() -> void:
 	if not terrain_preview_cube:
@@ -1185,13 +1214,18 @@ func _update_persistent_terrain_preview() -> void:
 		# Get camera for raycasting
 		var camera := _get_camera()
 		if camera:
-			# Raycast to find target position on terrain
-			var target_pos := _raycast_terrain_target(camera)
-			if target_pos != Vector3.ZERO:
-				# Snap position to grid for pickaxe (square operations)
-				if is_pickaxe:
+			var target_pos := Vector3.ZERO
+
+			# For pickaxe: use camera raycast to show which grid cell you're pointing at
+			if is_pickaxe:
+				target_pos = _raycast_grid_cell_from_camera(camera)
+			else:
+				# For hoe: use ground raycast
+				target_pos = _raycast_terrain_target(camera)
+				if target_pos != Vector3.ZERO:
 					target_pos = _snap_to_grid(target_pos)
 
+			if target_pos != Vector3.ZERO:
 				# Show cube preview at snapped position
 				terrain_preview_cube.global_position = target_pos
 
