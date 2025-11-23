@@ -192,12 +192,12 @@ func _draw_compass_directions() -> void:
 		var text_size := font.get_string_size(text, HORIZONTAL_ALIGNMENT_CENTER, -1, font_size)
 		var text_pos := pos - text_size * 0.5
 
-		# Draw outline (black)
+		# Draw outline (black) - call on overlay
 		for offset in [Vector2(-1, -1), Vector2(1, -1), Vector2(-1, 1), Vector2(1, 1)]:
-			draw_string(font, text_pos + offset, text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, Color.BLACK)
+			overlay.draw_string(font, text_pos + offset, text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, Color.BLACK)
 
-		# Draw main text (white)
-		draw_string(font, text_pos, text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, Color.WHITE)
+		# Draw main text (white) - call on overlay
+		overlay.draw_string(font, text_pos, text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, Color.WHITE)
 
 func _draw_player_markers() -> void:
 	if not local_player:
@@ -227,24 +227,19 @@ func _draw_player_markers() -> void:
 		var left := center + Vector2(cos(arrow_angle + 2.8), sin(arrow_angle + 2.8)) * v_width
 		var right := center + Vector2(cos(arrow_angle - 2.8), sin(arrow_angle - 2.8)) * v_width
 
-		# Draw V shape as thick lines
-		draw_line(left, tip, Color.YELLOW, 3.0)
-		draw_line(right, tip, Color.YELLOW, 3.0)
+		# Draw V shape as thick lines - call on overlay
+		overlay.draw_line(left, tip, Color.BLACK, 5.0)
+		overlay.draw_line(right, tip, Color.BLACK, 5.0)
+		overlay.draw_line(left, tip, Color.YELLOW, 3.0)
+		overlay.draw_line(right, tip, Color.YELLOW, 3.0)
 
-		# Draw black outline for contrast
-		draw_line(left, tip, Color.BLACK, 5.0)
-		draw_line(right, tip, Color.BLACK, 5.0)
-		# Redraw yellow on top
-		draw_line(left, tip, Color.YELLOW, 3.0)
-		draw_line(right, tip, Color.YELLOW, 3.0)
-
-		# Draw center dot
-		draw_circle(center, 3, Color.YELLOW)
-		draw_circle(center, 3, Color.BLACK, false, 1.0)
+		# Draw center dot - call on overlay
+		overlay.draw_circle(center, 3, Color.YELLOW)
+		overlay.draw_circle(center, 3, Color.BLACK, false, 1.0)
 	else:
-		# Fallback: draw simple circle if no camera
-		draw_circle(center, 8, Color.YELLOW)
-		draw_circle(center, 8, Color.BLACK, false, 2.0)
+		# Fallback: draw simple circle if no camera - call on overlay
+		overlay.draw_circle(center, 8, Color.YELLOW)
+		overlay.draw_circle(center, 8, Color.BLACK, false, 2.0)
 
 	# Draw remote players
 	for peer_id in remote_players:
@@ -254,8 +249,8 @@ func _draw_player_markers() -> void:
 			var remote_screen := _world_to_screen_pos(remote_xz)
 
 			if _is_on_screen(remote_screen):
-				draw_circle(remote_screen, 4, Color.BLUE)
-				draw_circle(remote_screen, 4, Color.WHITE, false, 1.5)
+				overlay.draw_circle(remote_screen, 4, Color.BLUE)
+				overlay.draw_circle(remote_screen, 4, Color.WHITE, false, 1.5)
 
 func _draw_pins() -> void:
 	for pin in map_pins:
@@ -263,7 +258,7 @@ func _draw_pins() -> void:
 
 		if _is_on_screen(screen_pos):
 			# Draw small pin marker
-			draw_circle(screen_pos, 3, Color.RED)
+			overlay.draw_circle(screen_pos, 3, Color.RED)
 
 func _draw_pings() -> void:
 	for ping in active_pings:
@@ -276,7 +271,7 @@ func _draw_pings() -> void:
 			var color: Color = Color.YELLOW
 			color.a = alpha * 0.8
 
-			draw_circle(screen_pos, radius, color, false, 2.0)
+			overlay.draw_circle(screen_pos, radius, color, false, 2.0)
 
 func _is_on_screen(screen_pos: Vector2) -> bool:
 	var rect_pos := map_texture_rect.global_position
