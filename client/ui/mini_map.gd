@@ -64,6 +64,7 @@ func _process(delta: float) -> void:
 
 func _draw() -> void:
 	# Draw on top of the map texture
+	_draw_compass_directions()
 	_draw_pins()
 	_draw_pings()
 	_draw_player_markers()
@@ -158,14 +159,76 @@ func _world_to_screen_pos(world_pos: Vector2) -> Vector2:
 
 	return Vector2(screen_x, screen_y) + map_texture_rect.global_position
 
+func _draw_compass_directions() -> void:
+	"""Draw N, E, S, W labels around the mini-map edge"""
+	var center := map_texture_rect.global_position + (map_texture_rect.size * 0.5)
+	var radius := (MINI_MAP_SIZE * 0.5) + 8.0  # Just outside the map edge
+
+	# Define compass positions (N, E, S, W)
+	# North is +Z in world space, which is "up" on the map
+	var directions := [
+		{"label": "N", "angle": -PI / 2.0},      # Top (North)
+		{"label": "E", "angle": 0.0},             # Right (East)
+		{"label": "S", "angle": PI / 2.0},        # Bottom (South)
+		{"label": "W", "angle": PI}               # Left (West)
+	]
+
+	for dir in directions:
+		var pos := center + Vector2(cos(dir.angle), sin(dir.angle)) * radius
+
+		# Draw text with outline for visibility
+		var font := ThemeDB.fallback_font
+		var font_size := 12
+		var text: String = dir.label
+
+		# Calculate text size for centering
+		var text_size := font.get_string_size(text, HORIZONTAL_ALIGNMENT_CENTER, -1, font_size)
+		var text_pos := pos - text_size * 0.5
+
+		# Draw outline (black)
+		for offset in [Vector2(-1, -1), Vector2(1, -1), Vector2(-1, 1), Vector2(1, 1)]:
+			draw_string(font, text_pos + offset, text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, Color.BLACK)
+
+		# Draw main text (white)
+		draw_string(font, text_pos, text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, Color.WHITE)
+
 func _draw_player_markers() -> void:
 	if not local_player:
 		return
 
 	# Draw local player (always at center)
 	var center := map_texture_rect.global_position + (map_texture_rect.size * 0.5)
-	draw_circle(center, 6, Color.GREEN)
-	draw_circle(center, 6, Color.WHITE, false, 2.0)
+
+	# Draw direction arrow showing camera orientation
+	var camera_controller = local_player.get_node_or_null("CameraController")
+	if camera_controller and "camera_rotation" in camera_controller:
+		var camera_yaw: float = camera_controller.camera_rotation.x
+
+		# Convert camera yaw to arrow direction
+		# Camera yaw is in radians, 0 = North (+Z), rotates clockwise
+		# We need to rotate 90 degrees because Godot's +Z is "forward" but we want North to be "up" on map
+		var arrow_angle := camera_yaw - PI / 2.0  # Rotate to align North with up
+
+		# Calculate arrow points (triangle pointing in camera direction)
+		var arrow_length := 10.0
+		var arrow_width := 6.0
+
+		# Tip of arrow (points in camera direction)
+		var tip := center + Vector2(cos(arrow_angle), sin(arrow_angle)) * arrow_length
+
+		# Left and right base points
+		var left := center + Vector2(cos(arrow_angle + 2.5), sin(arrow_angle + 2.5)) * arrow_width
+		var right := center + Vector2(cos(arrow_angle - 2.5), sin(arrow_angle - 2.5)) * arrow_width
+
+		# Draw filled triangle
+		draw_colored_polygon(PackedVector2Array([tip, left, right]), Color.GREEN)
+
+		# Draw outline
+		draw_polyline(PackedVector2Array([tip, left, right, tip]), Color.WHITE, 1.5)
+	else:
+		# Fallback: draw simple circle if no camera
+		draw_circle(center, 6, Color.GREEN)
+		draw_circle(center, 6, Color.WHITE, false, 2.0)
 
 	# Draw remote players
 	for peer_id in remote_players:
