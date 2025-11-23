@@ -1208,13 +1208,15 @@ func _load_terrain_history() -> void:
 			if coords.size() == 2:
 				var chunk_pos = Vector2i(int(coords[0]), int(coords[1]))
 				terrain_modification_history[chunk_pos] = loaded_data[key_str]
+				# Mark all loaded chunks as unapplied - they'll be applied when players get near them
+				unapplied_chunks[chunk_pos] = true
 
 		var total_mods = 0
 		for chunk_mods in terrain_modification_history.values():
 			total_mods += chunk_mods.size()
-		print("[Server] Loaded %d terrain modifications across %d chunks from %s" % [total_mods, terrain_modification_history.size(), history_file_path])
+		print("[Server] Loaded %d terrain modifications across %d chunks from %s (all marked as unapplied)" % [total_mods, terrain_modification_history.size(), history_file_path])
 
-		# Note: Modifications will be applied per-chunk when chunks load via _apply_terrain_modifications_for_chunk()
+		# Note: Modifications will be applied when chunks load AND a player is nearby (VoxelTool requirement)
 	elif loaded_data is Array:
 		# Old format: Array of modifications - convert to chunk-based Dictionary
 		print("[Server] Converting old terrain history format to chunk-based format...")
@@ -1229,8 +1231,12 @@ func _load_terrain_history() -> void:
 				terrain_modification_history[chunk_pos] = []
 			terrain_modification_history[chunk_pos].append(modification)
 
+		# Mark all converted chunks as unapplied
+		for chunk_pos in terrain_modification_history.keys():
+			unapplied_chunks[chunk_pos] = true
+
 		var total_mods = loaded_data.size()
-		print("[Server] Converted %d terrain modifications to %d chunks from %s" % [total_mods, terrain_modification_history.size(), history_file_path])
+		print("[Server] Converted %d terrain modifications to %d chunks from %s (all marked as unapplied)" % [total_mods, terrain_modification_history.size(), history_file_path])
 
 		# Save in new format immediately
 		_save_terrain_history()
