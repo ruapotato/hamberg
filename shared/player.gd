@@ -1327,9 +1327,9 @@ func _send_terrain_modification_request(operation: String, position: Vector3, to
 
 	# For hoe flattening, snap to one grid level (2m) below player's feet to avoid burying them
 	if operation == "flatten_square":
-		var grid_size := 2.0
-		var feet_height := global_position.y - 1.0  # Player's feet (character is ~2m tall)
-		var platform_height := floor(feet_height / grid_size) * grid_size - grid_size / 2.0  # One grid below feet
+		var grid_size: float = 2.0
+		var feet_height: float = global_position.y - 1.0  # Player's feet (character is ~2m tall)
+		var platform_height: float = floor(feet_height / grid_size) * grid_size - grid_size / 2.0  # One grid below feet
 		data["target_height"] = platform_height
 
 	# Send RPC to server via NetworkManager
