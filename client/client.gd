@@ -758,9 +758,6 @@ func _update_biome_music(delta: float) -> void:
 		music_manager.set_biome(biome)
 		_update_terrain_color(biome)
 
-	# DEBUG: Always print current biome for comparison with shader
-	print("[Client DEBUG] Player at (%.1f, %.1f) - BiomeGenerator says: %s" % [xz_pos.x, xz_pos.y, biome])
-
 ## Update terrain material color based on current biome
 func _update_terrain_color(biome_name: String) -> void:
 	if not voxel_world or not voxel_world.terrain:
