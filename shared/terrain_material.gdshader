@@ -203,6 +203,53 @@ vec3 get_biome_rock_color(int biome_index) {
 }
 
 // ============================================================================
+// NOISE FUNCTIONS
+// ============================================================================
+
+// Sin-based random function - returns value between 0 and 1
+float simple_rand(vec2 p) {
+	return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453);
+}
+
+// Value noise - interpolate between random values at grid corners
+float value_noise_simple(vec2 p) {
+	vec2 i = floor(p);
+	vec2 f = fract(p);
+
+	// Get random values at 4 corners
+	float a = simple_rand(i);
+	float b = simple_rand(i + vec2(1.0, 0.0));
+	float c = simple_rand(i + vec2(0.0, 1.0));
+	float d = simple_rand(i + vec2(1.0, 1.0));
+
+	// Smooth interpolation curve
+	vec2 u = f * f * (3.0 - 2.0 * f);
+
+	// Bilinear interpolation
+	return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
+}
+
+// Multi-octave noise
+float multi_octave_noise(vec2 p) {
+	float result = 0.0;
+	float amp = 0.5;
+	float freq = 1.0;
+
+	result += value_noise_simple(p * freq * 2.0) * amp;
+	amp *= 0.5; freq *= 2.0;
+
+	result += value_noise_simple(p * freq * 2.0) * amp;
+	amp *= 0.5; freq *= 2.0;
+
+	result += value_noise_simple(p * freq * 2.0) * amp;
+	amp *= 0.5; freq *= 2.0;
+
+	result += value_noise_simple(p * freq * 2.0) * amp;
+
+	return result;
+}
+
+// ============================================================================
 // VERTEX AND FRAGMENT SHADERS
 // ============================================================================
 
@@ -335,47 +382,14 @@ void fragment() {
 	float rock_blend = 1.0 - smoothstep(0.70, 0.85, flatness);
 	vec3 base_color = mix(grass_color, rock_color, rock_blend);
 
-	// Sin-based organic texture using strong multi-layer distortion
-	// Strategy: Stack many distortion layers to completely break grid alignment
+	// Apply our custom noise function
+	float noise_val = multi_octave_noise(xz_pos * 0.3);
 
-	// Layer 1: Primary distortion field (smaller scale)
-	float d1x = sin(xz_pos.x * 0.15) * 4.0;
-	float d1y = sin(xz_pos.y * 0.12) * 4.0;
-
-	// Layer 2: Secondary distortion (distorts the distortion!)
-	float d2x = sin((xz_pos.x + d1y) * 0.25) * 2.5;
-	float d2y = sin((xz_pos.y + d1x) * 0.22) * 2.5;
-
-	// Layer 3: Tertiary fine distortion
-	float d3x = sin((xz_pos.x + d2y) * 0.38) * 1.5;
-	float d3y = sin((xz_pos.y + d2x) * 0.34) * 1.5;
-
-	// Final distorted coordinates
-	vec2 distorted = xz_pos + vec2(d1x + d2x + d3x, d1y + d2y + d3y);
-
-	// Now apply texture patterns on distorted coords - higher frequencies for smaller details
-	float combined = 0.0;
-
-	// Fine detail - 5 layers at different angles (doubled frequencies)
-	combined += sin(distorted.x * 1.8) * sin(distorted.y * 1.6) * 0.12;
-	combined += sin((distorted.x + distorted.y) * 2.2) * 0.1;
-	combined += sin((distorted.x - distorted.y) * 2.6) * 0.1;
-	combined += sin(distorted.x * 2.4 - distorted.y * 1.4) * 0.08;
-	combined += sin(distorted.x * 1.4 + distorted.y * 2.2) * 0.08;
-
-	// Medium features - 4 layers (doubled frequencies)
-	combined += sin(distorted.x * 0.7) * sin(distorted.y * 0.6) * 0.15;
-	combined += sin((distorted.x + distorted.y) * 0.8) * 0.12;
-	combined += sin(distorted.x * 0.56 - distorted.y * 0.64) * 0.12;
-	combined += sin(distorted.x * 0.84) * 0.1;
-
-	// Large patches - 3 layers (doubled frequencies)
-	combined += sin(distorted.x * 0.18) * sin(distorted.y * 0.14) * 0.18;
-	combined += sin((distorted.x + distorted.y) * 0.1) * 0.15;
-	combined += sin(distorted.x * 0.12 - distorted.y * 0.16) * 0.12;
+	// Convert to -1 to 1 range for color variation
+	float combined = (noise_val - 0.5) * 2.0;
 
 	// Apply variation to base color
-	vec3 color = base_color * (1.0 + combined * 0.5);
+	vec3 color = base_color * (1.0 + combined * 0.4);
 
 	// Simple directional lighting
 	vec3 light_dir = normalize(vec3(0.5, 1.0, 0.3));
