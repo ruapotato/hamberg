@@ -6,8 +6,8 @@ shader_type spatial;
 uniform int world_seed = 42;
 
 // Biome grass colors (flat/low slope terrain)
-const vec3 VALLEY_GRASS = vec3(0.4, 0.7, 0.3);      // Bright green
-const vec3 FOREST_GRASS = vec3(0.2, 0.5, 0.2);      // Dark green
+const vec3 VALLEY_GRASS = vec3(0.3, 0.5, 0.7);      // Blue (serene valley)
+const vec3 FOREST_GRASS = vec3(0.3, 0.6, 0.3);      // Green (lush forest)
 const vec3 SWAMP_GRASS = vec3(0.3, 0.4, 0.3);       // Murky green-brown
 const vec3 MOUNTAIN_GRASS = vec3(0.5, 0.6, 0.5);    // Light gray-green
 const vec3 DESERT_GRASS = vec3(0.8, 0.7, 0.4);      // Sandy yellow
@@ -210,9 +210,11 @@ void fragment() {
 	float flatness = world_normal.y;  // 1.0 = flat, 0.0 = vertical
 
 	// Blend between grass and rock based on slope
-	// flatness > 0.7 = mostly grass (gentle slopes)
-	// flatness < 0.4 = mostly rock (steep slopes)
-	float rock_blend = 1.0 - smoothstep(0.4, 0.7, flatness);
+	// At 45 degrees (max walkable), normal.y = cos(45°) ≈ 0.707
+	// flatness > 0.75 = walkable, mostly grass
+	// flatness < 0.65 = too steep to walk, mostly rock
+	// Smooth transition between 0.65 and 0.75
+	float rock_blend = 1.0 - smoothstep(0.65, 0.75, flatness);
 	vec3 base_color = mix(grass_color, rock_color, rock_blend);
 
 	// Add subtle height-based variation
