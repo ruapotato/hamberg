@@ -1193,7 +1193,9 @@ func _raycast_grid_cell_from_camera(camera: Camera3D) -> Vector3:
 		# This ensures we're deep inside the block we hit, not in air or on the edge
 		var normal: Vector3 = result.normal
 		var point_inside: Vector3 = result.position - normal * 1.5  # Move 1.5m into surface (opposite of normal)
-		return _snap_to_grid(point_inside)
+		var snapped := _snap_to_grid(point_inside)
+		print("[Player] Raycast dig: hit_pos=%s normal=%s point_inside=%s snapped=%s" % [result.position, normal, point_inside, snapped])
+		return snapped
 	else:
 		# No hit - calculate grid cell along ray at reasonable distance (5 meters)
 		var point_in_air := from + direction * 5.0
