@@ -336,28 +336,30 @@ void fragment() {
 	// Add subtle noise-based color variation (NO lighting changes, NO normal changes)
 	vec3 color = base_color;
 
-	// GRASS VARIATION: Subtle green swirls and blade-like patterns
+	// GRASS VARIATION: Visible green swirls and blade-like patterns
 	if (rock_blend < 0.5) {  // Mostly grass areas
 		// Fine grass blade patterns
-		float grass_fine = fbm(xz_pos, world_seed + 500, 0.8, 3, 2.0, 0.5);
+		float grass_fine = fbm(xz_pos, world_seed + 500, 0.8, 4, 2.0, 0.5);
 		// Medium grass patches
-		float grass_medium = fbm(xz_pos, world_seed + 501, 0.2, 2, 2.0, 0.5);
+		float grass_medium = fbm(xz_pos, world_seed + 501, 0.15, 3, 2.0, 0.5);
 
-		// Create subtle darker/lighter green variations (±10%)
-		float grass_variation = (grass_fine * 0.5 + grass_medium * 0.5) * 0.15;
-		color = color * (1.0 + grass_variation);
+		// Create visible darker/lighter green variations
+		// FBM returns -1 to 1, multiply by 0.4 to get ±40% variation
+		float grass_variation = (grass_fine * 0.6 + grass_medium * 0.4) * 0.4;
+		color = color * (1.0 + grass_variation);  // Range: 0.6 to 1.4
 	}
 
-	// ROCK VARIATION: Gray swirls and surface patterns
+	// ROCK VARIATION: Visible gray swirls and surface patterns
 	if (rock_blend > 0.5) {  // Mostly rock areas
 		// Medium rock surface patterns
-		float rock_medium = fbm(xz_pos, world_seed + 600, 0.3, 3, 2.0, 0.5);
+		float rock_medium = fbm(xz_pos, world_seed + 600, 0.25, 3, 2.0, 0.5);
 		// Fine rock detail/cracks
-		float rock_fine = fbm(xz_pos, world_seed + 601, 1.0, 3, 2.0, 0.5);
+		float rock_fine = fbm(xz_pos, world_seed + 601, 1.2, 4, 2.0, 0.5);
 
-		// Create subtle gray variations (±12%)
-		float rock_variation = (rock_medium * 0.6 + rock_fine * 0.4) * 0.18;
-		color = color * (1.0 + rock_variation);
+		// Create visible gray variations
+		// FBM returns -1 to 1, multiply by 0.45 to get ±45% variation
+		float rock_variation = (rock_medium * 0.6 + rock_fine * 0.4) * 0.45;
+		color = color * (1.0 + rock_variation);  // Range: 0.55 to 1.45
 	}
 
 	// Simple directional lighting (use world-space normal)
