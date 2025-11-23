@@ -399,8 +399,8 @@ void fragment() {
 		float crack_strength = smoothstep(0.7, 0.9, crack_pattern);
 
 		// High contrast: deep cracks, bright peaks
-		float color_variation = rock_detail * 0.5 - crack_strength * 0.6;
-		color = color * (0.8 + color_variation);
+		float color_variation = rock_detail * 0.3 - crack_strength * 0.4;
+		color = color * clamp(0.7 + color_variation, 0.5, 1.3);  // Clamp to prevent pure black
 
 		// NORMAL MAPPING: Calculate height derivative for rock bumps
 		float sample_offset = 0.15;
@@ -426,29 +426,31 @@ void fragment() {
 	}
 
 	// Apply detail normal to surface (perturb world normal with detail)
-	// Convert detail_normal from tangent space to world space
-	// Create tangent space basis from world normal
+	// Create tangent space basis from world normal (NOT view-dependent)
 	vec3 tangent = normalize(cross(world_normal, vec3(0.0, 0.0, 1.0)));
 	if (length(tangent) < 0.1) {
 		tangent = normalize(cross(world_normal, vec3(0.0, 1.0, 0.0)));
 	}
 	vec3 bitangent = normalize(cross(world_normal, tangent));
 
-	// Transform detail normal to world space
+	// Transform detail normal from tangent space to world space
 	vec3 perturbed_normal = normalize(
 		detail_normal.x * tangent +
 		detail_normal.y * bitangent +
 		detail_normal.z * world_normal
 	);
 
-	// Use perturbed normal for lighting
+	// Simple lighting using perturbed normal (for detail visibility)
 	vec3 light_dir = normalize(vec3(0.5, 1.0, 0.3));
 	float ndotl = max(dot(perturbed_normal, light_dir), 0.0);
-	float ambient = 0.5;  // Slightly lower ambient to show detail better
+	float ambient = 0.5;
 	float lighting = ambient + (1.0 - ambient) * ndotl;
 
 	ALBEDO = color * lighting;
-	NORMAL = (INV_VIEW_MATRIX * vec4(perturbed_normal, 0.0)).xyz;  // Set normal for proper lighting
+
+	// NORMAL in Godot spatial shaders should be in tangent space (relative to surface)
+	// We already have detail_normal in tangent space, so just use it directly
+	NORMAL = detail_normal;
 
 	// Apply detail roughness variation
 	float base_roughness = mix(0.8, 0.9, rock_blend);
