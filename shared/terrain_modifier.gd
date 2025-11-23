@@ -119,10 +119,10 @@ func dig_square(world_position: Vector3, tool_name: String = "stone_pickaxe") ->
 	# Calculate mining difficulty based on depth
 	var mining_speed := get_mining_speed_at_depth(world_position.y, tool_name)
 
-	# Set mode to remove - use EXACT same settings as place for perfect alignment
+	# Set mode to remove - use higher strength to ensure complete removal
 	voxel_tool.mode = VoxelTool.MODE_REMOVE
 	voxel_tool.channel = VoxelBuffer.CHANNEL_SDF
-	voxel_tool.sdf_strength = 5.0  # Match placement strength
+	voxel_tool.sdf_strength = 8.0  # Higher than placement for complete removal
 	voxel_tool.sdf_scale = 0.5  # Match placement scale
 
 	# Dig a box centered on the target position (works for floor, ceiling, and walls)
@@ -134,16 +134,16 @@ func dig_square(world_position: Vector3, tool_name: String = "stone_pickaxe") ->
 	var half_size := int(SQUARE_SIZE / 2)
 	var half_depth := int(SQUARE_DEPTH / 2)
 
-	# Expand dig box slightly to ensure complete removal with SDF
+	# Use same box size as placement for consistent block size
 	var begin := Vector3i(
-		center_x - half_size - 1,  # Expand by 1 voxel
-		center_y - half_depth - 1,
-		center_z - half_size - 1
+		center_x - half_size,
+		center_y - half_depth,
+		center_z - half_size
 	)
 	var end := Vector3i(
-		center_x + half_size + 1,  # Expand by 1 voxel
-		center_y + half_depth + 1,
-		center_z + half_size + 1
+		center_x + half_size,
+		center_y + half_depth,
+		center_z + half_size
 	)
 
 	print("[TerrainModifier] Calling do_box from %s to %s" % [begin, end])
