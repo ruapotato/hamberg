@@ -12,7 +12,7 @@ const Projectile = preload("res://shared/projectiles/projectile.gd")
 # Movement parameters
 const WALK_SPEED: float = 5.0
 const SPRINT_SPEED: float = 8.0
-const JUMP_VELOCITY: float = 8.0
+const JUMP_VELOCITY: float = 10.0
 const ACCELERATION: float = 10.0
 const FRICTION: float = 8.0
 const AIR_CONTROL: float = 0.3
@@ -1490,31 +1490,33 @@ func _update_body_animations(delta: float) -> void:
 		# Don't process other movement animations during landing
 		return
 
-	# Jump/falling animation - Valheim athletic style
+	# Jump/falling animation - Subtle athletic style
 	if (is_jumping or is_falling) and not is_on_floor():
-		# Arms swing up naturally (more for jump, less for fall)
+		# Arms swing up slightly (more for jump, less for fall)
 		var arm_raise = 1.0 if is_jumping else 0.6
 
 		if left_arm and not is_blocking:
-			left_arm.rotation.x = lerp(left_arm.rotation.x, -0.8 * arm_raise, delta * 8.0)
-			left_arm.rotation.z = lerp(left_arm.rotation.z, 0.3, delta * 8.0)
+			# Reduced forward swing, minimal outward angle
+			left_arm.rotation.x = lerp(left_arm.rotation.x, -0.4 * arm_raise, delta * 8.0)
+			left_arm.rotation.z = lerp(left_arm.rotation.z, 0.1, delta * 8.0)  # Reduced from 0.3
 			if left_elbow:
-				left_elbow.rotation.x = lerp(left_elbow.rotation.x, -0.6 * arm_raise, delta * 8.0)
+				left_elbow.rotation.x = lerp(left_elbow.rotation.x, -0.3 * arm_raise, delta * 8.0)
 
 		if right_arm and not is_attacking and not is_special_attacking:
-			right_arm.rotation.x = lerp(right_arm.rotation.x, -0.8 * arm_raise, delta * 8.0)
-			right_arm.rotation.z = lerp(right_arm.rotation.z, -0.3, delta * 8.0)
+			# Reduced forward swing, minimal inward angle
+			right_arm.rotation.x = lerp(right_arm.rotation.x, -0.4 * arm_raise, delta * 8.0)
+			right_arm.rotation.z = lerp(right_arm.rotation.z, -0.1, delta * 8.0)  # Reduced from -0.3
 			if right_elbow:
-				right_elbow.rotation.x = lerp(right_elbow.rotation.x, -0.6 * arm_raise, delta * 8.0)
+				right_elbow.rotation.x = lerp(right_elbow.rotation.x, -0.3 * arm_raise, delta * 8.0)
 
-		# Knees bend ~90 degrees (tucked up)
-		var knee_bend = 1.5 if is_jumping else 1.2
+		# Knees bend moderately (less extreme tuck)
+		var knee_bend = 1.0 if is_jumping else 0.8  # Reduced from 1.5/1.2
 		if left_leg:
-			left_leg.rotation.x = lerp(left_leg.rotation.x, 0.9, delta * 8.0)
+			left_leg.rotation.x = lerp(left_leg.rotation.x, 0.5, delta * 8.0)  # Reduced from 0.9
 			if left_knee:
 				left_knee.rotation.x = lerp(left_knee.rotation.x, knee_bend, delta * 8.0)
 		if right_leg:
-			right_leg.rotation.x = lerp(right_leg.rotation.x, 0.9, delta * 8.0)
+			right_leg.rotation.x = lerp(right_leg.rotation.x, 0.5, delta * 8.0)  # Reduced from 0.9
 			if right_knee:
 				right_knee.rotation.x = lerp(right_knee.rotation.x, knee_bend, delta * 8.0)
 
