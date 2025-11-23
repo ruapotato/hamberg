@@ -333,14 +333,14 @@ void fragment() {
 	float rock_blend = 1.0 - smoothstep(0.70, 0.85, flatness);
 	vec3 base_color = mix(grass_color, rock_color, rock_blend);
 
-	// TEST FBM directly - visualize raw output
-	float test_fbm = fbm(xz_pos, world_seed + 500, 0.1, 3, 2.0, 0.5);
+	// TEST FBM with MUCH higher frequency for visible detail
+	float test_fbm = fbm(xz_pos, world_seed + 500, 2.0, 4, 2.0, 0.5);  // High frequency = small patterns
 
 	// FBM should return -1 to 1, convert to 0 to 1 for visibility
 	float fbm_vis = (test_fbm + 1.0) * 0.5;
 
-	// Apply extreme variation to see if FBM works
-	vec3 color = base_color * mix(0.2, 2.0, fbm_vis);
+	// Apply extreme variation to see patterns
+	vec3 color = base_color * mix(0.3, 1.7, fbm_vis);  // Strong but not as extreme
 
 	// Simple directional lighting (use world-space normal)
 	vec3 light_dir = normalize(vec3(0.5, 1.0, 0.3));
