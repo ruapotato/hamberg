@@ -420,9 +420,24 @@ Code that runs on both client and server. Contains core game systems and network
 
 - **shared/biome_generator.gd**
   - Procedural terrain heightmap generation
-  - 6 biomes (Meadow, Dark Forest, Poison Pit, Crystal Peaks, Hellscape, The Void)
+  - 7 biomes (Valley, Forest, Swamp, Mountain, Desert, Wizardland, Hell)
+  - Valheim-style organic biome placement (noise + distance-based progression)
   - Deterministic from world seed
-  - Unique fantasy aesthetics (purple grass meadows, bioluminescent forests, toxic swamps, crystalline caves)
+  - Each biome has unique height, roughness, and visual characteristics
+
+- **shared/terrain_material.gdshader** - Biome-based terrain coloring
+  - Generates 2048x2048 biome texture map from BiomeGenerator at world load
+  - Samples texture for accurate per-pixel biome colors
+  - Smooth blending at biome boundaries (50m transition zones)
+  - Slope-based grass/rock rendering (walkability-aligned)
+  - Each biome has distinct grass and rock colors:
+    - **Valley**: Bright blue grass, gray rock
+    - **Forest**: Bright green grass, dark gray-green rock
+    - **Swamp**: Yellow-green grass, dark muddy rock
+    - **Mountain**: White grass (snow), light gray rock
+    - **Desert**: Bright yellow grass (sand), sandy stone
+    - **Wizardland**: Bright magenta grass, purple crystal
+    - **Hell**: Bright red grass (lava), dark obsidian
 
 - **shared/crafting_recipes.gd** (Autoload)
   - Central recipe database
@@ -683,6 +698,92 @@ GAME_PORT=8888 ./launch_server.sh
 - Check server logs for player join messages
 - Make sure both clients connected successfully
 - Try moving around - they might spawn at the same spot
+
+---
+
+## 🌍 Biome System & World Generation
+
+Hamberg features a **Valheim-inspired biome system** with 7 distinct biomes that create an organic, progression-based world.
+
+### Biome Overview
+
+The world is divided into **difficulty zones** based on distance from spawn (0,0):
+
+1. **Safe Zone** (0-5000m): Valley and Forest only - gentle introduction
+2. **Mid Zone** (5000-10000m): Swamp and Desert appear alongside safe biomes
+3. **Danger Zone** (10000-15000m): Mountains and Wizardland spawn, with occasional Hell
+4. **Extreme Zone** (15000-20000m): Heavy Hell presence with Mountains and Wizardland
+5. **Far Zone** (20000m+): Mostly Hell with rare Mountains and Wizardland
+
+### The Seven Biomes
+
+| Biome | Terrain Color | Characteristics | Difficulty |
+|-------|--------------|-----------------|------------|
+| **Valley** | Bright Blue | Rolling hills, gentle terrain | Safe |
+| **Forest** | Bright Green | Dense trees, moderate elevation | Safe |
+| **Swamp** | Yellow-Green | Low, flat marshland | Mid |
+| **Mountain** | White (Snow) | High peaks, steep slopes | Dangerous |
+| **Desert** | Bright Yellow | Sandy dunes, moderate height | Mid |
+| **Wizardland** | Bright Magenta | Magical floating terrain | Dangerous |
+| **Hell** | Bright Red | Volcanic, chaotic landscape | Extreme |
+
+### How Biomes Are Generated
+
+**Valheim-Style Organic Placement:**
+- Uses **noise-based distribution** (not circular zones)
+- **Domain warping** creates irregular, organic biome shapes
+- **Scale variation** makes some biome patches larger/smaller
+- **Distance influences probability**, not hard boundaries
+
+**Technical Implementation:**
+
+1. **BiomeGenerator** (`shared/biome_generator.gd`):
+   - Uses FastNoiseLite with multiple octaves for natural variation
+   - Samples noise at world position to determine biome
+   - Each biome has unique height parameters (base height, amplitude, roughness)
+   - Deterministic from world seed - same seed = same world
+
+2. **Terrain Material** (`shared/terrain_material.gdshader`):
+   - **Texture-based coloring**: Generates 2048x2048 biome map on world load
+   - Samples BiomeGenerator for each pixel to ensure perfect alignment
+   - **Smooth blending**: 50-meter transition zones between biomes
+   - **Slope detection**: Grass on flat terrain, rock on steep slopes (aligned with walkability)
+   - Colors match exactly between terrain, mini-map, and world map
+
+3. **Mini-Map & World Map** (`client/ui/world_map_generator.gd`):
+   - Uses same biome colors as terrain shader
+   - Samples BiomeGenerator to show accurate biome placement
+   - Height-based shading for topographic detail
+
+### Biome Progression
+
+**Early Game (Safe Zone):**
+- Spawn in Valley (blue) or Forest (green)
+- Gentle terrain, basic resources
+- Learn crafting and building
+
+**Mid Game (5-10km):**
+- Discover Swamp (yellow-green) and Desert (yellow)
+- More challenging terrain and enemies
+- New resources and crafting materials
+
+**Late Game (10-15km):**
+- Enter Mountains (white) and Wizardland (magenta)
+- Extreme elevation changes
+- Rare resources, tough enemies
+
+**End Game (15km+):**
+- Face Hell (red) biomes
+- Chaotic volcanic terrain
+- Ultimate challenges and rewards
+
+### Visual Cohesion
+
+All biome colors are **intentionally bright and distinct** for clarity:
+- Easy to identify which biome you're in at a glance
+- Mini-map matches terrain colors exactly
+- Smooth color transitions prevent jarring boundaries
+- Rock appears on slopes you can't walk up (visual gameplay feedback)
 
 ---
 
