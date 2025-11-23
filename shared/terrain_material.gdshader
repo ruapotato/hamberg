@@ -333,22 +333,14 @@ void fragment() {
 	float rock_blend = 1.0 - smoothstep(0.70, 0.85, flatness);
 	vec3 base_color = mix(grass_color, rock_color, rock_blend);
 
-	// TEST FBM with MUCH higher frequency for visible detail
-	float test_fbm = fbm(xz_pos, world_seed + 500, 2.0, 4, 2.0, 0.5);  // High frequency = small patterns
+	// TEST: Output FBM as pure grayscale (ignore base colors and lighting entirely)
+	float test_fbm = fbm(xz_pos, world_seed + 500, 2.0, 4, 2.0, 0.5);
 
-	// FBM should return -1 to 1, convert to 0 to 1 for visibility
+	// Convert -1 to 1 range to 0 to 1
 	float fbm_vis = (test_fbm + 1.0) * 0.5;
 
-	// Apply extreme variation to see patterns
-	vec3 color = base_color * mix(0.3, 1.7, fbm_vis);  // Strong but not as extreme
-
-	// Simple directional lighting (use world-space normal)
-	vec3 light_dir = normalize(vec3(0.5, 1.0, 0.3));
-	float ndotl = max(dot(world_normal, light_dir), 0.0);
-	float ambient = 0.6;  // Higher ambient so colors show through
-	float lighting = ambient + (1.0 - ambient) * ndotl;
-
-	ALBEDO = color * lighting;
+	// Output as pure grayscale - should see black/white noise patterns
+	ALBEDO = vec3(fbm_vis, fbm_vis, fbm_vis);
 
 	// Rocky areas are slightly rougher
 	ROUGHNESS = mix(0.85, 0.95, rock_blend);
