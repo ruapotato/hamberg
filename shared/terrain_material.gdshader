@@ -29,6 +29,7 @@ const float MID_ZONE_RADIUS = 2000.0;
 const float DANGER_ZONE_RADIUS = 4000.0;
 
 varying vec3 world_pos;
+varying vec3 world_normal;
 
 // ============================================================================
 // NOISE FUNCTIONS - Match FastNoiseLite behavior
@@ -191,6 +192,8 @@ vec3 get_biome_rock_color(int biome_index) {
 
 void vertex() {
 	world_pos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+	// Transform normal to world space (use normal matrix to handle non-uniform scaling)
+	world_normal = normalize((MODEL_MATRIX * vec4(NORMAL, 0.0)).xyz);
 }
 
 void fragment() {
@@ -200,11 +203,11 @@ void fragment() {
 	vec3 grass_color = get_biome_grass_color(biome);
 	vec3 rock_color = get_biome_rock_color(biome);
 
-	// Calculate slope based on how vertical the surface is
-	// NORMAL.y is 1.0 for perfectly flat ground (pointing straight up)
-	// NORMAL.y is 0.0 for vertical walls (pointing sideways)
-	// We want: flat (NORMAL.y near 1.0) = grass, steep (NORMAL.y near 0.0) = rock
-	float flatness = NORMAL.y;  // 1.0 = flat, 0.0 = vertical
+	// Calculate slope based on how vertical the surface is (in world space)
+	// world_normal.y is 1.0 for perfectly flat ground (pointing straight up)
+	// world_normal.y is 0.0 for vertical walls (pointing sideways)
+	// We want: flat (world_normal.y near 1.0) = grass, steep (world_normal.y near 0.0) = rock
+	float flatness = world_normal.y;  // 1.0 = flat, 0.0 = vertical
 
 	// Blend between grass and rock based on slope
 	// flatness > 0.7 = mostly grass (gentle slopes)
@@ -216,9 +219,9 @@ void fragment() {
 	float height_factor = clamp(world_pos.y / 50.0, 0.0, 1.0);
 	vec3 color = mix(base_color * 0.85, base_color * 1.15, height_factor);
 
-	// Simple directional lighting
+	// Simple directional lighting (use world-space normal)
 	vec3 light_dir = normalize(vec3(0.5, 1.0, 0.3));
-	float ndotl = max(dot(NORMAL, light_dir), 0.0);
+	float ndotl = max(dot(world_normal, light_dir), 0.0);
 	float ambient = 0.4;
 	float lighting = ambient + (1.0 - ambient) * ndotl;
 
