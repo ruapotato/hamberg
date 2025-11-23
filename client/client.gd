@@ -694,6 +694,11 @@ func _on_pause_save() -> void:
 
 func _on_pause_quit() -> void:
 	print("[Client] Quitting to menu...")
+
+	# Hide pause menu before disconnecting
+	if pause_menu_ui and pause_menu_ui.visible:
+		pause_menu_ui.hide_menu()
+
 	# Disconnect from server
 	NetworkManager.disconnect_network()
 
