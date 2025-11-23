@@ -356,9 +356,9 @@ void fragment() {
 		// Create sharp blade-like features
 		float grass_blades = abs(fract(grass_fine * 3.0) - 0.5) * 2.0;
 
-		// High contrast color variation (darker valleys, brighter peaks)
-		float color_variation = grass_detail * 0.4 + grass_blades * 0.3;
-		color = color * (0.7 + color_variation);
+		// Color variation with visible blade patterns
+		float color_variation = grass_detail * 0.3 + grass_blades * 0.2;
+		color = color * (0.85 + color_variation);  // Range: 0.85 to 1.35
 
 		// NORMAL MAPPING: Calculate height derivative for grass bumps
 		float sample_offset = 0.1;  // World-space offset for derivative
@@ -398,9 +398,9 @@ void fragment() {
 		float crack_pattern = abs(fract(rock_fine * 4.0) - 0.5) * 2.0;
 		float crack_strength = smoothstep(0.7, 0.9, crack_pattern);
 
-		// High contrast: deep cracks, bright peaks
-		float color_variation = rock_detail * 0.3 - crack_strength * 0.4;
-		color = color * clamp(0.7 + color_variation, 0.5, 1.3);  // Clamp to prevent pure black
+		// Color variation with visible cracks
+		float color_variation = rock_detail * 0.25 - crack_strength * 0.2;
+		color = color * (0.9 + color_variation);  // Range: 0.7 to 1.15 (brighter overall)
 
 		// NORMAL MAPPING: Calculate height derivative for rock bumps
 		float sample_offset = 0.15;
@@ -425,31 +425,12 @@ void fragment() {
 		detail_roughness += (0.2 + crack_strength * 0.15) * rock_strength;
 	}
 
-	// Apply detail normal to surface (perturb world normal with detail)
-	// Create tangent space basis from world normal (NOT view-dependent)
-	vec3 tangent = normalize(cross(world_normal, vec3(0.0, 0.0, 1.0)));
-	if (length(tangent) < 0.1) {
-		tangent = normalize(cross(world_normal, vec3(0.0, 1.0, 0.0)));
-	}
-	vec3 bitangent = normalize(cross(world_normal, tangent));
+	// Set final material properties
+	// Let Godot handle ALL lighting - no custom lighting calculation
+	ALBEDO = color;
 
-	// Transform detail normal from tangent space to world space
-	vec3 perturbed_normal = normalize(
-		detail_normal.x * tangent +
-		detail_normal.y * bitangent +
-		detail_normal.z * world_normal
-	);
-
-	// Simple lighting using perturbed normal (for detail visibility)
-	vec3 light_dir = normalize(vec3(0.5, 1.0, 0.3));
-	float ndotl = max(dot(perturbed_normal, light_dir), 0.0);
-	float ambient = 0.5;
-	float lighting = ambient + (1.0 - ambient) * ndotl;
-
-	ALBEDO = color * lighting;
-
-	// NORMAL in Godot spatial shaders should be in tangent space (relative to surface)
-	// We already have detail_normal in tangent space, so just use it directly
+	// Set detail normal for bump mapping (tangent space)
+	// Godot will handle lighting calculations automatically
 	NORMAL = detail_normal;
 
 	// Apply detail roughness variation
