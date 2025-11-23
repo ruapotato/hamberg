@@ -1114,6 +1114,8 @@ func _handle_terrain_modification_input(input_data: Dictionary) -> bool:
 	var right_click: bool = input_data.get("secondary_action", false)
 	var middle_click: bool = input_data.get("middle_mouse", false)
 
+	print("[Player] Input: left=%s middle=%s right=%s" % [left_click, middle_click, right_click])
+
 	if is_pickaxe:
 		if left_click:
 			operation = "dig_square"
@@ -1124,6 +1126,9 @@ func _handle_terrain_modification_input(input_data: Dictionary) -> bool:
 			else:
 				print("[Player] Cannot place earth - need earth in inventory!")
 				return false
+
+	print("[Player] Operation detected: %s" % operation)
+	print("[Player] Cached dig: %s, Cached place: %s" % [cached_dig_position, cached_place_position])
 
 	# Get target position using cached preview positions (ensures dig/place match the preview cubes)
 	var target_pos := Vector3.ZERO
