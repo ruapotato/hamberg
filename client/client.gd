@@ -1390,15 +1390,16 @@ func _check_terrain_ready() -> void:
 	if not local_player or not is_loading:
 		return
 
-	# For now, wait a few frames for terrain to generate
-	# TODO: Could check VoxelLodTerrain's loaded blocks
-	await get_tree().create_timer(2.0).timeout
+	# Wait longer for terrain LOD detail to fully load before applying modifications
+	# VoxelTool needs high-resolution voxel data to be present
+	await get_tree().create_timer(4.0).timeout
 
 	if is_loading:  # Still loading
 		print("[Client] Terrain ready")
 		_mark_loading_step_complete("terrain_ready")
 
 		# Start applying queued terrain modifications
+		# Failures will be re-queued and retried every 2 seconds
 		_apply_queued_terrain_modifications()
 
 ## Queue terrain modification for later application
@@ -1420,10 +1421,19 @@ func _apply_queued_terrain_modifications() -> void:
 
 	print("[Client] Applying %d queued terrain modifications..." % queued_terrain_modifications.size())
 
+	var failed_mods: Array = []
 	for mod in queued_terrain_modifications:
-		_apply_terrain_modification_internal(mod.operation, mod.position, mod.data)
+		var success = _apply_terrain_modification_internal(mod.operation, mod.position, mod.data)
+		if not success:
+			# Re-queue modifications that failed (area not editable yet)
+			failed_mods.append(mod)
 
-	queued_terrain_modifications.clear()
+	if not failed_mods.is_empty():
+		print("[Client] %d terrain modifications failed (area not editable) - will retry later" % failed_mods.size())
+		queued_terrain_modifications = failed_mods
+	else:
+		queued_terrain_modifications.clear()
+
 	_mark_loading_step_complete("terrain_modifications")
 	_generate_world_map_cache()
 
@@ -1450,33 +1460,51 @@ func _check_queued_terrain_modifications() -> void:
 	# Apply modifications that are now in range
 	if not mods_to_apply.is_empty():
 		print("[Client] Applying %d queued terrain modifications (player in range)" % mods_to_apply.size())
+		var failed_count = 0
 		for mod in mods_to_apply:
-			_apply_terrain_modification_internal(mod.operation, mod.position, mod.data)
+			var success = _apply_terrain_modification_internal(mod.operation, mod.position, mod.data)
+			if not success:
+				# Re-queue if still not editable (terrain detail not loaded yet)
+				mods_to_keep.append(mod)
+				failed_count += 1
 
-	# Keep modifications that are still out of range
+		if failed_count > 0:
+			print("[Client] %d modifications still not editable - will retry" % failed_count)
+
+	# Keep modifications that are still out of range or failed
 	queued_terrain_modifications = mods_to_keep
 
 ## Internal terrain modification application
-func _apply_terrain_modification_internal(operation: String, position: Array, data: Dictionary) -> void:
+## Returns true if successful, false if area not editable (should re-queue)
+func _apply_terrain_modification_internal(operation: String, position: Array, data: Dictionary) -> bool:
 	if not voxel_world:
-		return
+		return false
 
 	var pos_v3 := Vector3(position[0], position[1], position[2])
 	var tool_name: String = data.get("tool", "stone_pickaxe")
 	var earth_amount: int = data.get("earth_amount", 0)
+	var success: bool = true
 
 	match operation:
 		"dig_circle":
-			voxel_world.dig_circle(pos_v3, tool_name)
+			var result = voxel_world.dig_circle(pos_v3, tool_name)
+			success = result > 0
 		"dig_square":
-			voxel_world.dig_square(pos_v3, tool_name)
+			var result = voxel_world.dig_square(pos_v3, tool_name)
+			success = result > 0
 		"level_circle":
 			var target_height: float = data.get("target_height", pos_v3.y)
 			voxel_world.level_circle(pos_v3, target_height)
+			# level_circle doesn't return a value, assume success
+			success = true
 		"place_circle":
-			voxel_world.place_circle(pos_v3, earth_amount)
+			var result = voxel_world.place_circle(pos_v3, earth_amount)
+			success = result > 0
 		"place_square":
-			voxel_world.place_square(pos_v3, earth_amount)
+			var result = voxel_world.place_square(pos_v3, earth_amount)
+			success = result > 0
+
+	return success
 
 ## Generate world map cache during loading
 func _generate_world_map_cache() -> void:
