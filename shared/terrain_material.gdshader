@@ -333,14 +333,11 @@ void fragment() {
 	float rock_blend = 1.0 - smoothstep(0.70, 0.85, flatness);
 	vec3 base_color = mix(grass_color, rock_color, rock_blend);
 
-	// TEST: Direct noise visualization to verify it's working
-	float test_noise = fbm(xz_pos, world_seed + 500, 0.2, 3, 2.0, 0.5);
+	// SIMPLEST TEST: Pure sine wave stripes (no FBM at all)
+	// Should see obvious stripes if shader is updating
+	float stripe = sin(xz_pos.x * 0.5) * 0.5 + 0.5;  // 0 to 1
 
-	// Convert -1 to 1 range into 0 to 1 for visibility
-	float noise_visual = (test_noise + 1.0) * 0.5;
-
-	// EXTREME variation for testing - should see black/white patterns
-	vec3 color = base_color * mix(0.3, 2.0, noise_visual);  // 0.3 to 2.0 range!
+	vec3 color = base_color * mix(0.2, 2.0, stripe);  // EXTREME black/white stripes
 
 	// Simple directional lighting (use world-space normal)
 	vec3 light_dir = normalize(vec3(0.5, 1.0, 0.3));
