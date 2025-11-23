@@ -200,14 +200,16 @@ void fragment() {
 	vec3 grass_color = get_biome_grass_color(biome);
 	vec3 rock_color = get_biome_rock_color(biome);
 
-	// Calculate slope (0 = flat, 1 = vertical)
-	// NORMAL.y is 1.0 for flat ground, 0.0 for vertical walls
-	float slope = 1.0 - abs(NORMAL.y);
+	// Calculate slope based on how vertical the surface is
+	// NORMAL.y is 1.0 for perfectly flat ground (pointing straight up)
+	// NORMAL.y is 0.0 for vertical walls (pointing sideways)
+	// We want: flat (NORMAL.y near 1.0) = grass, steep (NORMAL.y near 0.0) = rock
+	float flatness = NORMAL.y;  // 1.0 = flat, 0.0 = vertical
 
 	// Blend between grass and rock based on slope
-	// slope < 0.3 = mostly grass
-	// slope > 0.6 = mostly rock
-	float rock_blend = smoothstep(0.3, 0.6, slope);
+	// flatness > 0.7 = mostly grass (gentle slopes)
+	// flatness < 0.4 = mostly rock (steep slopes)
+	float rock_blend = 1.0 - smoothstep(0.4, 0.7, flatness);
 	vec3 base_color = mix(grass_color, rock_color, rock_blend);
 
 	// Add subtle height-based variation
