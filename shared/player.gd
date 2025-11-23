@@ -1330,9 +1330,10 @@ func _send_terrain_modification_request(operation: String, position: Vector3, to
 	if operation == "flatten_square":
 		var grid_size: float = 2.0
 		var feet_height: float = global_position.y - 1.0  # Player's feet (character is ~2m tall)
-		# Snap to the nearest grid level at feet height (rounds to nearest, not down)
-		var platform_height: float = round(feet_height / grid_size) * grid_size + grid_size / 2.0
+		# Snap using the same logic as _snap_to_grid to ensure perfect alignment
+		var platform_height: float = floor(feet_height / grid_size) * grid_size + grid_size / 2.0
 		data["target_height"] = platform_height
+		print("[Player] Flatten height: feet=%.2f, snapped=%.2f" % [feet_height, platform_height])
 
 	# Send RPC to server via NetworkManager
 	var pos_array := [position.x, position.y, position.z]
