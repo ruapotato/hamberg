@@ -1390,17 +1390,21 @@ func _check_terrain_ready() -> void:
 	if not local_player or not is_loading:
 		return
 
-	# Wait longer for terrain LOD detail to fully load before applying modifications
-	# VoxelTool needs high-resolution voxel data to be present
-	await get_tree().create_timer(4.0).timeout
+	# Wait a moment for initial terrain generation
+	await get_tree().create_timer(2.0).timeout
 
 	if is_loading:  # Still loading
 		print("[Client] Terrain ready")
 		_mark_loading_step_complete("terrain_ready")
 
-		# Start applying queued terrain modifications
-		# Failures will be re-queued and retried every 2 seconds
-		_apply_queued_terrain_modifications()
+		# Don't apply queued modifications immediately - let the periodic checker handle it
+		# This way modifications only apply when player is close enough (distance-based)
+		# The periodic checker runs every 2 seconds and will apply them when in range
+		print("[Client] %d terrain modifications queued - will apply when player is near" % queued_terrain_modifications.size())
+
+		# Mark terrain modifications step complete and generate world map
+		_mark_loading_step_complete("terrain_modifications")
+		_generate_world_map_cache()
 
 ## Queue terrain modification for later application
 func queue_terrain_modification(operation: String, position: Array, data: Dictionary) -> void:
@@ -1446,13 +1450,16 @@ func _check_queued_terrain_modifications() -> void:
 	var mods_to_apply: Array = []
 	var mods_to_keep: Array = []
 
+	# VoxelTool needs player VERY close for reliable operation
+	const MAX_DISTANCE := 32.0  # 1 chunk = 32 units
+
 	# Check each queued modification
 	for mod in queued_terrain_modifications:
 		var pos_array: Array = mod.position
 		var pos_v3 := Vector3(pos_array[0], pos_array[1], pos_array[2])
 		var distance := Vector2(player_pos.x, player_pos.z).distance_to(Vector2(pos_v3.x, pos_v3.z))
 
-		if distance <= 48.0:  # Within VoxelTool range
+		if distance <= MAX_DISTANCE:  # Within VoxelTool range
 			mods_to_apply.append(mod)
 		else:
 			mods_to_keep.append(mod)
