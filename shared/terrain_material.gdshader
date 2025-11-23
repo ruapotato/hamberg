@@ -200,14 +200,26 @@ void vertex() {
 void fragment() {
 	// Get biome at this position
 	vec2 xz_pos = world_pos.xz;
-	int biome = get_biome_index(xz_pos);
-	vec3 grass_color = get_biome_grass_color(biome);
-	vec3 rock_color = get_biome_rock_color(biome);
 
-	// DEBUG: Just show pure grass color to see if biomes are working
-	ALBEDO = grass_color;
+	// DEBUG: Test if distance-based coloring works at all
+	float distance = length(xz_pos);
+	vec3 test_color;
+	if (distance < 100.0) {
+		test_color = vec3(1.0, 0.0, 0.0);  // RED near spawn
+	} else if (distance < 500.0) {
+		test_color = vec3(0.0, 1.0, 0.0);  // GREEN mid-range
+	} else {
+		test_color = vec3(0.0, 0.0, 1.0);  // BLUE far away
+	}
+
+	ALBEDO = test_color;
 	ROUGHNESS = 0.9;
 	METALLIC = 0.0;
+
+	// ORIGINAL CODE - commented out for testing
+	//int biome = get_biome_index(xz_pos);
+	//vec3 grass_color = get_biome_grass_color(biome);
+	//vec3 rock_color = get_biome_rock_color(biome);
 
 	// Calculate slope based on how vertical the surface is (in world space)
 	// world_normal.y is 1.0 for perfectly flat ground (pointing straight up)
