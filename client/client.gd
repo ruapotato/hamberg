@@ -31,6 +31,8 @@ var spawned_enemies: Dictionary = {} # NodePath -> Enemy node (visual only)
 # Loading state
 var loading_screen_ui: Control = null
 var queued_terrain_modifications: Array = []
+var queued_mods_check_timer: float = 0.0
+const QUEUED_MODS_CHECK_INTERVAL: float = 2.0  # Check every 2 seconds
 var loading_steps_complete: Dictionary = {
 	"world_config": false,
 	"buildables": false,
@@ -184,6 +186,12 @@ func _process(_delta: float) -> void:
 		_handle_build_input()
 		_handle_interaction_input()
 		_update_biome_music(_delta)
+
+		# Check queued terrain modifications periodically
+		queued_mods_check_timer += _delta
+		if queued_mods_check_timer >= QUEUED_MODS_CHECK_INTERVAL:
+			queued_mods_check_timer = 0.0
+			_check_queued_terrain_modifications()
 
 	# Handle pause menu (Escape or Button 6)
 	if (Input.is_action_just_pressed("ui_cancel") or Input.is_action_just_pressed("toggle_pause")) and is_in_game:
@@ -1418,6 +1426,35 @@ func _apply_queued_terrain_modifications() -> void:
 	queued_terrain_modifications.clear()
 	_mark_loading_step_complete("terrain_modifications")
 	_generate_world_map_cache()
+
+## Check queued terrain modifications and apply ones that are now in range
+func _check_queued_terrain_modifications() -> void:
+	if queued_terrain_modifications.is_empty() or not local_player:
+		return
+
+	var player_pos: Vector3 = local_player.global_position
+	var mods_to_apply: Array = []
+	var mods_to_keep: Array = []
+
+	# Check each queued modification
+	for mod in queued_terrain_modifications:
+		var pos_array: Array = mod.position
+		var pos_v3 := Vector3(pos_array[0], pos_array[1], pos_array[2])
+		var distance := Vector2(player_pos.x, player_pos.z).distance_to(Vector2(pos_v3.x, pos_v3.z))
+
+		if distance <= 48.0:  # Within VoxelTool range
+			mods_to_apply.append(mod)
+		else:
+			mods_to_keep.append(mod)
+
+	# Apply modifications that are now in range
+	if not mods_to_apply.is_empty():
+		print("[Client] Applying %d queued terrain modifications (player in range)" % mods_to_apply.size())
+		for mod in mods_to_apply:
+			_apply_terrain_modification_internal(mod.operation, mod.position, mod.data)
+
+	# Keep modifications that are still out of range
+	queued_terrain_modifications = mods_to_keep
 
 ## Internal terrain modification application
 func _apply_terrain_modification_internal(operation: String, position: Array, data: Dictionary) -> void:
