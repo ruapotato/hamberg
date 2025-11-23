@@ -5,14 +5,14 @@ shader_type spatial;
 
 uniform int world_seed = 42;
 
-// Biome grass colors (flat/low slope terrain)
-const vec3 VALLEY_GRASS = vec3(0.3, 0.5, 0.7);      // Blue (serene valley)
-const vec3 FOREST_GRASS = vec3(0.3, 0.6, 0.3);      // Green (lush forest)
-const vec3 SWAMP_GRASS = vec3(0.3, 0.4, 0.3);       // Murky green-brown
-const vec3 MOUNTAIN_GRASS = vec3(0.5, 0.6, 0.5);    // Light gray-green
-const vec3 DESERT_GRASS = vec3(0.8, 0.7, 0.4);      // Sandy yellow
-const vec3 WIZARDLAND_GRASS = vec3(0.6, 0.4, 0.8);  // Purple/magical
-const vec3 HELL_GRASS = vec3(0.5, 0.2, 0.1);        // Dark red earth
+// Biome grass colors (flat/low slope terrain) - More vibrant and distinct
+const vec3 VALLEY_GRASS = vec3(0.4, 0.6, 0.9);      // Bright blue (serene valley)
+const vec3 FOREST_GRASS = vec3(0.3, 0.7, 0.2);      // Vibrant green (lush forest)
+const vec3 SWAMP_GRASS = vec3(0.4, 0.5, 0.3);       // Olive green (murky swamp)
+const vec3 MOUNTAIN_GRASS = vec3(0.6, 0.65, 0.6);   // Light gray-green
+const vec3 DESERT_GRASS = vec3(0.9, 0.8, 0.5);      // Bright sandy yellow
+const vec3 WIZARDLAND_GRASS = vec3(0.7, 0.4, 0.9);  // Bright purple/magical
+const vec3 HELL_GRASS = vec3(0.6, 0.2, 0.1);        // Red earth
 
 // Biome rock colors (steep/high slope terrain)
 const vec3 VALLEY_ROCK = vec3(0.5, 0.5, 0.5);       // Gray stone
@@ -212,10 +212,10 @@ void fragment() {
 
 	// Blend between grass and rock based on slope
 	// At 45 degrees (max walkable), normal.y = cos(45°) ≈ 0.707
-	// flatness > 0.75 = walkable, mostly grass
-	// flatness < 0.65 = too steep to walk, mostly rock
-	// Smooth transition between 0.65 and 0.75
-	float rock_blend = 1.0 - smoothstep(0.65, 0.75, flatness);
+	// flatness > 0.85 = flat, mostly grass
+	// flatness < 0.70 = steep/walkable limit, mostly rock
+	// Smooth transition between 0.70 and 0.85 (shows more rock on moderate slopes)
+	float rock_blend = 1.0 - smoothstep(0.70, 0.85, flatness);
 	vec3 base_color = mix(grass_color, rock_color, rock_blend);
 
 	// Add subtle height-based variation
