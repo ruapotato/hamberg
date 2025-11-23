@@ -333,8 +333,48 @@ void fragment() {
 	float rock_blend = 1.0 - smoothstep(0.70, 0.85, flatness);
 	vec3 base_color = mix(grass_color, rock_color, rock_blend);
 
-	// Minimal height variation to preserve biome colors
+	// Add texture detail with noise
 	vec3 color = base_color;
+
+	// GRASS DETAIL: Fine blade-like noise pattern
+	if (rock_blend < 0.5) {  // Mostly grass
+		// High frequency noise for grass blades (smaller scale = finer detail)
+		float grass_noise = fbm(xz_pos, world_seed + 500, 0.5, 4, 2.0, 0.5);  // Fine detail
+
+		// Create blade-like stripes by taking abs of noise (makes sharp transitions)
+		float grass_stripes = abs(grass_noise);
+
+		// Add directional variation (grass grows in patches)
+		float grass_patches = fbm(xz_pos, world_seed + 501, 0.05, 2, 2.0, 0.5);
+
+		// Combine for grass-like texture
+		float grass_detail = grass_stripes * 0.15 + grass_patches * 0.1;
+
+		// Darken/lighten grass slightly based on detail
+		color = mix(color * 0.85, color * 1.15, grass_stripes);
+
+		// Fade detail based on rock blend (less detail near rocky areas)
+		grass_detail *= (1.0 - rock_blend);
+	}
+
+	// ROCK DETAIL: Cracks and surface roughness
+	if (rock_blend > 0.5) {  // Mostly rock
+		// Medium frequency noise for rock surface variation
+		float rock_surface = fbm(xz_pos, world_seed + 600, 0.2, 3, 2.0, 0.5);
+
+		// High frequency noise for cracks and small details
+		float rock_cracks = fbm(xz_pos, world_seed + 601, 0.8, 4, 2.5, 0.4);
+
+		// Create sharp cracks by thresholding noise
+		float crack_strength = smoothstep(0.6, 0.8, abs(rock_cracks));
+
+		// Apply rock detail (darken cracks, vary surface)
+		color = color * (1.0 + rock_surface * 0.2);  // Surface variation
+		color = mix(color, color * 0.5, crack_strength * 0.4);  // Darken cracks
+
+		// Fade detail based on rock blend
+		float rock_detail_strength = rock_blend;
+	}
 
 	// Simple directional lighting (use world-space normal)
 	vec3 light_dir = normalize(vec3(0.5, 1.0, 0.3));
