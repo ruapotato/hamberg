@@ -29,12 +29,17 @@ var active_pings: Array = []
 # UI nodes
 @onready var map_texture_rect: TextureRect = $Panel/MapTextureRect
 @onready var refresh_timer: Timer = $RefreshTimer
+@onready var overlay: Control = $Panel/Overlay
 
 func _ready() -> void:
 	# Setup refresh timer for viewport updates (cheap, just moves the viewport)
 	refresh_timer.wait_time = 0.1  # Update viewport position 10 times per second
 	refresh_timer.timeout.connect(_on_refresh_timeout)
 	refresh_timer.start()
+
+	# Connect overlay drawing
+	if overlay:
+		overlay.draw.connect(_draw_overlay)
 
 	print("[MiniMap] Mini-map initialized")
 
@@ -59,10 +64,11 @@ func _process(delta: float) -> void:
 		if active_pings[i].time_left <= 0:
 			active_pings.remove_at(i)
 
-	# Queue redraw for markers
-	queue_redraw()
+	# Queue redraw for markers on overlay
+	if overlay:
+		overlay.queue_redraw()
 
-func _draw() -> void:
+func _draw_overlay() -> void:
 	# Draw on top of the map texture
 	_draw_compass_directions()
 	_draw_pins()
@@ -161,11 +167,9 @@ func _world_to_screen_pos(world_pos: Vector2) -> Vector2:
 
 func _draw_compass_directions() -> void:
 	"""Draw N, E, S, W labels inside the mini-map edge"""
-	# Get center relative to this Control node (not global)
-	var map_rect_pos := map_texture_rect.position
-	var map_rect_size := map_texture_rect.size
-	var center := map_rect_pos + (map_rect_size * 0.5)
-	var radius := (map_rect_size.x * 0.5) - 12.0  # Inside the map edge
+	# Overlay has same size as MapTextureRect, so center is local
+	var center := overlay.size * 0.5
+	var radius := (overlay.size.x * 0.5) - 12.0  # Inside the map edge
 
 	# Define compass positions (N, E, S, W)
 	# North is +Z in world space, which is "up" on the map
@@ -199,10 +203,8 @@ func _draw_player_markers() -> void:
 	if not local_player:
 		return
 
-	# Draw local player (always at center) - use LOCAL coordinates
-	var map_rect_pos := map_texture_rect.position
-	var map_rect_size := map_texture_rect.size
-	var center := map_rect_pos + (map_rect_size * 0.5)
+	# Draw local player (always at center) - overlay local coordinates
+	var center := overlay.size * 0.5
 
 	# Draw direction arrow (V shape) showing camera orientation
 	var camera_controller = local_player.get_node_or_null("CameraController")
