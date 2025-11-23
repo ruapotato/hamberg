@@ -1491,23 +1491,20 @@ func _apply_terrain_modification_internal(operation: String, position: Array, da
 	var success: bool = true
 
 	match operation:
-		"dig_circle":
-			var result = voxel_world.dig_circle(pos_v3, tool_name)
-			success = result > 0
 		"dig_square":
 			var result = voxel_world.dig_square(pos_v3, tool_name)
-			success = result > 0
-		"level_circle":
-			var target_height: float = data.get("target_height", pos_v3.y)
-			voxel_world.level_circle(pos_v3, target_height)
-			# level_circle doesn't return a value, assume success
-			success = true
-		"place_circle":
-			var result = voxel_world.place_circle(pos_v3, earth_amount)
 			success = result > 0
 		"place_square":
 			var result = voxel_world.place_square(pos_v3, earth_amount)
 			success = result > 0
+		"flatten_square":
+			var target_height: float = data.get("target_height", pos_v3.y)
+			voxel_world.flatten_square(pos_v3, target_height)
+			success = true
+		_:
+			# Unknown or deprecated operation (dig_circle, place_circle, level_circle, etc.)
+			print("[Client] Skipping unknown/deprecated terrain operation: %s" % operation)
+			success = false
 
 	return success
 
