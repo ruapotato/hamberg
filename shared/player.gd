@@ -1490,39 +1490,38 @@ func _update_body_animations(delta: float) -> void:
 		# Don't process other movement animations during landing
 		return
 
-	# Jump/falling animation - Subtle athletic style
+	# Jump/falling animation - Light running jump style
 	if (is_jumping or is_falling) and not is_on_floor():
-		# Arms swing up slightly (more for jump, less for fall)
-		var arm_raise = 1.0 if is_jumping else 0.6
+		# Arms spread slightly to the sides for balance
+		var arm_intensity = 1.0 if is_jumping else 0.7
 
 		if left_arm and not is_blocking:
-			# Reduced forward swing, minimal outward angle
-			left_arm.rotation.x = lerp(left_arm.rotation.x, -0.4 * arm_raise, delta * 8.0)
-			left_arm.rotation.z = lerp(left_arm.rotation.z, 0.1, delta * 8.0)  # Reduced from 0.3
+			# Arm out to the side, slight forward angle
+			left_arm.rotation.x = lerp(left_arm.rotation.x, -0.2 * arm_intensity, delta * 10.0)
+			left_arm.rotation.z = lerp(left_arm.rotation.z, 0.4 * arm_intensity, delta * 10.0)  # Out to left side
 			if left_elbow:
-				left_elbow.rotation.x = lerp(left_elbow.rotation.x, -0.3 * arm_raise, delta * 8.0)
+				left_elbow.rotation.x = lerp(left_elbow.rotation.x, 0.0, delta * 10.0)  # Keep straight
 
 		if right_arm and not is_attacking and not is_special_attacking:
-			# Reduced forward swing, minimal inward angle
-			right_arm.rotation.x = lerp(right_arm.rotation.x, -0.4 * arm_raise, delta * 8.0)
-			right_arm.rotation.z = lerp(right_arm.rotation.z, -0.1, delta * 8.0)  # Reduced from -0.3
+			# Arm out to the side, slight forward angle
+			right_arm.rotation.x = lerp(right_arm.rotation.x, -0.2 * arm_intensity, delta * 10.0)
+			right_arm.rotation.z = lerp(right_arm.rotation.z, -0.4 * arm_intensity, delta * 10.0)  # Out to right side
 			if right_elbow:
-				right_elbow.rotation.x = lerp(right_elbow.rotation.x, -0.3 * arm_raise, delta * 8.0)
+				right_elbow.rotation.x = lerp(right_elbow.rotation.x, 0.0, delta * 10.0)  # Keep straight
 
-		# Knees bend moderately (less extreme tuck)
-		var knee_bend = 1.0 if is_jumping else 0.8  # Reduced from 1.5/1.2
+		# Running pose: one leg forward, one leg back (asymmetric)
 		if left_leg:
-			left_leg.rotation.x = lerp(left_leg.rotation.x, 0.5, delta * 8.0)  # Reduced from 0.9
+			left_leg.rotation.x = lerp(left_leg.rotation.x, 0.4, delta * 10.0)  # Forward
 			if left_knee:
-				left_knee.rotation.x = lerp(left_knee.rotation.x, knee_bend, delta * 8.0)
+				left_knee.rotation.x = lerp(left_knee.rotation.x, 0.6, delta * 10.0)  # Moderate bend
 		if right_leg:
-			right_leg.rotation.x = lerp(right_leg.rotation.x, 0.5, delta * 8.0)  # Reduced from 0.9
+			right_leg.rotation.x = lerp(right_leg.rotation.x, -0.3, delta * 10.0)  # Back
 			if right_knee:
-				right_knee.rotation.x = lerp(right_knee.rotation.x, knee_bend, delta * 8.0)
+				right_knee.rotation.x = lerp(right_knee.rotation.x, 0.3, delta * 10.0)  # Slight bend
 
-		# Slight forward lean
+		# No forward lean - keep body upright
 		if body_container:
-			body_container.rotation.x = lerp(body_container.rotation.x, 0.2, delta * 5.0)
+			body_container.rotation.x = lerp(body_container.rotation.x, 0.0, delta * 10.0)
 
 		# Don't process other movement animations while in air
 		return
