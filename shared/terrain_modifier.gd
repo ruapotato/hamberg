@@ -85,6 +85,9 @@ func dig_square(world_position: Vector3, tool_name: String = "stone_pickaxe") ->
 	var center_y := int(world_position.y)
 	var center_z := int(world_position.z)
 
+	print("[TerrainModifier] DIG at world_pos=(%.1f, %.1f, %.1f) -> center=(%d, %d, %d)" %
+		[world_position.x, world_position.y, world_position.z, center_x, center_y, center_z])
+
 	var half_size := int(SQUARE_SIZE / 2)
 	var half_depth := int(SQUARE_DEPTH / 2)
 
@@ -130,6 +133,9 @@ func place_square(world_position: Vector3, earth_amount: int) -> int:
 	var center_x := int(world_position.x)
 	var center_y := int(world_position.y)
 	var center_z := int(world_position.z)
+
+	print("[TerrainModifier] PLACE at world_pos=(%.1f, %.1f, %.1f) -> center=(%d, %d, %d)" %
+		[world_position.x, world_position.y, world_position.z, center_x, center_y, center_z])
 
 	var half_size := int(SQUARE_SIZE / 2)
 	var half_depth := int(SQUARE_DEPTH / 2)
@@ -205,17 +211,14 @@ func flatten_square(world_position: Vector3, target_height: float) -> int:
 		push_error("[TerrainModifier] Cannot flatten - voxel_tool not initialized")
 		return 0
 
-	# Snap target height to grid (2-meter intervals)
-	var grid_size: float = 2.0
-	var snapped_height: float = floor(target_height / grid_size) * grid_size + grid_size / 2.0
+	# Use EXACT same grid logic as dig_square and place_square
+	# Position is already grid-snapped from player.gd, just convert to int
+	var center_x := int(world_position.x)
+	var center_z := int(world_position.z)
+	var platform_y := int(target_height)
 
-	# Center position on the clicked location - snap to grid centers (1, 3, 5, 7...)
-	var center_x: float = floor(world_position.x / grid_size) * grid_size + grid_size / 2.0
-	var center_z: float = floor(world_position.z / grid_size) * grid_size + grid_size / 2.0
-	var platform_y := int(snapped_height)
-
-	print("[TerrainModifier] Flatten: click=(%.1f, %.1f, %.1f), center=(%.1f, %.1f), height=%.1f" %
-		[world_position.x, world_position.y, world_position.z, center_x, center_z, snapped_height])
+	print("[TerrainModifier] FLATTEN at world_pos=(%.1f, %.1f, %.1f) -> center=(%d, %d, %d)" %
+		[world_position.x, world_position.y, world_position.z, center_x, platform_y, center_z])
 
 	# 4x4 area (8 meters x 8 meters)
 	var half_area := 4  # 4 meters on each side = 8m total
