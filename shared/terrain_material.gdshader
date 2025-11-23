@@ -333,11 +333,14 @@ void fragment() {
 	float rock_blend = 1.0 - smoothstep(0.70, 0.85, flatness);
 	vec3 base_color = mix(grass_color, rock_color, rock_blend);
 
-	// SIMPLEST TEST: Pure sine wave stripes (no FBM at all)
-	// Should see obvious stripes if shader is updating
-	float stripe = sin(xz_pos.x * 0.5) * 0.5 + 0.5;  // 0 to 1
+	// TEST FBM directly - visualize raw output
+	float test_fbm = fbm(xz_pos, world_seed + 500, 0.1, 3, 2.0, 0.5);
 
-	vec3 color = base_color * mix(0.2, 2.0, stripe);  // EXTREME black/white stripes
+	// FBM should return -1 to 1, convert to 0 to 1 for visibility
+	float fbm_vis = (test_fbm + 1.0) * 0.5;
+
+	// Apply extreme variation to see if FBM works
+	vec3 color = base_color * mix(0.2, 2.0, fbm_vis);
 
 	// Simple directional lighting (use world-space normal)
 	vec3 light_dir = normalize(vec3(0.5, 1.0, 0.3));
