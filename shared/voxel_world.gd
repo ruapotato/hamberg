@@ -166,8 +166,58 @@ func _setup_terrain_material() -> void:
 		var shader_mat: ShaderMaterial = terrain.material as ShaderMaterial
 		shader_mat.set_shader_parameter("world_seed", world_seed)
 		print("[VoxelWorld] Updated terrain material world_seed to %d" % world_seed)
+
+		# Generate biome map texture for accurate shader lookup
+		_generate_biome_map_texture(shader_mat)
 	else:
 		print("[VoxelWorld] Warning: Terrain material is not a ShaderMaterial!")
+
+func _generate_biome_map_texture(shader_mat: ShaderMaterial) -> void:
+	"""Generate a texture containing biome data for shader lookup
+	This ensures shader colors match BiomeGenerator exactly"""
+
+	print("[VoxelWorld] Generating biome map texture...")
+
+	# Create a large texture covering the world
+	var texture_size := 2048  # 2048x2048 texture
+	var world_coverage := 40000.0  # Cover 40km x 40km (from -20km to +20km)
+	var pixels_per_meter := float(texture_size) / world_coverage
+
+	var image := Image.create(texture_size, texture_size, false, Image.FORMAT_RGB8)
+
+	# Biome colors (must match shader)
+	var biome_colors := {
+		"valley": Color(0.2, 0.5, 1.0),
+		"forest": Color(0.1, 0.9, 0.1),
+		"swamp": Color(0.5, 0.6, 0.2),
+		"mountain": Color(0.8, 0.8, 0.8),
+		"desert": Color(1.0, 0.9, 0.3),
+		"wizardland": Color(0.9, 0.2, 1.0),
+		"hell": Color(0.9, 0.1, 0.0)
+	}
+
+	# Generate biome data for each pixel
+	for y in texture_size:
+		for x in texture_size:
+			# Convert pixel coords to world coords (centered at origin)
+			var world_x := (float(x) / pixels_per_meter) - (world_coverage * 0.5)
+			var world_z := (float(y) / pixels_per_meter) - (world_coverage * 0.5)
+			var world_pos := Vector2(world_x, world_z)
+
+			# Get biome from BiomeGenerator
+			var biome := generator.get_biome_at(world_pos)
+			var color := biome_colors.get(biome, Color.WHITE)
+
+			image.set_pixel(x, y, color)
+
+	# Create texture from image
+	var texture := ImageTexture.create_from_image(image)
+
+	# Set shader parameters
+	shader_mat.set_shader_parameter("biome_map", texture)
+	shader_mat.set_shader_parameter("biome_map_world_coverage", world_coverage)
+
+	print("[VoxelWorld] Biome map texture generated (size: %dx%d, coverage: %.0fm)" % [texture_size, texture_size, world_coverage])
 
 func _setup_chunk_manager() -> void:
 	print("[VoxelWorld] Setting up environmental object spawning...")
