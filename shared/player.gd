@@ -1498,14 +1498,14 @@ func _update_body_animations(delta: float) -> void:
 		if left_arm and not is_blocking:
 			# Arm out to the side, slight forward angle
 			left_arm.rotation.x = lerp(left_arm.rotation.x, -0.2 * arm_intensity, delta * 10.0)
-			left_arm.rotation.z = lerp(left_arm.rotation.z, 0.4 * arm_intensity, delta * 10.0)  # Out to left side
+			left_arm.rotation.z = lerp(left_arm.rotation.z, -0.4 * arm_intensity, delta * 10.0)  # Out to left side (negative = outward)
 			if left_elbow:
 				left_elbow.rotation.x = lerp(left_elbow.rotation.x, 0.0, delta * 10.0)  # Keep straight
 
 		if right_arm and not is_attacking and not is_special_attacking:
 			# Arm out to the side, slight forward angle
 			right_arm.rotation.x = lerp(right_arm.rotation.x, -0.2 * arm_intensity, delta * 10.0)
-			right_arm.rotation.z = lerp(right_arm.rotation.z, -0.4 * arm_intensity, delta * 10.0)  # Out to right side
+			right_arm.rotation.z = lerp(right_arm.rotation.z, 0.4 * arm_intensity, delta * 10.0)  # Out to right side (positive = outward)
 			if right_elbow:
 				right_elbow.rotation.x = lerp(right_elbow.rotation.x, 0.0, delta * 10.0)  # Keep straight
 
