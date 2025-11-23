@@ -172,8 +172,8 @@ func _process(_delta: float) -> void:
 		_handle_build_input()
 		_handle_interaction_input()
 
-	# Handle pause menu
-	if Input.is_action_just_pressed("ui_cancel") and is_in_game:
+	# Handle pause menu (Escape or Button 6)
+	if (Input.is_action_just_pressed("ui_cancel") or Input.is_action_just_pressed("toggle_pause")) and is_in_game:
 		_toggle_pause_menu()
 
 	# Handle manual save
