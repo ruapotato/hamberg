@@ -19,14 +19,7 @@ var biome_music := {
 		"res://audio/music/Meadows5.wav",
 		"res://audio/music/Meadows6.wav"
 	],
-	"forest": [
-		"res://audio/music/Meadows1.wav",
-		"res://audio/music/Meadows2.wav",
-		"res://audio/music/Meadows3.wav",
-		"res://audio/music/Meadows4.wav",
-		"res://audio/music/Meadows5.wav",
-		"res://audio/music/Meadows6.wav"
-	],
+	"forest": [],     # TODO: Add forest music
 	"swamp": [],      # TODO: Add swamp music
 	"mountain": [],   # TODO: Add mountain music
 	"desert": [],     # TODO: Add desert music
