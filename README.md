@@ -550,11 +550,112 @@ NetworkManager.rpc_place_buildable.rpc_id(1, piece_name, pos, rot)
 | Item discovery | `client/item_discovery_tracker.gd` |
 | Crafting menu | `client/ui/crafting_menu.gd` |
 | Building | `client/build_mode.gd`, `shared/buildable/building_piece.gd` |
+| Terrain modification | `shared/terrain_modifier.gd`, `shared/voxel_world.gd` |
+| Terrain replay system | `server/server.gd`, `client/client.gd`, `shared/network_manager.gd` |
 | World generation | `shared/biome_generator.gd`, `shared/voxel_world.gd` |
 | Chunk streaming | `shared/environmental/chunk_manager.gd` |
 | Resource gathering | `shared/environmental/environmental_object.gd`, `shared/player.gd` |
 | Networking | `shared/network_manager.gd`, `server/server.gd`, `client/client.gd` |
 | Enemy AI | `shared/enemies/enemy.gd`, `server/enemy_spawner.gd` |
+
+---
+
+## ⛏️ Terrain Modification & Replay System
+
+Hamberg features a sophisticated terrain modification system that persists changes across server restarts and handles VoxelTool's proximity requirements.
+
+### How It Works
+
+**Server-Side Authority:**
+- Server stores all terrain modifications in `terrain_modification_history` (per-chunk dictionary)
+- Modifications saved to `user://worlds/{world_name}/terrain_history.json`
+- On server restart, all chunks with modifications are marked as "unapplied"
+
+**Client-Side Application with Distance-Based Queueing:**
+
+Terrain modifications can only be applied when:
+1. Player is within **32 units (1 chunk)** of the modification
+2. VoxelLodTerrain has loaded high-resolution voxel detail for that area
+
+**The Replay Flow:**
+
+```
+Server Restart
+    ↓
+Load terrain_history.json
+    ↓
+Mark all chunks as unapplied (server/server.gd)
+    ↓
+Player connects and loads world
+    ↓
+Server replays modifications via RPC
+    ↓
+Client receives modifications:
+    - If loading: Queue for later
+    - If player > 32 units away: Queue for later
+    - If player nearby but area not editable: Queue and retry
+    ↓
+Periodic check every 2 seconds (client/client.gd):
+    - Find queued modifications within 32 units
+    - Attempt to apply each one
+    - Re-queue any that fail (area not editable yet)
+    ↓
+Modifications appear when player walks near them
+```
+
+### Critical Implementation Details
+
+**⚠️ IMPORTANT: Do not change these values without understanding VoxelTool constraints**
+
+**Distance Constants:**
+- `MAX_DISTANCE = 32.0` (in `network_manager.gd` and `client.gd`)
+- This is **1 chunk** - the minimum reliable distance for VoxelTool operations
+- **Do NOT increase** - VoxelTool fails silently when player is too far
+- Tested values: 48 units = unreliable, 32 units = reliable
+
+**Retry Logic:**
+- `_apply_terrain_modification_internal()` returns `true/false` based on success
+- Failures (return value = 0 or area not editable) are automatically re-queued
+- Periodic checker runs every 2 seconds: `QUEUED_MODS_CHECK_INTERVAL = 2.0`
+
+**Why This Approach:**
+1. **VoxelTool Limitation**: Terrain detail only loads near VoxelViewer (player camera)
+2. **LOD System**: High-resolution voxel data loads gradually as player approaches
+3. **Silent Failures**: VoxelTool's `is_area_editable()` returns false if detail not loaded
+4. **Distance-Based**: No static timers - everything proximity-based for reliability
+
+### File Locations
+
+| Component | File | Lines |
+|-----------|------|-------|
+| Server terrain history | `server/server.gd` | 987-1240 |
+| Client queueing system | `client/client.gd` | 1388-1474 |
+| Distance check | `shared/network_manager.gd` | 351-366 |
+| Terrain operations | `shared/terrain_modifier.gd` | 73-251 |
+| Voxel world wrapper | `shared/voxel_world.gd` | 358-383 |
+
+### Key Functions
+
+**Server:**
+- `_load_terrain_history()` - Loads modifications and marks all as unapplied
+- `_apply_terrain_modifications_for_chunk()` - Applies modifications when player near
+- `_is_player_near_chunk()` - Checks if any player within range
+
+**Client:**
+- `queue_terrain_modification()` - Adds modification to queue
+- `_check_queued_terrain_modifications()` - Periodic distance check (every 2s)
+- `_apply_terrain_modification_internal()` - Attempts application, returns success
+
+**Network:**
+- `rpc_apply_terrain_modification()` - Checks distance before applying or queuing
+
+### Debugging Tips
+
+If terrain modifications aren't appearing:
+1. Check logs for "Player too far" messages - modifications are queued
+2. Check logs for "Area not editable" warnings - VoxelTool can't apply yet
+3. Walk within 32 units of the modification and wait up to 2 seconds
+4. Modifications will retry automatically every 2 seconds when in range
 
 ---
 
