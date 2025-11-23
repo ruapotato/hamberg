@@ -333,8 +333,32 @@ void fragment() {
 	float rock_blend = 1.0 - smoothstep(0.70, 0.85, flatness);
 	vec3 base_color = mix(grass_color, rock_color, rock_blend);
 
-	// Minimal height variation to preserve biome colors
+	// Add subtle noise-based color variation (NO lighting changes, NO normal changes)
 	vec3 color = base_color;
+
+	// GRASS VARIATION: Subtle green swirls and blade-like patterns
+	if (rock_blend < 0.5) {  // Mostly grass areas
+		// Fine grass blade patterns
+		float grass_fine = fbm(xz_pos, world_seed + 500, 0.8, 3, 2.0, 0.5);
+		// Medium grass patches
+		float grass_medium = fbm(xz_pos, world_seed + 501, 0.2, 2, 2.0, 0.5);
+
+		// Create subtle darker/lighter green variations (±10%)
+		float grass_variation = (grass_fine * 0.5 + grass_medium * 0.5) * 0.15;
+		color = color * (1.0 + grass_variation);
+	}
+
+	// ROCK VARIATION: Gray swirls and surface patterns
+	if (rock_blend > 0.5) {  // Mostly rock areas
+		// Medium rock surface patterns
+		float rock_medium = fbm(xz_pos, world_seed + 600, 0.3, 3, 2.0, 0.5);
+		// Fine rock detail/cracks
+		float rock_fine = fbm(xz_pos, world_seed + 601, 1.0, 3, 2.0, 0.5);
+
+		// Create subtle gray variations (±12%)
+		float rock_variation = (rock_medium * 0.6 + rock_fine * 0.4) * 0.18;
+		color = color * (1.0 + rock_variation);
+	}
 
 	// Simple directional lighting (use world-space normal)
 	vec3 light_dir = normalize(vec3(0.5, 1.0, 0.3));
