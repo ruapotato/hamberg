@@ -1189,7 +1189,7 @@ func _raycast_grid_cell_from_camera(camera: Camera3D) -> Vector3:
 	if result:
 		# Hit something - move slightly along the ray direction (into the surface)
 		# to get the center of the block we're looking at, not the air in front of it
-		var point_inside := result.position + direction * 0.1
+		var point_inside: Vector3 = result.position + direction * 0.1
 		return _snap_to_grid(point_inside)
 	else:
 		# No hit - calculate grid cell along ray at reasonable distance (5 meters)
