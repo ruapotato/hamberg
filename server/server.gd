@@ -512,10 +512,14 @@ func _apply_terrain_modifications_for_chunk(chunk_pos: Vector2i) -> bool:
 	var chunk_mods = terrain_modification_history[chunk_pos]
 	print("[Server] Applying %d terrain modifications for chunk %s" % [chunk_mods.size(), chunk_pos])
 
+	# Sort modifications by timestamp to ensure correct order
+	var sorted_mods = chunk_mods.duplicate()
+	sorted_mods.sort_custom(func(a, b): return a.get("timestamp", 0) < b.get("timestamp", 0))
+
 	var all_successful := true
 	var successful_mods := []
 
-	for modification in chunk_mods:
+	for modification in sorted_mods:
 		var operation: String = modification.operation
 		var position: Array = modification.position
 		var pos_v3 := Vector3(position[0], position[1], position[2])
@@ -599,7 +603,13 @@ func _replay_terrain_modifications_to_player(peer_id: int) -> void:
 	for chunk_pos in loaded_chunks:
 		if terrain_modification_history.has(chunk_pos):
 			var chunk_mods = terrain_modification_history[chunk_pos]
-			for modification in chunk_mods:
+
+			# Sort modifications by timestamp to ensure correct order
+			# (wall must be built before door is cut)
+			var sorted_mods = chunk_mods.duplicate()
+			sorted_mods.sort_custom(func(a, b): return a.get("timestamp", 0) < b.get("timestamp", 0))
+
+			for modification in sorted_mods:
 				var operation: String = modification.operation
 				var position: Array = modification.position
 				var data: Dictionary = modification.data
@@ -1114,10 +1124,12 @@ func handle_terrain_modification(peer_id: int, operation: String, position: Vect
 	if not terrain_modification_history.has(chunk_pos):
 		terrain_modification_history[chunk_pos] = []
 
+	# Add timestamp to ensure modifications are replayed in the correct order
 	terrain_modification_history[chunk_pos].append({
 		"operation": operation,
 		"position": position_array,
-		"data": data
+		"data": data,
+		"timestamp": Time.get_ticks_msec()  # Milliseconds since engine start
 	})
 	var total_modifications = 0
 	for chunk_mods in terrain_modification_history.values():
