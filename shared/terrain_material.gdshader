@@ -382,8 +382,20 @@ void fragment() {
 	float rock_blend = 1.0 - smoothstep(0.70, 0.85, flatness);
 	vec3 base_color = mix(grass_color, rock_color, rock_blend);
 
-	// Apply our custom noise function
-	float noise_val = multi_octave_noise(xz_pos * 0.3);
+	// Apply our custom noise function using full 3D position to avoid stripes on vertical surfaces
+	// Mix XZ and XY/YZ patterns based on surface normal
+	float noise_xz = multi_octave_noise(world_pos.xz * 0.3);
+	float noise_xy = multi_octave_noise(world_pos.xy * 0.3);
+	float noise_yz = multi_octave_noise(world_pos.yz * 0.3);
+
+	// Blend noise based on surface orientation
+	// Horizontal surfaces use XZ, vertical surfaces use XY/YZ
+	vec3 blend_weights = abs(world_normal);
+	blend_weights = blend_weights / (blend_weights.x + blend_weights.y + blend_weights.z);
+
+	float noise_val = noise_xz * blend_weights.y +  // Horizontal surfaces
+	                  noise_xy * blend_weights.z +  // North/South facing
+	                  noise_yz * blend_weights.x;   // East/West facing
 
 	// Convert to -1 to 1 range for color variation
 	float combined = (noise_val - 0.5) * 2.0;
