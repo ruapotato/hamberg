@@ -192,8 +192,8 @@ vec3 get_biome_rock_color(int biome_index) {
 
 void vertex() {
 	world_pos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
-	// Transform normal to world space (use normal matrix to handle non-uniform scaling)
-	world_normal = normalize((MODEL_MATRIX * vec4(NORMAL, 0.0)).xyz);
+	// Transform normal to world space using inverse transpose for correct orientation
+	world_normal = normalize(mat3(MODEL_MATRIX) * NORMAL);
 }
 
 void fragment() {
