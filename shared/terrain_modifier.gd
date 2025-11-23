@@ -119,11 +119,11 @@ func dig_square(world_position: Vector3, tool_name: String = "stone_pickaxe") ->
 	# Calculate mining difficulty based on depth
 	var mining_speed := get_mining_speed_at_depth(world_position.y, tool_name)
 
-	# Set mode to remove with maximum settings for complete removal
+	# Set mode to remove - use EXACT same settings as place for perfect alignment
 	voxel_tool.mode = VoxelTool.MODE_REMOVE
 	voxel_tool.channel = VoxelBuffer.CHANNEL_SDF
-	voxel_tool.sdf_strength = 10.0  # Maximum strength for complete removal
-	voxel_tool.sdf_scale = 0.1  # Minimal scale for sharpest edges
+	voxel_tool.sdf_strength = 5.0  # Match placement strength
+	voxel_tool.sdf_scale = 0.5  # Match placement scale
 
 	# Dig a box centered on the target position (works for floor, ceiling, and walls)
 	# Position is already grid-snapped from player.gd, just convert to int for voxel coordinates
