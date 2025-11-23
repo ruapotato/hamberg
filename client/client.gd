@@ -1448,7 +1448,8 @@ func _check_queued_terrain_modifications() -> void:
 	var mods_to_keep: Array = []
 
 	# VoxelTool needs player VERY close for reliable operation
-	const MAX_DISTANCE := 32.0  # 1 chunk = 32 units
+	# Reduced to 29m to ensure far edges of large builds load reliably
+	const MAX_DISTANCE := 29.0  # Safety margin below 1 chunk (32 units)
 
 	# Check each queued modification
 	for mod in queued_terrain_modifications:

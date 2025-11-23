@@ -352,7 +352,8 @@ func rpc_apply_terrain_modification(operation: String, position: Array, data: Di
 
 	# Check if player is near enough for VoxelTool to work (closer = more reliable)
 	# VoxelTool needs player VERY close for terrain detail to be loaded
-	const MAX_DISTANCE := 32.0  # 1 chunk = 32 units
+	# Reduced to 29m to ensure far edges of large builds load reliably
+	const MAX_DISTANCE := 29.0  # Safety margin below 1 chunk (32 units)
 	var local_player = client_node.get("local_player") if client_node else null
 	if local_player and is_instance_valid(local_player):
 		var player_pos: Vector3 = local_player.global_position
