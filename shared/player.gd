@@ -107,6 +107,8 @@ var equipped_shield_visual: Node3D = null  # Off hand shield
 # Terrain dig visual feedback
 var terrain_preview_sphere: MeshInstance3D = null  # Persistent preview sphere (shows when tool equipped)
 var terrain_preview_cube: MeshInstance3D = null    # Temporary shape after placement
+var terrain_dig_preview_cube: MeshInstance3D = null  # Red cube showing which block will be dug
+var terrain_place_preview_cube: MeshInstance3D = null  # White cube showing where block will be placed
 var terrain_preview_timer: float = 0.0
 const TERRAIN_PREVIEW_DURATION: float = 0.8  # How long to show the actual placed shape
 var is_showing_persistent_preview: bool = false   # Track if we're showing the persistent preview
@@ -1201,7 +1203,7 @@ func _raycast_grid_cell_from_camera(camera: Camera3D) -> Vector3:
 
 ## Update persistent terrain preview (shows cube when tool equipped)
 func _update_persistent_terrain_preview() -> void:
-	if not terrain_preview_cube:
+	if not terrain_dig_preview_cube or not terrain_place_preview_cube:
 		return
 
 	# Check if we have a terrain tool equipped
@@ -1213,43 +1215,54 @@ func _update_persistent_terrain_preview() -> void:
 	var is_hoe := main_hand_id == "stone_hoe"
 
 	# If we have a terrain tool equipped, show persistent preview
-	if is_pickaxe or is_hoe:
+	if is_pickaxe:
 		# Get camera for raycasting
 		var camera := _get_camera()
 		if camera:
-			var target_pos := Vector3.ZERO
-
-			# For pickaxe: use camera raycast to show which grid cell you're pointing at
-			if is_pickaxe:
-				target_pos = _raycast_grid_cell_from_camera(camera)
-			else:
-				# For hoe: use ground raycast
-				target_pos = _raycast_terrain_target(camera)
-				if target_pos != Vector3.ZERO:
-					target_pos = _snap_to_grid(target_pos)
-
-			if target_pos != Vector3.ZERO:
-				# Show cube preview at snapped position
-				terrain_preview_cube.global_position = target_pos
-
-				# Size the cube appropriately based on tool
-				if is_hoe:
-					terrain_preview_cube.scale = Vector3(4.0, 4.0, 4.0)  # Leveling radius
-				else:
-					terrain_preview_cube.scale = Vector3(1.05, 1.05, 1.05)  # Slightly larger than 2x2x2 block for visibility
-
-				# Only show if we're not showing a temporary shape
+			# RED cube: Show which block will be dug (camera raycast)
+			var dig_pos := _raycast_grid_cell_from_camera(camera)
+			if dig_pos != Vector3.ZERO:
+				terrain_dig_preview_cube.global_position = dig_pos
+				terrain_dig_preview_cube.scale = Vector3(1.05, 1.05, 1.05)
 				if terrain_preview_timer <= 0.0:
-					terrain_preview_cube.visible = true
+					terrain_dig_preview_cube.visible = true
 				else:
-					terrain_preview_cube.visible = false
+					terrain_dig_preview_cube.visible = false
 
+			# WHITE cube: Show where block will be placed (ground raycast)
+			var place_pos := _raycast_terrain_target(camera)
+			if place_pos != Vector3.ZERO:
+				place_pos = _snap_to_grid(place_pos)
+				terrain_place_preview_cube.global_position = place_pos
+				terrain_place_preview_cube.scale = Vector3(1.05, 1.05, 1.05)
+				if terrain_preview_timer <= 0.0:
+					terrain_place_preview_cube.visible = true
+				else:
+					terrain_place_preview_cube.visible = false
+
+			is_showing_persistent_preview = true
+			return
+	elif is_hoe:
+		# For hoe: use old single-cube behavior
+		var camera := _get_camera()
+		if camera:
+			var target_pos := _raycast_terrain_target(camera)
+			if target_pos != Vector3.ZERO:
+				target_pos = _snap_to_grid(target_pos)
+				terrain_dig_preview_cube.global_position = target_pos
+				terrain_dig_preview_cube.scale = Vector3(4.0, 4.0, 4.0)
+				if terrain_preview_timer <= 0.0:
+					terrain_dig_preview_cube.visible = true
+				else:
+					terrain_dig_preview_cube.visible = false
+				terrain_place_preview_cube.visible = false
 				is_showing_persistent_preview = true
 				return
 
 	# No terrain tool equipped, hide persistent preview
 	if is_showing_persistent_preview:
-		terrain_preview_cube.visible = false
+		terrain_dig_preview_cube.visible = false
+		terrain_place_preview_cube.visible = false
 		is_showing_persistent_preview = false
 
 ## Show terrain preview shape (after placement) - briefly shows the actual placed shape
@@ -1439,7 +1452,7 @@ func _setup_terrain_preview_shapes() -> void:
 	terrain_preview_sphere.visible = false
 	get_tree().root.add_child(terrain_preview_sphere)  # Add to scene root, not player
 
-	# Create cube preview
+	# Create cube preview (temporary - shown after placement)
 	terrain_preview_cube = MeshInstance3D.new()
 	var cube_mesh = BoxMesh.new()
 	cube_mesh.size = Vector3(2.0, 2.0, 2.0)  # Will match SQUARE_SIZE and SQUARE_DEPTH (2x2x2)
@@ -1454,6 +1467,38 @@ func _setup_terrain_preview_shapes() -> void:
 
 	terrain_preview_cube.visible = false
 	get_tree().root.add_child(terrain_preview_cube)  # Add to scene root, not player
+
+	# Create RED dig preview cube (shows which block will be dug)
+	terrain_dig_preview_cube = MeshInstance3D.new()
+	var dig_cube_mesh = BoxMesh.new()
+	dig_cube_mesh.size = Vector3(2.0, 2.0, 2.0)
+	terrain_dig_preview_cube.mesh = dig_cube_mesh
+
+	# Semi-transparent red material
+	var dig_material = StandardMaterial3D.new()
+	dig_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	dig_material.albedo_color = Color(1.0, 0.0, 0.0, 0.3)  # Red, 30% opacity
+	dig_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	terrain_dig_preview_cube.material_override = dig_material
+
+	terrain_dig_preview_cube.visible = false
+	get_tree().root.add_child(terrain_dig_preview_cube)
+
+	# Create WHITE place preview cube (shows where block will be placed)
+	terrain_place_preview_cube = MeshInstance3D.new()
+	var place_cube_mesh = BoxMesh.new()
+	place_cube_mesh.size = Vector3(2.0, 2.0, 2.0)
+	terrain_place_preview_cube.mesh = place_cube_mesh
+
+	# Semi-transparent white material
+	var place_material = StandardMaterial3D.new()
+	place_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	place_material.albedo_color = Color(1.0, 1.0, 1.0, 0.3)  # White, 30% opacity
+	place_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	terrain_place_preview_cube.material_override = place_material
+
+	terrain_place_preview_cube.visible = false
+	get_tree().root.add_child(terrain_place_preview_cube)
 
 	print("[Player] Terrain preview shapes created")
 
