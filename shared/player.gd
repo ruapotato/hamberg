@@ -1114,8 +1114,6 @@ func _handle_terrain_modification_input(input_data: Dictionary) -> bool:
 	var right_click: bool = input_data.get("secondary_action", false)
 	var middle_click: bool = input_data.get("middle_mouse", false)
 
-	print("[Player] Input: left=%s middle=%s right=%s" % [left_click, middle_click, right_click])
-
 	if is_pickaxe:
 		if left_click:
 			operation = "dig_square"
@@ -1127,19 +1125,16 @@ func _handle_terrain_modification_input(input_data: Dictionary) -> bool:
 				print("[Player] Cannot place earth - need earth in inventory!")
 				return false
 
-	print("[Player] Operation detected: %s" % operation)
-	print("[Player] Cached dig: %s, Cached place: %s" % [cached_dig_position, cached_place_position])
-
 	# Get target position using cached preview positions (ensures dig/place match the preview cubes)
 	var target_pos := Vector3.ZERO
 	if operation == "dig_square":
 		# For digging: use cached red cube position
 		target_pos = cached_dig_position
-		print("[Player] Using cached dig position: %s" % target_pos)
+		print("[PICKAXE DIG] Red cube at: %s | Digging at: %s" % [cached_dig_position, target_pos])
 	elif operation == "place_square":
 		# For placing: use cached white cube position
 		target_pos = cached_place_position
-		print("[Player] Using cached place position: %s" % target_pos)
+		print("[PICKAXE PLACE] White cube at: %s | Placing at: %s" % [cached_place_position, target_pos])
 
 	if target_pos == Vector3.ZERO:
 		print("[Player] No valid target found")
@@ -1201,7 +1196,6 @@ func _raycast_grid_cell_from_camera(camera: Camera3D) -> Vector3:
 		var normal: Vector3 = result.normal
 		var point_inside: Vector3 = result.position - normal * 1.5  # Move 1.5m into surface (opposite of normal)
 		var snapped := _snap_to_grid(point_inside)
-		print("[Player] Raycast dig: hit_pos=%s normal=%s point_inside=%s snapped=%s" % [result.position, normal, point_inside, snapped])
 		return snapped
 	else:
 		# No hit - calculate grid cell along ray at reasonable distance (5 meters)
