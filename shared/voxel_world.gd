@@ -196,6 +196,12 @@ func _generate_biome_map_texture(shader_mat: ShaderMaterial) -> void:
 		"hell": Color(0.9, 0.1, 0.0)
 	}
 
+	# Get the generator from terrain
+	var generator: VoxelGenerator = terrain.generator
+	if not generator or not generator.has_method("get_biome_at_position"):
+		push_error("[VoxelWorld] Cannot generate biome map - generator missing or invalid")
+		return
+
 	# Generate biome data for each pixel
 	for y in texture_size:
 		for x in texture_size:
@@ -205,7 +211,7 @@ func _generate_biome_map_texture(shader_mat: ShaderMaterial) -> void:
 			var world_pos := Vector2(world_x, world_z)
 
 			# Get biome from BiomeGenerator
-			var biome := generator.get_biome_at(world_pos)
+			var biome: String = generator.get_biome_at_position(world_pos)
 			var color := biome_colors.get(biome, Color.WHITE)
 
 			image.set_pixel(x, y, color)
