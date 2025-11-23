@@ -167,15 +167,15 @@ func get_flatten_operations(world_position: Vector3, target_height: float) -> Ar
 	var snapped_height: float = floor(target_height / grid_size) * grid_size + grid_size / 2.0
 
 	# Center position on the clicked location and snap to grid
-	var center_x := floor(world_position.x / grid_size) * grid_size + grid_size / 2.0
-	var center_z := floor(world_position.z / grid_size) * grid_size + grid_size / 2.0
+	var center_x: float = floor(world_position.x / grid_size) * grid_size + grid_size / 2.0
+	var center_z: float = floor(world_position.z / grid_size) * grid_size + grid_size / 2.0
 
 	# 4x4 area = 16 grid cells (each 2m x 2m)
 	# Flatten in a 4x4 pattern around the click point
 	for x_offset in range(-3, 5, 2):  # -3, -1, 1, 3 (4 positions)
 		for z_offset in range(-3, 5, 2):  # -3, -1, 1, 3 (4 positions)
-			var grid_x := center_x + x_offset
-			var grid_z := center_z + z_offset
+			var grid_x: float = center_x + x_offset
+			var grid_z: float = center_z + z_offset
 			var grid_pos := Vector3(grid_x, snapped_height, grid_z)
 
 			# For each grid cell, we need to:
