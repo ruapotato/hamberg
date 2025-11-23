@@ -1082,13 +1082,12 @@ func _handle_terrain_modification_input(input_data: Dictionary) -> bool:
 	if equipment:
 		main_hand_id = equipment.get_equipped_item(Equipment.EquipmentSlot.MAIN_HAND)
 
-	# Check if it's a terrain tool or if we have placeable material
+	# Check if it's a terrain tool
 	var is_pickaxe := main_hand_id == "stone_pickaxe"
 	var is_hoe := main_hand_id == "stone_hoe"
-	var is_placeable_material := main_hand_id == "earth" if inventory and inventory.has_item("earth", 1) else false
 
 	# Check if any terrain action applies
-	if not is_pickaxe and not is_hoe and not is_placeable_material:
+	if not is_pickaxe and not is_hoe:
 		# Debug: Show what's equipped when player tries to use terrain tools
 		if main_hand_id.is_empty():
 			print("[Player] No terrain tool - nothing equipped to main hand")
@@ -1119,19 +1118,18 @@ func _handle_terrain_modification_input(input_data: Dictionary) -> bool:
 
 	if is_pickaxe:
 		if left_click:
-			operation = "dig_circle"
-		elif right_click or middle_click:
-			# Right-click (mouse) or RB (controller) does square dig
+			# Left-click digs square
 			operation = "dig_square"
+		elif middle_click:
+			# Middle-click places earth square (if player has earth in inventory)
+			if inventory and inventory.has_item("earth", 1):
+				operation = "place_square"
+			else:
+				print("[Player] Cannot place earth - need earth in inventory!")
+				return false
 	elif is_hoe:
 		if left_click or right_click:
 			operation = "level_circle"
-	elif is_placeable_material:
-		if left_click:
-			operation = "place_circle"
-		elif right_click or middle_click:
-			# Right-click (mouse) or RB (controller) does square placement
-			operation = "place_square"
 
 	# Safety check: Don't allow terrain placement too close to player (prevents clipping through mesh)
 	if not operation.is_empty() and operation in ["place_circle", "place_square"]:
@@ -1167,10 +1165,9 @@ func _update_persistent_terrain_preview() -> void:
 
 	var is_pickaxe := main_hand_id == "stone_pickaxe"
 	var is_hoe := main_hand_id == "stone_hoe"
-	var is_placeable_material := main_hand_id == "earth"
 
 	# If we have a terrain tool equipped, show persistent preview
-	if is_pickaxe or is_hoe or is_placeable_material:
+	if is_pickaxe or is_hoe:
 		# Get camera for raycasting
 		var camera := _get_camera()
 		if camera:
@@ -1310,7 +1307,7 @@ func _handle_block_input(delta: float) -> void:
 	if equipment:
 		main_hand_id = equipment.get_equipped_item(Equipment.EquipmentSlot.MAIN_HAND)
 
-	var is_terrain_tool := main_hand_id == "stone_pickaxe" or main_hand_id == "stone_hoe" or main_hand_id == "earth"
+	var is_terrain_tool := main_hand_id == "stone_pickaxe" or main_hand_id == "stone_hoe"
 
 	if is_terrain_tool:
 		# Clear blocking state if we have a terrain tool equipped

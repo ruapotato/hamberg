@@ -26,7 +26,7 @@ func _initialize_items() -> void:
 	# Tools (existing)
 	_register_tool("hammer", "Hammer", "Used for building structures.", 1)
 	_register_tool("torch", "Torch", "Provides light in dark places.", 20)
-	_register_tool("stone_pickaxe", "Stone Pickaxe", "Used for digging terrain. Left click: dig circle, Right click: dig square.", 1)
+	_register_tool("stone_pickaxe", "Stone Pickaxe", "Used for terrain modification. Left click: dig square, Middle click: place earth square (consumes earth from inventory).", 1)
 	_register_tool("stone_hoe", "Stone Hoe", "Used for leveling terrain to your standing position. Shift terrain up or down.", 1)
 
 	# Tier 0: Unarmed
