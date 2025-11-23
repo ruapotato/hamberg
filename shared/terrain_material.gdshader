@@ -216,6 +216,11 @@ void fragment() {
 	vec3 grass_color = get_biome_grass_color(biome);
 	vec3 rock_color = get_biome_rock_color(biome);
 
+	// DEBUG: Show biome index as a stripe pattern to verify calculation
+	// Every 1000 units, show a white stripe if shader calculates biome correctly
+	float debug_grid = mod(xz_pos.x, 1000.0);
+	bool show_debug = debug_grid > 990.0 || debug_grid < 10.0;
+
 	// Calculate slope based on how vertical the surface is (in world space)
 	// world_normal.y is 1.0 for perfectly flat ground (pointing straight up)
 	// world_normal.y is 0.0 for vertical walls (pointing sideways)
@@ -229,6 +234,22 @@ void fragment() {
 	// Smooth transition between 0.70 and 0.85 (shows more rock on moderate slopes)
 	float rock_blend = 1.0 - smoothstep(0.70, 0.85, flatness);
 	vec3 base_color = mix(grass_color, rock_color, rock_blend);
+
+	// DEBUG: Override with debug pattern
+	if (show_debug) {
+		// Show biome index as color stripes
+		// 0=valley(blue), 1=forest(green), 2=swamp(yellow), 3=mountain(white),
+		// 4=desert(orange), 5=wizardland(magenta), 6=hell(red)
+		vec3 debug_colors[7];
+		debug_colors[0] = vec3(0.2, 0.5, 1.0);  // valley blue
+		debug_colors[1] = vec3(0.1, 0.9, 0.1);  // forest green
+		debug_colors[2] = vec3(0.5, 0.6, 0.2);  // swamp yellow-green
+		debug_colors[3] = vec3(0.8, 0.8, 0.8);  // mountain white
+		debug_colors[4] = vec3(1.0, 0.9, 0.3);  // desert yellow
+		debug_colors[5] = vec3(0.9, 0.2, 1.0);  // wizardland magenta
+		debug_colors[6] = vec3(0.9, 0.1, 0.0);  // hell red
+		base_color = debug_colors[biome];
+	}
 
 	// Minimal height variation to preserve biome colors
 	vec3 color = base_color;
