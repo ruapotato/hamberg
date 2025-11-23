@@ -333,34 +333,25 @@ void fragment() {
 	float rock_blend = 1.0 - smoothstep(0.70, 0.85, flatness);
 	vec3 base_color = mix(grass_color, rock_color, rock_blend);
 
-	// Add subtle noise-based color variation (NO lighting changes, NO normal changes)
+	// Add noise-based color variation - MUCH STRONGER
 	vec3 color = base_color;
 
-	// GRASS VARIATION: Visible green swirls and blade-like patterns
-	if (rock_blend < 0.5) {  // Mostly grass areas
-		// Fine grass blade patterns
-		float grass_fine = fbm(xz_pos, world_seed + 500, 0.8, 4, 2.0, 0.5);
-		// Medium grass patches
-		float grass_medium = fbm(xz_pos, world_seed + 501, 0.15, 3, 2.0, 0.5);
+	// Apply noise to ALL surfaces (not just grass or rock separately)
+	// Fine detail
+	float fine_noise = fbm(xz_pos, world_seed + 500, 1.0, 4, 2.0, 0.5);
+	// Medium detail
+	float medium_noise = fbm(xz_pos, world_seed + 501, 0.2, 3, 2.0, 0.5);
+	// Large detail
+	float large_noise = fbm(xz_pos, world_seed + 502, 0.05, 2, 2.0, 0.5);
 
-		// Create visible darker/lighter green variations
-		// FBM returns -1 to 1, multiply by 0.4 to get ±40% variation
-		float grass_variation = (grass_fine * 0.6 + grass_medium * 0.4) * 0.4;
-		color = color * (1.0 + grass_variation);  // Range: 0.6 to 1.4
-	}
+	// Combine all scales - FBM returns -1 to 1
+	float combined_noise = fine_noise * 0.5 + medium_noise * 0.3 + large_noise * 0.2;
 
-	// ROCK VARIATION: Visible gray swirls and surface patterns
-	if (rock_blend > 0.5) {  // Mostly rock areas
-		// Medium rock surface patterns
-		float rock_medium = fbm(xz_pos, world_seed + 600, 0.25, 3, 2.0, 0.5);
-		// Fine rock detail/cracks
-		float rock_fine = fbm(xz_pos, world_seed + 601, 1.2, 4, 2.0, 0.5);
+	// Apply STRONG variation (±50% range)
+	float variation = combined_noise * 0.5;  // -0.5 to +0.5
 
-		// Create visible gray variations
-		// FBM returns -1 to 1, multiply by 0.45 to get ±45% variation
-		float rock_variation = (rock_medium * 0.6 + rock_fine * 0.4) * 0.45;
-		color = color * (1.0 + rock_variation);  // Range: 0.55 to 1.45
-	}
+	// Apply to color
+	color = color * (1.0 + variation);  // 0.5 to 1.5 range
 
 	// Simple directional lighting (use world-space normal)
 	vec3 light_dir = normalize(vec3(0.5, 1.0, 0.3));
