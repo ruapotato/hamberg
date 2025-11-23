@@ -1,7 +1,7 @@
 extends Node
 
 ## TerrainModifier - Handles terrain modification using VoxelTool
-## Supports digging, leveling, and placing terrain with depth-based difficulty
+## Pickaxe-based square block placement and removal
 
 # Reference to the voxel terrain
 var terrain: VoxelLodTerrain = null
@@ -20,17 +20,12 @@ var tool_effectiveness: Dictionary = {
 	"steel_pickaxe": 3.0,  # 3x faster (future)
 }
 
-# Mining progress tracking (for continuous mining)
-var current_mining_progress: Dictionary = {}  # position -> {progress: float, total_required: float}
-
 # Shape parameters
-const CIRCLE_RADIUS: float = 1.0  # Radius for circle operations (reduced from 2.0)
-const SQUARE_SIZE: float = 2.0    # Size for square operations (2x2, aligned to voxel grid) - reduced to prevent player clipping
-const SQUARE_DEPTH: float = 2.0   # How deep to dig for square operations (centered on click) - reduced to prevent player clipping
-const DEPTH_PER_DIG: float = 1.5  # How deep to dig per operation (for other uses)
+const SQUARE_SIZE: float = 2.0    # Size for square operations (2x2 meters, aligned to grid)
+const SQUARE_DEPTH: float = 2.0   # Depth for square operations (2 meters)
 
 # Material collection
-const EARTH_PER_VOXEL: float = 0.25  # How much earth to give per voxel removed (reduced from 1.0)
+const EARTH_PER_VOXEL: float = 0.25  # How much earth to give per voxel removed
 
 func _ready() -> void:
 	print("[TerrainModifier] Terrain modifier ready")
@@ -68,53 +63,12 @@ func get_mining_speed_at_depth(depth_y: float, tool_name: String = "stone_pickax
 
 	return BASE_MINING_SPEED * slowdown * tool_mult
 
-## Dig a circular hole at the target position
-## Returns the amount of earth collected
-func dig_circle(world_position: Vector3, tool_name: String = "stone_pickaxe") -> int:
-	if not voxel_tool:
-		push_error("[TerrainModifier] Cannot dig - voxel_tool not initialized")
-		return 0
-
-	print("[TerrainModifier] Digging circle at %s with tool %s" % [world_position, tool_name])
-
-	# Calculate mining difficulty based on depth
-	var mining_speed := get_mining_speed_at_depth(world_position.y, tool_name)
-	print("[TerrainModifier] Mining speed at depth %.2f: %.3f" % [world_position.y, mining_speed])
-
-	# Check if area is editable
-	var check_box := AABB(world_position - Vector3(CIRCLE_RADIUS, CIRCLE_RADIUS, CIRCLE_RADIUS),
-						   Vector3(CIRCLE_RADIUS * 2, CIRCLE_RADIUS * 2, CIRCLE_RADIUS * 2))
-	if not voxel_tool.is_area_editable(check_box):
-		push_warning("[TerrainModifier] Area not editable at %s" % world_position)
-		return 0
-
-	# Set mode to remove
-	voxel_tool.mode = VoxelTool.MODE_REMOVE
-	voxel_tool.channel = VoxelBuffer.CHANNEL_SDF
-	voxel_tool.sdf_strength = 1.0  # Full strength
-
-	# Dig a sphere at the target position (centered on the click point)
-	print("[TerrainModifier] Calling do_sphere at %s with radius %.2f" % [world_position, CIRCLE_RADIUS])
-	voxel_tool.do_sphere(world_position, CIRCLE_RADIUS)
-
-	# Stream disabled - using in-memory history replay system
-	# No disk persistence needed
-
-	# Calculate earth collected (approximate based on volume)
-	var volume := 4.0 / 3.0 * PI * pow(CIRCLE_RADIUS, 3)
-	var earth_collected := int(volume * EARTH_PER_VOXEL * mining_speed)
-
-	print("[TerrainModifier] Dug circle, collected %d earth (speed: %.2f, volume: %.2f)" % [earth_collected, mining_speed, volume])
-	return earth_collected
-
 ## Dig a square hole at the target position
 ## Returns the amount of earth collected
 func dig_square(world_position: Vector3, tool_name: String = "stone_pickaxe") -> int:
 	if not voxel_tool:
 		push_error("[TerrainModifier] Cannot dig - voxel_tool not initialized")
 		return 0
-
-	print("[TerrainModifier] Digging square at %s" % world_position)
 
 	# Calculate mining difficulty based on depth
 	var mining_speed := get_mining_speed_at_depth(world_position.y, tool_name)
@@ -146,72 +100,17 @@ func dig_square(world_position: Vector3, tool_name: String = "stone_pickaxe") ->
 		center_z + half_size + 1
 	)
 
-	print("[TerrainModifier] Calling do_box from %s to %s" % [begin, end])
 	voxel_tool.do_box(begin, end)
 
 	# Reset SDF settings to default after box operation
 	voxel_tool.sdf_strength = 1.0
 	voxel_tool.sdf_scale = 1.0
 
-	# Stream disabled - using in-memory history replay system
-	# No disk persistence needed
-
 	# Calculate earth collected (box volume)
 	var volume := SQUARE_SIZE * SQUARE_SIZE * SQUARE_DEPTH
 	var earth_collected := int(volume * EARTH_PER_VOXEL * mining_speed)
 
-	print("[TerrainModifier] Dug square, collected %d earth (speed: %.2f)" % [earth_collected, mining_speed])
 	return earth_collected
-
-## Level terrain to a target height in a circle
-## Smooths and flattens terrain using blur algorithm
-func level_circle(world_position: Vector3, target_height: float) -> void:
-	if not voxel_tool:
-		push_error("[TerrainModifier] Cannot level - voxel_tool not initialized")
-		return
-
-	print("[TerrainModifier] Leveling/smoothing circle at %s" % world_position)
-
-	voxel_tool.channel = VoxelBuffer.CHANNEL_SDF
-
-	# Use smooth_sphere for proper terrain flattening
-	# blur_radius controls how aggressive the smoothing is (higher = flatter but slower)
-	var smooth_radius := 4.0  # Larger area for better flattening
-	var blur_radius := 3  # Good balance between smoothness and performance
-	voxel_tool.smooth_sphere(world_position, smooth_radius, blur_radius)
-
-	print("[TerrainModifier] Smoothed terrain with radius %.2f, blur %d" % [smooth_radius, blur_radius])
-
-	# Stream disabled - using in-memory history replay system
-	# No disk persistence needed
-
-## Place earth in a circular pattern
-## Returns amount of earth actually placed (in case inventory runs out)
-func place_circle(world_position: Vector3, earth_amount: int) -> int:
-	if not voxel_tool:
-		push_error("[TerrainModifier] Cannot place - voxel_tool not initialized")
-		return 0
-
-	print("[TerrainModifier] Placing circle at %s" % world_position)
-
-	# Set mode to add
-	voxel_tool.mode = VoxelTool.MODE_ADD
-	voxel_tool.channel = VoxelBuffer.CHANNEL_SDF
-	voxel_tool.sdf_strength = 1.0  # Full strength
-
-	# Place a sphere at the target position
-	print("[TerrainModifier] Calling do_sphere (ADD mode) at %s with radius %.2f" % [world_position, CIRCLE_RADIUS])
-	voxel_tool.do_sphere(world_position, CIRCLE_RADIUS)
-
-	# Stream disabled - using in-memory history replay system
-	# No disk persistence needed
-
-	# Calculate earth used (approximate based on volume)
-	var volume := 4.0 / 3.0 * PI * pow(CIRCLE_RADIUS, 3)
-	var earth_used := int(min(volume * EARTH_PER_VOXEL, earth_amount))
-
-	print("[TerrainModifier] Placed circle, used %d earth" % earth_used)
-	return earth_used
 
 ## Place earth in a square pattern
 ## Returns amount of earth actually placed
@@ -219,8 +118,6 @@ func place_square(world_position: Vector3, earth_amount: int) -> int:
 	if not voxel_tool:
 		push_error("[TerrainModifier] Cannot place - voxel_tool not initialized")
 		return 0
-
-	print("[TerrainModifier] Placing square at %s" % world_position)
 
 	# Set mode to add with stronger settings for sharper cube edges
 	voxel_tool.mode = VoxelTool.MODE_ADD
@@ -248,63 +145,78 @@ func place_square(world_position: Vector3, earth_amount: int) -> int:
 		center_z + half_size
 	)
 
-	print("[TerrainModifier] Calling do_box (ADD mode) from %s to %s" % [begin, end])
 	voxel_tool.do_box(begin, end)
 
 	# Reset SDF settings to default after box operation
 	voxel_tool.sdf_strength = 1.0
 	voxel_tool.sdf_scale = 1.0
 
-	# Stream disabled - using in-memory history replay system
-	# No disk persistence needed
-
 	# Calculate earth used (box volume)
 	var volume := SQUARE_SIZE * SQUARE_SIZE * SQUARE_DEPTH
 	var earth_used := int(min(volume * EARTH_PER_VOXEL, earth_amount))
 
-	print("[TerrainModifier] Placed square, used %d earth" % earth_used)
 	return earth_used
 
-## Grow terrain in a spherical area (adds terrain with gradient falloff)
-func grow_sphere(world_position: Vector3, radius: float, strength: float) -> void:
+## Flatten a 4x4 area to the target height (grid-based, perfect for building)
+## Returns the amount of earth collected (if digging more than placing)
+func flatten_square(world_position: Vector3, target_height: float) -> int:
 	if not voxel_tool:
-		push_error("[TerrainModifier] Cannot grow - voxel_tool not initialized")
-		return
+		push_error("[TerrainModifier] Cannot flatten - voxel_tool not initialized")
+		return 0
 
-	print("[TerrainModifier] Growing terrain at %s with radius %.1f, strength %.1f" % [world_position, radius, strength])
+	# Snap target height to grid (2-meter intervals)
+	var grid_size := 2.0
+	var snapped_height := floor(target_height / grid_size) * grid_size + grid_size / 2.0
 
-	# Set mode to add
-	voxel_tool.mode = VoxelTool.MODE_ADD
-	voxel_tool.channel = VoxelBuffer.CHANNEL_SDF
+	# Center position on the clicked location
+	var center_x := int(world_position.x)
+	var center_z := int(world_position.z)
+	var center_y := int(snapped_height)
 
-	# Use grow_sphere for gradual terrain growth
-	voxel_tool.grow_sphere(world_position, radius, strength)
+	# 4x4 area (8 meters x 8 meters), 2 meters tall
+	var half_area := 4  # 4 meters on each side = 8m total
+	var half_depth := 1  # 1 meter up/down from center = 2m total height
 
-	print("[TerrainModifier] Terrain grown successfully")
-
-## Erode terrain in a spherical area (removes terrain with gradient falloff)
-func erode_sphere(world_position: Vector3, radius: float, strength: float) -> void:
-	if not voxel_tool:
-		push_error("[TerrainModifier] Cannot erode - voxel_tool not initialized")
-		return
-
-	print("[TerrainModifier] Eroding terrain at %s with radius %.1f, strength %.1f" % [world_position, radius, strength])
-
-	# Set mode to remove
+	# First, remove everything above the target level (dig operation)
 	voxel_tool.mode = VoxelTool.MODE_REMOVE
 	voxel_tool.channel = VoxelBuffer.CHANNEL_SDF
+	voxel_tool.sdf_strength = 5.0
+	voxel_tool.sdf_scale = 0.5
 
-	# Use grow_sphere with remove mode for gradual erosion
-	voxel_tool.grow_sphere(world_position, radius, strength)
+	var remove_begin := Vector3i(
+		center_x - half_area - 1,
+		center_y - half_depth - 1,
+		center_z - half_area - 1
+	)
+	var remove_end := Vector3i(
+		center_x + half_area + 1,
+		center_y + half_depth + 1,
+		center_z + half_area + 1
+	)
 
-	print("[TerrainModifier] Terrain eroded successfully")
+	voxel_tool.do_box(remove_begin, remove_end)
 
-## Helper: Get approximate terrain height at a position
-func _get_terrain_height_at(world_position: Vector3) -> float:
-	# Use voxel tool to sample the terrain directly
-	if not voxel_tool:
-		return world_position.y
+	# Then, fill everything at the target level (place operation)
+	voxel_tool.mode = VoxelTool.MODE_ADD
+	voxel_tool.channel = VoxelBuffer.CHANNEL_SDF
+	voxel_tool.sdf_strength = 5.0
+	voxel_tool.sdf_scale = 0.5
 
-	# Sample voxels at the position to find surface
-	# For now, just return the input Y position as we're operating at the click point
-	return world_position.y
+	var add_begin := Vector3i(
+		center_x - half_area,
+		center_y - half_depth,
+		center_z - half_area
+	)
+	var add_end := Vector3i(
+		center_x + half_area,
+		center_y + half_depth,
+		center_z + half_area
+	)
+
+	voxel_tool.do_box(add_begin, add_end)
+
+	# Reset SDF settings to default
+	voxel_tool.sdf_strength = 1.0
+	voxel_tool.sdf_scale = 1.0
+
+	return 0  # For now, don't track earth usage for flattening

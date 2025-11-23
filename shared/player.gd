@@ -105,7 +105,6 @@ var equipped_weapon_visual: Node3D = null  # Main hand weapon
 var equipped_shield_visual: Node3D = null  # Off hand shield
 
 # Terrain dig visual feedback
-var terrain_preview_sphere: MeshInstance3D = null  # Persistent preview sphere (shows when tool equipped)
 var terrain_preview_cube: MeshInstance3D = null    # Temporary shape after placement
 var terrain_dig_preview_cube: MeshInstance3D = null  # Red cube showing which block will be dug
 var terrain_place_preview_cube: MeshInstance3D = null  # White cube showing where block will be placed
@@ -191,10 +190,12 @@ func _ready() -> void:
 
 func _exit_tree() -> void:
 	"""Clean up terrain preview shapes when player is removed"""
-	if terrain_preview_sphere and is_instance_valid(terrain_preview_sphere):
-		terrain_preview_sphere.queue_free()
 	if terrain_preview_cube and is_instance_valid(terrain_preview_cube):
 		terrain_preview_cube.queue_free()
+	if terrain_dig_preview_cube and is_instance_valid(terrain_dig_preview_cube):
+		terrain_dig_preview_cube.queue_free()
+	if terrain_place_preview_cube and is_instance_valid(terrain_place_preview_cube):
+		terrain_place_preview_cube.queue_free()
 
 func _physics_process(delta: float) -> void:
 	if not is_local_player:
@@ -236,7 +237,7 @@ func _physics_process(delta: float) -> void:
 	# CLIENT: Predict movement locally
 	var input_data := _gather_input()
 
-	# Handle terrain modification input (pickaxe/hoe/placing)
+	# Handle terrain modification input (pickaxe, hoe)
 	if input_data.get("attack", false) or input_data.get("secondary_action", false) or input_data.get("middle_mouse", false):
 		var handled_terrain_action = _handle_terrain_modification_input(input_data)
 		# Only process combat if terrain modification wasn't handled
@@ -1072,7 +1073,7 @@ func _send_enemy_damage_request(enemy_path: NodePath, damage: float, knockback: 
 	NetworkManager.rpc_damage_enemy.rpc_id(1, enemy_path, damage, knockback, direction)
 
 # ============================================================================
-# TERRAIN MODIFICATION (PICKAXE, HOE, PLACING)
+# TERRAIN MODIFICATION (PICKAXE, HOE)
 # ============================================================================
 
 ## Handle terrain modification input (CLIENT-SIDE)
@@ -1124,33 +1125,31 @@ func _handle_terrain_modification_input(input_data: Dictionary) -> bool:
 			else:
 				print("[Player] Cannot place earth - need earth in inventory!")
 				return false
+	elif is_hoe:
+		if left_click or right_click:
+			operation = "flatten_square"
 
 	# Get target position using cached preview positions (ensures dig/place match the preview cubes)
 	var target_pos := Vector3.ZERO
 	if operation == "dig_square":
 		# For digging: use cached red cube position
 		target_pos = cached_dig_position
-		var dig_box_start := Vector3(int(target_pos.x) - 1, int(target_pos.y) - 1, int(target_pos.z) - 1)
-		var dig_box_end := Vector3(int(target_pos.x) + 1, int(target_pos.y) + 1, int(target_pos.z) + 1)
-		print("[PICKAXE DIG] Red cube center: %s | Box: %s to %s" % [target_pos, dig_box_start, dig_box_end])
 	elif operation == "place_square":
 		# For placing: use cached white cube position
 		target_pos = cached_place_position
-		var place_box_start := Vector3(int(target_pos.x) - 1, int(target_pos.y) - 1, int(target_pos.z) - 1)
-		var place_box_end := Vector3(int(target_pos.x) + 1, int(target_pos.y) + 1, int(target_pos.z) + 1)
-		print("[PICKAXE PLACE] White cube center: %s | Box: %s to %s" % [target_pos, place_box_start, place_box_end])
+	elif operation == "flatten_square":
+		# For flattening: raycast to ground and use player position
+		target_pos = _raycast_terrain_target(camera)
+		if target_pos == Vector3.ZERO:
+			target_pos = global_position  # Fallback to player position
+		target_pos = _snap_to_grid(target_pos)
 
 	if target_pos == Vector3.ZERO:
 		print("[Player] No valid target found")
 		return false
 
-	# Handle hoe separately (not implemented yet in pickaxe block)
-	if is_hoe:
-		if left_click or right_click:
-			operation = "level_circle"
-
 	# Safety check: Don't allow terrain placement too close to player (prevents clipping through mesh)
-	if not operation.is_empty() and operation in ["place_circle", "place_square"]:
+	if not operation.is_empty() and operation == "place_square":
 		var distance_to_player := global_position.distance_to(target_pos)
 		if distance_to_player < 2.0:
 			print("[Player] Too close to place terrain safely (min distance: 2.0m)")
@@ -1234,9 +1233,6 @@ func _update_persistent_terrain_preview() -> void:
 				terrain_dig_preview_cube.scale = Vector3(1.05, 1.05, 1.05)
 				if terrain_preview_timer <= 0.0:
 					terrain_dig_preview_cube.visible = true
-					# Debug: print preview cube position occasionally (every 60 frames = ~1 second)
-					if Engine.get_process_frames() % 60 == 0:
-						print("[DEBUG] Red preview cube at: %s" % dig_pos)
 				else:
 					terrain_dig_preview_cube.visible = false
 
@@ -1255,14 +1251,14 @@ func _update_persistent_terrain_preview() -> void:
 			is_showing_persistent_preview = true
 			return
 	elif is_hoe:
-		# For hoe: use old single-cube behavior
+		# For hoe: show a larger 4x4 preview (8m x 8m area)
 		var camera := _get_camera()
 		if camera:
 			var target_pos := _raycast_terrain_target(camera)
 			if target_pos != Vector3.ZERO:
 				target_pos = _snap_to_grid(target_pos)
 				terrain_dig_preview_cube.global_position = target_pos
-				terrain_dig_preview_cube.scale = Vector3(4.0, 4.0, 4.0)
+				terrain_dig_preview_cube.scale = Vector3(8.4, 2.1, 8.4)  # 8x8 area, 2m tall, slightly larger for visibility
 				if terrain_preview_timer <= 0.0:
 					terrain_dig_preview_cube.visible = true
 				else:
@@ -1279,32 +1275,13 @@ func _update_persistent_terrain_preview() -> void:
 
 ## Show terrain preview shape (after placement) - briefly shows the actual placed shape
 func _show_terrain_preview(operation: String, position: Vector3) -> void:
-	if not terrain_preview_sphere or not terrain_preview_cube:
+	if not terrain_preview_cube:
 		return
 
-	# For square operations, show cube briefly. For all others, show sphere
-	var is_square_operation := operation in ["dig_square", "place_square"]
-
-	if is_square_operation:
-		# Show cube briefly at grid-snapped position (position is already snapped)
-		terrain_preview_cube.global_position = position
-		terrain_preview_cube.scale = Vector3(1.05, 1.05, 1.05)  # Slightly larger than 2x2x2 block for visibility
-		terrain_preview_cube.visible = true
-		terrain_preview_sphere.visible = false  # Hide persistent preview temporarily
-	else:
-		# Show sphere with appropriate size based on operation
-		terrain_preview_sphere.global_position = position
-
-		# Scale sphere based on operation
-		if operation == "level_circle":
-			terrain_preview_sphere.scale = Vector3(4.0, 4.0, 4.0)  # Match smooth_radius
-		elif operation == "grow_sphere" or operation == "erode_sphere":
-			terrain_preview_sphere.scale = Vector3(3.0, 3.0, 3.0)  # Match grow/erode radius
-		else:
-			terrain_preview_sphere.scale = Vector3(1.0, 1.0, 1.0)  # Match CIRCLE_RADIUS
-
-		terrain_preview_sphere.visible = true
-		terrain_preview_cube.visible = false
+	# Show cube briefly at grid-snapped position (position is already snapped)
+	terrain_preview_cube.global_position = position
+	terrain_preview_cube.scale = Vector3(1.05, 1.05, 1.05)  # Slightly larger than 2x2x2 block for visibility
+	terrain_preview_cube.visible = true
 
 	# Reset the timer to keep shape visible temporarily
 	terrain_preview_timer = TERRAIN_PREVIEW_DURATION
@@ -1314,12 +1291,7 @@ func _trigger_terrain_tool_animation(operation: String) -> void:
 	# Trigger attack animation for visual feedback
 	is_attacking = true
 	attack_timer = 0.0
-
-	# Use different animation times based on operation
-	if operation in ["dig_circle", "place_circle"]:
-		current_attack_animation_time = 0.25  # Quick animation for circles
-	else:
-		current_attack_animation_time = 0.3  # Slightly slower for squares
+	current_attack_animation_time = 0.3  # Animation time for square operations
 
 	# Weapon swing animation (if we had a weapon visual, it would swing)
 	if equipped_weapon_visual:
@@ -1353,14 +1325,9 @@ func _send_terrain_modification_request(operation: String, position: Vector3, to
 		"tool": tool
 	}
 
-	# For hoe leveling, include player's standing height
-	if operation == "level_circle":
+	# For hoe flattening, include player's standing height as the target height
+	if operation == "flatten_square":
 		data["target_height"] = global_position.y
-
-	# For grow/erode sphere, include strength and radius
-	if operation == "grow_sphere" or operation == "erode_sphere":
-		data["strength"] = 5.0  # Moderate strength for gradual changes
-		data["radius"] = 3.0    # 3 meter radius
 
 	# Send RPC to server via NetworkManager
 	var pos_array := [position.x, position.y, position.z]
@@ -1380,7 +1347,7 @@ func _handle_block_input(delta: float) -> void:
 	if equipment:
 		shield_data = equipment.get_equipped_shield()
 
-	# Don't block if holding a terrain tool (pickaxe, hoe, or placeable material)
+	# Don't block if holding a terrain tool (pickaxe or hoe)
 	var main_hand_id := ""
 	if equipment:
 		main_hand_id = equipment.get_equipped_item(Equipment.EquipmentSlot.MAIN_HAND)
@@ -1447,23 +1414,6 @@ func _setup_player_body() -> void:
 
 func _setup_terrain_preview_shapes() -> void:
 	"""Create preview shapes for terrain modification feedback"""
-	# Create sphere preview
-	terrain_preview_sphere = MeshInstance3D.new()
-	var sphere_mesh = SphereMesh.new()
-	sphere_mesh.radius = 1.0  # Will match CIRCLE_RADIUS from terrain_modifier
-	sphere_mesh.height = 2.0
-	terrain_preview_sphere.mesh = sphere_mesh
-
-	# Semi-transparent white material
-	var sphere_material = StandardMaterial3D.new()
-	sphere_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	sphere_material.albedo_color = Color(1.0, 1.0, 1.0, 0.3)  # White, 30% opacity
-	sphere_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	terrain_preview_sphere.material_override = sphere_material
-
-	terrain_preview_sphere.visible = false
-	get_tree().root.add_child(terrain_preview_sphere)  # Add to scene root, not player
-
 	# Create cube preview (temporary - shown after placement)
 	terrain_preview_cube = MeshInstance3D.new()
 	var cube_mesh = BoxMesh.new()

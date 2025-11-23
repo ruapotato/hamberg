@@ -370,27 +370,14 @@ func rpc_apply_terrain_modification(operation: String, position: Array, data: Di
 
 	# Apply the modification locally on the client
 	match operation:
-		"dig_circle":
-			voxel_world.dig_circle(pos_v3, tool_name)
 		"dig_square":
 			voxel_world.dig_square(pos_v3, tool_name)
-		"level_circle":
-			var target_height: float = data.get("target_height", pos_v3.y)
-			voxel_world.level_circle(pos_v3, target_height)
-		"place_circle":
-			var earth_amount: int = data.get("earth_amount", 100)
-			voxel_world.place_circle(pos_v3, earth_amount)
 		"place_square":
 			var earth_amount: int = data.get("earth_amount", 100)
 			voxel_world.place_square(pos_v3, earth_amount)
-		"grow_sphere":
-			var strength: float = data.get("strength", 5.0)
-			var radius: float = data.get("radius", 3.0)
-			voxel_world.grow_sphere(pos_v3, radius, strength)
-		"erode_sphere":
-			var strength: float = data.get("strength", 5.0)
-			var radius: float = data.get("radius", 3.0)
-			voxel_world.erode_sphere(pos_v3, radius, strength)
+		"flatten_square":
+			var target_height: float = data.get("target_height", pos_v3.y)
+			voxel_world.flatten_square(pos_v3, target_height)
 
 	print("[NetworkManager] Client applied terrain modification: %s" % operation)
 
