@@ -24,9 +24,10 @@ const vec3 WIZARDLAND_ROCK = vec3(0.5, 0.35, 0.6);  // Purple crystal
 const vec3 HELL_ROCK = vec3(0.3, 0.1, 0.05);        // Dark obsidian
 
 // Biome difficulty zones (match BiomeGenerator constants)
-const float SAFE_ZONE_RADIUS = 800.0;
-const float MID_ZONE_RADIUS = 2000.0;
-const float DANGER_ZONE_RADIUS = 4000.0;
+const float SAFE_ZONE_RADIUS = 5000.0;
+const float MID_ZONE_RADIUS = 10000.0;
+const float DANGER_ZONE_RADIUS = 15000.0;
+const float EXTREME_ZONE_RADIUS = 20000.0;
 
 varying vec3 world_pos;
 varying vec3 world_normal;
