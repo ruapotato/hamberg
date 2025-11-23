@@ -335,13 +335,13 @@ void fragment() {
 	float rock_blend = 1.0 - smoothstep(0.70, 0.85, flatness);
 	vec3 base_color = mix(grass_color, rock_color, rock_blend);
 
-	// TEST: Output FBM as pure grayscale (ignore base colors and lighting entirely)
-	float test_fbm = fbm(xz_pos, world_seed + 500, 2.0, 4, 2.0, 0.5);
+	// TEST: Output FBM as pure grayscale with VERY LOW frequency (huge patterns)
+	float test_fbm = fbm(xz_pos, world_seed + 500, 0.01, 3, 2.0, 0.5);  // 0.01 = HUGE patterns
 
 	// Convert -1 to 1 range to 0 to 1
 	float fbm_vis = (test_fbm + 1.0) * 0.5;
 
-	// Output as pure grayscale - should see black/white noise patterns
+	// Output as pure grayscale - should see HUGE black/white blobs
 	ALBEDO = vec3(fbm_vis, fbm_vis, fbm_vis);
 
 	// Rocky areas are slightly rougher
