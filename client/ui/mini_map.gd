@@ -212,9 +212,10 @@ func _draw_player_markers() -> void:
 		var camera_yaw: float = camera_controller.camera_rotation.x
 
 		# Convert camera yaw to arrow direction
-		# Camera yaw is in radians, 0 = looking along +Z (south in world)
-		# On mini-map: North (+Z) should be UP (-PI/2), so we adjust
-		var arrow_angle := camera_yaw + PI  # Flip and adjust for map orientation
+		# Camera yaw is in radians, 0 = looking along +Z axis
+		# On mini-map: North should point UP (angle = -PI/2)
+		# So we rotate by -PI/2 to align camera forward with map north
+		var arrow_angle := camera_yaw + PI / 2.0  # Rotate 90 degrees to align with map
 
 		# Calculate V-shape points (chevron pointing in camera direction)
 		var v_length := 12.0
