@@ -123,15 +123,16 @@ int get_biome_index(vec2 xz_pos) {
 
 	// Select biome based on noise value and difficulty tier
 	// Returns: 0=valley, 1=forest, 2=swamp, 3=mountain, 4=desert, 5=wizardland, 6=hell
-	if (difficulty_tier == 0) {  // Safe zone
+	// EXACTLY matches BiomeGenerator._get_biome_at_position()
+	if (difficulty_tier == 0) {  // Safe zone - valley and forest only
 		if (normalized < 0.5) {
 			return 0;  // valley
 		} else {
 			return 1;  // forest
 		}
-	} else if (difficulty_tier == 1) {  // Mid zone
+	} else if (difficulty_tier == 1) {  // Mid zone - more variety with swamp and desert
 		if (normalized < 0.25) {
-			return 0;  // valley
+			return 0;  // valley (some safe areas still exist)
 		} else if (normalized < 0.5) {
 			return 1;  // forest
 		} else if (normalized < 0.75) {
@@ -139,27 +140,37 @@ int get_biome_index(vec2 xz_pos) {
 		} else {
 			return 4;  // desert
 		}
-	} else if (difficulty_tier == 2) {  // Danger zone
+	} else if (difficulty_tier == 2) {  // Danger zone - mountains and wizardland appear
 		if (normalized < 0.15) {
-			return 1;  // forest
+			return 1;  // forest (occasional safe pockets)
 		} else if (normalized < 0.3) {
 			return 2;  // swamp
 		} else if (normalized < 0.5) {
 			return 4;  // desert
 		} else if (normalized < 0.7) {
 			return 3;  // mountain
-		} else if (normalized < 0.85) {
-			return 5;  // wizardland
+		} else if (normalized < 0.9) {
+			return 5;  // wizardland (FIXED: was 0.85, should be 0.9)
 		} else {
-			return 6;  // hell
+			return 6;  // hell (hell starts appearing)
 		}
-	} else {  // Far zone
-		if (normalized < 0.2) {
-			return 3;  // mountain
+	} else if (difficulty_tier == 3) {  // Extreme zone - heavy hell presence
+		if (normalized < 0.15) {
+			return 4;  // desert
 		} else if (normalized < 0.3) {
+			return 3;  // mountain
+		} else if (normalized < 0.45) {
 			return 5;  // wizardland
 		} else {
-			return 6;  // hell
+			return 6;  // hell (hell is dominant)
+		}
+	} else {  // Beyond extreme - mostly pure hell
+		if (normalized < 0.15) {
+			return 3;  // mountain
+		} else if (normalized < 0.25) {
+			return 5;  // wizardland
+		} else {
+			return 6;  // hell (hell overwhelms)
 		}
 	}
 
@@ -199,9 +210,11 @@ void vertex() {
 }
 
 void fragment() {
-	// Use the current biome uniform (set by client based on player position)
-	vec3 grass_color = get_biome_grass_color(current_biome);
-	vec3 rock_color = get_biome_rock_color(current_biome);
+	// Calculate biome at this exact position (matches BiomeGenerator logic perfectly)
+	vec2 xz_pos = world_pos.xz;
+	int biome = get_biome_index(xz_pos);
+	vec3 grass_color = get_biome_grass_color(biome);
+	vec3 rock_color = get_biome_rock_color(biome);
 
 	// Calculate slope based on how vertical the surface is (in world space)
 	// world_normal.y is 1.0 for perfectly flat ground (pointing straight up)
