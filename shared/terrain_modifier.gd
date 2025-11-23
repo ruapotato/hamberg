@@ -126,10 +126,10 @@ func dig_square(world_position: Vector3, tool_name: String = "stone_pickaxe") ->
 	voxel_tool.sdf_scale = 0.5  # Tighter scale for crisper cuts
 
 	# Dig a box centered on the target position (works for floor, ceiling, and walls)
-	# Align to voxel grid by rounding the center position first
-	var center_x := roundi(world_position.x)
-	var center_y := roundi(world_position.y)
-	var center_z := roundi(world_position.z)
+	# Position is already grid-snapped from player.gd, just convert to int for voxel coordinates
+	var center_x := int(world_position.x)
+	var center_y := int(world_position.y)
+	var center_z := int(world_position.z)
 
 	var half_size := int(SQUARE_SIZE / 2)
 	var half_depth := int(SQUARE_DEPTH / 2)
@@ -228,10 +228,10 @@ func place_square(world_position: Vector3, earth_amount: int) -> int:
 	voxel_tool.sdf_scale = 0.5  # Tighter scale for crisper placement
 
 	# Place a box centered on the target position (consistent with dig behavior)
-	# Align to voxel grid by rounding the center position first
-	var center_x := roundi(world_position.x)
-	var center_y := roundi(world_position.y)
-	var center_z := roundi(world_position.z)
+	# Position is already grid-snapped from player.gd, just convert to int for voxel coordinates
+	var center_x := int(world_position.x)
+	var center_y := int(world_position.y)
+	var center_z := int(world_position.z)
 
 	var half_size := int(SQUARE_SIZE / 2)
 	var half_depth := int(SQUARE_DEPTH / 2)

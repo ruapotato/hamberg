@@ -1235,7 +1235,7 @@ func _update_persistent_terrain_preview() -> void:
 				if is_hoe:
 					terrain_preview_cube.scale = Vector3(4.0, 4.0, 4.0)  # Leveling radius
 				else:
-					terrain_preview_cube.scale = Vector3(1.0, 1.0, 1.0)  # Standard 2x2x2 cube
+					terrain_preview_cube.scale = Vector3(2.0, 2.0, 2.0)  # Match SQUARE_SIZE (2-meter blocks)
 
 				# Only show if we're not showing a temporary shape
 				if terrain_preview_timer <= 0.0:
@@ -1260,11 +1260,9 @@ func _show_terrain_preview(operation: String, position: Vector3) -> void:
 	var is_square_operation := operation in ["dig_square", "place_square"]
 
 	if is_square_operation:
-		# Show cube briefly, aligned to voxel grid like the actual dig
-		var center_x := roundi(position.x)
-		var center_y := roundi(position.y)
-		var center_z := roundi(position.z)
-		terrain_preview_cube.global_position = Vector3(center_x, center_y, center_z)
+		# Show cube briefly at grid-snapped position (position is already snapped)
+		terrain_preview_cube.global_position = position
+		terrain_preview_cube.scale = Vector3(2.0, 2.0, 2.0)  # Match SQUARE_SIZE
 		terrain_preview_cube.visible = true
 		terrain_preview_sphere.visible = false  # Hide persistent preview temporarily
 	else:
