@@ -167,8 +167,8 @@ func flatten_square(world_position: Vector3, target_height: float) -> int:
 	print("[TerrainModifier] Flatten at %s, target height: %.1f" % [world_position, target_height])
 
 	# Snap target height to grid (2-meter intervals)
-	var grid_size := 2.0
-	var snapped_height := floor(target_height / grid_size) * grid_size + grid_size / 2.0
+	var grid_size: float = 2.0
+	var snapped_height: float = floor(target_height / grid_size) * grid_size + grid_size / 2.0
 
 	# Center position on the clicked location
 	var center_x := int(world_position.x)
