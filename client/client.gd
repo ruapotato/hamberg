@@ -748,6 +748,29 @@ func _update_biome_music(delta: float) -> void:
 		print("[Client] Biome changed: %s -> %s" % [current_biome, biome])
 		current_biome = biome
 		music_manager.set_biome(biome)
+		_update_terrain_color(biome)
+
+## Update terrain material color based on current biome
+func _update_terrain_color(biome_name: String) -> void:
+	if not voxel_world or not voxel_world.terrain:
+		return
+
+	# Map biome name to index (0=valley, 1=forest, 2=swamp, 3=mountain, 4=desert, 5=wizardland, 6=hell)
+	var biome_index := 0
+	match biome_name:
+		"valley": biome_index = 0
+		"forest": biome_index = 1
+		"swamp": biome_index = 2
+		"mountain": biome_index = 3
+		"desert": biome_index = 4
+		"wizardland": biome_index = 5
+		"hell": biome_index = 6
+
+	# Update shader parameter
+	var material = voxel_world.terrain.material
+	if material and material is ShaderMaterial:
+		material.set_shader_parameter("current_biome", biome_index)
+		print("[Client] Updated terrain color to biome index %d (%s)" % [biome_index, biome_name])
 
 # ============================================================================
 # ITEM DISCOVERY

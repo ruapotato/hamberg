@@ -1,9 +1,10 @@
 shader_type spatial;
 
 // Terrain Material - Per-Biome Colors
-// Replicates BiomeGenerator noise logic to assign colors based on biome
+// Uses the player's current biome to color all visible terrain
 
 uniform int world_seed = 42;
+uniform int current_biome = 0;  // 0=valley, 1=forest, 2=swamp, 3=mountain, 4=desert, 5=wizardland, 6=hell
 
 // Biome grass colors (flat/low slope terrain) - EXTREMELY distinct for visibility
 const vec3 VALLEY_GRASS = vec3(0.2, 0.5, 1.0);      // BRIGHT BLUE (serene valley)
@@ -198,55 +199,36 @@ void vertex() {
 }
 
 void fragment() {
-	// Get biome at this position
-	vec2 xz_pos = world_pos.xz;
-
-	// DEBUG: Test if distance-based coloring works at all
-	float distance = length(xz_pos);
-	vec3 test_color;
-	if (distance < 100.0) {
-		test_color = vec3(1.0, 0.0, 0.0);  // RED near spawn
-	} else if (distance < 500.0) {
-		test_color = vec3(0.0, 1.0, 0.0);  // GREEN mid-range
-	} else {
-		test_color = vec3(0.0, 0.0, 1.0);  // BLUE far away
-	}
-
-	ALBEDO = test_color;
-	ROUGHNESS = 0.9;
-	METALLIC = 0.0;
-
-	// ORIGINAL CODE - commented out for testing
-	//int biome = get_biome_index(xz_pos);
-	//vec3 grass_color = get_biome_grass_color(biome);
-	//vec3 rock_color = get_biome_rock_color(biome);
+	// Use the current biome uniform (set by client based on player position)
+	vec3 grass_color = get_biome_grass_color(current_biome);
+	vec3 rock_color = get_biome_rock_color(current_biome);
 
 	// Calculate slope based on how vertical the surface is (in world space)
 	// world_normal.y is 1.0 for perfectly flat ground (pointing straight up)
 	// world_normal.y is 0.0 for vertical walls (pointing sideways)
 	// We want: flat (world_normal.y near 1.0) = grass, steep (world_normal.y near 0.0) = rock
-	//float flatness = world_normal.y;  // 1.0 = flat, 0.0 = vertical
+	float flatness = world_normal.y;  // 1.0 = flat, 0.0 = vertical
 
 	// Blend between grass and rock based on slope
 	// At 45 degrees (max walkable), normal.y = cos(45°) ≈ 0.707
 	// flatness > 0.85 = flat, mostly grass
 	// flatness < 0.70 = steep/walkable limit, mostly rock
 	// Smooth transition between 0.70 and 0.85 (shows more rock on moderate slopes)
-	//float rock_blend = 1.0 - smoothstep(0.70, 0.85, flatness);
-	//vec3 base_color = mix(grass_color, rock_color, rock_blend);
+	float rock_blend = 1.0 - smoothstep(0.70, 0.85, flatness);
+	vec3 base_color = mix(grass_color, rock_color, rock_blend);
 
 	// Minimal height variation to preserve biome colors
-	//vec3 color = base_color;
+	vec3 color = base_color;
 
 	// Simple directional lighting (use world-space normal)
-	//vec3 light_dir = normalize(vec3(0.5, 1.0, 0.3));
-	//float ndotl = max(dot(world_normal, light_dir), 0.0);
-	//float ambient = 0.6;  // Higher ambient so colors show through
-	//float lighting = ambient + (1.0 - ambient) * ndotl;
+	vec3 light_dir = normalize(vec3(0.5, 1.0, 0.3));
+	float ndotl = max(dot(world_normal, light_dir), 0.0);
+	float ambient = 0.6;  // Higher ambient so colors show through
+	float lighting = ambient + (1.0 - ambient) * ndotl;
 
-	//ALBEDO = color * lighting;
+	ALBEDO = color * lighting;
 
 	// Rocky areas are slightly rougher
-	//ROUGHNESS = mix(0.85, 0.95, rock_blend);
-	//METALLIC = 0.0;
+	ROUGHNESS = mix(0.85, 0.95, rock_blend);
+	METALLIC = 0.0;
 }
