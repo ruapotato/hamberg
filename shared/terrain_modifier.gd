@@ -213,51 +213,48 @@ func flatten_square(world_position: Vector3, target_height: float) -> int:
 
 	# Use EXACT same grid logic as dig_square and place_square
 	# Position is already grid-snapped from player.gd, just convert to int
-	var center_x := int(world_position.x)
-	var center_z := int(world_position.z)
+	var click_x := int(world_position.x)
+	var click_z := int(world_position.z)
 	var platform_y := int(target_height)
 
-	print("[TerrainModifier] FLATTEN at world_pos=(%.1f, %.1f, %.1f) -> center=(%d, %d, %d)" %
-		[world_position.x, world_position.y, world_position.z, center_x, platform_y, center_z])
+	print("[TerrainModifier] FLATTEN at world_pos=(%.1f, %.1f, %.1f) -> click=(%d, %d, %d)" %
+		[world_position.x, world_position.y, world_position.z, click_x, platform_y, click_z])
 
-	# 4x4 area (8 meters x 8 meters)
-	var half_area := 4  # 4 meters on each side = 8m total
+	# Create a 4x4 grid of blocks (8m x 8m total) centered around the click point
+	# Blocks are at odd coordinates: ..., -3, -1, 1, 3, 5, 7, 9, ...
+	# For a 4x4 area, we want 4 blocks in each direction
+	# Round click position to nearest odd number (block center)
+	var base_x := click_x - (click_x % 2)  # Round to even
+	var base_z := click_z - (click_z % 2)  # Round to even
 
-	# First, remove everything ABOVE the platform
+	# Create blocks centered at: base-3, base-1, base+1, base+3 (4 blocks = 8m)
+	var min_x := base_x - 3
+	var max_x := base_x + 3
+	var min_z := base_z - 3
+	var max_z := base_z + 3
+
+	print("[TerrainModifier] Flatten box: X from %d to %d, Z from %d to %d, Y at %d" %
+		[min_x, max_x, min_z, max_z, platform_y])
+
+	# First, remove everything ABOVE the platform (with expansion for SDF)
 	voxel_tool.mode = VoxelTool.MODE_REMOVE
 	voxel_tool.channel = VoxelBuffer.CHANNEL_SDF
 	voxel_tool.sdf_strength = 5.0
 	voxel_tool.sdf_scale = 0.5
 
-	var remove_begin := Vector3i(
-		center_x - half_area - 1,
-		platform_y + 1,
-		center_z - half_area - 1
-	)
-	var remove_end := Vector3i(
-		center_x + half_area + 1,
-		platform_y + 20,
-		center_z + half_area + 1
-	)
+	var remove_begin := Vector3i(min_x - 2, platform_y + 1, min_z - 2)
+	var remove_end := Vector3i(max_x + 2, platform_y + 20, max_z + 2)
 
 	voxel_tool.do_box(remove_begin, remove_end)
 
-	# Then, add the platform itself
+	# Then, add the platform itself (with expansion for SDF)
 	voxel_tool.mode = VoxelTool.MODE_ADD
 	voxel_tool.channel = VoxelBuffer.CHANNEL_SDF
 	voxel_tool.sdf_strength = 5.0
 	voxel_tool.sdf_scale = 0.5
 
-	var add_begin := Vector3i(
-		center_x - half_area,
-		platform_y - 1,
-		center_z - half_area
-	)
-	var add_end := Vector3i(
-		center_x + half_area,
-		platform_y + 1,
-		center_z + half_area
-	)
+	var add_begin := Vector3i(min_x - 1, platform_y - 1, min_z - 1)
+	var add_end := Vector3i(max_x + 1, platform_y + 1, max_z + 1)
 
 	voxel_tool.do_box(add_begin, add_end)
 
