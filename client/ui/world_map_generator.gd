@@ -6,15 +6,15 @@ extends RefCounted
 
 const BiomeGenerator = preload("res://shared/biome_generator.gd")
 
-# Biome colors for map rendering (hybrid height + biome style)
+# Biome colors for map rendering (matches terrain shader grass colors exactly)
 const BIOME_BASE_COLORS := {
-	"valley": Color(0.4, 0.7, 0.3),      # Green meadow
-	"forest": Color(0.2, 0.5, 0.2),      # Dark green
-	"swamp": Color(0.4, 0.4, 0.3),       # Brown-green
-	"mountain": Color(0.6, 0.6, 0.7),    # Gray
-	"desert": Color(0.8, 0.7, 0.4),      # Sandy yellow
-	"wizardland": Color(0.6, 0.4, 0.8),  # Purple
-	"hell": Color(0.6, 0.2, 0.1)         # Dark red
+	"valley": Color(0.2, 0.5, 1.0),      # BRIGHT BLUE (serene valley)
+	"forest": Color(0.1, 0.9, 0.1),      # BRIGHT GREEN (lush forest)
+	"swamp": Color(0.5, 0.6, 0.2),       # YELLOW-GREEN (murky swamp)
+	"mountain": Color(0.8, 0.8, 0.8),    # WHITE (snow/ice)
+	"desert": Color(1.0, 0.9, 0.3),      # BRIGHT YELLOW (sandy desert)
+	"wizardland": Color(0.9, 0.2, 1.0),  # BRIGHT MAGENTA (magical)
+	"hell": Color(0.9, 0.1, 0.0)         # BRIGHT RED (hellfire)
 }
 
 var biome_generator: BiomeGenerator = null
