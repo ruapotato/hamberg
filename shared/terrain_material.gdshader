@@ -335,14 +335,24 @@ void fragment() {
 	float rock_blend = 1.0 - smoothstep(0.70, 0.85, flatness);
 	vec3 base_color = mix(grass_color, rock_color, rock_blend);
 
-	// BYPASS FBM - Use simple sin() patterns for grass/rock texture
-	// Combine multiple sin waves at different scales for organic look
-	float fine = sin(xz_pos.x * 1.0) * sin(xz_pos.y * 1.0);
-	float medium = sin(xz_pos.x * 0.2) * sin(xz_pos.y * 0.2);
-	float large = sin(xz_pos.x * 0.05) * sin(xz_pos.y * 0.05);
+	// Multi-directional sin waves for more organic, less grid-like texture
+	// Layer 1: Fine detail at multiple angles
+	float fine1 = sin(xz_pos.x * 0.8) * sin(xz_pos.y * 0.8);
+	float fine2 = sin((xz_pos.x + xz_pos.y) * 1.2);  // Diagonal
+	float fine3 = sin((xz_pos.x - xz_pos.y) * 1.5);  // Other diagonal
 
-	// Combine scales (each returns -1 to 1)
-	float combined = fine * 0.5 + medium * 0.3 + large * 0.2;
+	// Layer 2: Medium swirls at different angles
+	float med1 = sin(xz_pos.x * 0.3) * sin(xz_pos.y * 0.25);
+	float med2 = sin((xz_pos.x * 0.4 + xz_pos.y * 0.3) * 0.7);
+
+	// Layer 3: Large patches
+	float large1 = sin(xz_pos.x * 0.08) * sin(xz_pos.y * 0.06);
+	float large2 = sin((xz_pos.x + xz_pos.y) * 0.04);
+
+	// Combine all layers for organic noise-like pattern
+	float combined = (fine1 + fine2 + fine3) * 0.25 +
+	                 (med1 + med2) * 0.3 +
+	                 (large1 + large2) * 0.2;
 
 	// Apply strong variation to base color
 	vec3 color = base_color * (1.0 + combined * 0.5);  // 0.5 to 1.5 range
