@@ -1187,10 +1187,10 @@ func _raycast_grid_cell_from_camera(camera: Camera3D) -> Vector3:
 
 	var result := space_state.intersect_ray(query)
 	if result:
-		# Hit something - use the normal to offset into the surface by half the grid size
-		# This ensures we're selecting the block we hit, not the air in front
+		# Hit something - use the normal to offset into the surface by 1 full grid unit
+		# This ensures we're deep inside the block we hit, not in air or on the edge
 		var normal: Vector3 = result.normal
-		var point_inside: Vector3 = result.position - normal * 0.5  # Move into surface (opposite of normal)
+		var point_inside: Vector3 = result.position - normal * 1.5  # Move 1.5m into surface (opposite of normal)
 		return _snap_to_grid(point_inside)
 	else:
 		# No hit - calculate grid cell along ray at reasonable distance (5 meters)
@@ -1236,7 +1236,7 @@ func _update_persistent_terrain_preview() -> void:
 				if is_hoe:
 					terrain_preview_cube.scale = Vector3(4.0, 4.0, 4.0)  # Leveling radius
 				else:
-					terrain_preview_cube.scale = Vector3(1.0, 1.0, 1.0)  # Base mesh is already 2x2x2
+					terrain_preview_cube.scale = Vector3(1.05, 1.05, 1.05)  # Slightly larger than 2x2x2 block for visibility
 
 				# Only show if we're not showing a temporary shape
 				if terrain_preview_timer <= 0.0:
@@ -1263,7 +1263,7 @@ func _show_terrain_preview(operation: String, position: Vector3) -> void:
 	if is_square_operation:
 		# Show cube briefly at grid-snapped position (position is already snapped)
 		terrain_preview_cube.global_position = position
-		terrain_preview_cube.scale = Vector3(1.0, 1.0, 1.0)  # Base mesh is already 2x2x2
+		terrain_preview_cube.scale = Vector3(1.05, 1.05, 1.05)  # Slightly larger than 2x2x2 block for visibility
 		terrain_preview_cube.visible = true
 		terrain_preview_sphere.visible = false  # Hide persistent preview temporarily
 	else:
