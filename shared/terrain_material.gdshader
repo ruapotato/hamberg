@@ -218,15 +218,37 @@ void fragment() {
 	// Texture is centered at origin, covers biome_map_world_coverage meters
 	vec2 uv = (xz_pos + vec2(biome_map_world_coverage * 0.5)) / biome_map_world_coverage;
 
-	// Sample biome color from texture
-	vec3 biome_sample = texture(biome_map, uv).rgb;
+	// Sample biome color with smooth blending between biomes
+	// Use trilinear filtering by sampling texture at slightly offset positions
+	float blend_distance = 50.0;  // Blend over 50 meters at biome boundaries
+	float blend_offset = blend_distance / biome_map_world_coverage;
+
+	// Sample center and 4 nearby points for smooth blending
+	vec3 center_sample = texture(biome_map, uv).rgb;
+	vec3 north_sample = texture(biome_map, uv + vec2(0.0, blend_offset)).rgb;
+	vec3 south_sample = texture(biome_map, uv - vec2(0.0, blend_offset)).rgb;
+	vec3 east_sample = texture(biome_map, uv + vec2(blend_offset, 0.0)).rgb;
+	vec3 west_sample = texture(biome_map, uv - vec2(blend_offset, 0.0)).rgb;
+
+	// Calculate blend weights based on how much colors differ
+	// If neighbors are different biomes, blend between them
+	float center_weight = 4.0;
+	float neighbor_weight = 1.0;
+
+	// Average with neighbors for smooth transition
+	vec3 biome_sample = (center_sample * center_weight +
+	                     north_sample * neighbor_weight +
+	                     south_sample * neighbor_weight +
+	                     east_sample * neighbor_weight +
+	                     west_sample * neighbor_weight) /
+	                    (center_weight + neighbor_weight * 4.0);
 
 	// Determine which biome this is by color matching
 	// We need grass and rock colors for slope blending
 	vec3 grass_color;
 	vec3 rock_color;
 
-	// Match sampled color to biome (with tolerance for texture filtering)
+	// Match sampled color to biome (with tolerance for blending)
 	float valley_dist = length(biome_sample - VALLEY_GRASS);
 	float forest_dist = length(biome_sample - FOREST_GRASS);
 	float swamp_dist = length(biome_sample - SWAMP_GRASS);
@@ -235,17 +257,67 @@ void fragment() {
 	float wizardland_dist = length(biome_sample - WIZARDLAND_GRASS);
 	float hell_dist = length(biome_sample - HELL_GRASS);
 
-	// Find closest match
-	float min_dist = valley_dist;
-	grass_color = VALLEY_GRASS;
-	rock_color = VALLEY_ROCK;
+	// Instead of finding closest match, blend between nearby biomes
+	// Calculate blend weights inversely proportional to distance
+	float total_weight = 0.0;
+	grass_color = vec3(0.0);
+	rock_color = vec3(0.0);
 
-	if (forest_dist < min_dist) { min_dist = forest_dist; grass_color = FOREST_GRASS; rock_color = FOREST_ROCK; }
-	if (swamp_dist < min_dist) { min_dist = swamp_dist; grass_color = SWAMP_GRASS; rock_color = SWAMP_ROCK; }
-	if (mountain_dist < min_dist) { min_dist = mountain_dist; grass_color = MOUNTAIN_GRASS; rock_color = MOUNTAIN_ROCK; }
-	if (desert_dist < min_dist) { min_dist = desert_dist; grass_color = DESERT_GRASS; rock_color = DESERT_ROCK; }
-	if (wizardland_dist < min_dist) { min_dist = wizardland_dist; grass_color = WIZARDLAND_GRASS; rock_color = WIZARDLAND_ROCK; }
-	if (hell_dist < min_dist) { min_dist = hell_dist; grass_color = HELL_GRASS; rock_color = HELL_ROCK; }
+	// Weight function - closer colors get more weight
+	float max_blend_dist = 1.0;  // Maximum color distance to consider for blending
+
+	if (valley_dist < max_blend_dist) {
+		float weight = 1.0 - (valley_dist / max_blend_dist);
+		grass_color += VALLEY_GRASS * weight;
+		rock_color += VALLEY_ROCK * weight;
+		total_weight += weight;
+	}
+	if (forest_dist < max_blend_dist) {
+		float weight = 1.0 - (forest_dist / max_blend_dist);
+		grass_color += FOREST_GRASS * weight;
+		rock_color += FOREST_ROCK * weight;
+		total_weight += weight;
+	}
+	if (swamp_dist < max_blend_dist) {
+		float weight = 1.0 - (swamp_dist / max_blend_dist);
+		grass_color += SWAMP_GRASS * weight;
+		rock_color += SWAMP_ROCK * weight;
+		total_weight += weight;
+	}
+	if (mountain_dist < max_blend_dist) {
+		float weight = 1.0 - (mountain_dist / max_blend_dist);
+		grass_color += MOUNTAIN_GRASS * weight;
+		rock_color += MOUNTAIN_ROCK * weight;
+		total_weight += weight;
+	}
+	if (desert_dist < max_blend_dist) {
+		float weight = 1.0 - (desert_dist / max_blend_dist);
+		grass_color += DESERT_GRASS * weight;
+		rock_color += DESERT_ROCK * weight;
+		total_weight += weight;
+	}
+	if (wizardland_dist < max_blend_dist) {
+		float weight = 1.0 - (wizardland_dist / max_blend_dist);
+		grass_color += WIZARDLAND_GRASS * weight;
+		rock_color += WIZARDLAND_ROCK * weight;
+		total_weight += weight;
+	}
+	if (hell_dist < max_blend_dist) {
+		float weight = 1.0 - (hell_dist / max_blend_dist);
+		grass_color += HELL_GRASS * weight;
+		rock_color += HELL_ROCK * weight;
+		total_weight += weight;
+	}
+
+	// Normalize by total weight
+	if (total_weight > 0.0) {
+		grass_color /= total_weight;
+		rock_color /= total_weight;
+	} else {
+		// Fallback if no biome matched (shouldn't happen)
+		grass_color = VALLEY_GRASS;
+		rock_color = VALLEY_ROCK;
+	}
 
 	// Calculate slope based on how vertical the surface is (in world space)
 	// world_normal.y is 1.0 for perfectly flat ground (pointing straight up)
