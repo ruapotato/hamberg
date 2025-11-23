@@ -160,12 +160,12 @@ func _world_to_screen_pos(world_pos: Vector2) -> Vector2:
 	return Vector2(screen_x, screen_y) + map_texture_rect.global_position
 
 func _draw_compass_directions() -> void:
-	"""Draw N, E, S, W labels around the mini-map edge"""
+	"""Draw N, E, S, W labels inside the mini-map edge"""
 	# Get center relative to this Control node (not global)
 	var map_rect_pos := map_texture_rect.position
 	var map_rect_size := map_texture_rect.size
 	var center := map_rect_pos + (map_rect_size * 0.5)
-	var radius := (map_rect_size.x * 0.5) + 12.0  # Just outside the map edge
+	var radius := (map_rect_size.x * 0.5) - 12.0  # Inside the map edge
 
 	# Define compass positions (N, E, S, W)
 	# North is +Z in world space, which is "up" on the map
@@ -181,7 +181,7 @@ func _draw_compass_directions() -> void:
 
 		# Draw text with outline for visibility
 		var font := ThemeDB.fallback_font
-		var font_size := 14
+		var font_size := 12
 		var text: String = dir.label
 
 		# Calculate text size for centering
@@ -204,7 +204,7 @@ func _draw_player_markers() -> void:
 	var map_rect_size := map_texture_rect.size
 	var center := map_rect_pos + (map_rect_size * 0.5)
 
-	# Draw direction arrow showing camera orientation
+	# Draw direction arrow (V shape) showing camera orientation
 	var camera_controller = local_player.get_node_or_null("CameraController")
 	if camera_controller and "camera_rotation" in camera_controller:
 		var camera_yaw: float = camera_controller.camera_rotation.x
@@ -214,22 +214,31 @@ func _draw_player_markers() -> void:
 		# On mini-map: North (+Z) should be UP (-PI/2), so we adjust
 		var arrow_angle := camera_yaw + PI  # Flip and adjust for map orientation
 
-		# Calculate arrow points (triangle pointing in camera direction)
-		var arrow_length := 15.0
-		var arrow_width := 8.0
+		# Calculate V-shape points (chevron pointing in camera direction)
+		var v_length := 12.0
+		var v_width := 8.0
 
-		# Tip of arrow (points in camera direction)
-		var tip := center + Vector2(cos(arrow_angle), sin(arrow_angle)) * arrow_length
+		# Tip of V (points in camera direction)
+		var tip := center + Vector2(cos(arrow_angle), sin(arrow_angle)) * v_length
 
-		# Left and right base points
-		var left := center + Vector2(cos(arrow_angle + 2.5), sin(arrow_angle + 2.5)) * arrow_width
-		var right := center + Vector2(cos(arrow_angle - 2.5), sin(arrow_angle - 2.5)) * arrow_width
+		# Left and right arms of V
+		var left := center + Vector2(cos(arrow_angle + 2.8), sin(arrow_angle + 2.8)) * v_width
+		var right := center + Vector2(cos(arrow_angle - 2.8), sin(arrow_angle - 2.8)) * v_width
 
-		# Draw filled triangle (yellow for better visibility)
-		draw_colored_polygon(PackedVector2Array([tip, left, right]), Color.YELLOW)
+		# Draw V shape as thick lines
+		draw_line(left, tip, Color.YELLOW, 3.0)
+		draw_line(right, tip, Color.YELLOW, 3.0)
 
 		# Draw black outline for contrast
-		draw_polyline(PackedVector2Array([tip, left, right, tip]), Color.BLACK, 2.0)
+		draw_line(left, tip, Color.BLACK, 5.0)
+		draw_line(right, tip, Color.BLACK, 5.0)
+		# Redraw yellow on top
+		draw_line(left, tip, Color.YELLOW, 3.0)
+		draw_line(right, tip, Color.YELLOW, 3.0)
+
+		# Draw center dot
+		draw_circle(center, 3, Color.YELLOW)
+		draw_circle(center, 3, Color.BLACK, false, 1.0)
 	else:
 		# Fallback: draw simple circle if no camera
 		draw_circle(center, 8, Color.YELLOW)
