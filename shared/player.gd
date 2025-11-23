@@ -25,6 +25,7 @@ var gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
 var current_animation_state: String = "idle"
 var is_local_player: bool = false
 var animation_phase: float = 0.0  # Accumulated phase for smooth animation cycles
+var is_game_loaded: bool = false  # Set to true when loading is complete
 
 # Client prediction state
 var input_sequence: int = 0
@@ -134,6 +135,10 @@ const MAX_HEALTH: float = 100.0
 var health: float = MAX_HEALTH
 var is_dead: bool = false
 
+# Fall death system (for falling out of world)
+var fall_time_below_ground: float = 0.0
+const FALL_DEATH_TIME: float = 15.0  # 15 seconds of falling below ground = death
+
 # Blocking start time (for shield parry timing)
 var block_start_time: float = 0.0
 
@@ -182,6 +187,10 @@ func _exit_tree() -> void:
 func _physics_process(delta: float) -> void:
 	if not is_local_player:
 		# Remote players don't process physics locally
+		return
+
+	# Don't process input or movement if game is not fully loaded
+	if not is_game_loaded:
 		return
 
 	# Update attack cooldown
@@ -347,9 +356,25 @@ func _apply_movement(input_data: Dictionary, delta: float) -> void:
 	var input_dir := Vector2(move_x, move_z).normalized()
 	var direction := (camera_basis * Vector3(input_dir.x, 0, input_dir.y)).normalized()
 
-	# Gravity
-	if not is_on_floor():
+	# Gravity (only apply if game is loaded)
+	if not is_on_floor() and is_game_loaded:
 		velocity.y -= gravity * delta
+
+	# Fall death detection: Track time falling below ground level
+	if is_game_loaded and is_local_player:
+		var ground_level: float = 0.0  # Sea level is at Y=0
+		if global_position.y < ground_level and not is_on_floor():
+			# Player is below ground and falling
+			fall_time_below_ground += delta
+
+			if fall_time_below_ground >= FALL_DEATH_TIME:
+				print("[Player] Fall death! Fell below ground for %.1f seconds" % fall_time_below_ground)
+				# Kill the player
+				health = 0
+				_die()
+		else:
+			# Reset fall timer if above ground or on floor
+			fall_time_below_ground = 0.0
 
 	# Lunge momentum - maintain forward arc while lunging in the air
 	if is_lunging and not is_on_floor():
@@ -1812,6 +1837,9 @@ func respawn_at(spawn_position: Vector3) -> void:
 		body_container.rotation = Vector3.ZERO
 		body_container.position = Vector3.ZERO
 
+	# Reset fall timer
+	fall_time_below_ground = 0.0
+
 	# Re-enable physics (for all instances)
 	set_physics_process(true)
 
@@ -1819,6 +1847,14 @@ func respawn_at(spawn_position: Vector3) -> void:
 	if is_local_player:
 		# Camera will follow the repositioned player automatically
 		pass
+
+## Enable game loaded state (called when loading is complete)
+func set_game_loaded(loaded: bool) -> void:
+	is_game_loaded = loaded
+	if loaded:
+		print("[Player] Game fully loaded - input and physics enabled")
+	else:
+		print("[Player] Game loading - input and physics disabled")
 
 # ============================================================================
 # EQUIPMENT SYSTEM

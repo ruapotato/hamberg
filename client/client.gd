@@ -1260,9 +1260,12 @@ func _start_loading() -> void:
 		# Debug skip disabled - was causing premature loading completion
 		# loading_screen_ui.enable_skip()  # Allow ESC to skip for debugging
 
-	# Disable player physics if spawned
+	# Disable player physics and input if spawned
 	if local_player:
 		_disable_player_physics()
+		# Disable game loaded state to prevent input and gravity
+		if local_player.has_method("set_game_loaded"):
+			local_player.set_game_loaded(false)
 
 ## Mark a loading step as complete
 func _mark_loading_step_complete(step: String) -> void:
@@ -1326,9 +1329,12 @@ func _finish_loading() -> void:
 	print("[Client] Loading complete!")
 	is_loading = false
 
-	# Enable player physics
+	# Enable player physics and gameplay
 	if local_player:
 		_enable_player_physics()
+		# Enable game loaded state to allow input and gravity
+		if local_player.has_method("set_game_loaded"):
+			local_player.set_game_loaded(true)
 
 	# Hide loading screen
 	if loading_screen_ui:
