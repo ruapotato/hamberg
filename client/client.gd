@@ -64,6 +64,12 @@ var current_equipped_item: String = ""
 # Item discovery tracker
 var item_discovery_tracker: Node = null
 
+# Music manager
+var music_manager: Node = null
+var current_biome: String = ""
+var biome_check_timer: float = 0.0
+const BIOME_CHECK_INTERVAL: float = 2.0  # Check biome every 2 seconds
+
 # Environmental objects
 var environmental_chunks: Dictionary = {} # Vector2i -> Dictionary of objects
 var environmental_objects_container: Node3D
@@ -112,6 +118,12 @@ func _ready() -> void:
 	item_discovery_tracker.name = "ItemDiscoveryTracker"
 	add_child(item_discovery_tracker)
 	item_discovery_tracker.recipes_unlocked.connect(_on_recipes_unlocked)
+
+	# Create music manager
+	var MusicManager = preload("res://client/music_manager.gd")
+	music_manager = MusicManager.new()
+	music_manager.name = "MusicManager"
+	add_child(music_manager)
 
 	# Create crafting menu UI
 	crafting_menu_ui = crafting_menu_scene.instantiate()
@@ -171,6 +183,7 @@ func _process(_delta: float) -> void:
 		_update_hud()
 		_handle_build_input()
 		_handle_interaction_input()
+		_update_biome_music(_delta)
 
 	# Handle pause menu (Escape or Button 6)
 	if (Input.is_action_just_pressed("ui_cancel") or Input.is_action_just_pressed("toggle_pause")) and is_in_game:
@@ -242,6 +255,11 @@ func _on_client_disconnected() -> void:
 
 	# Clean up environmental objects
 	_cleanup_environmental_objects()
+
+	# Stop music
+	if music_manager:
+		music_manager.stop_music()
+	current_biome = ""
 
 	# Show connection UI, hide HUD and character selection
 	connection_ui.visible = true
@@ -701,6 +719,35 @@ func _on_pause_quit() -> void:
 
 	# Disconnect from server
 	NetworkManager.disconnect_network()
+
+# ============================================================================
+# MUSIC SYSTEM
+# ============================================================================
+
+## Update biome music based on player position
+func _update_biome_music(delta: float) -> void:
+	if not local_player or not music_manager or not voxel_world:
+		return
+
+	# Only check periodically (every 2 seconds)
+	biome_check_timer += delta
+	if biome_check_timer < BIOME_CHECK_INTERVAL:
+		return
+
+	biome_check_timer = 0.0
+
+	# Get player's current position
+	var player_pos = local_player.global_position
+	var xz_pos = Vector2(player_pos.x, player_pos.z)
+
+	# Get biome at player position
+	var biome = voxel_world.get_biome_at(xz_pos)
+
+	# Update music if biome changed
+	if biome != current_biome:
+		print("[Client] Biome changed: %s -> %s" % [current_biome, biome])
+		current_biome = biome
+		music_manager.set_biome(biome)
 
 # ============================================================================
 # ITEM DISCOVERY
