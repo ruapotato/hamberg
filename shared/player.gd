@@ -1130,11 +1130,15 @@ func _handle_terrain_modification_input(input_data: Dictionary) -> bool:
 	if operation == "dig_square":
 		# For digging: use cached red cube position
 		target_pos = cached_dig_position
-		print("[PICKAXE DIG] Red cube at: %s | Digging at: %s" % [cached_dig_position, target_pos])
+		var dig_box_start := Vector3(int(target_pos.x) - 1, int(target_pos.y) - 1, int(target_pos.z) - 1)
+		var dig_box_end := Vector3(int(target_pos.x) + 1, int(target_pos.y) + 1, int(target_pos.z) + 1)
+		print("[PICKAXE DIG] Red cube center: %s | Box: %s to %s" % [target_pos, dig_box_start, dig_box_end])
 	elif operation == "place_square":
 		# For placing: use cached white cube position
 		target_pos = cached_place_position
-		print("[PICKAXE PLACE] White cube at: %s | Placing at: %s" % [cached_place_position, target_pos])
+		var place_box_start := Vector3(int(target_pos.x) - 1, int(target_pos.y) - 1, int(target_pos.z) - 1)
+		var place_box_end := Vector3(int(target_pos.x) + 1, int(target_pos.y) + 1, int(target_pos.z) + 1)
+		print("[PICKAXE PLACE] White cube center: %s | Box: %s to %s" % [target_pos, place_box_start, place_box_end])
 
 	if target_pos == Vector3.ZERO:
 		print("[Player] No valid target found")
@@ -1230,6 +1234,9 @@ func _update_persistent_terrain_preview() -> void:
 				terrain_dig_preview_cube.scale = Vector3(1.05, 1.05, 1.05)
 				if terrain_preview_timer <= 0.0:
 					terrain_dig_preview_cube.visible = true
+					# Debug: print preview cube position occasionally (every 60 frames = ~1 second)
+					if Engine.get_process_frames() % 60 == 0:
+						print("[DEBUG] Red preview cube at: %s" % dig_pos)
 				else:
 					terrain_dig_preview_cube.visible = false
 
