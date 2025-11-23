@@ -134,15 +134,16 @@ func dig_square(world_position: Vector3, tool_name: String = "stone_pickaxe") ->
 	var half_size := int(SQUARE_SIZE / 2)
 	var half_depth := int(SQUARE_DEPTH / 2)
 
+	# Expand dig box slightly to ensure complete removal with SDF
 	var begin := Vector3i(
-		center_x - half_size,
-		center_y - half_depth,  # Center the box vertically on click point
-		center_z - half_size
+		center_x - half_size - 1,  # Expand by 1 voxel
+		center_y - half_depth - 1,
+		center_z - half_size - 1
 	)
 	var end := Vector3i(
-		center_x + half_size,
-		center_y + half_depth,  # Dig equally up and down from center
-		center_z + half_size
+		center_x + half_size + 1,  # Expand by 1 voxel
+		center_y + half_depth + 1,
+		center_z + half_size + 1
 	)
 
 	print("[TerrainModifier] Calling do_box from %s to %s" % [begin, end])
