@@ -335,27 +335,47 @@ void fragment() {
 	float rock_blend = 1.0 - smoothstep(0.70, 0.85, flatness);
 	vec3 base_color = mix(grass_color, rock_color, rock_blend);
 
-	// Multi-directional sin waves for more organic, less grid-like texture
-	// Layer 1: Fine detail at multiple angles
-	float fine1 = sin(xz_pos.x * 0.8) * sin(xz_pos.y * 0.8);
-	float fine2 = sin((xz_pos.x + xz_pos.y) * 1.2);  // Diagonal
-	float fine3 = sin((xz_pos.x - xz_pos.y) * 1.5);  // Other diagonal
+	// Sin-based organic texture using strong multi-layer distortion
+	// Strategy: Stack many distortion layers to completely break grid alignment
 
-	// Layer 2: Medium swirls at different angles
-	float med1 = sin(xz_pos.x * 0.3) * sin(xz_pos.y * 0.25);
-	float med2 = sin((xz_pos.x * 0.4 + xz_pos.y * 0.3) * 0.7);
+	// Layer 1: Primary distortion field (smaller scale)
+	float d1x = sin(xz_pos.x * 0.15) * 4.0;
+	float d1y = sin(xz_pos.y * 0.12) * 4.0;
 
-	// Layer 3: Large patches
-	float large1 = sin(xz_pos.x * 0.08) * sin(xz_pos.y * 0.06);
-	float large2 = sin((xz_pos.x + xz_pos.y) * 0.04);
+	// Layer 2: Secondary distortion (distorts the distortion!)
+	float d2x = sin((xz_pos.x + d1y) * 0.25) * 2.5;
+	float d2y = sin((xz_pos.y + d1x) * 0.22) * 2.5;
 
-	// Combine all layers for organic noise-like pattern
-	float combined = (fine1 + fine2 + fine3) * 0.25 +
-	                 (med1 + med2) * 0.3 +
-	                 (large1 + large2) * 0.2;
+	// Layer 3: Tertiary fine distortion
+	float d3x = sin((xz_pos.x + d2y) * 0.38) * 1.5;
+	float d3y = sin((xz_pos.y + d2x) * 0.34) * 1.5;
 
-	// Apply strong variation to base color
-	vec3 color = base_color * (1.0 + combined * 0.5);  // 0.5 to 1.5 range
+	// Final distorted coordinates
+	vec2 distorted = xz_pos + vec2(d1x + d2x + d3x, d1y + d2y + d3y);
+
+	// Now apply texture patterns on distorted coords - higher frequencies for smaller details
+	float combined = 0.0;
+
+	// Fine detail - 5 layers at different angles (doubled frequencies)
+	combined += sin(distorted.x * 1.8) * sin(distorted.y * 1.6) * 0.12;
+	combined += sin((distorted.x + distorted.y) * 2.2) * 0.1;
+	combined += sin((distorted.x - distorted.y) * 2.6) * 0.1;
+	combined += sin(distorted.x * 2.4 - distorted.y * 1.4) * 0.08;
+	combined += sin(distorted.x * 1.4 + distorted.y * 2.2) * 0.08;
+
+	// Medium features - 4 layers (doubled frequencies)
+	combined += sin(distorted.x * 0.7) * sin(distorted.y * 0.6) * 0.15;
+	combined += sin((distorted.x + distorted.y) * 0.8) * 0.12;
+	combined += sin(distorted.x * 0.56 - distorted.y * 0.64) * 0.12;
+	combined += sin(distorted.x * 0.84) * 0.1;
+
+	// Large patches - 3 layers (doubled frequencies)
+	combined += sin(distorted.x * 0.18) * sin(distorted.y * 0.14) * 0.18;
+	combined += sin((distorted.x + distorted.y) * 0.1) * 0.15;
+	combined += sin(distorted.x * 0.12 - distorted.y * 0.16) * 0.12;
+
+	// Apply variation to base color
+	vec3 color = base_color * (1.0 + combined * 0.5);
 
 	// Simple directional lighting
 	vec3 light_dir = normalize(vec3(0.5, 1.0, 0.3));
