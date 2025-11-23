@@ -212,7 +212,7 @@ func _generate_biome_map_texture(shader_mat: ShaderMaterial) -> void:
 
 			# Get biome from BiomeGenerator
 			var biome: String = generator.get_biome_at_position(world_pos)
-			var color := biome_colors.get(biome, Color.WHITE)
+			var color: Color = biome_colors.get(biome, Color.WHITE)
 
 			image.set_pixel(x, y, color)
 
