@@ -12,12 +12,12 @@ var current_track_index: int = -1
 # Biome music libraries
 var biome_music := {
 	"valley": [
-		"res://audio/music/Meadows1.wav",
-		"res://audio/music/Meadows2.wav",
-		"res://audio/music/Meadows3.wav",
-		"res://audio/music/Meadows4.wav",
-		"res://audio/music/Meadows5.wav",
-		"res://audio/music/Meadows6.wav"
+		"res://audio/music/Valley1.wav",
+		"res://audio/music/Valley2.wav",
+		"res://audio/music/Valley3.wav",
+		"res://audio/music/Valley4.wav",
+		"res://audio/music/Valley5.wav",
+		"res://audio/music/Valley6.wav"
 	],
 	"forest": [],     # TODO: Add forest music
 	"swamp": [],      # TODO: Add swamp music
