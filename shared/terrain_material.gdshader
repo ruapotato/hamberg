@@ -218,14 +218,13 @@ void fragment() {
 	float rock_blend = 1.0 - smoothstep(0.70, 0.85, flatness);
 	vec3 base_color = mix(grass_color, rock_color, rock_blend);
 
-	// Add subtle height-based variation
-	float height_factor = clamp(world_pos.y / 50.0, 0.0, 1.0);
-	vec3 color = mix(base_color * 0.85, base_color * 1.15, height_factor);
+	// Minimal height variation to preserve biome colors
+	vec3 color = base_color;
 
 	// Simple directional lighting (use world-space normal)
 	vec3 light_dir = normalize(vec3(0.5, 1.0, 0.3));
 	float ndotl = max(dot(world_normal, light_dir), 0.0);
-	float ambient = 0.4;
+	float ambient = 0.6;  // Higher ambient so colors show through
 	float lighting = ambient + (1.0 - ambient) * ndotl;
 
 	ALBEDO = color * lighting;
