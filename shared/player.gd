@@ -109,6 +109,8 @@ var terrain_preview_sphere: MeshInstance3D = null  # Persistent preview sphere (
 var terrain_preview_cube: MeshInstance3D = null    # Temporary shape after placement
 var terrain_dig_preview_cube: MeshInstance3D = null  # Red cube showing which block will be dug
 var terrain_place_preview_cube: MeshInstance3D = null  # White cube showing where block will be placed
+var cached_dig_position: Vector3 = Vector3.ZERO    # Cached position from red preview cube
+var cached_place_position: Vector3 = Vector3.ZERO  # Cached position from white preview cube
 var terrain_preview_timer: float = 0.0
 const TERRAIN_PREVIEW_DURATION: float = 0.8  # How long to show the actual placed shape
 var is_showing_persistent_preview: bool = false   # Track if we're showing the persistent preview
@@ -1123,16 +1125,16 @@ func _handle_terrain_modification_input(input_data: Dictionary) -> bool:
 				print("[Player] Cannot place earth - need earth in inventory!")
 				return false
 
-	# Get target position using appropriate raycast method
+	# Get target position using cached preview positions (ensures dig/place match the preview cubes)
 	var target_pos := Vector3.ZERO
 	if operation == "dig_square":
-		# For digging: raycast in camera direction to find grid cell (can dig walls/air)
-		target_pos = _raycast_grid_cell_from_camera(camera)
-	else:
-		# For placing: raycast to ground and snap to grid
-		target_pos = _raycast_terrain_target(camera)
-		if target_pos != Vector3.ZERO and is_pickaxe:
-			target_pos = _snap_to_grid(target_pos)
+		# For digging: use cached red cube position
+		target_pos = cached_dig_position
+		print("[Player] Using cached dig position: %s" % target_pos)
+	elif operation == "place_square":
+		# For placing: use cached white cube position
+		target_pos = cached_place_position
+		print("[Player] Using cached place position: %s" % target_pos)
 
 	if target_pos == Vector3.ZERO:
 		print("[Player] No valid target found")
@@ -1224,6 +1226,7 @@ func _update_persistent_terrain_preview() -> void:
 			# RED cube: Show which block will be dug (camera raycast)
 			var dig_pos := _raycast_grid_cell_from_camera(camera)
 			if dig_pos != Vector3.ZERO:
+				cached_dig_position = dig_pos  # Cache for actual dig operation
 				terrain_dig_preview_cube.global_position = dig_pos
 				terrain_dig_preview_cube.scale = Vector3(1.05, 1.05, 1.05)
 				if terrain_preview_timer <= 0.0:
@@ -1235,6 +1238,7 @@ func _update_persistent_terrain_preview() -> void:
 			var place_pos := _raycast_terrain_target(camera)
 			if place_pos != Vector3.ZERO:
 				place_pos = _snap_to_grid(place_pos)
+				cached_place_position = place_pos  # Cache for actual place operation
 				terrain_place_preview_cube.global_position = place_pos
 				terrain_place_preview_cube.scale = Vector3(1.05, 1.05, 1.05)
 				if terrain_preview_timer <= 0.0:
