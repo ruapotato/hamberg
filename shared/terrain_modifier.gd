@@ -164,6 +164,8 @@ func flatten_square(world_position: Vector3, target_height: float) -> int:
 		push_error("[TerrainModifier] Cannot flatten - voxel_tool not initialized")
 		return 0
 
+	print("[TerrainModifier] Flatten at %s, target height: %.1f" % [world_position, target_height])
+
 	# Snap target height to grid (2-meter intervals)
 	var grid_size := 2.0
 	var snapped_height := floor(target_height / grid_size) * grid_size + grid_size / 2.0
@@ -171,13 +173,14 @@ func flatten_square(world_position: Vector3, target_height: float) -> int:
 	# Center position on the clicked location
 	var center_x := int(world_position.x)
 	var center_z := int(world_position.z)
-	var center_y := int(snapped_height)
+	var platform_y := int(snapped_height)
 
-	# 4x4 area (8 meters x 8 meters), 2 meters tall
+	# 4x4 area (8 meters x 8 meters)
 	var half_area := 4  # 4 meters on each side = 8m total
-	var half_depth := 1  # 1 meter up/down from center = 2m total height
 
-	# First, remove everything above the target level (dig operation)
+	print("[TerrainModifier] Snapped height: %.1f, platform at y=%d" % [snapped_height, platform_y])
+
+	# First, remove everything ABOVE the platform (from platform top to 20m up)
 	voxel_tool.mode = VoxelTool.MODE_REMOVE
 	voxel_tool.channel = VoxelBuffer.CHANNEL_SDF
 	voxel_tool.sdf_strength = 5.0
@@ -185,18 +188,19 @@ func flatten_square(world_position: Vector3, target_height: float) -> int:
 
 	var remove_begin := Vector3i(
 		center_x - half_area - 1,
-		center_y - half_depth - 1,
+		platform_y + 1,  # Start removing from 1m above platform
 		center_z - half_area - 1
 	)
 	var remove_end := Vector3i(
 		center_x + half_area + 1,
-		center_y + half_depth + 1,
+		platform_y + 20,  # Remove up to 20m above platform
 		center_z + half_area + 1
 	)
 
+	print("[TerrainModifier] Removing above: %s to %s" % [remove_begin, remove_end])
 	voxel_tool.do_box(remove_begin, remove_end)
 
-	# Then, fill everything at the target level (place operation)
+	# Then, add the platform itself (2 meters tall at the target height)
 	voxel_tool.mode = VoxelTool.MODE_ADD
 	voxel_tool.channel = VoxelBuffer.CHANNEL_SDF
 	voxel_tool.sdf_strength = 5.0
@@ -204,19 +208,21 @@ func flatten_square(world_position: Vector3, target_height: float) -> int:
 
 	var add_begin := Vector3i(
 		center_x - half_area,
-		center_y - half_depth,
+		platform_y - 1,  # 1m below center
 		center_z - half_area
 	)
 	var add_end := Vector3i(
 		center_x + half_area,
-		center_y + half_depth,
+		platform_y + 1,  # 1m above center (2m total)
 		center_z + half_area
 	)
 
+	print("[TerrainModifier] Adding platform: %s to %s" % [add_begin, add_end])
 	voxel_tool.do_box(add_begin, add_end)
 
 	# Reset SDF settings to default
 	voxel_tool.sdf_strength = 1.0
 	voxel_tool.sdf_scale = 1.0
 
+	print("[TerrainModifier] Flatten complete")
 	return 0  # For now, don't track earth usage for flattening
