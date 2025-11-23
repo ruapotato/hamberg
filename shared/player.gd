@@ -1110,6 +1110,10 @@ func _handle_terrain_modification_input(input_data: Dictionary) -> bool:
 		print("[Player] No valid terrain target found - aim at the ground/terrain")
 		return false
 
+	# Snap to grid for pickaxe operations (square-based)
+	if is_pickaxe:
+		target_pos = _snap_to_grid(target_pos)
+
 	# Determine operation based on tool and input
 	var operation := ""
 	var left_click: bool = input_data.get("attack", false)
@@ -1153,9 +1157,19 @@ func _handle_terrain_modification_input(input_data: Dictionary) -> bool:
 
 	return false
 
-## Update persistent terrain preview (shows sphere when tool equipped)
+## Snap position to 2-meter grid for square placement
+func _snap_to_grid(pos: Vector3) -> Vector3:
+	# Snap to 2-meter grid (matching SQUARE_SIZE)
+	var grid_size := 2.0
+	return Vector3(
+		floor(pos.x / grid_size) * grid_size + grid_size / 2.0,
+		floor(pos.y / grid_size) * grid_size + grid_size / 2.0,
+		floor(pos.z / grid_size) * grid_size + grid_size / 2.0
+	)
+
+## Update persistent terrain preview (shows cube when tool equipped)
 func _update_persistent_terrain_preview() -> void:
-	if not terrain_preview_sphere:
+	if not terrain_preview_cube:
 		return
 
 	# Check if we have a terrain tool equipped
@@ -1174,27 +1188,31 @@ func _update_persistent_terrain_preview() -> void:
 			# Raycast to find target position on terrain
 			var target_pos := _raycast_terrain_target(camera)
 			if target_pos != Vector3.ZERO:
-				# Show sphere preview at target position
-				terrain_preview_sphere.global_position = target_pos
+				# Snap position to grid for pickaxe (square operations)
+				if is_pickaxe:
+					target_pos = _snap_to_grid(target_pos)
 
-				# Size the sphere appropriately based on tool
+				# Show cube preview at snapped position
+				terrain_preview_cube.global_position = target_pos
+
+				# Size the cube appropriately based on tool
 				if is_hoe:
-					terrain_preview_sphere.scale = Vector3(4.0, 4.0, 4.0)  # Leveling radius
+					terrain_preview_cube.scale = Vector3(4.0, 4.0, 4.0)  # Leveling radius
 				else:
-					terrain_preview_sphere.scale = Vector3(1.0, 1.0, 1.0)  # Standard radius (approximates 2x2 cube)
+					terrain_preview_cube.scale = Vector3(1.0, 1.0, 1.0)  # Standard 2x2x2 cube
 
 				# Only show if we're not showing a temporary shape
 				if terrain_preview_timer <= 0.0:
-					terrain_preview_sphere.visible = true
+					terrain_preview_cube.visible = true
 				else:
-					terrain_preview_sphere.visible = false
+					terrain_preview_cube.visible = false
 
 				is_showing_persistent_preview = true
 				return
 
 	# No terrain tool equipped, hide persistent preview
 	if is_showing_persistent_preview:
-		terrain_preview_sphere.visible = false
+		terrain_preview_cube.visible = false
 		is_showing_persistent_preview = false
 
 ## Show terrain preview shape (after placement) - briefly shows the actual placed shape
