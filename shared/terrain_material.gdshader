@@ -38,27 +38,28 @@ varying vec3 world_normal;
 // NOISE FUNCTIONS - Match FastNoiseLite behavior
 // ============================================================================
 
-// Hash function for pseudo-random values
-float hash(vec2 p, int seed) {
-	vec2 ps = p + vec2(float(seed) * 0.1);
-	return fract(sin(dot(ps, vec2(127.1, 311.7))) * 43758.5453);
+// Improved hash function with better distribution
+float hash(vec2 p) {
+	p = fract(p * vec2(443.897, 441.423));
+	p += dot(p, p.yx + 19.19);
+	return fract(p.x * p.y);
 }
 
-// 2D Perlin-like noise
-float noise2d(vec2 p, int seed) {
+// Simple 2D noise function
+float noise2d(vec2 p) {
 	vec2 i = floor(p);
 	vec2 f = fract(p);
 
-	// Smooth interpolation (quintic for better quality)
+	// Smooth interpolation
 	vec2 u = f * f * (3.0 - 2.0 * f);
 
-	// Get corner values
-	float a = hash(i, seed);
-	float b = hash(i + vec2(1.0, 0.0), seed);
-	float c = hash(i + vec2(0.0, 1.0), seed);
-	float d = hash(i + vec2(1.0, 1.0), seed);
+	// Get corner values using improved hash
+	float a = hash(i + vec2(0.0, 0.0));
+	float b = hash(i + vec2(1.0, 0.0));
+	float c = hash(i + vec2(0.0, 1.0));
+	float d = hash(i + vec2(1.0, 1.0));
 
-	// Bilinear interpolation
+	// Bilinear interpolation and scale to -1 to 1
 	return mix(mix(a, b, u.x), mix(c, d, u.x), u.y) * 2.0 - 1.0;
 }
 
@@ -68,12 +69,13 @@ float fbm(vec2 p, int seed, float frequency, int octaves, float lacunarity, floa
 	float amplitude = 1.0;
 	float total_amplitude = 0.0;
 
-	vec2 pos = p * frequency;
+	// Offset position by seed for variation
+	vec2 pos = p * frequency + vec2(float(seed) * 0.1);
 
 	for (int i = 0; i < 8; i++) {
 		if (i >= octaves) break;
 
-		value += noise2d(pos, seed + i) * amplitude;
+		value += noise2d(pos + vec2(float(i) * 10.0)) * amplitude;
 		total_amplitude += amplitude;
 
 		pos *= lacunarity;
