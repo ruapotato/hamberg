@@ -5,14 +5,14 @@ shader_type spatial;
 
 uniform int world_seed = 42;
 
-// Biome grass colors (flat/low slope terrain) - More vibrant and distinct
-const vec3 VALLEY_GRASS = vec3(0.4, 0.6, 0.9);      // Bright blue (serene valley)
-const vec3 FOREST_GRASS = vec3(0.3, 0.7, 0.2);      // Vibrant green (lush forest)
-const vec3 SWAMP_GRASS = vec3(0.4, 0.5, 0.3);       // Olive green (murky swamp)
-const vec3 MOUNTAIN_GRASS = vec3(0.6, 0.65, 0.6);   // Light gray-green
-const vec3 DESERT_GRASS = vec3(0.9, 0.8, 0.5);      // Bright sandy yellow
-const vec3 WIZARDLAND_GRASS = vec3(0.7, 0.4, 0.9);  // Bright purple/magical
-const vec3 HELL_GRASS = vec3(0.6, 0.2, 0.1);        // Red earth
+// Biome grass colors (flat/low slope terrain) - EXTREMELY distinct for visibility
+const vec3 VALLEY_GRASS = vec3(0.2, 0.5, 1.0);      // BRIGHT BLUE (serene valley)
+const vec3 FOREST_GRASS = vec3(0.1, 0.9, 0.1);      // BRIGHT GREEN (lush forest)
+const vec3 SWAMP_GRASS = vec3(0.5, 0.6, 0.2);       // YELLOW-GREEN (murky swamp)
+const vec3 MOUNTAIN_GRASS = vec3(0.8, 0.8, 0.8);    // WHITE (snow/ice)
+const vec3 DESERT_GRASS = vec3(1.0, 0.9, 0.3);      // BRIGHT YELLOW (sandy desert)
+const vec3 WIZARDLAND_GRASS = vec3(0.9, 0.2, 1.0);  // BRIGHT MAGENTA (magical)
+const vec3 HELL_GRASS = vec3(0.9, 0.1, 0.0);        // BRIGHT RED (hellfire)
 
 // Biome rock colors (steep/high slope terrain)
 const vec3 VALLEY_ROCK = vec3(0.5, 0.5, 0.5);       // Gray stone
