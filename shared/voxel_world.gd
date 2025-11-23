@@ -354,27 +354,10 @@ func save_environmental_chunks() -> void:
 # TERRAIN MODIFICATION API
 # ============================================================================
 
-## Dig a circular hole at the target position
-func dig_circle(world_position: Vector3, tool_name: String = "stone_pickaxe") -> int:
-	if terrain_modifier:
-		return terrain_modifier.dig_circle(world_position, tool_name)
-	return 0
-
 ## Dig a square hole at the target position
 func dig_square(world_position: Vector3, tool_name: String = "stone_pickaxe") -> int:
 	if terrain_modifier:
 		return terrain_modifier.dig_square(world_position, tool_name)
-	return 0
-
-## Level terrain to a target height in a circle
-func level_circle(world_position: Vector3, target_height: float) -> void:
-	if terrain_modifier:
-		terrain_modifier.level_circle(world_position, target_height)
-
-## Place earth in a circular pattern
-func place_circle(world_position: Vector3, earth_amount: int) -> int:
-	if terrain_modifier:
-		return terrain_modifier.place_circle(world_position, earth_amount)
 	return 0
 
 ## Place earth in a square pattern
@@ -383,12 +366,8 @@ func place_square(world_position: Vector3, earth_amount: int) -> int:
 		return terrain_modifier.place_square(world_position, earth_amount)
 	return 0
 
-## Grow terrain in a spherical area with gradient falloff
-func grow_sphere(world_position: Vector3, radius: float, strength: float) -> void:
+## Flatten terrain to a target height in a 4x4 grid area
+func flatten_square(world_position: Vector3, target_height: float) -> int:
 	if terrain_modifier:
-		terrain_modifier.grow_sphere(world_position, radius, strength)
-
-## Erode terrain in a spherical area with gradient falloff
-func erode_sphere(world_position: Vector3, radius: float, strength: float) -> void:
-	if terrain_modifier:
-		terrain_modifier.erode_sphere(world_position, radius, strength)
+		return terrain_modifier.flatten_square(world_position, target_height)
+	return 0

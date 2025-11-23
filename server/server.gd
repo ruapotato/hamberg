@@ -530,35 +530,12 @@ func _apply_terrain_modifications_for_chunk(chunk_pos: Vector2i) -> bool:
 		# Apply modification to server's terrain and track success
 		var earth_result := 0
 		match operation:
-			"dig_circle":
-				var tool_name: String = data.get("tool", "stone_pickaxe")
-				print("[Server] -> dig_circle with tool: %s" % tool_name)
-				earth_result = voxel_world.dig_circle(pos_v3, tool_name)
-				if earth_result == 0:
-					print("[Server] WARNING: dig_circle returned 0 (area likely not editable yet)")
-					all_successful = false
-				else:
-					successful_mods.append(modification)
 			"dig_square":
 				var tool_name: String = data.get("tool", "stone_pickaxe")
 				print("[Server] -> dig_square with tool: %s" % tool_name)
 				earth_result = voxel_world.dig_square(pos_v3, tool_name)
 				if earth_result == 0:
 					print("[Server] WARNING: dig_square returned 0 (area likely not editable yet)")
-					all_successful = false
-				else:
-					successful_mods.append(modification)
-			"level_circle":
-				var target_height: float = data.get("target_height", pos_v3.y)
-				print("[Server] -> level_circle at height: %f" % target_height)
-				voxel_world.level_circle(pos_v3, target_height)
-				# level_circle doesn't return a value, assume success
-				successful_mods.append(modification)
-			"place_circle":
-				print("[Server] -> place_circle with unlimited earth")
-				earth_result = voxel_world.place_circle(pos_v3, 999999)
-				if earth_result == 0:
-					print("[Server] WARNING: place_circle returned 0 (area likely not editable yet)")
 					all_successful = false
 				else:
 					successful_mods.append(modification)
@@ -570,6 +547,12 @@ func _apply_terrain_modifications_for_chunk(chunk_pos: Vector2i) -> bool:
 					all_successful = false
 				else:
 					successful_mods.append(modification)
+			"flatten_square":
+				var target_height: float = data.get("target_height", pos_v3.y)
+				print("[Server] -> flatten_square at height: %f" % target_height)
+				earth_result = voxel_world.flatten_square(pos_v3, target_height)
+				# Flatten always succeeds (returns 0), assume success
+				successful_mods.append(modification)
 
 	# Only broadcast modifications that were successfully applied
 	for modification in successful_mods:
@@ -1041,20 +1024,6 @@ func handle_terrain_modification(peer_id: int, operation: String, position: Vect
 
 	# Perform the operation
 	match operation:
-		"dig_circle":
-			# Dig and collect earth
-			print("[Server] Calling voxel_world.dig_circle...")
-			var earth_collected: int = voxel_world.dig_circle(position, tool_name)
-			print("[Server] dig_circle returned: %d earth" % earth_collected)
-			if earth_collected > 0:
-				inventory.add_item("earth", earth_collected)
-				print("[Server] Player %d collected %d earth from digging" % [peer_id, earth_collected])
-				# Sync inventory to client
-				var inventory_data = inventory.get_inventory_data()
-				NetworkManager.rpc_sync_inventory.rpc_id(peer_id, inventory_data)
-			else:
-				print("[Server] No earth collected from dig_circle")
-
 		"dig_square":
 			# Dig and collect earth
 			print("[Server] Calling voxel_world.dig_square...")
@@ -1069,28 +1038,11 @@ func handle_terrain_modification(peer_id: int, operation: String, position: Vect
 			else:
 				print("[Server] No earth collected from dig_square")
 
-		"level_circle":
-			# Level terrain to target height
+		"flatten_square":
+			# Flatten terrain to target height
 			var target_height: float = data.get("target_height", position.y)
-			voxel_world.level_circle(position, target_height)
-			print("[Server] Player %d leveled terrain at %s to height %f" % [peer_id, position, target_height])
-
-		"place_circle":
-			# Check if player has earth
-			var earth_amount: int = inventory.get_item_count("earth")
-			if earth_amount <= 0:
-				print("[Server] Player %d has no earth to place" % peer_id)
-				return
-
-			var earth_used: int = voxel_world.place_circle(position, earth_amount)
-			if earth_used > 0:
-				inventory.remove_item("earth", earth_used)
-				print("[Server] Player %d placed %d earth" % [peer_id, earth_used])
-				# Add earth_amount to data for client broadcast
-				data["earth_amount"] = earth_amount
-				# Sync inventory to client
-				var inventory_data = inventory.get_inventory_data()
-				NetworkManager.rpc_sync_inventory.rpc_id(peer_id, inventory_data)
+			voxel_world.flatten_square(position, target_height)
+			print("[Server] Player %d flattened terrain at %s to height %f" % [peer_id, position, target_height])
 
 		"place_square":
 			# Check if player has earth
