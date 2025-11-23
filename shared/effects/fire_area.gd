@@ -20,7 +20,7 @@ func _ready() -> void:
 
 	# Setup particles to match radius
 	var particles = $GPUParticles3D
-	particles.visibility_aabb = AABB(-radius, 0, -radius, radius * 2, 3, radius * 2)
+	particles.visibility_aabb = AABB(Vector3(-radius, 0, -radius), Vector3(radius * 2, 3, radius * 2))
 
 	# Setup timer
 	$Timer.wait_time = duration
