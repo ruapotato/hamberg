@@ -77,15 +77,32 @@ func _animate_walking(delta: float, horizontal_speed: float) -> void:
 	var leg_angle = sin(animation_phase) * 0.3
 	var arm_angle = sin(animation_phase) * 0.2
 
-	# Legs swing opposite
+	# Legs swing opposite with knee articulation
 	left_leg.rotation.x = leg_angle
 	right_leg.rotation.x = -leg_angle
 
-	# Arms swing opposite to legs (natural walking motion)
+	# Add natural knee bend - knees bend more when leg is forward
+	var knee_angle = sin(animation_phase) * 0.5
+	var left_knee = left_leg.get_node_or_null("Knee") if left_leg else null
+	var right_knee = right_leg.get_node_or_null("Knee") if right_leg else null
+	if left_knee:
+		left_knee.rotation.x = max(0.0, knee_angle)  # Only bend forward
+	if right_knee:
+		right_knee.rotation.x = max(0.0, -knee_angle)  # Only bend forward
+
+	# Arms swing opposite to legs with elbow articulation (natural walking motion)
 	if left_arm:
 		left_arm.rotation.x = -arm_angle  # Left arm swings opposite to left leg
+		var left_elbow = left_arm.get_node_or_null("Elbow")
+		if left_elbow:
+			# Elbow bends slightly when arm is back
+			left_elbow.rotation.x = max(0.0, arm_angle * 0.8)
 	if right_arm and not is_attacking:
 		right_arm.rotation.x = arm_angle   # Right arm swings opposite to right leg (unless attacking)
+		var right_elbow = right_arm.get_node_or_null("Elbow")
+		if right_elbow:
+			# Elbow bends slightly when arm is back
+			right_elbow.rotation.x = max(0.0, -arm_angle * 0.8)
 
 	# Add subtle torso sway
 	if torso:
@@ -104,12 +121,24 @@ func _animate_idle(delta: float) -> void:
 
 	if left_leg:
 		left_leg.rotation.x = lerp(left_leg.rotation.x, 0.0, delta * 5.0)
+		var left_knee = left_leg.get_node_or_null("Knee")
+		if left_knee:
+			left_knee.rotation.x = lerp(left_knee.rotation.x, 0.0, delta * 5.0)
 	if right_leg:
 		right_leg.rotation.x = lerp(right_leg.rotation.x, 0.0, delta * 5.0)
+		var right_knee = right_leg.get_node_or_null("Knee")
+		if right_knee:
+			right_knee.rotation.x = lerp(right_knee.rotation.x, 0.0, delta * 5.0)
 	if left_arm:
 		left_arm.rotation.x = lerp(left_arm.rotation.x, 0.0, delta * 5.0)
+		var left_elbow = left_arm.get_node_or_null("Elbow")
+		if left_elbow:
+			left_elbow.rotation.x = lerp(left_elbow.rotation.x, 0.0, delta * 5.0)
 	if right_arm:
 		right_arm.rotation.x = lerp(right_arm.rotation.x, 0.0, delta * 5.0)
+		var right_elbow = right_arm.get_node_or_null("Elbow")
+		if right_elbow:
+			right_elbow.rotation.x = lerp(right_elbow.rotation.x, 0.0, delta * 5.0)
 	if torso:
 		torso.rotation.z = lerp(torso.rotation.z, 0.0, delta * 5.0)
 
@@ -127,6 +156,12 @@ func _animate_attack(delta: float) -> void:
 	# Swing down and back up
 	var swing_angle = -sin(attack_progress * PI) * 1.2
 	right_arm.rotation.x = swing_angle
+
+	# Elbow extends during attack
+	var right_elbow = right_arm.get_node_or_null("Elbow")
+	if right_elbow:
+		var elbow_bend = -sin(attack_progress * PI) * 0.6
+		right_elbow.rotation.x = elbow_bend
 
 ## Start an attack animation
 func start_attack_animation() -> void:

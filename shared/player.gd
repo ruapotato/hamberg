@@ -27,6 +27,14 @@ var is_local_player: bool = false
 var animation_phase: float = 0.0  # Accumulated phase for smooth animation cycles
 var is_game_loaded: bool = false  # Set to true when loading is complete
 
+# Jump/landing animation state
+var is_jumping: bool = false  # Set on jump button press
+var is_falling: bool = false  # Set when falling without jumping
+var was_on_floor_last_frame: bool = false  # Track floor state for landing detection
+var landing_timer: float = 0.0  # Timer for landing animation
+const LANDING_ANIMATION_TIME: float = 0.2  # How long landing animation plays
+var is_landing: bool = false  # Currently playing landing animation
+
 # Client prediction state
 var input_sequence: int = 0
 var input_history: Array[Dictionary] = []
@@ -465,9 +473,29 @@ func _apply_movement(input_data: Dictionary, delta: float) -> void:
 func _update_animation_state() -> void:
 	"""Update animation state based on velocity"""
 	var horizontal_speed := Vector2(velocity.x, velocity.z).length()
+	var on_floor := is_on_floor()
 
-	if not is_on_floor():
-		current_animation_state = "jump"
+	# Detect landing (transition from air to ground)
+	if on_floor and not was_on_floor_last_frame:
+		is_landing = true
+		landing_timer = 0.0
+		is_jumping = false
+		is_falling = false
+
+	# Update floor tracking
+	was_on_floor_last_frame = on_floor
+
+	# Set animation state
+	if is_landing:
+		current_animation_state = "landing"
+	elif not on_floor:
+		if velocity.y > 0.5:
+			current_animation_state = "jump"
+			is_jumping = true
+			is_falling = false
+		else:
+			current_animation_state = "falling"
+			is_falling = true
 	elif horizontal_speed > 6.0:
 		current_animation_state = "run"
 	elif horizontal_speed > 0.5:
@@ -1421,6 +1449,82 @@ func _update_body_animations(delta: float) -> void:
 		_animate_stun(delta, left_arm, right_arm, left_leg, right_leg)
 		return
 
+	# Update landing animation timer
+	if is_landing:
+		landing_timer += delta
+		if landing_timer >= LANDING_ANIMATION_TIME:
+			is_landing = false
+			landing_timer = 0.0
+
+	# Get elbow and knee nodes for articulated animations
+	var left_elbow = left_arm.get_node_or_null("Elbow") if left_arm else null
+	var right_elbow = right_arm.get_node_or_null("Elbow") if right_arm else null
+	var left_knee = left_leg.get_node_or_null("Knee") if left_leg else null
+	var right_knee = right_leg.get_node_or_null("Knee") if right_leg else null
+
+	# Landing animation (impact bounce) - high priority
+	if is_landing:
+		var landing_progress = landing_timer / LANDING_ANIMATION_TIME
+		var bounce_curve = sin(landing_progress * PI)  # 0 -> 1 -> 0
+
+		# Compress body on impact
+		if body_container:
+			body_container.scale.y = lerp(1.0, 0.85, bounce_curve * 0.5)
+
+		# Bend knees on impact
+		if left_knee:
+			left_knee.rotation.x = lerp(0.0, 0.8, bounce_curve)
+		if right_knee:
+			right_knee.rotation.x = lerp(0.0, 0.8, bounce_curve)
+
+		# Arms swing down slightly
+		if left_arm and not is_blocking:
+			left_arm.rotation.x = lerp(0.0, 0.3, bounce_curve)
+			if left_elbow:
+				left_elbow.rotation.x = lerp(0.0, -0.2, bounce_curve)
+		if right_arm and not is_attacking and not is_special_attacking:
+			right_arm.rotation.x = lerp(0.0, 0.3, bounce_curve)
+			if right_elbow:
+				right_elbow.rotation.x = lerp(0.0, -0.2, bounce_curve)
+
+		# Don't process other movement animations during landing
+		return
+
+	# Jump/falling animation - Valheim athletic style
+	if (is_jumping or is_falling) and not is_on_floor():
+		# Arms swing up naturally (more for jump, less for fall)
+		var arm_raise = 1.0 if is_jumping else 0.6
+
+		if left_arm and not is_blocking:
+			left_arm.rotation.x = lerp(left_arm.rotation.x, -0.8 * arm_raise, delta * 8.0)
+			left_arm.rotation.z = lerp(left_arm.rotation.z, 0.3, delta * 8.0)
+			if left_elbow:
+				left_elbow.rotation.x = lerp(left_elbow.rotation.x, -0.6 * arm_raise, delta * 8.0)
+
+		if right_arm and not is_attacking and not is_special_attacking:
+			right_arm.rotation.x = lerp(right_arm.rotation.x, -0.8 * arm_raise, delta * 8.0)
+			right_arm.rotation.z = lerp(right_arm.rotation.z, -0.3, delta * 8.0)
+			if right_elbow:
+				right_elbow.rotation.x = lerp(right_elbow.rotation.x, -0.6 * arm_raise, delta * 8.0)
+
+		# Knees bend ~90 degrees (tucked up)
+		var knee_bend = 1.5 if is_jumping else 1.2
+		if left_leg:
+			left_leg.rotation.x = lerp(left_leg.rotation.x, 0.9, delta * 8.0)
+			if left_knee:
+				left_knee.rotation.x = lerp(left_knee.rotation.x, knee_bend, delta * 8.0)
+		if right_leg:
+			right_leg.rotation.x = lerp(right_leg.rotation.x, 0.9, delta * 8.0)
+			if right_knee:
+				right_knee.rotation.x = lerp(right_knee.rotation.x, knee_bend, delta * 8.0)
+
+		# Slight forward lean
+		if body_container:
+			body_container.rotation.x = lerp(body_container.rotation.x, 0.2, delta * 5.0)
+
+		# Don't process other movement animations while in air
+		return
+
 	# Lunge crouch animation overrides everything (ball shape for dramatic leap)
 	if is_lunging and body_container:
 		# Crouch the body into a ball shape with aggressive forward dive
@@ -1431,13 +1535,21 @@ func _update_body_animations(delta: float) -> void:
 		if left_arm:
 			left_arm.rotation.x = lerp(left_arm.rotation.x, -0.8, delta * 20.0)
 			left_arm.rotation.z = lerp(left_arm.rotation.z, 0.5, delta * 20.0)
+			if left_elbow:
+				left_elbow.rotation.x = lerp(left_elbow.rotation.x, -0.9, delta * 20.0)  # Tuck elbow in
 		if right_arm:
 			right_arm.rotation.x = lerp(right_arm.rotation.x, -0.8, delta * 20.0)
 			right_arm.rotation.z = lerp(right_arm.rotation.z, -0.5, delta * 20.0)
+			if right_elbow:
+				right_elbow.rotation.x = lerp(right_elbow.rotation.x, -0.9, delta * 20.0)  # Tuck elbow in
 		if left_leg:
 			left_leg.rotation.x = lerp(left_leg.rotation.x, 0.6, delta * 20.0)
+			if left_knee:
+				left_knee.rotation.x = lerp(left_knee.rotation.x, 1.2, delta * 20.0)  # Bend knee tightly
 		if right_leg:
 			right_leg.rotation.x = lerp(right_leg.rotation.x, 0.6, delta * 20.0)
+			if right_knee:
+				right_knee.rotation.x = lerp(right_knee.rotation.x, 1.2, delta * 20.0)  # Bend knee tightly
 		return  # Skip other animations while lunging
 
 	# Reset body container scale and rotation when not lunging
@@ -1449,13 +1561,21 @@ func _update_body_animations(delta: float) -> void:
 		if left_arm and not is_blocking:
 			left_arm.rotation.x = lerp(left_arm.rotation.x, 0.0, delta * 10.0)
 			left_arm.rotation.z = lerp(left_arm.rotation.z, 0.0, delta * 10.0)
+			if left_elbow:
+				left_elbow.rotation.x = lerp(left_elbow.rotation.x, 0.0, delta * 10.0)
 		if right_arm and not is_attacking and not is_special_attacking:
 			right_arm.rotation.x = lerp(right_arm.rotation.x, 0.0, delta * 10.0)
 			right_arm.rotation.z = lerp(right_arm.rotation.z, 0.0, delta * 10.0)
+			if right_elbow:
+				right_elbow.rotation.x = lerp(right_elbow.rotation.x, 0.0, delta * 10.0)
 		if left_leg:
 			left_leg.rotation.x = lerp(left_leg.rotation.x, 0.0, delta * 10.0)
+			if left_knee:
+				left_knee.rotation.x = lerp(left_knee.rotation.x, 0.0, delta * 10.0)
 		if right_leg:
 			right_leg.rotation.x = lerp(right_leg.rotation.x, 0.0, delta * 10.0)
+			if right_knee:
+				right_knee.rotation.x = lerp(right_knee.rotation.x, 0.0, delta * 10.0)
 
 	# Blocking animation overrides everything (only LEFT arm raised for shield defense)
 	if is_blocking:
@@ -1476,6 +1596,11 @@ func _update_body_animations(delta: float) -> void:
 		var swing_z = sin(attack_progress * PI) * -0.5  # Some horizontal motion
 		right_arm.rotation.x = swing_x
 		right_arm.rotation.z = swing_z
+
+		# Elbow bends during windup and extends on strike
+		if right_elbow:
+			var elbow_bend = -sin(attack_progress * PI) * 0.8  # Negative = bend inward
+			right_elbow.rotation.x = elbow_bend
 	# Attack animation overrides arm movement (RIGHT arm for weapons)
 	elif is_attacking and right_arm:
 		var attack_progress = attack_timer / current_attack_animation_time
@@ -1493,6 +1618,11 @@ func _update_body_animations(delta: float) -> void:
 				var forward_angle = -sin(attack_progress * PI) * 0.8
 				right_arm.rotation.x = forward_angle
 
+				# Elbow extends during slash
+				if right_elbow:
+					var elbow_bend = -sin(attack_progress * PI) * 0.6
+					right_elbow.rotation.x = elbow_bend
+
 			1:  # Left-to-right slash (reverse of first slash)
 				# Horizontal sweep from left to right
 				var start_z = 0.6   # Start crossed over to left
@@ -1504,11 +1634,21 @@ func _update_body_animations(delta: float) -> void:
 				var forward_angle = -sin(attack_progress * PI) * 0.8
 				right_arm.rotation.x = forward_angle
 
+				# Elbow extends during slash
+				if right_elbow:
+					var elbow_bend = -sin(attack_progress * PI) * 0.6
+					right_elbow.rotation.x = elbow_bend
+
 			2:  # Forward jab/thrust (finisher)
 				# Strong forward thrust (minimal horizontal movement)
 				var jab_angle = -sin(attack_progress * PI) * 1.8  # Strong forward jab
 				right_arm.rotation.x = jab_angle
 				right_arm.rotation.z = -0.3  # Slight angle for natural look
+
+				# Elbow extends fully on jab
+				if right_elbow:
+					var elbow_extend = -sin(attack_progress * PI) * 0.9
+					right_elbow.rotation.x = elbow_extend
 
 			_:  # Default slash (same as animation 0)
 				var start_z = -1.0
@@ -1517,6 +1657,11 @@ func _update_body_animations(delta: float) -> void:
 				right_arm.rotation.z = horizontal_angle
 				var forward_angle = -sin(attack_progress * PI) * 0.8
 				right_arm.rotation.x = forward_angle
+
+				# Elbow extends during slash
+				if right_elbow:
+					var elbow_bend = -sin(attack_progress * PI) * 0.6
+					right_elbow.rotation.x = elbow_bend
 	elif right_arm:
 		# Normal arm swing will be handled below
 		pass
@@ -1544,6 +1689,13 @@ func _update_body_animations(delta: float) -> void:
 			left_leg.rotation.x = leg_angle
 			right_leg.rotation.x = -leg_angle
 
+			# Add knee bend for walking
+			var knee_angle = sin(animation_phase) * 0.4
+			if left_knee:
+				left_knee.rotation.x = max(0.0, knee_angle)
+			if right_knee:
+				right_knee.rotation.x = max(0.0, -knee_angle)
+
 			# Left arm (shield) stays in defensive position (already set above)
 			# Right arm (weapon) stays relaxed (already set above)
 			# No arm swinging during defensive movement
@@ -1562,15 +1714,28 @@ func _update_body_animations(delta: float) -> void:
 			var leg_angle = sin(animation_phase) * 0.3
 			var arm_angle = sin(animation_phase) * 0.2
 
-			# Legs swing opposite
+			# Legs swing opposite with knee articulation
 			left_leg.rotation.x = leg_angle
 			right_leg.rotation.x = -leg_angle
 
-			# Arms swing opposite to legs (natural walking motion)
+			# Add natural knee bend - knees bend more when leg is forward
+			var knee_angle = sin(animation_phase) * 0.5
+			if left_knee:
+				left_knee.rotation.x = max(0.0, knee_angle)  # Only bend forward
+			if right_knee:
+				right_knee.rotation.x = max(0.0, -knee_angle)  # Only bend forward
+
+			# Arms swing opposite to legs with elbow articulation (natural walking motion)
 			if left_arm and not is_blocking:
 				left_arm.rotation.x = -arm_angle  # Left arm swings opposite to left leg
+				if left_elbow:
+					# Elbow bends slightly when arm is back
+					left_elbow.rotation.x = max(0.0, arm_angle * 0.8)
 			if right_arm and not is_attacking and not is_special_attacking and not is_blocking:
 				right_arm.rotation.x = arm_angle   # Right arm swings opposite to right leg
+				if right_elbow:
+					# Elbow bends slightly when arm is back
+					right_elbow.rotation.x = max(0.0, -arm_angle * 0.8)
 
 			# Add subtle torso sway
 			if torso:
@@ -1588,15 +1753,25 @@ func _update_body_animations(delta: float) -> void:
 		left_leg.rotation.x = lerp(left_leg.rotation.x, 0.0, delta * 5.0)
 		right_leg.rotation.x = lerp(right_leg.rotation.x, 0.0, delta * 5.0)
 
+		# Reset knee joints
+		if left_knee:
+			left_knee.rotation.x = lerp(left_knee.rotation.x, 0.0, delta * 5.0)
+		if right_knee:
+			right_knee.rotation.x = lerp(right_knee.rotation.x, 0.0, delta * 5.0)
+
 		# Don't reset arms if blocking, attacking, or special attacking
 		# Left arm: reset unless blocking (shield raised)
 		if left_arm and not is_blocking:
 			left_arm.rotation.x = lerp(left_arm.rotation.x, 0.0, delta * 5.0)
 			left_arm.rotation.z = lerp(left_arm.rotation.z, 0.0, delta * 5.0)
+			if left_elbow:
+				left_elbow.rotation.x = lerp(left_elbow.rotation.x, 0.0, delta * 5.0)
 		# Right arm: reset unless attacking or special attacking (weapon swinging)
 		if right_arm and not is_attacking and not is_special_attacking:
 			right_arm.rotation.x = lerp(right_arm.rotation.x, 0.0, delta * 5.0)
 			right_arm.rotation.z = lerp(right_arm.rotation.z, 0.0, delta * 5.0)
+			if right_elbow:
+				right_elbow.rotation.x = lerp(right_elbow.rotation.x, 0.0, delta * 5.0)
 
 		if torso:
 			torso.rotation.z = lerp(torso.rotation.z, 0.0, delta * 5.0)

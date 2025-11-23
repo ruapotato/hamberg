@@ -150,57 +150,105 @@ func _setup_body() -> void:
 	right_eye.position = Vector3(0.04 * scale_factor, 0.02 * scale_factor, 0.08 * scale_factor)
 	head.add_child(right_eye)
 
-	# Left Leg with pivot at hip
-	var leg_mesh = CapsuleMesh.new()
-	leg_mesh.radius = 0.04 * scale_factor
-	leg_mesh.height = 0.35 * scale_factor
+	# Left Leg with articulated knee
+	var thigh_mesh = CapsuleMesh.new()
+	thigh_mesh.radius = 0.04 * scale_factor
+	thigh_mesh.height = 0.175 * scale_factor  # Half of original leg length
 
 	left_leg = Node3D.new()
 	left_leg.position = Vector3(-0.06 * scale_factor, 0.58 * scale_factor, 0)  # Hip position
 	body_container.add_child(left_leg)
 
-	var left_leg_mesh = MeshInstance3D.new()
-	left_leg_mesh.mesh = leg_mesh
-	left_leg_mesh.material_override = clothes_mat
-	left_leg_mesh.position = Vector3(0, -0.175 * scale_factor, 0)  # Offset down by half leg length
-	left_leg.add_child(left_leg_mesh)
+	var left_thigh_mesh = MeshInstance3D.new()
+	left_thigh_mesh.mesh = thigh_mesh
+	left_thigh_mesh.material_override = clothes_mat
+	left_thigh_mesh.position = Vector3(0, -0.0875 * scale_factor, 0)  # Offset down by half thigh length
+	left_leg.add_child(left_thigh_mesh)
 
-	# Right Leg with pivot at hip
+	# Left knee joint
+	var left_knee = Node3D.new()
+	left_knee.name = "Knee"
+	left_knee.position = Vector3(0, -0.175 * scale_factor, 0)  # At knee position
+	left_leg.add_child(left_knee)
+
+	var left_shin_mesh = MeshInstance3D.new()
+	left_shin_mesh.mesh = thigh_mesh  # Reuse same mesh
+	left_shin_mesh.material_override = clothes_mat
+	left_shin_mesh.position = Vector3(0, -0.0875 * scale_factor, 0)  # Offset down by half shin length
+	left_knee.add_child(left_shin_mesh)
+
+	# Right Leg with articulated knee
 	right_leg = Node3D.new()
 	right_leg.position = Vector3(0.06 * scale_factor, 0.58 * scale_factor, 0)  # Hip position
 	body_container.add_child(right_leg)
 
-	var right_leg_mesh = MeshInstance3D.new()
-	right_leg_mesh.mesh = leg_mesh
-	right_leg_mesh.material_override = clothes_mat
-	right_leg_mesh.position = Vector3(0, -0.175 * scale_factor, 0)  # Offset down by half leg length
-	right_leg.add_child(right_leg_mesh)
+	var right_thigh_mesh = MeshInstance3D.new()
+	right_thigh_mesh.mesh = thigh_mesh
+	right_thigh_mesh.material_override = clothes_mat
+	right_thigh_mesh.position = Vector3(0, -0.0875 * scale_factor, 0)  # Offset down by half thigh length
+	right_leg.add_child(right_thigh_mesh)
 
-	# Left Arm with pivot at shoulder
-	var arm_mesh = CapsuleMesh.new()
-	arm_mesh.radius = 0.03 * scale_factor
-	arm_mesh.height = 0.3 * scale_factor
+	# Right knee joint
+	var right_knee = Node3D.new()
+	right_knee.name = "Knee"
+	right_knee.position = Vector3(0, -0.175 * scale_factor, 0)  # At knee position
+	right_leg.add_child(right_knee)
+
+	var right_shin_mesh = MeshInstance3D.new()
+	right_shin_mesh.mesh = thigh_mesh  # Reuse same mesh
+	right_shin_mesh.material_override = clothes_mat
+	right_shin_mesh.position = Vector3(0, -0.0875 * scale_factor, 0)  # Offset down by half shin length
+	right_knee.add_child(right_shin_mesh)
+
+	# Left Arm with articulated elbow
+	var upper_arm_mesh = CapsuleMesh.new()
+	upper_arm_mesh.radius = 0.03 * scale_factor
+	upper_arm_mesh.height = 0.15 * scale_factor  # Half of original arm length
 
 	left_arm = Node3D.new()
 	left_arm.position = Vector3(-0.11 * scale_factor, 0.90 * scale_factor, 0)  # Shoulder position
 	body_container.add_child(left_arm)
 
-	var left_arm_mesh = MeshInstance3D.new()
-	left_arm_mesh.mesh = arm_mesh
-	left_arm_mesh.material_override = skin_mat
-	left_arm_mesh.position = Vector3(0, -0.15 * scale_factor, 0)  # Offset down by half arm length
-	left_arm.add_child(left_arm_mesh)
+	var left_upper_arm_mesh = MeshInstance3D.new()
+	left_upper_arm_mesh.mesh = upper_arm_mesh
+	left_upper_arm_mesh.material_override = skin_mat
+	left_upper_arm_mesh.position = Vector3(0, -0.075 * scale_factor, 0)  # Offset down by half upper arm length
+	left_arm.add_child(left_upper_arm_mesh)
 
-	# Right Arm with pivot at shoulder
+	# Left elbow joint
+	var left_elbow = Node3D.new()
+	left_elbow.name = "Elbow"
+	left_elbow.position = Vector3(0, -0.15 * scale_factor, 0)  # At elbow position
+	left_arm.add_child(left_elbow)
+
+	var left_forearm_mesh = MeshInstance3D.new()
+	left_forearm_mesh.mesh = upper_arm_mesh  # Reuse same mesh
+	left_forearm_mesh.material_override = skin_mat
+	left_forearm_mesh.position = Vector3(0, -0.075 * scale_factor, 0)  # Offset down by half forearm length
+	left_elbow.add_child(left_forearm_mesh)
+
+	# Right Arm with articulated elbow
 	right_arm = Node3D.new()
 	right_arm.position = Vector3(0.11 * scale_factor, 0.90 * scale_factor, 0)  # Shoulder position
 	body_container.add_child(right_arm)
 
-	var right_arm_mesh = MeshInstance3D.new()
-	right_arm_mesh.mesh = arm_mesh
-	right_arm_mesh.material_override = skin_mat
-	right_arm_mesh.position = Vector3(0, -0.15 * scale_factor, 0)  # Offset down by half arm length
-	right_arm.add_child(right_arm_mesh)
+	var right_upper_arm_mesh = MeshInstance3D.new()
+	right_upper_arm_mesh.mesh = upper_arm_mesh
+	right_upper_arm_mesh.material_override = skin_mat
+	right_upper_arm_mesh.position = Vector3(0, -0.075 * scale_factor, 0)  # Offset down by half upper arm length
+	right_arm.add_child(right_upper_arm_mesh)
+
+	# Right elbow joint
+	var right_elbow = Node3D.new()
+	right_elbow.name = "Elbow"
+	right_elbow.position = Vector3(0, -0.15 * scale_factor, 0)  # At elbow position
+	right_arm.add_child(right_elbow)
+
+	var right_forearm_mesh = MeshInstance3D.new()
+	right_forearm_mesh.mesh = upper_arm_mesh  # Reuse same mesh
+	right_forearm_mesh.material_override = skin_mat
+	right_forearm_mesh.position = Vector3(0, -0.075 * scale_factor, 0)  # Offset down by half forearm length
+	right_elbow.add_child(right_forearm_mesh)
 
 	# Set head base height for animation base class
 	head_base_height = 0.99 * scale_factor

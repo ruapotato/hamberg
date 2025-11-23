@@ -2,22 +2,30 @@
 
 [ext_resource type="Material" uid="uid://dd8jd52o2yfab" path="res://assets/player_leg.tres" id="1_iov2g"]
 
-[sub_resource type="CapsuleMesh" id="CapsuleMesh_leg"]
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_thigh"]
 radius = 0.05
-height = 0.8
+height = 0.4
 
-[sub_resource type="CapsuleMesh" id="CapsuleMesh_iov2g"]
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_foot"]
 radius = 0.055
 height = 0.215
 
 [node name="PlayerLeg" type="Node3D"]
 
-[node name="LegMesh" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.4, 0)
-mesh = SubResource("CapsuleMesh_leg")
+[node name="ThighMesh" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.2, 0)
+mesh = SubResource("CapsuleMesh_thigh")
 surface_material_override/0 = ExtResource("1_iov2g")
 
-[node name="foot" type="MeshInstance3D" parent="."]
-transform = Transform3D(-0.9999999, -8.742277e-08, 3.821371e-15, 0, -4.3711385e-08, -1, 8.742277e-08, -0.9999999, 4.371139e-08, -0.004653886, -0.7725667, 0.050863788)
+[node name="Knee" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.4, 0)
+
+[node name="ShinMesh" type="MeshInstance3D" parent="Knee"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.2, 0)
+mesh = SubResource("CapsuleMesh_thigh")
+surface_material_override/0 = ExtResource("1_iov2g")
+
+[node name="Foot" type="MeshInstance3D" parent="Knee"]
+transform = Transform3D(-0.9999999, -8.742277e-08, 3.821371e-15, 0, -4.3711385e-08, -1, 8.742277e-08, -0.9999999, 4.371139e-08, -0.004653886, -0.3725667, 0.050863788)
 material_override = ExtResource("1_iov2g")
-mesh = SubResource("CapsuleMesh_iov2g")
+mesh = SubResource("CapsuleMesh_foot")
