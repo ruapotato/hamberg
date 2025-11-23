@@ -173,7 +173,11 @@ func _process(_delta: float) -> void:
 		_handle_interaction_input()
 
 	# Handle pause menu (Escape or Button 6)
-	if (Input.is_action_just_pressed("ui_cancel") or Input.is_action_just_pressed("toggle_pause")) and is_in_game:
+	if Input.is_action_just_pressed("ui_cancel") and is_in_game:
+		print("[Client] ui_cancel pressed, toggling pause")
+		_toggle_pause_menu()
+	elif Input.is_action_just_pressed("toggle_pause") and is_in_game:
+		print("[Client] toggle_pause pressed, toggling pause")
 		_toggle_pause_menu()
 
 	# Handle manual save
@@ -674,12 +678,17 @@ func _get_camera() -> Camera3D:
 # ============================================================================
 
 func _toggle_pause_menu() -> void:
+	print("[Client] Toggle pause menu called (ui exists: %s, visible: %s)" % [pause_menu_ui != null, pause_menu_ui.visible if pause_menu_ui else false])
+
 	if not pause_menu_ui:
+		print("[Client] ERROR: pause_menu_ui is null!")
 		return
 
 	if pause_menu_ui.visible:
+		print("[Client] Hiding pause menu")
 		pause_menu_ui.hide_menu()
 	else:
+		print("[Client] Showing pause menu")
 		pause_menu_ui.show_menu()
 
 func _on_pause_resume() -> void:
