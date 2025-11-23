@@ -335,14 +335,25 @@ void fragment() {
 	float rock_blend = 1.0 - smoothstep(0.70, 0.85, flatness);
 	vec3 base_color = mix(grass_color, rock_color, rock_blend);
 
-	// TEST: Output FBM as pure grayscale with VERY LOW frequency (huge patterns)
-	float test_fbm = fbm(xz_pos, world_seed + 500, 0.01, 3, 2.0, 0.5);  // 0.01 = HUGE patterns
+	// BYPASS FBM - Use simple sin() patterns for grass/rock texture
+	// Combine multiple sin waves at different scales for organic look
+	float fine = sin(xz_pos.x * 1.0) * sin(xz_pos.y * 1.0);
+	float medium = sin(xz_pos.x * 0.2) * sin(xz_pos.y * 0.2);
+	float large = sin(xz_pos.x * 0.05) * sin(xz_pos.y * 0.05);
 
-	// Convert -1 to 1 range to 0 to 1
-	float fbm_vis = (test_fbm + 1.0) * 0.5;
+	// Combine scales (each returns -1 to 1)
+	float combined = fine * 0.5 + medium * 0.3 + large * 0.2;
 
-	// Output as pure grayscale - should see HUGE black/white blobs
-	ALBEDO = vec3(fbm_vis, fbm_vis, fbm_vis);
+	// Apply strong variation to base color
+	vec3 color = base_color * (1.0 + combined * 0.5);  // 0.5 to 1.5 range
+
+	// Simple directional lighting
+	vec3 light_dir = normalize(vec3(0.5, 1.0, 0.3));
+	float ndotl = max(dot(world_normal, light_dir), 0.0);
+	float ambient = 0.6;
+	float lighting = ambient + (1.0 - ambient) * ndotl;
+
+	ALBEDO = color * lighting;
 
 	// Rocky areas are slightly rougher
 	ROUGHNESS = mix(0.85, 0.95, rock_blend);
