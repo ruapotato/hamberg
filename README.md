@@ -564,6 +564,31 @@ NetworkManager.rpc_place_buildable.rpc_id(1, piece_name, pos, rot)
 
 Hamberg features a sophisticated terrain modification system that persists changes across server restarts and handles VoxelTool's proximity requirements.
 
+### Why This Custom System? (VoxelTools Limitations)
+
+**We use VoxelLodTerrain with a custom RPC-based replay system instead of VoxelTools' built-in streaming because:**
+
+1. **VoxelLodTerrain + VoxelStream = Works** ✓ but **NO multiplayer support** ✗
+   - VoxelTerrainMultiplayerSynchronizer only works with VoxelTerrain (not VoxelLodTerrain)
+   - VoxelLodTerrain has no official multiplayer support ("planned" per docs)
+
+2. **VoxelTerrain + VoxelStream = Multiplayer support** ✓ but **generator completely blocked** ✗
+   - VoxelStreamRegionFiles blocks generator → no terrain renders
+   - VoxelStreamSQLite blocks generator → no terrain renders
+   - Any VoxelStream assignment prevents generator fallback on VoxelTerrain
+
+3. **VoxelTerrain + NO stream = Multiplayer** ✓ and **terrain renders** ✓ but **no persistence** ✗
+   - Modifications lost on server restart
+   - No built-in save/load mechanism
+
+**Our Solution: VoxelLodTerrain + Custom RPC Replay**
+- ✓ Terrain renders (procedural generation works)
+- ✓ Multiplayer via custom RPC system
+- ✓ Persistence via terrain_history.json
+- ⚠️ Known issue: Replayed terrain has slight visual artifacts due to LOD timing
+
+This is the best compromise given VoxelTools' architectural limitations for multiplayer + streaming + procedural generation.
+
 ### How It Works
 
 **Server-Side Authority:**
