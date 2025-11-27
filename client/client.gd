@@ -91,8 +91,7 @@ var environmental_objects_container: Node3D
 
 # World and camera
 @onready var world: Node3D = $World
-@onready var voxel_world = $World/VoxelWorld
-@onready var viewer: VoxelViewer = $VoxelViewer  # For voxel terrain - will attach to player
+@onready var terrain_world = $World/TerrainWorld
 
 func _ready() -> void:
 	print("[Client] Client node ready")
@@ -555,13 +554,10 @@ func _setup_camera_follow(player: Node3D) -> void:
 	if player.has_method("setup_viewmodel"):
 		player.setup_viewmodel()
 
-	# Move VoxelViewer to player (for terrain streaming around player)
-	if viewer:
-		var viewer_parent := viewer.get_parent()
-		if viewer_parent:
-			viewer_parent.remove_child(viewer)
-			player.add_child(viewer)
-			print("[Client] VoxelViewer attached to local player")
+	# Register player with terrain world for chunk loading
+	if terrain_world:
+		terrain_world.register_player_for_spawning(NetworkManager.get_local_player_id(), player)
+		print("[Client] Player registered with terrain world for chunk loading")
 
 func _setup_inventory_ui(player: Node3D) -> void:
 	"""Set up inventory UI and link to player's inventory"""
@@ -734,7 +730,7 @@ func _on_pause_quit() -> void:
 
 ## Update biome music based on player position
 func _update_biome_music(delta: float) -> void:
-	if not local_player or not music_manager or not voxel_world:
+	if not local_player or not music_manager or not terrain_world:
 		return
 
 	# Only check periodically (every 2 seconds)
@@ -749,7 +745,7 @@ func _update_biome_music(delta: float) -> void:
 	var xz_pos = Vector2(player_pos.x, player_pos.z)
 
 	# Get biome at player position
-	var biome = voxel_world.get_biome_at(xz_pos)
+	var biome = terrain_world.get_biome_at(xz_pos)
 
 	# Update music if biome changed
 	if biome != current_biome:
@@ -760,7 +756,7 @@ func _update_biome_music(delta: float) -> void:
 
 ## Update terrain material color based on current biome
 func _update_terrain_color(biome_name: String) -> void:
-	if not voxel_world or not voxel_world.terrain:
+	if not terrain_world or not terrain_world.terrain_material:
 		return
 
 	# Map biome name to index (0=valley, 1=forest, 2=swamp, 3=mountain, 4=desert, 5=wizardland, 6=hell)
@@ -775,7 +771,7 @@ func _update_terrain_color(biome_name: String) -> void:
 		"hell": biome_index = 6
 
 	# Update shader parameter
-	var material = voxel_world.terrain.material
+	var material = terrain_world.terrain_material
 	if material and material is ShaderMaterial:
 		material.set_shader_parameter("current_biome", biome_index)
 		print("[Client] Updated terrain color to biome index %d (%s)" % [biome_index, biome_name])
@@ -813,26 +809,26 @@ func receive_world_config(world_data: Dictionary) -> void:
 	var world_name: String = world_data.get("world_name", "unknown")
 	var world_seed: int = world_data.get("seed", 0)
 
-	# Initialize voxel world with server's seed and name
-	if voxel_world:
-		voxel_world.initialize_world(world_seed, world_name)
+	# Initialize terrain world with server's seed and name
+	if terrain_world:
+		terrain_world.initialize_world(world_seed, world_name)
 		print("[Client] Initialized world '%s' with seed %d" % [world_name, world_seed])
 
 		# Initialize map system with BiomeGenerator
 		_initialize_map_system()
 	else:
-		push_error("[Client] VoxelWorld not found!")
+		push_error("[Client] TerrainWorld not found!")
 
 	# Mark loading step complete
 	_mark_loading_step_complete("world_config")
 
 func _initialize_map_system() -> void:
 	"""Initialize map and mini-map with BiomeGenerator"""
-	if not voxel_world or not voxel_world.terrain:
-		push_error("[Client] Cannot initialize map - voxel world not ready")
+	if not terrain_world or not terrain_world.biome_generator:
+		push_error("[Client] Cannot initialize map - terrain world not ready")
 		return
 
-	var generator = voxel_world.terrain.generator
+	var generator = terrain_world.biome_generator
 	if not generator or not generator.has_method("get_height_at_position"):
 		push_error("[Client] Cannot initialize map - BiomeGenerator not found")
 		return
@@ -841,10 +837,10 @@ func _initialize_map_system() -> void:
 
 func _initialize_maps_with_player(player: Node3D) -> void:
 	"""Initialize maps with BiomeGenerator and player reference"""
-	if not voxel_world or not voxel_world.terrain:
+	if not terrain_world or not terrain_world.biome_generator:
 		return
 
-	var generator = voxel_world.terrain.generator
+	var generator = terrain_world.biome_generator
 	if not generator:
 		return
 
@@ -1482,7 +1478,7 @@ func _check_queued_terrain_modifications() -> void:
 ## Internal terrain modification application
 ## Returns true if successful, false if area not editable (should re-queue)
 func _apply_terrain_modification_internal(operation: String, position: Array, data: Dictionary) -> bool:
-	if not voxel_world:
+	if not terrain_world:
 		return false
 
 	var pos_v3 := Vector3(position[0], position[1], position[2])
@@ -1492,14 +1488,14 @@ func _apply_terrain_modification_internal(operation: String, position: Array, da
 
 	match operation:
 		"dig_square":
-			var result = voxel_world.dig_square(pos_v3, tool_name)
+			var result = terrain_world.dig_square(pos_v3, tool_name)
 			success = result > 0
 		"place_square":
-			var result = voxel_world.place_square(pos_v3, earth_amount)
+			var result = terrain_world.place_square(pos_v3, earth_amount)
 			success = result > 0
 		"flatten_square":
 			var target_height: float = data.get("target_height", pos_v3.y)
-			voxel_world.flatten_square(pos_v3, target_height)
+			terrain_world.flatten_square(pos_v3, target_height)
 			success = true
 		_:
 			# Unknown or deprecated operation (dig_circle, place_circle, level_circle, etc.)

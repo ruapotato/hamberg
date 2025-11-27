@@ -2,4 +2,4 @@
 # Launch client
 
 echo "Starting client..."
-./godot.linuxbsd.editor.x86_64
+./Godot_v4.5.1-stable_linux.x86_64

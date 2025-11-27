@@ -4,7 +4,7 @@ extends RefCounted
 ## WorldMapGenerator - Generates map data from BiomeGenerator
 ## This samples the world's terrain at any scale to create map representations
 
-const BiomeGenerator = preload("res://shared/biome_generator.gd")
+# BiomeGenerator type removed - accepts any generator with required methods
 
 # Biome colors for map rendering (matches terrain shader grass colors exactly)
 const BIOME_BASE_COLORS := {
@@ -17,10 +17,10 @@ const BIOME_BASE_COLORS := {
 	"hell": Color(0.9, 0.1, 0.0)         # BRIGHT RED (hellfire)
 }
 
-var biome_generator: BiomeGenerator = null
+var biome_generator = null  # BiomeGenerator or TerrainBiomeGenerator instance
 var cached_map_data: Dictionary = {}  # Cache for different scales/regions
 
-func _init(generator: BiomeGenerator) -> void:
+func _init(generator) -> void:
 	biome_generator = generator
 	print("[WorldMapGenerator] Initialized with BiomeGenerator")
 
@@ -48,8 +48,8 @@ func generate_map_texture(center: Vector2, world_size: float, resolution: int) -
 			var world_pos := Vector2(world_x, world_z)
 
 			# Get terrain data
-			var biome := biome_generator.get_biome_at_position(world_pos)
-			var height := biome_generator.get_height_at_position(world_pos)
+			var biome: String = biome_generator.get_biome_at_position(world_pos)
+			var height: float = biome_generator.get_height_at_position(world_pos)
 
 			# Get base color for biome
 			var base_color: Color = BIOME_BASE_COLORS.get(biome, Color.GRAY)

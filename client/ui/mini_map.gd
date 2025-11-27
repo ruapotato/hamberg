@@ -4,13 +4,13 @@ extends Control
 ## North-locked, zoomed in, shows nearby area
 
 const WorldMapGenerator = preload("res://client/ui/world_map_generator.gd")
-const BiomeGenerator = preload("res://shared/biome_generator.gd")
+# BiomeGenerator type removed - accepts any generator with required methods
 
 # Map state
 var map_generator = null  # WorldMapGenerator
 var local_player: Node3D = null
 var remote_players: Dictionary = {}
-var biome_generator: BiomeGenerator = null
+var biome_generator = null  # BiomeGenerator or TerrainBiomeGenerator instance
 var cached_map_texture: ImageTexture = null  # Large pre-generated buffer
 var atlas_texture: AtlasTexture = null  # Viewport into the buffer
 var buffer_center: Vector2 = Vector2.ZERO  # World position at center of buffer
@@ -43,7 +43,7 @@ func _ready() -> void:
 
 	print("[MiniMap] Mini-map initialized")
 
-func initialize(generator: BiomeGenerator, player: Node3D) -> void:
+func initialize(generator, player: Node3D) -> void:
 	biome_generator = generator
 	local_player = player
 	map_generator = WorldMapGenerator.new(generator)

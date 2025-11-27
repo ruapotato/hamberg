@@ -4,7 +4,6 @@ extends Control
 ## Features: pan, zoom, pins, pings, player markers
 
 const WorldMapGenerator = preload("res://client/ui/world_map_generator.gd")
-const BiomeGenerator = preload("res://shared/biome_generator.gd")
 
 signal pin_placed(world_pos: Vector2, pin_name: String)
 signal ping_sent(world_pos: Vector2)
@@ -30,7 +29,7 @@ const MAX_TEXTURE_SIZE := 512  # Maximum texture resolution for performance
 # References
 var local_player: Node3D = null
 var remote_players: Dictionary = {}
-var biome_generator: BiomeGenerator = null
+var biome_generator = null  # BiomeGenerator or TerrainBiomeGenerator instance
 
 # Map pins (persistent per character)
 var map_pins: Array = []  # Array of {pos: Vector2, name: String}
@@ -77,7 +76,7 @@ func _input(event: InputEvent) -> void:
 				Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 				get_viewport().set_input_as_handled()
 
-func initialize(generator: BiomeGenerator, player: Node3D) -> void:
+func initialize(generator, player: Node3D) -> void:
 	biome_generator = generator
 	local_player = player
 	map_generator = WorldMapGenerator.new(generator)

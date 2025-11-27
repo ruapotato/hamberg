@@ -11,7 +11,6 @@ const WorldStateManager = preload("res://shared/world_state_manager.gd")
 # Player management
 var player_scene := preload("res://shared/player.tscn")
 var spawned_players: Dictionary = {} # peer_id -> Player node
-var player_viewers: Dictionary = {} # peer_id -> VoxelViewer node
 var player_characters: Dictionary = {} # peer_id -> character_id (for saving on disconnect)
 var player_map_pins: Dictionary = {} # peer_id -> Array of map pins
 var player_spawn_area_center: Vector2 = Vector2(0, 0) # Center of spawn area
@@ -39,8 +38,7 @@ var tick_accumulator: float = 0.0
 
 # World root for spawning entities
 @onready var world: Node3D = $World
-@onready var voxel_world = $World/VoxelWorld
-@onready var voxel_terrain = $World/VoxelWorld/VoxelLodTerrain
+@onready var terrain_world = $World/TerrainWorld
 
 func _ready() -> void:
 	print("[Server] Server node ready")
@@ -49,7 +47,7 @@ func _ready() -> void:
 	NetworkManager.player_joined.connect(_on_player_joined)
 	NetworkManager.player_left.connect(_on_player_left)
 
-	# Wait for voxel_world to finish initialization
+	# Wait for terrain_world to finish initialization
 	await get_tree().process_frame
 
 	# Initialize enemy spawner
@@ -94,20 +92,16 @@ func _load_or_create_world() -> void:
 		world_config.save_to_file()
 		print("[Server] Created new world: %s (seed: %d)" % [world_config.world_name, world_config.seed])
 
-	# Wait for voxel_world to be fully initialized
-	if voxel_world:
-		# Wait until voxel_world's _ready() has completed
-		while not voxel_world.is_initialized:
-			await get_tree().process_frame
-
-		# Now initialize world with config
-		voxel_world.initialize_world(world_config.seed, world_config.world_name)
+	# Initialize terrain_world with config
+	if terrain_world:
+		# Initialize world - this sets up biome generator, materials, chunk manager
+		terrain_world.initialize_world(world_config.seed, world_config.world_name)
 
 		# Connect to chunk manager signals after world is initialized
 		await get_tree().process_frame
-		if voxel_world.chunk_manager:
-			voxel_world.chunk_manager.chunk_loaded.connect(_on_chunk_loaded)
-			voxel_world.chunk_manager.chunk_unloaded.connect(_on_chunk_unloaded)
+		if terrain_world.chunk_manager:
+			terrain_world.chunk_manager.chunk_loaded.connect(_on_chunk_loaded)
+			terrain_world.chunk_manager.chunk_unloaded.connect(_on_chunk_unloaded)
 			print("[Server] Connected to chunk manager signals")
 
 func start_server(port: int = 7777, max_players: int = 10) -> void:
@@ -234,22 +228,21 @@ func _broadcast_player_states() -> void:
 
 func _update_environmental_chunks() -> void:
 	# Update player positions in chunk manager
-	if voxel_world and voxel_world.chunk_manager:
+	if terrain_world and terrain_world.chunk_manager:
 		for peer_id in spawned_players:
 			var player = spawned_players[peer_id]
 			if player and is_instance_valid(player):
-				voxel_world.update_player_spawn_position(peer_id, player.global_position)
+				terrain_world.update_player_spawn_position(peer_id, player.global_position)
 
 				# Check if player has moved near any unapplied chunks
-				# This ensures terrain modifications are applied as soon as player is in VoxelTool range
 				_check_unapplied_chunks_near_player(peer_id, player.global_position)
 
 func _on_chunk_loaded(chunk_pos: Vector2i) -> void:
 	# When server loads a chunk, broadcast its objects to all clients
-	if not voxel_world or not voxel_world.chunk_manager:
+	if not terrain_world or not terrain_world.chunk_manager:
 		return
 
-	var chunk_manager = voxel_world.chunk_manager
+	var chunk_manager = terrain_world.chunk_manager
 	var objects_data: Array = []
 
 	# Get objects in this chunk
@@ -286,10 +279,10 @@ func _on_chunk_unloaded(chunk_pos: Vector2i) -> void:
 
 ## Send all currently loaded chunks to a specific player (for when they join)
 func _send_loaded_chunks_to_player(peer_id: int) -> void:
-	if not voxel_world or not voxel_world.chunk_manager:
+	if not terrain_world or not terrain_world.chunk_manager:
 		return
 
-	var chunk_manager = voxel_world.chunk_manager
+	var chunk_manager = terrain_world.chunk_manager
 	var chunks_sent := 0
 
 	# Iterate through all loaded chunks and send them to the new player
@@ -533,7 +526,7 @@ func _apply_terrain_modifications_for_chunk(chunk_pos: Vector2i) -> bool:
 			"dig_square":
 				var tool_name: String = data.get("tool", "stone_pickaxe")
 				print("[Server] -> dig_square with tool: %s" % tool_name)
-				earth_result = voxel_world.dig_square(pos_v3, tool_name)
+				earth_result = terrain_world.dig_square(pos_v3, tool_name)
 				if earth_result == 0:
 					print("[Server] WARNING: dig_square returned 0 (area likely not editable yet)")
 					all_successful = false
@@ -541,7 +534,7 @@ func _apply_terrain_modifications_for_chunk(chunk_pos: Vector2i) -> bool:
 					successful_mods.append(modification)
 			"place_square":
 				print("[Server] -> place_square with unlimited earth")
-				earth_result = voxel_world.place_square(pos_v3, 999999)
+				earth_result = terrain_world.place_square(pos_v3, 999999)
 				if earth_result == 0:
 					print("[Server] WARNING: place_square returned 0 (area likely not editable yet)")
 					all_successful = false
@@ -550,7 +543,7 @@ func _apply_terrain_modifications_for_chunk(chunk_pos: Vector2i) -> bool:
 			"flatten_square":
 				var target_height: float = data.get("target_height", pos_v3.y)
 				print("[Server] -> flatten_square at height: %f" % target_height)
-				earth_result = voxel_world.flatten_square(pos_v3, target_height)
+				earth_result = terrain_world.flatten_square(pos_v3, target_height)
 				# Flatten always succeeds (returns 0), assume success
 				successful_mods.append(modification)
 
@@ -577,8 +570,8 @@ func _replay_terrain_modifications_to_player(peer_id: int) -> void:
 
 	# Get loaded chunks from chunk_manager
 	var loaded_chunks := []
-	if voxel_world and voxel_world.chunk_manager:
-		loaded_chunks = voxel_world.chunk_manager.loaded_chunks.keys()
+	if terrain_world and terrain_world.chunk_manager:
+		loaded_chunks = terrain_world.chunk_manager.loaded_chunks.keys()
 
 	var total_replayed := 0
 
@@ -644,25 +637,14 @@ func _spawn_player(peer_id: int, player_name: String) -> void:
 	# Set spawn position AFTER adding to tree
 	player.global_position = spawn_pos
 
-	# Create VoxelViewer for this player (server-side terrain streaming)
-	# VoxelViewer will stream terrain data around the player's position
-	var viewer := VoxelViewer.new()
-	viewer.name = "VoxelViewer_%d" % peer_id
-	viewer.view_distance = 256  # Match or slightly exceed client view distance
-	viewer.requires_collisions = true
-	viewer.requires_visuals = false  # Server doesn't need visual meshes
-	# Note: VoxelTerrainMultiplayerSynchronizer will handle associating this viewer with the peer
-	player.add_child(viewer)
-	player_viewers[peer_id] = viewer
-
-	print("[Server] Spawned player %d at %s with VoxelViewer" % [peer_id, spawn_pos])
+	print("[Server] Spawned player %d at %s" % [peer_id, spawn_pos])
 
 	# Check for unapplied chunks near the spawn position (chunks that loaded before player connected)
 	_check_unapplied_chunks()
 
 	# Register player with chunk manager for environmental object spawning
-	if voxel_world:
-		voxel_world.register_player_for_spawning(peer_id, player)
+	if terrain_world:
+		terrain_world.register_player_for_spawning(peer_id, player)
 
 		# Send all currently loaded chunks to the new player
 		_send_loaded_chunks_to_player(peer_id)
@@ -724,15 +706,8 @@ func _despawn_player(peer_id: int) -> void:
 		player_characters.erase(peer_id)
 
 	# Unregister player from chunk manager
-	if voxel_world:
-		voxel_world.unregister_player_from_spawning(peer_id)
-
-	# Clean up VoxelViewer
-	if player_viewers.has(peer_id):
-		var viewer = player_viewers[peer_id]
-		if viewer and is_instance_valid(viewer):
-			viewer.queue_free()
-		player_viewers.erase(peer_id)
+	if terrain_world:
+		terrain_world.unregister_player_from_spawning(peer_id)
 
 	# Clean up player
 	var player: Node3D = spawned_players[peer_id]
@@ -755,7 +730,7 @@ func _get_spawn_point() -> Vector3:
 	var spawn_xz := player_spawn_area_center + random_offset
 
 	# Get terrain height at this position
-	var spawn_height: float = voxel_world.get_terrain_height_at(spawn_xz)
+	var spawn_height: float = terrain_world.get_terrain_height_at(spawn_xz)
 
 	# Spawn a bit above the surface to avoid clipping
 	return Vector3(spawn_xz.x, spawn_height + 3.0, spawn_xz.y)
@@ -814,11 +789,11 @@ func handle_hit_report(peer_id: int, target_id: int, damage: float, hit_position
 func handle_environmental_damage(peer_id: int, chunk_pos: Vector2i, object_id: int, damage: float, hit_position: Vector3) -> void:
 	print("[Server] Player %d damaged object %d in chunk %s (damage: %.1f)" % [peer_id, object_id, chunk_pos, damage])
 
-	if not voxel_world or not voxel_world.chunk_manager:
-		push_error("[Server] Cannot handle damage - voxel_world not initialized!")
+	if not terrain_world or not terrain_world.chunk_manager:
+		push_error("[Server] Cannot handle damage - terrain_world not initialized!")
 		return
 
-	var chunk_manager = voxel_world.chunk_manager
+	var chunk_manager = terrain_world.chunk_manager
 
 	# Check if chunk is loaded
 	if not chunk_manager.loaded_chunks.has(chunk_pos):
@@ -996,12 +971,12 @@ func handle_terrain_modification(peer_id: int, operation: String, position: Vect
 	print("[Server] Player %d requesting terrain modification: %s at %s" % [peer_id, operation, position])
 	print("[Server] Tool: %s, Data: %s" % [data.get("tool", "unknown"), data])
 
-	# Check if voxel_world exists
-	if not voxel_world:
-		push_error("[Server] voxel_world is null! Cannot modify terrain")
+	# Check if terrain_world exists
+	if not terrain_world:
+		push_error("[Server] terrain_world is null! Cannot modify terrain")
 		return
 
-	print("[Server] VoxelWorld found: %s" % voxel_world)
+	print("[Server] TerrainWorld found: %s" % terrain_world)
 
 	# Check if player exists
 	if not spawned_players.has(peer_id):
@@ -1026,8 +1001,8 @@ func handle_terrain_modification(peer_id: int, operation: String, position: Vect
 	match operation:
 		"dig_square":
 			# Dig and collect earth
-			print("[Server] Calling voxel_world.dig_square...")
-			var earth_collected: int = voxel_world.dig_square(position, tool_name)
+			print("[Server] Calling terrain_world.dig_square...")
+			var earth_collected: int = terrain_world.dig_square(position, tool_name)
 			print("[Server] dig_square returned: %d earth" % earth_collected)
 			if earth_collected > 0:
 				inventory.add_item("earth", earth_collected)
@@ -1041,7 +1016,7 @@ func handle_terrain_modification(peer_id: int, operation: String, position: Vect
 		"flatten_square":
 			# Flatten terrain to target height
 			var target_height: float = data.get("target_height", position.y)
-			voxel_world.flatten_square(position, target_height)
+			terrain_world.flatten_square(position, target_height)
 			print("[Server] Player %d flattened terrain at %s to height %f" % [peer_id, position, target_height])
 
 		"place_square":
@@ -1051,7 +1026,7 @@ func handle_terrain_modification(peer_id: int, operation: String, position: Vect
 				print("[Server] Player %d has no earth to place" % peer_id)
 				return
 
-			var earth_used: int = voxel_world.place_square(position, earth_amount)
+			var earth_used: int = terrain_world.place_square(position, earth_amount)
 			if earth_used > 0:
 				inventory.remove_item("earth", earth_used)
 				print("[Server] Player %d placed %d earth" % [peer_id, earth_used])
@@ -1332,10 +1307,10 @@ func _save_all_players() -> void:
 	print("[Server] Saved %d player characters" % saved_count)
 
 func _save_environmental_chunks() -> void:
-	if voxel_world:
-		voxel_world.save_environmental_chunks()
+	if terrain_world:
+		terrain_world.save_environmental_chunks()
 	else:
-		print("[Server] No voxel world to save chunks")
+		print("[Server] No terrain world to save chunks")
 
 ## Send list of characters to client (called via RPC)
 func send_character_list(peer_id: int) -> void:
@@ -1415,7 +1390,7 @@ func _spawn_player_with_data(peer_id: int, player_data: Dictionary) -> void:
 		var saved_xz = Vector2(pos[0], pos[2])
 		# Only use saved XZ if Y was reasonable (not falling through world)
 		if pos[1] > -100 and pos[1] < 1000:
-			var terrain_height = voxel_world.get_terrain_height_at(saved_xz)
+			var terrain_height = terrain_world.get_terrain_height_at(saved_xz)
 			spawn_pos = Vector3(pos[0], terrain_height + 3.0, pos[2])
 
 	# Check for unapplied chunks near spawn position before spawning
@@ -1437,20 +1412,11 @@ func _spawn_player_with_data(peer_id: int, player_data: Dictionary) -> void:
 		var inventory = player.get_node("Inventory")
 		inventory.set_inventory_data(player_data["inventory"])
 
-	# Create VoxelViewer for this player (server-side terrain streaming)
-	var viewer := VoxelViewer.new()
-	viewer.name = "VoxelViewer_%d" % peer_id
-	viewer.view_distance = 256
-	viewer.requires_collisions = true
-	viewer.requires_visuals = false
-	player.add_child(viewer)
-	player_viewers[peer_id] = viewer
-
-	print("[Server] Spawned player %d at %s with VoxelViewer" % [peer_id, spawn_pos])
+	print("[Server] Spawned player %d at %s" % [peer_id, spawn_pos])
 
 	# Register player with chunk manager for environmental object spawning
-	if voxel_world:
-		voxel_world.register_player_for_spawning(peer_id, player)
+	if terrain_world:
+		terrain_world.register_player_for_spawning(peer_id, player)
 		_send_loaded_chunks_to_player(peer_id)
 
 	# Send all existing buildables to the new player

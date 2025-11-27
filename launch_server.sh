@@ -19,4 +19,4 @@ export WORLD_SEED
 export GAME_PORT
 export MAX_PLAYERS
 
-./godot.linuxbsd.editor.x86_64 --headless -- --server
+./Godot_v4.5.1-stable_linux.x86_64 --headless -- --server

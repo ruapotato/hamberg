@@ -342,42 +342,25 @@ func rpc_apply_terrain_modification(operation: String, position: Array, data: Di
 			client_node.queue_terrain_modification(operation, position, data)
 		return
 
-	# Get the voxel world on the client
-	var voxel_world = get_node_or_null("/root/Main/Client/World/VoxelWorld")
-	if not voxel_world:
-		push_warning("[NetworkManager] Client: VoxelWorld not found at /root/Main/Client/World/VoxelWorld")
+	# Get the terrain world on the client
+	var terrain_world = get_node_or_null("/root/Main/Client/World/TerrainWorld")
+	if not terrain_world:
+		push_warning("[NetworkManager] Client: TerrainWorld not found at /root/Main/Client/World/TerrainWorld")
 		return
 
 	var pos_v3 := Vector3(position[0], position[1], position[2])
-
-	# Check if player is near enough for VoxelTool to work (closer = more reliable)
-	# VoxelTool needs player VERY close for terrain detail to be loaded
-	# Reduced to 29m to ensure far edges of large builds load reliably
-	const MAX_DISTANCE := 29.0  # Safety margin below 1 chunk (32 units)
-	var local_player = client_node.get("local_player") if client_node else null
-	if local_player and is_instance_valid(local_player):
-		var player_pos: Vector3 = local_player.global_position
-		var distance := Vector2(player_pos.x, player_pos.z).distance_to(Vector2(pos_v3.x, pos_v3.z))
-
-		if distance > MAX_DISTANCE:
-			# Player too far - queue for later application
-			print("[NetworkManager] Player too far (%.1fm) - queuing terrain modification at %s" % [distance, pos_v3])
-			if client_node.has_method("queue_terrain_modification"):
-				client_node.queue_terrain_modification(operation, position, data)
-			return
-
 	var tool_name: String = data.get("tool", "stone_pickaxe")
 
-	# Apply the modification locally on the client
+	# Apply the modification locally on the client (custom terrain handles chunk loading)
 	match operation:
 		"dig_square":
-			voxel_world.dig_square(pos_v3, tool_name)
+			terrain_world.dig_square(pos_v3, tool_name)
 		"place_square":
 			var earth_amount: int = data.get("earth_amount", 100)
-			voxel_world.place_square(pos_v3, earth_amount)
+			terrain_world.place_square(pos_v3, earth_amount)
 		"flatten_square":
 			var target_height: float = data.get("target_height", pos_v3.y)
-			voxel_world.flatten_square(pos_v3, target_height)
+			terrain_world.flatten_square(pos_v3, target_height)
 
 	print("[NetworkManager] Client applied terrain modification: %s" % operation)
 

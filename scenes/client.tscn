@@ -1,7 +1,7 @@
 [gd_scene load_steps=4 format=3 uid="uid://dy3jxg8yn7p6n"]
 
 [ext_resource type="Script" path="res://client/client.gd" id="1_client"]
-[ext_resource type="PackedScene" uid="uid://bvoxworld001" path="res://shared/voxel_world.tscn" id="2_voxelworld"]
+[ext_resource type="PackedScene" uid="uid://custom_terrain_world" path="res://shared/custom_terrain/terrain_world.tscn" id="2_terrainworld"]
 [ext_resource type="PackedScene" uid="uid://crosshair001" path="res://client/crosshair.tscn" id="3_crosshair"]
 
 [node name="Client" type="Node"]
@@ -9,12 +9,7 @@ script = ExtResource("1_client")
 
 [node name="World" type="Node3D" parent="."]
 
-[node name="VoxelWorld" parent="World" instance=ExtResource("2_voxelworld")]
-
-[node name="VoxelViewer" type="VoxelViewer" parent="."]
-view_distance = 256
-requires_collisions = true
-requires_visuals = true
+[node name="TerrainWorld" parent="World" instance=ExtResource("2_terrainworld")]
 
 [node name="CanvasLayer" type="CanvasLayer" parent="."]
 
