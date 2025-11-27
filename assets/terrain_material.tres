@@ -6,3 +6,4 @@
 shader = ExtResource("1_shader")
 shader_parameter/world_seed = 42
 shader_parameter/biome_map_world_coverage = 40000.0
+shader_parameter/debug_biome_colors = false
