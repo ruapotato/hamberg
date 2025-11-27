@@ -44,6 +44,14 @@ var chunk_manager  # Will be set up after initialization
 # Material for terrain rendering
 @export var terrain_material: Material
 
+# Dynamic biome texture system (follows player for shader alignment)
+var biome_texture: ImageTexture = null
+var biome_texture_center: Vector2 = Vector2.ZERO
+var biome_texture_last_update_pos: Vector2 = Vector2.ZERO
+const BIOME_TEXTURE_SIZE: int = 256  # Resolution of the texture
+const BIOME_TEXTURE_WORLD_SIZE: float = 512.0  # World units covered by texture
+const BIOME_TEXTURE_UPDATE_THRESHOLD: float = 64.0  # Regenerate when player moves this far
+
 # Threading for mesh generation
 var pending_mesh_updates: Array = []  # Chunks waiting to be processed
 var mesh_updates_in_progress: Dictionary = {}  # chunk_key -> task_id (being processed in thread)
@@ -116,8 +124,8 @@ func _setup_terrain_material() -> void:
 		if terrain_material is ShaderMaterial:
 			var shader_mat: ShaderMaterial = terrain_material as ShaderMaterial
 			shader_mat.set_shader_parameter("world_seed", world_seed)
+			shader_mat.set_shader_parameter("biome_texture_size", BIOME_TEXTURE_WORLD_SIZE)
 			print("[TerrainWorld] Set world_seed to %d" % world_seed)
-			_generate_biome_map_texture(shader_mat)
 		else:
 			push_warning("[TerrainWorld] Material is not ShaderMaterial! Type: %s" % terrain_material.get_class())
 	else:
@@ -129,53 +137,77 @@ func _setup_terrain_material() -> void:
 		terrain_material = mat
 		print("[TerrainWorld] Using default terrain material")
 
-func _generate_biome_map_texture(shader_mat: ShaderMaterial) -> void:
-	"""Generate a texture containing biome data for shader lookup"""
+## Generate biome texture centered at a world position
+## Stores biome index (0-6) in the red channel as normalized float
+func _generate_biome_texture(center: Vector2) -> void:
 	if not biome_generator:
-		push_error("[TerrainWorld] Cannot generate biome map - biome_generator is null!")
 		return
 
-	# Use smaller texture on client to avoid blocking network connection
-	# Server runs headless so it doesn't need this anyway
-	var texture_size := 256 if not is_server else 512  # Much smaller for fast generation
-	var world_coverage := 40000.0
+	# Create image to store biome indices
+	var image := Image.create(BIOME_TEXTURE_SIZE, BIOME_TEXTURE_SIZE, false, Image.FORMAT_RF)
 
-	print("[TerrainWorld] Generating biome map texture (%dx%d)..." % [texture_size, texture_size])
+	# Calculate world units per pixel
+	var units_per_pixel := BIOME_TEXTURE_WORLD_SIZE / float(BIOME_TEXTURE_SIZE)
 
-	var image := Image.create(texture_size, texture_size, false, Image.FORMAT_RGB8)
+	# Calculate starting corner
+	var start_x := center.x - (BIOME_TEXTURE_WORLD_SIZE * 0.5)
+	var start_z := center.y - (BIOME_TEXTURE_WORLD_SIZE * 0.5)
 
-	# Colors MUST match terrain_material.gdshader grass colors EXACTLY
-	var biome_colors := {
-		"valley": Color(0.25, 0.55, 0.95),    # BRIGHT BLUE (serene meadows)
-		"forest": Color(0.15, 0.85, 0.2),     # BRIGHT GREEN (lush forest)
-		"swamp": Color(0.6, 0.75, 0.3),       # YELLOW-GREEN (murky swamp)
-		"mountain": Color(0.95, 0.97, 1.0),   # WHITE (snow/ice)
-		"desert": Color(0.95, 0.85, 0.35),    # BRIGHT YELLOW (sandy desert)
-		"wizardland": Color(0.9, 0.3, 1.0),   # BRIGHT MAGENTA (magical)
-		"hell": Color(0.9, 0.2, 0.1)          # BRIGHT RED (hellfire)
-	}
-
-	var pixels_per_meter := float(texture_size) / world_coverage
-
-	# Sample a few biomes for debug
-	var sample_biome: String = biome_generator.get_biome_at_position(Vector2.ZERO)
-	print("[TerrainWorld] Sample biome at origin: %s" % sample_biome)
-
-	for y in texture_size:
-		for x in texture_size:
-			var world_x := (float(x) / pixels_per_meter) - (world_coverage * 0.5)
-			var world_z := (float(y) / pixels_per_meter) - (world_coverage * 0.5)
+	# Sample biome at each pixel
+	for py in BIOME_TEXTURE_SIZE:
+		for px in BIOME_TEXTURE_SIZE:
+			var world_x := start_x + (px * units_per_pixel)
+			var world_z := start_z + (py * units_per_pixel)
 			var world_pos := Vector2(world_x, world_z)
 
-			var biome: String = biome_generator.get_biome_at_position(world_pos)
-			var color: Color = biome_colors.get(biome, Color.WHITE)
-			image.set_pixel(x, y, color)
+			# Get biome name and convert to index
+			var biome_name: String = biome_generator.get_biome_at_position(world_pos)
+			var biome_idx: int = _biome_name_to_index(biome_name)
 
-	var texture := ImageTexture.create_from_image(image)
-	shader_mat.set_shader_parameter("biome_map", texture)
-	shader_mat.set_shader_parameter("biome_map_world_coverage", world_coverage)
+			# Store as normalized float (0-6 -> 0-0.857)
+			var normalized_value := float(biome_idx) / 7.0
+			image.set_pixel(px, py, Color(normalized_value, 0.0, 0.0, 1.0))
 
-	print("[TerrainWorld] Biome map texture generated and applied to shader")
+	# Create or update texture
+	if biome_texture == null:
+		biome_texture = ImageTexture.create_from_image(image)
+	else:
+		biome_texture.update(image)
+
+	biome_texture_center = center
+	biome_texture_last_update_pos = center
+
+	# Update shader parameters
+	if terrain_material is ShaderMaterial:
+		var shader_mat: ShaderMaterial = terrain_material as ShaderMaterial
+		shader_mat.set_shader_parameter("biome_texture", biome_texture)
+		shader_mat.set_shader_parameter("biome_texture_center", biome_texture_center)
+
+	print("[TerrainWorld] Generated biome texture at center (%.0f, %.0f)" % [center.x, center.y])
+
+## Convert biome name to index (must match shader)
+func _biome_name_to_index(biome_name: String) -> int:
+	match biome_name:
+		"valley": return 0
+		"forest": return 1
+		"swamp": return 2
+		"mountain": return 3
+		"desert": return 4
+		"wizardland": return 5
+		"hell": return 6
+		_: return 0
+
+## Update biome texture if player has moved far enough
+func _update_biome_texture_for_player(player_pos: Vector3) -> void:
+	if is_server:
+		return  # Only client needs biome texture for rendering
+
+	var player_xz := Vector2(player_pos.x, player_pos.z)
+	var distance_moved := player_xz.distance_to(biome_texture_last_update_pos)
+
+	# Regenerate texture if player moved far enough
+	if biome_texture == null or distance_moved > BIOME_TEXTURE_UPDATE_THRESHOLD:
+		_generate_biome_texture(player_xz)
 
 func _setup_chunk_manager() -> void:
 	print("[TerrainWorld] Setting up environmental object spawning...")
@@ -219,6 +251,8 @@ func _process(delta: float) -> void:
 		if is_instance_valid(player):
 			_update_chunks_around_position(player.global_position)
 			_check_lod_updates(player.global_position)
+			# Update dynamic biome texture (client only)
+			_update_biome_texture_for_player(player.global_position)
 
 ## Check if any chunks need LOD updates (when player moves closer)
 func _check_lod_updates(player_pos: Vector3) -> void:

@@ -846,16 +846,19 @@ func _initialize_maps_with_player(player: Node3D) -> void:
 
 	print("[Client] Initializing maps with player and BiomeGenerator")
 
-	# Initialize world map
+	# Initialize world map (uses procedural biome calculation - no texture needed)
 	if world_map_ui and world_map_ui.has_method("initialize"):
 		world_map_ui.initialize(generator, player)
 		if world_map_ui.has_signal("pin_placed"):
 			world_map_ui.pin_placed.connect(_on_pin_placed)
 		print("[Client] World map initialized")
 
-	# Initialize mini-map
+	# Initialize mini-map (uses procedural biome calculation - no texture needed)
 	if mini_map_ui and mini_map_ui.has_method("initialize"):
 		mini_map_ui.initialize(generator, player)
+		# Generate the initial map
+		if mini_map_ui.has_method("generate_initial_map"):
+			mini_map_ui.generate_initial_map()
 		print("[Client] Mini-map initialized")
 
 func _on_pin_placed(world_pos: Vector2, pin_name: String) -> void:

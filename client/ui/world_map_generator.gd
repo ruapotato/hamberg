@@ -1,10 +1,9 @@
 class_name WorldMapGenerator
 extends RefCounted
 
-## WorldMapGenerator - Generates map data from BiomeGenerator
-## This samples the world's terrain at any scale to create map representations
-
-# BiomeGenerator type removed - accepts any generator with required methods
+## WorldMapGenerator - Generates map data using procedural biome calculation
+## Uses the same noise algorithm as TerrainBiomeGenerator for perfect alignment
+## Works everywhere in the infinite world - no texture boundaries
 
 # Biome colors for map rendering (MUST match terrain_material.gdshader EXACTLY)
 const BIOME_BASE_COLORS := {
@@ -22,7 +21,7 @@ var cached_map_data: Dictionary = {}  # Cache for different scales/regions
 
 func _init(generator) -> void:
 	biome_generator = generator
-	print("[WorldMapGenerator] Initialized with BiomeGenerator")
+	print("[WorldMapGenerator] Initialized with BiomeGenerator (procedural mode)")
 
 ## Generate map texture for a given world region
 ## center: Center position in world coordinates (Vector2 XZ)
@@ -47,11 +46,9 @@ func generate_map_texture(center: Vector2, world_size: float, resolution: int) -
 			var world_z := start_z + (py * units_per_pixel)
 			var world_pos := Vector2(world_x, world_z)
 
-			# Get terrain data
+			# Get biome color using procedural calculation (matches shader exactly)
 			var biome: String = biome_generator.get_biome_at_position(world_pos)
 			var height: float = biome_generator.get_height_at_position(world_pos)
-
-			# Get base color for biome
 			var base_color: Color = BIOME_BASE_COLORS.get(biome, Color.GRAY)
 
 			# Apply height-based shading (hybrid style)

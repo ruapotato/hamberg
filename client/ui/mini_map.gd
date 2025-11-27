@@ -48,10 +48,16 @@ func initialize(generator, player: Node3D) -> void:
 	local_player = player
 	map_generator = WorldMapGenerator.new(generator)
 
-	# Generate initial mini-map once at spawn
-	_generate_initial_minimap()
+	# DON'T generate initial mini-map here - wait for generate_initial_map() to be called
+	# This allows caller to ensure proper initialization order
 
 	print("[MiniMap] Initialized with BiomeGenerator and player")
+
+## Call this after initialize() to generate the initial map
+func generate_initial_map() -> void:
+	if local_player and map_generator:
+		print("[MiniMap] Generating initial map (procedural)")
+		_generate_initial_minimap()
 
 func set_world_texture(texture: ImageTexture, texture_size: int, map_radius: float) -> void:
 	"""Deprecated - mini-map now generates its own view on demand"""
@@ -68,12 +74,16 @@ func _process(delta: float) -> void:
 	if overlay:
 		overlay.queue_redraw()
 
+	# Debug logging (in _process, not in _draw)
+	_update_debug_logging(delta)
+
 func _draw_overlay() -> void:
 	# Draw on top of the map texture
 	_draw_compass_directions()
 	_draw_pins()
 	_draw_pings()
 	_draw_player_markers()
+	_draw_debug_info()
 
 func _generate_initial_minimap() -> void:
 	"""Generate buffered mini-map at player spawn location"""
@@ -296,3 +306,93 @@ func set_remote_players(players: Dictionary) -> void:
 func set_pins(pins: Array) -> void:
 	"""Update pins array"""
 	map_pins = pins
+
+# Debug timer for logging
+var debug_log_timer: float = 0.0
+const DEBUG_LOG_INTERVAL: float = 2.0  # Log every 2 seconds
+
+func _draw_debug_info() -> void:
+	"""Draw debug UV coordinates on screen"""
+	if not local_player or not map_generator:
+		return
+
+	if not is_instance_valid(local_player):
+		return
+
+	var player_xz := Vector2(local_player.global_position.x, local_player.global_position.z)
+
+	# Check if map_generator has the debug method
+	if not map_generator.has_method("debug_get_uv_for_world_pos"):
+		return
+
+	var debug_info = map_generator.debug_get_uv_for_world_pos(player_xz)
+	if debug_info.is_empty():
+		return
+
+	# Get font safely
+	var font = ThemeDB.fallback_font
+	if not font:
+		return
+
+	var font_size := 10
+	var y_offset := overlay.size.y + 5
+
+	# World position
+	var world_text := "World: %.0f, %.0f" % [player_xz.x, player_xz.y]
+	overlay.draw_string(font, Vector2(0, y_offset), world_text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, Color.WHITE)
+
+	# UV coordinates (what minimap uses)
+	var uv: Vector2 = debug_info.get("uv", Vector2.ZERO)
+	var uv_text := "Minimap UV: %.4f, %.4f" % [uv.x, uv.y]
+	overlay.draw_string(font, Vector2(0, y_offset + 12), uv_text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, Color.CYAN)
+
+	# Shader UV (same formula, just showing it)
+	var coverage: float = debug_info.get("coverage", 100000.0)
+	var shader_uv_x := (player_xz.x + coverage * 0.5) / coverage
+	var shader_uv_y := (player_xz.y + coverage * 0.5) / coverage
+	var shader_text := "Shader UV: %.4f, %.4f" % [shader_uv_x, shader_uv_y]
+	overlay.draw_string(font, Vector2(0, y_offset + 24), shader_text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, Color.YELLOW)
+
+	# Pixel coordinates
+	var pixel: Vector2i = debug_info.get("pixel", Vector2i.ZERO)
+	var tex_size: Vector2i = debug_info.get("tex_size", Vector2i.ZERO)
+	var pixel_text := "Pixel: %d, %d / %d" % [pixel.x, pixel.y, tex_size.x]
+	overlay.draw_string(font, Vector2(0, y_offset + 36), pixel_text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, Color.GREEN)
+
+	# Coverage
+	var cov_text := "Coverage: %.0f" % coverage
+	overlay.draw_string(font, Vector2(0, y_offset + 48), cov_text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, Color.ORANGE)
+
+func _update_debug_logging(delta: float) -> void:
+	"""Periodic debug logging - called from _process"""
+	if not local_player or not map_generator:
+		return
+
+	if not is_instance_valid(local_player):
+		return
+
+	debug_log_timer += delta
+	if debug_log_timer < DEBUG_LOG_INTERVAL:
+		return
+
+	debug_log_timer = 0.0
+
+	var player_xz := Vector2(local_player.global_position.x, local_player.global_position.z)
+
+	if not map_generator.has_method("debug_get_uv_for_world_pos"):
+		return
+
+	var debug_info = map_generator.debug_get_uv_for_world_pos(player_xz)
+	if debug_info.is_empty():
+		return
+
+	var uv: Vector2 = debug_info.get("uv", Vector2.ZERO)
+	var pixel: Vector2i = debug_info.get("pixel", Vector2i.ZERO)
+	var tex_size: Vector2i = debug_info.get("tex_size", Vector2i.ZERO)
+	var coverage: float = debug_info.get("coverage", 100000.0)
+	var shader_uv_x := (player_xz.x + coverage * 0.5) / coverage
+	var shader_uv_y := (player_xz.y + coverage * 0.5) / coverage
+
+	print("[MiniMap DEBUG] Player world pos: %s" % player_xz)
+	print("[MiniMap DEBUG] Minimap UV: %s, Pixel: %s, Tex size: %s" % [uv, pixel, tex_size])
+	print("[MiniMap DEBUG] Coverage: %.0f, Shader UV would be: (%.4f, %.4f)" % [coverage, shader_uv_x, shader_uv_y])
