@@ -186,25 +186,46 @@ static func deserialize(data: Dictionary):
 	var chunk = ChunkDataScript.new(data.get("chunk_x", 0), data.get("chunk_z", 0))
 
 	var heightmap_hex = data.get("heightmap", "")
-	if heightmap_hex != "":
+	if heightmap_hex != "" and heightmap_hex is String:
 		var heightmap_bytes = heightmap_hex.hex_decode()
-		chunk.heightmap = bytes_to_var(heightmap_bytes)
+		if heightmap_bytes.size() > 0:
+			var decoded = bytes_to_var(heightmap_bytes)
+			if decoded is PackedFloat32Array and decoded.size() == CHUNK_SIZE_XZ * CHUNK_SIZE_XZ:
+				chunk.heightmap = decoded
+			else:
+				push_warning("[ChunkData] Invalid heightmap data for chunk (%d, %d), size: %s" % [chunk.chunk_x, chunk.chunk_z, str(decoded.size()) if decoded is PackedFloat32Array else "invalid type"])
 
-		# Recalculate bounds
-		chunk.min_surface_y = 256
-		chunk.max_surface_y = -256
-		for i in chunk.heightmap.size():
-			var h: int = int(floor(chunk.heightmap[i]))
-			if h - 2 < chunk.min_surface_y:
-				chunk.min_surface_y = h - 2
-			if h + 2 > chunk.max_surface_y:
-				chunk.max_surface_y = h + 2
+	# Recalculate bounds from heightmap
+	chunk.min_surface_y = 256
+	chunk.max_surface_y = -256
+	for i in chunk.heightmap.size():
+		var h: int = int(floor(chunk.heightmap[i]))
+		if h - 2 < chunk.min_surface_y:
+			chunk.min_surface_y = h - 2
+		if h + 2 > chunk.max_surface_y:
+			chunk.max_surface_y = h + 2
 
-	# Load modified voxels
+	# Load modified voxels and extend bounds to include them
 	var mods_array = data.get("modified_voxels", [])
 	for mod in mods_array:
 		if mod is Array and mod.size() == 2:
-			chunk.modified_voxels[mod[0]] = mod[1]
+			var key: int = mod[0]
+			var density: float = mod[1]
+			chunk.modified_voxels[key] = density
+
+			# Extract world_y from packed key and update bounds
+			# Key format: x + z*16 + (y+128)*256
+			var y_plus_128: int = key / (CHUNK_SIZE_XZ * CHUNK_SIZE_XZ)
+			var world_y: int = y_plus_128 - 128
+			if world_y - 2 < chunk.min_surface_y:
+				chunk.min_surface_y = world_y - 2
+			if world_y + 2 > chunk.max_surface_y:
+				chunk.max_surface_y = world_y + 2
+
+	# Ensure valid bounds (fallback to reasonable defaults if empty)
+	if chunk.min_surface_y > chunk.max_surface_y:
+		chunk.min_surface_y = -10
+		chunk.max_surface_y = 50
 
 	chunk.is_modified = data.get("is_modified", false)
 	chunk.is_dirty = true

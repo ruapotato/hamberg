@@ -195,8 +195,6 @@ func _generate_biome_texture(center: Vector2) -> void:
 		shader_mat.set_shader_parameter("biome_texture", biome_texture)
 		shader_mat.set_shader_parameter("biome_texture_center", biome_texture_center)
 
-	print("[TerrainWorld] Generated biome texture at center (%.0f, %.0f)" % [center.x, center.y])
-
 ## Convert biome name to index (must match shader)
 func _biome_name_to_index(biome_name: String) -> int:
 	match biome_name:
@@ -251,11 +249,13 @@ func _process(delta: float) -> void:
 			var coords = pending_chunk_loads.pop_front()
 			_load_chunk_immediate(coords[0], coords[1])
 
-	# Start new mesh generation tasks (threaded)
-	_start_threaded_mesh_updates()
+	# Only generate meshes on clients (server doesn't need visual meshes)
+	if not is_server:
+		# Start new mesh generation tasks (threaded)
+		_start_threaded_mesh_updates()
 
-	# Apply completed mesh results on main thread
-	_apply_completed_meshes()
+		# Apply completed mesh results on main thread
+		_apply_completed_meshes()
 
 	# Update chunks around players and check for LOD changes
 	for peer_id in tracked_players:
@@ -698,6 +698,7 @@ func _load_chunk_from_disk(cx: int, cz: int):
 
 	var file := FileAccess.open(file_path, FileAccess.READ)
 	if not file:
+		print("[TerrainWorld] ERROR: Failed to open chunk file at %s" % file_path)
 		return null
 
 	var json_str := file.get_as_text()
@@ -705,9 +706,11 @@ func _load_chunk_from_disk(cx: int, cz: int):
 
 	var json := JSON.new()
 	if json.parse(json_str) != OK:
+		print("[TerrainWorld] ERROR: Failed to parse JSON for chunk (%d, %d): %s" % [cx, cz, json.get_error_message()])
 		return null
 
-	return ChunkDataClass.deserialize(json.data)
+	var chunk = ChunkDataClass.deserialize(json.data)
+	return chunk
 
 # =============================================================================
 # TERRAIN MODIFICATION API
@@ -769,8 +772,6 @@ func place_square(world_position: Vector3, earth_amount: int) -> int:
 	var center_y := int(floor(world_position.y))
 	var center_z := int(floor(world_position.z))
 
-	print("[TerrainWorld] PLACE at center (%d, %d, %d)" % [center_x, center_y, center_z])
-
 	var earth_used := 0
 
 	# Add solid voxels in a 2x2x2 cube area
@@ -791,8 +792,6 @@ func place_square(world_position: Vector3, earth_amount: int) -> int:
 				if target_density > current:
 					earth_used += int((target_density - current) * 4)
 					_set_voxel_at(wx, wy, wz, target_density)
-
-	print("[TerrainWorld] Place used %d earth units" % earth_used)
 
 	_mark_area_dirty(world_position)
 
@@ -909,10 +908,12 @@ func save_environmental_chunks() -> void:
 	print("[TerrainWorld] Saved %d modified terrain chunks" % saved_count)
 
 ## Get all modified chunks (for sending to new clients)
+## Any chunk saved to disk is considered modified (only modified chunks are saved)
 func get_all_modified_chunks() -> Array:
 	var modified_chunks := []
+	var added_keys := {}  # Track which chunks we've added
 
-	# Check loaded chunks
+	# Check loaded chunks first
 	for key in chunks:
 		var chunk = chunks[key]
 		if chunk.is_modified:
@@ -921,8 +922,10 @@ func get_all_modified_chunks() -> Array:
 				"chunk_z": chunk.chunk_z,
 				"data": chunk.serialize()
 			})
+			added_keys[key] = true
 
-	# Also check saved chunks on disk
+	# Also load any saved chunks from disk that aren't currently loaded
+	# Any chunk file on disk was saved because it was modified
 	if is_server:
 		var save_dir := "user://worlds/%s/terrain/" % world_name
 		if DirAccess.dir_exists_absolute(save_dir):
@@ -934,23 +937,39 @@ func get_all_modified_chunks() -> Array:
 					if file_name.ends_with(".chunk"):
 						# Parse chunk coordinates from filename (format: x_z.chunk)
 						var parts := file_name.trim_suffix(".chunk").split("_")
-						if parts.size() == 2:
-							var cx := parts[0].to_int()
-							var cz := parts[1].to_int()
+						if parts.size() >= 2:
+							# Handle negative coordinates (e.g., "-1_-2.chunk" splits to ["", "1", "", "2"])
+							# Use rsplit to handle this better
+							var cx: int = 0
+							var cz: int = 0
+							var base_name := file_name.trim_suffix(".chunk")
+							var last_underscore := base_name.rfind("_")
+							if last_underscore > 0:
+								cx = base_name.substr(0, last_underscore).to_int()
+								cz = base_name.substr(last_underscore + 1).to_int()
+							else:
+								# Fallback to simple split
+								cx = parts[0].to_int()
+								cz = parts[1].to_int()
+
 							var key := ChunkDataClass.make_key(cx, cz)
 
-							# Only add if not already in loaded chunks
-							if not chunks.has(key):
+							# Only add if not already added from loaded chunks
+							if not added_keys.has(key):
 								var chunk_data_from_disk = _load_chunk_from_disk(cx, cz)
-								if chunk_data_from_disk and chunk_data_from_disk.is_modified:
+								if chunk_data_from_disk:
+									# Force is_modified since it was saved to disk
+									chunk_data_from_disk.is_modified = true
 									modified_chunks.append({
 										"chunk_x": cx,
 										"chunk_z": cz,
 										"data": chunk_data_from_disk.serialize()
 									})
+									added_keys[key] = true
 					file_name = dir.get_next()
 				dir.list_dir_end()
 
+	print("[TerrainWorld] Found %d modified chunks to send" % modified_chunks.size())
 	return modified_chunks
 
 ## Apply a received chunk from server
