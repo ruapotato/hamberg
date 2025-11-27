@@ -38,7 +38,7 @@ Hamberg is an open-source multiplayer survival game that blends the co-op magic 
 - ✅ Physics-based character controller (WASD, jump, sprint)
 - ✅ **Valheim-style player body** (segmented body with programmatic animations)
 - ✅ **Proper crosshair** (positioned top-right for better visibility)
-- ✅ Procedural voxel terrain generation (Godot Voxel Tools)
+- ✅ Procedural voxel terrain generation (custom Marching Cubes system)
 - ✅ Multi-biome world generation (Meadow, Dark Forest, Poison Pit, Crystal Peaks, Hellscape, The Void)
 - ✅ Server-authoritative environmental objects (trees, rocks, grass)
 - ✅ Chunk-based streaming with load/unload
@@ -127,13 +127,13 @@ Connect clients to `127.0.0.1:7777`, explore the world, gather resources, and bu
 - [x] Network synchronization
 
 ### Phase 2: Voxel Terrain ✅ **COMPLETE**
-- [x] Integration with Godot Voxel Tools
-- [x] Procedural terrain generation (biome-based)
-- [x] Multiple biomes (Meadow, Dark Forest, Poison Pit, Crystal Peaks, Hellscape, The Void)
-- [x] Chunk streaming with server-authoritative environmental objects
-- [x] Server-client world consistency
-- [x] Smart persistence (procedural + database)
-- [ ] Terrain editing (mining, building) - *deferred to Phase 4*
+- [x] Custom Marching Cubes terrain system (replaced Voxel Tools for true multiplayer support)
+- [x] Procedural terrain generation (biome-based heightmaps)
+- [x] Multiple biomes (Valley, Forest, Swamp, Mountain, Desert, Wizardland, Hell)
+- [x] Chunk streaming with server-authoritative terrain and environmental objects
+- [x] Server-client terrain synchronization
+- [x] Terrain modification persistence across server restarts
+- [x] Smooth biome transitions with domain warping
 
 ### Phase 3: Combat & AI 🗡️ **MOSTLY COMPLETE**
 - [x] **Weapons System** (Valheim-style tiers and types)
@@ -223,7 +223,7 @@ Connect clients to `127.0.0.1:7777`, explore the world, gather resources, and bu
 ### Prerequisites
 
 You'll need:
-- **Godot 4.3+** with Voxel Tools module ([download here](https://github.com/Zylann/godot_voxel))
+- **Godot 4.3+** (standard build - no external modules required)
 - **Linux/Mac/Windows** with terminal/command prompt access
 - **Git** (to clone the repository)
 
@@ -413,10 +413,12 @@ Code that runs on both client and server. Contains core game systems and network
   - Mouse look and zoom
   - Attached to local player only
 
-- **shared/voxel_world.gd** & **voxel_world.tscn**
-  - Voxel terrain integration (Godot Voxel Tools)
-  - Biome-based procedural generation
-  - LOD streaming and mesh generation
+- **shared/custom_terrain/** - Custom Marching Cubes Terrain System
+  - **terrain_world.gd** - Main terrain manager with chunk streaming
+  - **chunk_data.gd** - Heightmap + sparse voxel modification storage
+  - **chunk_mesh_generator.gd** - Marching Cubes mesh generation
+  - **terrain_biome_generator.gd** - Biome-based height and color generation
+  - Built for true multiplayer support (Voxel Tools doesn't support multiplayer with LOD terrain)
 
 - **shared/biome_generator.gd**
   - Procedural terrain heightmap generation
@@ -550,9 +552,8 @@ NetworkManager.rpc_place_buildable.rpc_id(1, piece_name, pos, rot)
 | Item discovery | `client/item_discovery_tracker.gd` |
 | Crafting menu | `client/ui/crafting_menu.gd` |
 | Building | `client/build_mode.gd`, `shared/buildable/building_piece.gd` |
-| Terrain modification | `shared/terrain_modifier.gd`, `shared/voxel_world.gd` |
-| Terrain replay system | `server/server.gd`, `client/client.gd`, `shared/network_manager.gd` |
-| World generation | `shared/biome_generator.gd`, `shared/voxel_world.gd` |
+| Terrain system | `shared/custom_terrain/terrain_world.gd`, `chunk_data.gd`, `chunk_mesh_generator.gd` |
+| World generation | `shared/custom_terrain/terrain_biome_generator.gd`, `shared/biome_generator.gd` |
 | Chunk streaming | `shared/environmental/chunk_manager.gd` |
 | Resource gathering | `shared/environmental/environmental_object.gd`, `shared/player.gd` |
 | Networking | `shared/network_manager.gd`, `server/server.gd`, `client/client.gd` |
@@ -560,127 +561,64 @@ NetworkManager.rpc_place_buildable.rpc_id(1, piece_name, pos, rot)
 
 ---
 
-## ⛏️ Terrain Modification & Replay System
+## ⛏️ Custom Terrain System
 
-Hamberg features a sophisticated terrain modification system that persists changes across server restarts and handles VoxelTool's proximity requirements.
+Hamberg uses a **custom Marching Cubes terrain system** built specifically for multiplayer support. This replaces Godot Voxel Tools, which doesn't support multiplayer with LOD terrain.
 
-### Why This Custom System? (VoxelTools Limitations)
+### Why Custom Terrain? (Voxel Tools Limitations)
 
-**We use VoxelLodTerrain with a custom RPC-based replay system instead of VoxelTools' built-in streaming because:**
+Godot Voxel Tools is excellent for singleplayer, but has fundamental multiplayer limitations:
 
-1. **VoxelLodTerrain + VoxelStream = Works** ✓ but **NO multiplayer support** ✗
-   - VoxelTerrainMultiplayerSynchronizer only works with VoxelTerrain (not VoxelLodTerrain)
-   - VoxelLodTerrain has no official multiplayer support ("planned" per docs)
+1. **VoxelLodTerrain** - Great visuals with LOD, but no multiplayer synchronization support
+2. **VoxelTerrain + VoxelStream** - Has multiplayer sync, but blocks procedural generation
+3. **VoxelTerrain without stream** - Works but no persistence
 
-2. **VoxelTerrain + VoxelStream = Multiplayer support** ✓ but **generator completely blocked** ✗
-   - VoxelStreamRegionFiles blocks generator → no terrain renders
-   - VoxelStreamSQLite blocks generator → no terrain renders
-   - Any VoxelStream assignment prevents generator fallback on VoxelTerrain
+**Our Solution: Custom Marching Cubes System**
+- Full multiplayer support with server-authoritative terrain
+- Heightmap-based generation with sparse voxel modifications
+- Chunk persistence across server restarts
+- Smooth biome transitions with domain warping
+- No external dependencies - works with standard Godot 4.3+
 
-3. **VoxelTerrain + NO stream = Multiplayer** ✓ and **terrain renders** ✓ but **no persistence** ✗
-   - Modifications lost on server restart
-   - No built-in save/load mechanism
+### Architecture
 
-**Our Solution: VoxelLodTerrain + Custom RPC Replay**
-- ✓ Terrain renders (procedural generation works)
-- ✓ Multiplayer via custom RPC system
-- ✓ Persistence via terrain_history.json
-- ⚠️ Known issue: Replayed terrain has slight visual artifacts due to LOD timing
-
-This is the best compromise given VoxelTools' architectural limitations for multiplayer + streaming + procedural generation.
+```
+shared/custom_terrain/
+├── terrain_world.gd          # Main manager - chunk streaming, persistence
+├── chunk_data.gd             # Per-chunk data: heightmap + modifications
+├── chunk_mesh_generator.gd   # Marching Cubes mesh generation
+└── terrain_biome_generator.gd # Biome heights and colors
+```
 
 ### How It Works
 
-**Server-Side Authority:**
-- Server stores all terrain modifications in `terrain_modification_history` (per-chunk dictionary)
-- Modifications saved to `user://worlds/{world_name}/terrain_history.json`
-- On server restart, all chunks with modifications are marked as "unapplied"
+**Heightmap + Sparse Modifications:**
+- Each chunk stores a 16x16 heightmap (procedurally generated)
+- Player modifications are stored as sparse voxel changes
+- Only modified chunks are saved to disk
+- Unmodified terrain regenerates from world seed
 
-**Client-Side Application with Distance-Based Queueing:**
+**Server-Client Flow:**
+1. Server generates terrain from seed + loads saved modifications
+2. When client connects, server sends all modified chunks
+3. Client generates unmodified terrain locally
+4. Client applies server's modifications on top
+5. Terrain edits sync in real-time via RPC
 
-Terrain modifications can only be applied when:
-1. Player is within **32 units (1 chunk)** of the modification
-2. VoxelLodTerrain has loaded high-resolution voxel detail for that area
+**Persistence:**
+- Modified chunks saved to `user://worlds/{world_name}/terrain/`
+- Each chunk file: `{x}_{z}.chunk`
+- Contains heightmap + sparse voxel dictionary
 
-**The Replay Flow:**
+### Key Features
 
-```
-Server Restart
-    ↓
-Load terrain_history.json
-    ↓
-Mark all chunks as unapplied (server/server.gd)
-    ↓
-Player connects and loads world
-    ↓
-Server replays modifications via RPC
-    ↓
-Client receives modifications:
-    - If loading: Queue for later
-    - If player > 32 units away: Queue for later
-    - If player nearby but area not editable: Queue and retry
-    ↓
-Periodic check every 2 seconds (client/client.gd):
-    - Find queued modifications within 32 units
-    - Attempt to apply each one
-    - Re-queue any that fail (area not editable yet)
-    ↓
-Modifications appear when player walks near them
-```
-
-### Critical Implementation Details
-
-**⚠️ IMPORTANT: Do not change these values without understanding VoxelTool constraints**
-
-**Distance Constants:**
-- `MAX_DISTANCE = 32.0` (in `network_manager.gd` and `client.gd`)
-- This is **1 chunk** - the minimum reliable distance for VoxelTool operations
-- **Do NOT increase** - VoxelTool fails silently when player is too far
-- Tested values: 48 units = unreliable, 32 units = reliable
-
-**Retry Logic:**
-- `_apply_terrain_modification_internal()` returns `true/false` based on success
-- Failures (return value = 0 or area not editable) are automatically re-queued
-- Periodic checker runs every 2 seconds: `QUEUED_MODS_CHECK_INTERVAL = 2.0`
-
-**Why This Approach:**
-1. **VoxelTool Limitation**: Terrain detail only loads near VoxelViewer (player camera)
-2. **LOD System**: High-resolution voxel data loads gradually as player approaches
-3. **Silent Failures**: VoxelTool's `is_area_editable()` returns false if detail not loaded
-4. **Distance-Based**: No static timers - everything proximity-based for reliability
-
-### File Locations
-
-| Component | File | Lines |
-|-----------|------|-------|
-| Server terrain history | `server/server.gd` | 987-1240 |
-| Client queueing system | `client/client.gd` | 1388-1474 |
-| Distance check | `shared/network_manager.gd` | 351-366 |
-| Terrain operations | `shared/terrain_modifier.gd` | 73-251 |
-| Voxel world wrapper | `shared/voxel_world.gd` | 358-383 |
-
-### Key Functions
-
-**Server:**
-- `_load_terrain_history()` - Loads modifications and marks all as unapplied
-- `_apply_terrain_modifications_for_chunk()` - Applies modifications when player near
-- `_is_player_near_chunk()` - Checks if any player within range
-
-**Client:**
-- `queue_terrain_modification()` - Adds modification to queue
-- `_check_queued_terrain_modifications()` - Periodic distance check (every 2s)
-- `_apply_terrain_modification_internal()` - Attempts application, returns success
-
-**Network:**
-- `rpc_apply_terrain_modification()` - Checks distance before applying or queuing
-
-### Debugging Tips
-
-If terrain modifications aren't appearing:
-1. Check logs for "Player too far" messages - modifications are queued
-2. Check logs for "Area not editable" warnings - VoxelTool can't apply yet
-3. Walk within 32 units of the modification and wait up to 2 seconds
-4. Modifications will retry automatically every 2 seconds when in range
+| Feature | Implementation |
+|---------|---------------|
+| Chunk size | 16x16 XZ, 256 Y range |
+| Mesh algorithm | Marching Cubes with smooth normals |
+| Biome blending | Smooth transitions via domain warping |
+| Persistence | Per-chunk files, only modified chunks saved |
+| Multiplayer | Server-authoritative with RPC sync |
 
 ---
 
@@ -945,7 +883,7 @@ Hamberg is open source and welcomes contributions!
 
 - **[QUICKSTART.md](QUICKSTART.md)** - Quick testing guide
 - **[Network Architecture](#-network-architecture)** - Deep dive into networking
-- **[Godot Voxel Tools Docs](https://voxel-tools.readthedocs.io/)** - For terrain (Phase 2)
+- **[Custom Terrain System](#️-custom-terrain-system)** - Marching Cubes implementation
 - **Code Comments** - Read the source, it's well documented!
 
 ---
@@ -955,7 +893,7 @@ Hamberg is open source and welcomes contributions!
 Building Hamberg? These resources helped us:
 
 - [Godot Multiplayer Docs](https://docs.godotengine.org/en/stable/tutorials/networking/high_level_multiplayer.html)
-- [Godot Voxel Tools](https://github.com/Zylann/godot_voxel)
+- Custom Marching Cubes Terrain (built-in)
 - [Client-Side Prediction](https://www.gabrielgambetta.com/client-side-prediction-server-reconciliation.html)
 - [Valheim (inspiration)](https://www.valheimgame.com/)
 
@@ -973,7 +911,7 @@ Hamberg is free and open source. Use it, modify it, learn from it, build your ow
 
 **Built with:**
 - [Godot Engine 4.x](https://godotengine.org/) - Open source game engine
-- [Godot Voxel Tools](https://github.com/Zylann/godot_voxel) - Terrain system (Phase 2)
+- Custom Marching Cubes terrain - Built-in multiplayer voxel terrain
 - [ENet](http://enet.bespin.org/) - Reliable UDP networking
 - [Claude Code](https://claude.com/claude-code) - AI pair programming assistant
 
