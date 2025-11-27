@@ -138,13 +138,13 @@ func _setup_terrain_material() -> void:
 		print("[TerrainWorld] Using default terrain material")
 
 ## Generate biome texture centered at a world position
-## Stores biome index (0-6) in the red channel as normalized float
+## Stores blend information: R=primary biome, G=secondary biome, B=blend weight
 func _generate_biome_texture(center: Vector2) -> void:
 	if not biome_generator:
 		return
 
-	# Create image to store biome indices
-	var image := Image.create(BIOME_TEXTURE_SIZE, BIOME_TEXTURE_SIZE, false, Image.FORMAT_RF)
+	# Create image to store biome blend info (RGB format)
+	var image := Image.create(BIOME_TEXTURE_SIZE, BIOME_TEXTURE_SIZE, false, Image.FORMAT_RGB8)
 
 	# Calculate world units per pixel
 	var units_per_pixel := BIOME_TEXTURE_WORLD_SIZE / float(BIOME_TEXTURE_SIZE)
@@ -160,13 +160,25 @@ func _generate_biome_texture(center: Vector2) -> void:
 			var world_z := start_z + (py * units_per_pixel)
 			var world_pos := Vector2(world_x, world_z)
 
-			# Get biome name and convert to index
-			var biome_name: String = biome_generator.get_biome_at_position(world_pos)
-			var biome_idx: int = _biome_name_to_index(biome_name)
+			# Get blend weights for smooth transitions
+			var blend_weights: Array = biome_generator._get_biome_blend_weights(world_pos)
 
-			# Store as normalized float (0-6 -> 0-0.857)
-			var normalized_value := float(biome_idx) / 7.0
-			image.set_pixel(px, py, Color(normalized_value, 0.0, 0.0, 1.0))
+			# Extract primary and secondary biome with blend weight
+			var primary_idx: int = 0
+			var secondary_idx: int = 0
+			var blend_weight: float = 0.0
+
+			if blend_weights.size() >= 1:
+				primary_idx = blend_weights[0][0]
+			if blend_weights.size() >= 2:
+				secondary_idx = blend_weights[1][0]
+				blend_weight = blend_weights[1][1]  # Weight of secondary biome
+
+			# Store in RGB: R=primary (0-6 -> 0-0.857), G=secondary, B=blend weight
+			var r := float(primary_idx) / 7.0
+			var g := float(secondary_idx) / 7.0
+			var b := blend_weight
+			image.set_pixel(px, py, Color(r, g, b, 1.0))
 
 	# Create or update texture
 	if biome_texture == null:

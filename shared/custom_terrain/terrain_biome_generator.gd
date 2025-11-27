@@ -195,19 +195,133 @@ func get_biome_at_position(xz_pos: Vector2) -> String:
 	var idx := _get_biome_index(xz_pos)
 	return _biome_index_to_name(idx)
 
-## Get terrain height with smooth blending between biomes
-func get_height_at_position(xz_pos: Vector2) -> float:
-	var biome_idx := _get_biome_index(xz_pos)
-	var biome_name := _biome_index_to_name(biome_idx)
+## Get biome blend weights for smooth transitions
+## Returns array of [biome_index, weight] pairs that sum to 1.0
+func _get_biome_blend_weights(xz_pos: Vector2) -> Array:
+	var distance := xz_pos.length()
 
-	# Get biome parameters
+	# Domain warping for organic distortion (Valheim-style)
+	var warp_strength := 800.0
+	var warp_x := biome_warp_x.get_noise_2d(xz_pos.x, xz_pos.y) * warp_strength
+	var warp_z := biome_warp_z.get_noise_2d(xz_pos.x, xz_pos.y) * warp_strength
+
+	var warped_pos := xz_pos + Vector2(warp_x, warp_z)
+
+	# Sample biome noise at warped position
+	var biome_value := biome_noise.get_noise_2d(warped_pos.x, warped_pos.y)
+
+	# Sample scale noise to vary biome patch sizes
+	var scale_value := biome_scale_noise.get_noise_2d(xz_pos.x, xz_pos.y)
+
+	# Combine biome noise with scale for more variation
+	var combined_value := biome_value + (scale_value * 0.3)
+
+	# Normalize to 0-1 range
+	var normalized := (combined_value + 1.0) * 0.5
+
+	# Determine difficulty tier based on distance
+	var difficulty_tier := 0
+	if distance < SAFE_ZONE_RADIUS:
+		difficulty_tier = 0
+	elif distance < MID_ZONE_RADIUS:
+		difficulty_tier = 1
+	elif distance < DANGER_ZONE_RADIUS:
+		difficulty_tier = 2
+	elif distance < EXTREME_ZONE_RADIUS:
+		difficulty_tier = 3
+	else:
+		difficulty_tier = 4
+
+	# Get thresholds and biomes for this tier
+	var thresholds: Array = []
+	var biomes: Array = []
+
+	match difficulty_tier:
+		0:  # Safe zone - valley and forest only
+			thresholds = [0.5]
+			biomes = [0, 1]
+		1:  # Mid zone
+			thresholds = [0.25, 0.5, 0.75]
+			biomes = [0, 1, 2, 4]
+		2:  # Danger zone
+			thresholds = [0.15, 0.3, 0.5, 0.7, 0.9]
+			biomes = [1, 2, 4, 3, 5, 6]
+		3:  # Extreme zone
+			thresholds = [0.15, 0.3, 0.45]
+			biomes = [4, 3, 5, 6]
+		_:  # Beyond extreme
+			thresholds = [0.15, 0.25]
+			biomes = [3, 5, 6]
+
+	# Blend width controls smoothness (0.05 = 5% of normalized range)
+	var blend_width := 0.08
+
+	# Find which biomes to blend and their weights
+	var weights: Array = []
+	for i in biomes.size():
+		weights.append(0.0)
+
+	# Calculate blend weights based on proximity to thresholds
+	var prev_threshold := 0.0
+	for i in thresholds.size():
+		var threshold: float = thresholds[i]
+		var lower_blend := threshold - blend_width
+		var upper_blend := threshold + blend_width
+
+		if normalized < lower_blend:
+			# Fully in lower biome region
+			weights[i] = 1.0
+			break
+		elif normalized < upper_blend:
+			# In blend zone
+			var t := (normalized - lower_blend) / (2.0 * blend_width)
+			t = t * t * (3.0 - 2.0 * t)  # Smoothstep
+			weights[i] = 1.0 - t
+			weights[i + 1] = t
+			break
+		prev_threshold = threshold
+
+	# If past all thresholds, fully in last biome
+	if weights[biomes.size() - 1] == 0.0:
+		var all_zero := true
+		for w in weights:
+			if w > 0.0:
+				all_zero = false
+				break
+		if all_zero:
+			weights[biomes.size() - 1] = 1.0
+
+	# Build result array with non-zero weights
+	var result: Array = []
+	for i in biomes.size():
+		if weights[i] > 0.001:
+			result.append([biomes[i], weights[i]])
+
+	return result
+
+## Calculate height for a specific biome
+func _get_biome_height(xz_pos: Vector2, biome_idx: int) -> float:
+	var biome_name := _biome_index_to_name(biome_idx)
 	var params: Dictionary = biome_heights.get(biome_name, biome_heights["valley"])
 	var base: float = params["base"]
 	var amplitude: float = params["amplitude"]
 	var roughness: float = params["roughness"]
 
-	# Sample terrain noise using FastNoiseLite
 	var noise_value := noise.get_noise_2d(xz_pos.x, xz_pos.y)
 	var detail_value := detail_noise.get_noise_2d(xz_pos.x, xz_pos.y)
 
 	return base + (noise_value * amplitude) + (detail_value * amplitude * roughness)
+
+## Get terrain height with smooth blending between biomes
+func get_height_at_position(xz_pos: Vector2) -> float:
+	var blend_weights := _get_biome_blend_weights(xz_pos)
+
+	# Blend heights from all contributing biomes
+	var final_height := 0.0
+	for entry in blend_weights:
+		var biome_idx: int = entry[0]
+		var weight: float = entry[1]
+		var height := _get_biome_height(xz_pos, biome_idx)
+		final_height += height * weight
+
+	return final_height

@@ -46,10 +46,9 @@ func generate_map_texture(center: Vector2, world_size: float, resolution: int) -
 			var world_z := start_z + (py * units_per_pixel)
 			var world_pos := Vector2(world_x, world_z)
 
-			# Get biome color using procedural calculation (matches shader exactly)
-			var biome: String = biome_generator.get_biome_at_position(world_pos)
+			# Get blended biome color with smooth transitions
+			var base_color: Color = _get_blended_biome_color(world_pos)
 			var height: float = biome_generator.get_height_at_position(world_pos)
-			var base_color: Color = BIOME_BASE_COLORS.get(biome, Color.GRAY)
 
 			# Apply height-based shading (hybrid style)
 			# Normalize height to roughly 0-1 range (typical terrain is -20 to 80)
@@ -64,6 +63,46 @@ func generate_map_texture(center: Vector2, world_size: float, resolution: int) -
 
 	# Create texture from image
 	return ImageTexture.create_from_image(image)
+
+## Get blended biome color with smooth transitions between biomes
+func _get_blended_biome_color(world_pos: Vector2) -> Color:
+	# Check if biome generator has blend weights function
+	if biome_generator.has_method("_get_biome_blend_weights"):
+		var blend_weights: Array = biome_generator._get_biome_blend_weights(world_pos)
+
+		if blend_weights.size() == 0:
+			return Color.GRAY
+
+		# Get primary biome color
+		var primary_idx: int = blend_weights[0][0]
+		var primary_weight: float = blend_weights[0][1]
+		var primary_biome: String = _biome_index_to_name(primary_idx)
+		var blended_color: Color = BIOME_BASE_COLORS.get(primary_biome, Color.GRAY) * primary_weight
+
+		# Blend in secondary biome if present
+		if blend_weights.size() >= 2:
+			var secondary_idx: int = blend_weights[1][0]
+			var secondary_weight: float = blend_weights[1][1]
+			var secondary_biome: String = _biome_index_to_name(secondary_idx)
+			blended_color += BIOME_BASE_COLORS.get(secondary_biome, Color.GRAY) * secondary_weight
+
+		return blended_color
+	else:
+		# Fallback to non-blended
+		var biome: String = biome_generator.get_biome_at_position(world_pos)
+		return BIOME_BASE_COLORS.get(biome, Color.GRAY)
+
+## Convert biome index to name
+func _biome_index_to_name(idx: int) -> String:
+	match idx:
+		0: return "valley"
+		1: return "forest"
+		2: return "swamp"
+		3: return "mountain"
+		4: return "desert"
+		5: return "wizardland"
+		6: return "hell"
+		_: return "valley"
 
 ## Generate a higher detail map for a specific region
 ## Useful for zoomed-in views
