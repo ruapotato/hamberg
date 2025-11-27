@@ -168,9 +168,9 @@ func _generate_biome_texture(center: Vector2) -> void:
 			var secondary_idx: int = 0
 			var blend_weight: float = 0.0
 
-			if blend_weights.size() >= 1:
+			if blend_weights.size() >= 1 and blend_weights[0] is Array and blend_weights[0].size() >= 2:
 				primary_idx = blend_weights[0][0]
-			if blend_weights.size() >= 2:
+			if blend_weights.size() >= 2 and blend_weights[1] is Array and blend_weights[1].size() >= 2:
 				secondary_idx = blend_weights[1][0]
 				blend_weight = blend_weights[1][1]  # Weight of secondary biome
 
@@ -383,8 +383,8 @@ func _apply_completed_meshes() -> void:
 		var mesh: ArrayMesh = result["mesh"]
 		var collision_shape: ConcavePolygonShape3D = result["collision_shape"]
 
-		if mesh == null:
-			# Empty chunk - remove existing mesh if any
+		if mesh == null or mesh.get_surface_count() == 0:
+			# Empty chunk or invalid mesh - remove existing mesh if any
 			_remove_chunk_visuals(chunk_key)
 			chunk.is_dirty = false
 			chunk_lod_levels.erase(chunk_key)
@@ -436,6 +436,9 @@ func register_player_for_spawning(peer_id: int, player_node: Node3D) -> void:
 	# Immediately load chunks around player
 	if is_instance_valid(player_node):
 		_update_chunks_around_position(player_node.global_position)
+		# Note: Chunks received before player spawn will be at high LOD initially.
+		# The normal _check_lod_updates() in _process() will upgrade them to proper LOD
+		# with collision over the next few frames.
 
 ## Unregister a player
 func unregister_player_from_spawning(peer_id: int) -> void:
@@ -728,10 +731,10 @@ func dig_square(world_position: Vector3, tool_name: String = "stone_pickaxe") ->
 
 	var earth_collected := 0
 
-	# Remove voxels in a 3x3x3 area for smooth edges
-	for dx in range(-1, 2):
-		for dy in range(-1, 2):
-			for dz in range(-1, 2):
+	# Remove voxels in a 2x2x2 area
+	for dx in range(0, 2):
+		for dy in range(0, 2):
+			for dz in range(0, 2):
 				var wx := center_x + dx
 				var wy := center_y + dy
 				var wz := center_z + dz
@@ -741,15 +744,8 @@ func dig_square(world_position: Vector3, tool_name: String = "stone_pickaxe") ->
 				if current > 0.1:
 					earth_collected += int(current * 4)
 
-				# Set to air with smooth falloff at edges
-				var dist := Vector3(dx, dy, dz).length()
-				var new_density := 0.0
-				if dist > 1.5:
-					new_density = current * 0.5  # Partial removal at edges
-				_set_voxel_at(wx, wy, wz, new_density)
-
-	# Record modification
-	chunk.record_modification("dig_square", world_position, {"tool": tool_name})
+				# Set to air
+				_set_voxel_at(wx, wy, wz, 0.0)
 
 	# Mark chunk and neighbors as dirty
 	_mark_area_dirty(world_position)
@@ -777,10 +773,10 @@ func place_square(world_position: Vector3, earth_amount: int) -> int:
 
 	var earth_used := 0
 
-	# Add solid voxels in a 3x3x3 cube area
-	for dx in range(-1, 2):
-		for dy in range(-1, 2):
-			for dz in range(-1, 2):
+	# Add solid voxels in a 2x2x2 cube area
+	for dx in range(0, 2):
+		for dy in range(0, 2):
+			for dz in range(0, 2):
 				var wx := center_x + dx
 				var wy := center_y + dy
 				var wz := center_z + dz
@@ -798,7 +794,6 @@ func place_square(world_position: Vector3, earth_amount: int) -> int:
 
 	print("[TerrainWorld] Place used %d earth units" % earth_used)
 
-	chunk.record_modification("place_square", world_position, {"earth_amount": earth_amount})
 	_mark_area_dirty(world_position)
 
 	emit_signal("terrain_modified", chunk_coords.x, chunk_coords.y, "place_square", world_position)
@@ -825,14 +820,9 @@ func flatten_square(world_position: Vector3, target_height: float) -> int:
 			for wy in range(target_y - 5, target_y + 1):
 				_set_voxel_at(wx, wy, wz, 1.0)
 
-	# Record modification
-	var chunk_coords := ChunkDataClass.world_to_chunk_coords(world_position)
-	var key := ChunkDataClass.make_key(chunk_coords.x, chunk_coords.y)
-	if chunks.has(key):
-		chunks[key].record_modification("flatten_square", world_position, {"target_height": target_height})
-
 	_mark_area_dirty(world_position)
 
+	var chunk_coords := ChunkDataClass.world_to_chunk_coords(world_position)
 	emit_signal("terrain_modified", chunk_coords.x, chunk_coords.y, "flatten_square", world_position)
 
 	return 0
@@ -909,12 +899,74 @@ func save_environmental_chunks() -> void:
 		chunk_manager.save_all_modified_chunks()
 
 	# Save all modified terrain chunks
+	var saved_count := 0
 	for key in chunks:
 		var chunk = chunks[key]
 		if chunk.is_modified:
 			_save_chunk_to_disk(chunk)
+			saved_count += 1
 
-	print("[TerrainWorld] Saved all modified chunks")
+	print("[TerrainWorld] Saved %d modified terrain chunks" % saved_count)
+
+## Get all modified chunks (for sending to new clients)
+func get_all_modified_chunks() -> Array:
+	var modified_chunks := []
+
+	# Check loaded chunks
+	for key in chunks:
+		var chunk = chunks[key]
+		if chunk.is_modified:
+			modified_chunks.append({
+				"chunk_x": chunk.chunk_x,
+				"chunk_z": chunk.chunk_z,
+				"data": chunk.serialize()
+			})
+
+	# Also check saved chunks on disk
+	if is_server:
+		var save_dir := "user://worlds/%s/terrain/" % world_name
+		if DirAccess.dir_exists_absolute(save_dir):
+			var dir := DirAccess.open(save_dir)
+			if dir:
+				dir.list_dir_begin()
+				var file_name := dir.get_next()
+				while file_name != "":
+					if file_name.ends_with(".chunk"):
+						# Parse chunk coordinates from filename (format: x_z.chunk)
+						var parts := file_name.trim_suffix(".chunk").split("_")
+						if parts.size() == 2:
+							var cx := parts[0].to_int()
+							var cz := parts[1].to_int()
+							var key := ChunkDataClass.make_key(cx, cz)
+
+							# Only add if not already in loaded chunks
+							if not chunks.has(key):
+								var chunk_data_from_disk = _load_chunk_from_disk(cx, cz)
+								if chunk_data_from_disk and chunk_data_from_disk.is_modified:
+									modified_chunks.append({
+										"chunk_x": cx,
+										"chunk_z": cz,
+										"data": chunk_data_from_disk.serialize()
+									})
+					file_name = dir.get_next()
+				dir.list_dir_end()
+
+	return modified_chunks
+
+## Apply a received chunk from server
+func apply_received_chunk(chunk_x: int, chunk_z: int, chunk_data: Dictionary) -> void:
+	var key := ChunkDataClass.make_key(chunk_x, chunk_z)
+	var chunk = ChunkDataClass.deserialize(chunk_data)
+
+	chunks[key] = chunk
+	chunk.is_dirty = true
+
+	# Queue mesh generation
+	if not pending_mesh_updates.has(key):
+		pending_mesh_updates.append(key)
+
+	# Mark neighbors as needing mesh update
+	_queue_neighbor_mesh_updates(chunk_x, chunk_z)
 
 ## Apply a terrain modification from network
 func apply_network_modification(operation: String, position: Vector3, data: Dictionary) -> void:
@@ -929,26 +981,3 @@ func apply_network_modification(operation: String, position: Vector3, data: Dict
 			var target_height = data.get("target_height", position.y)
 			flatten_square(position, target_height)
 
-## Get all modifications for a chunk (for syncing to new clients)
-func get_chunk_modifications(cx: int, cz: int) -> Array:
-	var key := ChunkDataClass.make_key(cx, cz)
-	if chunks.has(key):
-		return chunks[key].modifications.duplicate()
-	return []
-
-## Get list of modified chunks near a position
-func get_modified_chunks_near(world_pos: Vector3, radius: int = 8) -> Array:
-	var result := []
-	var center := ChunkDataClass.world_to_chunk_coords(world_pos)
-
-	for dx in range(-radius, radius + 1):
-		for dz in range(-radius, radius + 1):
-			var key := ChunkDataClass.make_key(center.x + dx, center.y + dz)
-			if chunks.has(key) and chunks[key].is_modified:
-				result.append({
-					"chunk_x": center.x + dx,
-					"chunk_z": center.y + dz,
-					"modifications": chunks[key].modifications.duplicate()
-				})
-
-	return result

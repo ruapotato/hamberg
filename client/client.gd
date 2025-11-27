@@ -248,6 +248,16 @@ func _on_client_disconnected() -> void:
 	is_connected = false
 	is_in_game = false
 
+	# Show disconnect message to user
+	if loading_screen_ui:
+		loading_screen_ui.show()
+		loading_screen_ui.set_status("Disconnected from server")
+		loading_screen_ui.set_detail("Connection to the server was lost. Please restart the client.")
+		loading_screen_ui.set_progress(0.0)
+
+	# Pause the game tree to prevent further gameplay
+	get_tree().paused = true
+
 	# Clean up players
 	if local_player:
 		local_player.queue_free()
@@ -961,6 +971,39 @@ func receive_equipment_sync(equipment_data: Dictionary) -> void:
 
 		# TODO: Update equipment UI when we create it
 		# Update inventory panel to show equipped items with visual indicators
+
+# ============================================================================
+# TERRAIN MODIFICATION SYNC
+# ============================================================================
+
+## Receive all terrain modifications from server on connect
+## These are queued and applied when chunks are loaded (using existing queue system)
+func receive_terrain_modifications(modifications: Array) -> void:
+	print("[Client] Received %d terrain modifications from server - queuing for later application" % modifications.size())
+
+	# Queue all modifications - they'll be applied by _check_queued_terrain_modifications
+	# when the player is close enough and chunks are loaded
+	for mod in modifications:
+		var operation: String = mod.get("operation", "")
+		var position: Array = mod.get("position", [0, 0, 0])
+		var data: Dictionary = mod.get("data", {})
+
+		queued_terrain_modifications.append({
+			"operation": operation,
+			"position": position,
+			"data": data
+		})
+
+	print("[Client] Queued %d terrain modifications (total in queue: %d)" % [modifications.size(), queued_terrain_modifications.size()])
+
+## Receive a modified terrain chunk from server
+func receive_terrain_chunk(chunk_x: int, chunk_z: int, chunk_data: Dictionary) -> void:
+	if not terrain_world:
+		push_warning("[Client] Received terrain chunk but TerrainWorld not ready!")
+		return
+
+	print("[Client] Received modified terrain chunk (%d, %d) from server" % [chunk_x, chunk_z])
+	terrain_world.apply_received_chunk(chunk_x, chunk_z, chunk_data)
 
 # ============================================================================
 # ENVIRONMENTAL OBJECT MANAGEMENT (CLIENT-SIDE VISUAL ONLY)

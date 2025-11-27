@@ -387,6 +387,15 @@ func generate_mesh(chunk, neighbor_chunks: Dictionary = {}, lod_level: int = 0) 
 	if vertices.size() == 0:
 		return null
 
+	# Validate mesh data before creating surface
+	if vertices.size() != normals.size() or vertices.size() != uvs.size():
+		push_error("[ChunkMeshGenerator] Array size mismatch: vertices=%d normals=%d uvs=%d" % [vertices.size(), normals.size(), uvs.size()])
+		return null
+
+	if indices.size() % 3 != 0:
+		push_error("[ChunkMeshGenerator] Invalid index count: %d (must be multiple of 3)" % indices.size())
+		return null
+
 	var mesh := ArrayMesh.new()
 	var arrays := []
 	arrays.resize(Mesh.ARRAY_MAX)
@@ -395,7 +404,13 @@ func generate_mesh(chunk, neighbor_chunks: Dictionary = {}, lod_level: int = 0) 
 	arrays[Mesh.ARRAY_TEX_UV] = uvs
 	arrays[Mesh.ARRAY_INDEX] = indices
 
+	# Try to add surface and check if it succeeded
 	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+
+	# Verify the surface was actually created
+	if mesh.get_surface_count() == 0:
+		push_error("[ChunkMeshGenerator] Failed to create mesh surface! vertices=%d indices=%d" % [vertices.size(), indices.size()])
+		return null
 
 	return mesh
 

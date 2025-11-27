@@ -1117,14 +1117,16 @@ func _handle_terrain_modification_input(input_data: Dictionary) -> bool:
 
 	if is_pickaxe:
 		if left_click:
-			operation = "dig_square"
-		elif middle_click:
+			# Left click = place (fill terrain)
 			# Check if player has earth for placing
 			if inventory and inventory.has_item("earth", 1):
 				operation = "place_square"
 			else:
 				print("[Player] Cannot place earth - need earth in inventory!")
 				return false
+		elif right_click:
+			# Right click = dig (remove terrain)
+			operation = "dig_square"
 	elif is_hoe:
 		if left_click or right_click:
 			operation = "flatten_square"

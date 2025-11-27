@@ -74,19 +74,22 @@ func _get_blended_biome_color(world_pos: Vector2) -> Color:
 			return Color.GRAY
 
 		# Get primary biome color
-		var primary_idx: int = blend_weights[0][0]
-		var primary_weight: float = blend_weights[0][1]
-		var primary_biome: String = _biome_index_to_name(primary_idx)
-		var blended_color: Color = BIOME_BASE_COLORS.get(primary_biome, Color.GRAY) * primary_weight
+		if blend_weights.size() >= 1 and blend_weights[0] is Array and blend_weights[0].size() >= 2:
+			var primary_idx: int = blend_weights[0][0]
+			var primary_weight: float = blend_weights[0][1]
+			var primary_biome: String = _biome_index_to_name(primary_idx)
+			var blended_color: Color = BIOME_BASE_COLORS.get(primary_biome, Color.GRAY) * primary_weight
 
-		# Blend in secondary biome if present
-		if blend_weights.size() >= 2:
-			var secondary_idx: int = blend_weights[1][0]
-			var secondary_weight: float = blend_weights[1][1]
-			var secondary_biome: String = _biome_index_to_name(secondary_idx)
-			blended_color += BIOME_BASE_COLORS.get(secondary_biome, Color.GRAY) * secondary_weight
+			# Blend in secondary biome if present
+			if blend_weights.size() >= 2 and blend_weights[1] is Array and blend_weights[1].size() >= 2:
+				var secondary_idx: int = blend_weights[1][0]
+				var secondary_weight: float = blend_weights[1][1]
+				var secondary_biome: String = _biome_index_to_name(secondary_idx)
+				blended_color += BIOME_BASE_COLORS.get(secondary_biome, Color.GRAY) * secondary_weight
 
-		return blended_color
+			return blended_color
+		else:
+			return Color.GRAY
 	else:
 		# Fallback to non-blended
 		var biome: String = biome_generator.get_biome_at_position(world_pos)

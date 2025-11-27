@@ -297,6 +297,16 @@ func _get_biome_blend_weights(xz_pos: Vector2) -> Array:
 		if weights[i] > 0.001:
 			result.append([biomes[i], weights[i]])
 
+	# Debug: Validate result structure
+	if result.size() > 0:
+		for entry in result:
+			if not (entry is Array) or entry.size() < 2:
+				push_error("[BiomeGenerator] Invalid blend_weights entry at %s: %s" % [xz_pos, entry])
+				return [[0, 1.0]]  # Return safe default
+	else:
+		# If no weights were generated, return safe default (valley, 100%)
+		return [[0, 1.0]]
+
 	return result
 
 ## Calculate height for a specific biome

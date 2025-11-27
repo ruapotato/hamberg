@@ -1,7 +1,7 @@
 extends RefCounted
-class_name ChunkData
+class_name TerrainChunkData
 
-## ChunkData - Stores voxel data for a single terrain chunk
+## TerrainChunkData - Stores voxel data for a single terrain chunk
 ## Optimized: Only stores a height range around the surface, not full 256 height
 
 const CHUNK_SIZE_XZ: int = 16  # 16x16 horizontal
@@ -27,9 +27,6 @@ var is_dirty: bool = true
 
 # Track if chunk has been modified
 var is_modified: bool = false
-
-# Modification history for multiplayer sync
-var modifications: Array = []
 
 # Min/max Y with actual terrain (for mesh generation bounds)
 var min_surface_y: int = 256
@@ -157,6 +154,8 @@ func fill_from_heights(heights: PackedFloat32Array) -> void:
 			max_surface_y = h + 2
 
 	is_dirty = true
+	# Don't mark as modified - this is just procedural generation, not player modification
+	# is_modified will only be true if voxels are changed via set_voxel()
 
 ## Get world position of chunk origin
 func get_world_origin() -> Vector3:
@@ -165,15 +164,6 @@ func get_world_origin() -> Vector3:
 ## Get the Y range that needs mesh generation
 func get_surface_y_range() -> Vector2i:
 	return Vector2i(max(min_surface_y - 4, -128), min(max_surface_y + 4, 127))
-
-## Record a modification for persistence and sync
-func record_modification(operation: String, world_position: Vector3, data: Dictionary) -> void:
-	is_modified = true
-	modifications.append({
-		"operation": operation,
-		"position": [world_position.x, world_position.y, world_position.z],
-		"data": data
-	})
 
 ## Serialize chunk data for saving
 func serialize() -> Dictionary:
@@ -187,8 +177,7 @@ func serialize() -> Dictionary:
 		"chunk_z": chunk_z,
 		"heightmap": var_to_bytes(heightmap).hex_encode(),
 		"modified_voxels": mods_array,
-		"is_modified": is_modified,
-		"modifications": modifications
+		"is_modified": is_modified
 	}
 
 ## Deserialize chunk data
@@ -218,7 +207,6 @@ static func deserialize(data: Dictionary):
 			chunk.modified_voxels[mod[0]] = mod[1]
 
 	chunk.is_modified = data.get("is_modified", false)
-	chunk.modifications = data.get("modifications", [])
 	chunk.is_dirty = true
 
 	return chunk

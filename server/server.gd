@@ -18,6 +18,9 @@ var player_spawn_area_center: Vector2 = Vector2(0, 0) # Center of spawn area
 # Buildable management
 var placed_buildables: Dictionary = {} # network_id -> {piece_name, position, rotation_y}
 
+# Terrain chunks are now saved directly to disk via ChunkManager
+# No need for in-memory modified_terrain_chunks dictionary
+
 # Persistence managers
 var player_data_manager: PlayerDataManager = null
 var world_state_manager: WorldStateManager = null
@@ -122,18 +125,12 @@ func start_server(port: int = 7777, max_players: int = 10) -> void:
 	# Load world state (buildables, etc.)
 	_load_world_state()
 
-	# Load terrain modification history
-	_load_terrain_history()
-
 	if NetworkManager.start_server(port, max_players):
 		is_running = true
 		print("[Server] ===========================================")
 		print("[Server] Server is now running!")
 		print("[Server] Port: %d" % port)
 		print("[Server] Max players: %d" % max_players)
-
-		# Start timer to periodically check for unapplied chunks near players
-		_start_unapplied_chunk_checker()
 		print("[Server] World: %s (seed: %d)" % [world_config.world_name, world_config.seed])
 		print("[Server] Loaded %d buildables from save" % placed_buildables.size())
 		print("[Server] ===========================================")
@@ -155,9 +152,6 @@ func stop_server() -> void:
 
 	# Save environmental chunks (trees, rocks, etc.)
 	_save_environmental_chunks()
-
-	# Save terrain modification history
-	_save_terrain_history()
 
 	# Kick all players
 	for peer_id in spawned_players.keys():
@@ -198,7 +192,6 @@ func _auto_save() -> void:
 	_save_all_players()
 	_save_world_state()
 	_save_environmental_chunks()
-	_save_terrain_history()
 	print("[Server] Auto-save complete")
 
 func _broadcast_player_states() -> void:
@@ -234,9 +227,6 @@ func _update_environmental_chunks() -> void:
 			if player and is_instance_valid(player):
 				terrain_world.update_player_spawn_position(peer_id, player.global_position)
 
-				# Check if player has moved near any unapplied chunks
-				_check_unapplied_chunks_near_player(peer_id, player.global_position)
-
 func _on_chunk_loaded(chunk_pos: Vector2i) -> void:
 	# When server loads a chunk, broadcast its objects to all clients
 	if not terrain_world or not terrain_world.chunk_manager:
@@ -268,10 +258,6 @@ func _on_chunk_loaded(chunk_pos: Vector2i) -> void:
 	# Broadcast to all clients
 	if objects_data.size() > 0:
 		NetworkManager.rpc_spawn_environmental_objects.rpc([chunk_pos.x, chunk_pos.y], objects_data)
-
-	# Apply terrain modifications after a delay to let LOD fully load
-	# The voxel LOD system needs time to load high-resolution detail
-	_apply_terrain_modifications_for_chunk_deferred(chunk_pos)
 
 func _on_chunk_unloaded(chunk_pos: Vector2i) -> void:
 	# When server unloads a chunk, tell clients to despawn it
@@ -332,6 +318,27 @@ func _send_buildables_to_player(peer_id: int) -> void:
 
 	print("[Server] Sent %d buildables to player %d" % [buildables_sent, peer_id])
 
+func _send_terrain_chunks_to_player(peer_id: int) -> void:
+	if not terrain_world:
+		return
+
+	var modified_chunks: Array = terrain_world.get_all_modified_chunks()
+	if modified_chunks.is_empty():
+		print("[Server] No modified terrain chunks to send to player %d" % peer_id)
+		return
+
+	print("[Server] Sending %d modified terrain chunks to player %d..." % [modified_chunks.size(), peer_id])
+
+	for chunk_info in modified_chunks:
+		NetworkManager.rpc_sync_terrain_chunk.rpc_id(
+			peer_id,
+			chunk_info["chunk_x"],
+			chunk_info["chunk_z"],
+			chunk_info["data"]
+		)
+
+	print("[Server] Sent %d modified terrain chunks to player %d" % [modified_chunks.size(), peer_id])
+
 func _send_enemies_to_player(peer_id: int) -> void:
 	# Get enemy spawner
 	var enemy_spawner = get_node_or_null("EnemySpawner")
@@ -362,239 +369,6 @@ func _send_enemies_to_player(peer_id: int) -> void:
 		enemies_sent += 1
 
 	print("[Server] Sent %d enemies to player %d" % [enemies_sent, peer_id])
-
-## Deferred application of terrain modifications (waits for LOD to fully load)
-func _apply_terrain_modifications_for_chunk_deferred(chunk_pos: Vector2i) -> void:
-	# Wait longer for voxel LOD system to load high-resolution detail
-	# Square operations especially need full detail to work correctly
-	await get_tree().create_timer(2.0).timeout  # Wait 2 seconds for voxel detail to fully load
-
-	# Only apply if a player is very close to this chunk
-	# VoxelTool only works within the voxel viewer camera's active range
-	if not _is_player_near_chunk(chunk_pos):
-		print("[Server] Chunk %s loaded but no player nearby - marking for later application" % chunk_pos)
-		unapplied_chunks[chunk_pos] = true
-		return
-
-	var success := _apply_terrain_modifications_for_chunk(chunk_pos)
-	if success:
-		# Remove from unapplied list if it was there
-		unapplied_chunks.erase(chunk_pos)
-	else:
-		print("[Server] Chunk %s modifications not fully applied - keeping in unapplied list" % chunk_pos)
-		unapplied_chunks[chunk_pos] = true
-
-## Check if any player is close enough to a chunk for voxel operations to work
-func _is_player_near_chunk(chunk_pos: Vector2i) -> bool:
-	const MAX_DISTANCE := 48.0  # VoxelTool requires player to be very close (1.5 chunks = 48 units)
-	# Square operations especially need the player to be nearby for proper detail
-
-	var chunk_center := Vector3(chunk_pos.x * CHUNK_SIZE + CHUNK_SIZE / 2.0, 0, chunk_pos.y * CHUNK_SIZE + CHUNK_SIZE / 2.0)
-
-	# Use spawned_players dictionary directly (more reliable than NetworkManager.get_player_info)
-	for peer_id in spawned_players:
-		var player = spawned_players[peer_id]
-		if player and is_instance_valid(player):
-			var player_pos: Vector3 = player.global_position
-			var distance := Vector2(player_pos.x, player_pos.z).distance_to(Vector2(chunk_center.x, chunk_center.z))
-			if distance <= MAX_DISTANCE:
-				return true
-
-	return false
-
-## Periodically check for unapplied chunks that now have players nearby
-func _start_unapplied_chunk_checker() -> void:
-	while is_running:
-		await get_tree().create_timer(2.0).timeout  # Check every 2 seconds
-		_check_unapplied_chunks()
-
-func _check_unapplied_chunks() -> void:
-	if unapplied_chunks.is_empty():
-		return
-
-	var chunks_to_apply: Array[Vector2i] = []
-
-	# Find unapplied chunks that now have players nearby
-	for chunk_pos in unapplied_chunks.keys():
-		if _is_player_near_chunk(chunk_pos):
-			chunks_to_apply.append(chunk_pos)
-
-	# Apply modifications to these chunks
-	for chunk_pos in chunks_to_apply:
-		print("[Server] Player now near chunk %s - applying pending terrain modifications" % chunk_pos)
-		var success := _apply_terrain_modifications_for_chunk(chunk_pos)
-		if success:
-			unapplied_chunks.erase(chunk_pos)
-		else:
-			print("[Server] Chunk %s modifications not fully applied - will retry later" % chunk_pos)
-
-## Check and apply unapplied chunks near a specific position (e.g., spawn point)
-func _check_unapplied_chunks_near_position(position: Vector3) -> void:
-	if unapplied_chunks.is_empty():
-		return
-
-	const MAX_DISTANCE := 48.0  # Match _is_player_near_chunk distance
-	var chunks_to_apply: Array[Vector2i] = []
-
-	# Find unapplied chunks near this position
-	for chunk_pos in unapplied_chunks.keys():
-		var chunk_center := Vector3(chunk_pos.x * CHUNK_SIZE + CHUNK_SIZE / 2.0, 0, chunk_pos.y * CHUNK_SIZE + CHUNK_SIZE / 2.0)
-		var distance := Vector2(position.x, position.z).distance_to(Vector2(chunk_center.x, chunk_center.z))
-
-		if distance <= MAX_DISTANCE:
-			chunks_to_apply.append(chunk_pos)
-
-	# Apply modifications to these chunks
-	for chunk_pos in chunks_to_apply:
-		print("[Server] Position %s near chunk %s - applying pending terrain modifications" % [position, chunk_pos])
-		var success := _apply_terrain_modifications_for_chunk(chunk_pos)
-		if success:
-			unapplied_chunks.erase(chunk_pos)
-		else:
-			print("[Server] Chunk %s modifications not fully applied - will retry later" % chunk_pos)
-
-## Check and apply unapplied chunks near a specific player (called every server tick)
-## Uses per-player tracking to avoid re-applying the same chunks
-func _check_unapplied_chunks_near_player(peer_id: int, position: Vector3) -> void:
-	if unapplied_chunks.is_empty():
-		return
-
-	# Initialize tracking for this player if needed
-	if not player_applied_chunks.has(peer_id):
-		player_applied_chunks[peer_id] = {}
-
-	const MAX_DISTANCE := 48.0  # VoxelTool range
-	var player_applied: Dictionary = player_applied_chunks[peer_id]
-	var chunks_to_apply: Array[Vector2i] = []
-
-	# Find unapplied chunks near this player that haven't been applied yet
-	for chunk_pos in unapplied_chunks.keys():
-		# Skip if this player already triggered application for this chunk
-		if player_applied.has(chunk_pos):
-			continue
-
-		var chunk_center := Vector3(chunk_pos.x * CHUNK_SIZE + CHUNK_SIZE / 2.0, 0, chunk_pos.y * CHUNK_SIZE + CHUNK_SIZE / 2.0)
-		var distance := Vector2(position.x, position.z).distance_to(Vector2(chunk_center.x, chunk_center.z))
-
-		if distance <= MAX_DISTANCE:
-			chunks_to_apply.append(chunk_pos)
-			# Mark as applied for this player
-			player_applied[chunk_pos] = true
-
-	# Apply modifications to these chunks
-	for chunk_pos in chunks_to_apply:
-		print("[Server] Player %d moved near chunk %s - applying pending terrain modifications" % [peer_id, chunk_pos])
-		var success := _apply_terrain_modifications_for_chunk(chunk_pos)
-		if success:
-			unapplied_chunks.erase(chunk_pos)
-
-			# Clear this chunk from all players' tracking since it's now applied
-			for p_id in player_applied_chunks.keys():
-				player_applied_chunks[p_id].erase(chunk_pos)
-		else:
-			print("[Server] Chunk %s modifications not fully applied - will retry when player moves closer" % chunk_pos)
-			# Reset this player's tracking for this chunk so it can be retried
-			player_applied[chunk_pos] = false
-
-## Apply terrain modifications for a specific chunk (called when chunk loads)
-## Returns true if all modifications were successfully applied, false otherwise
-func _apply_terrain_modifications_for_chunk(chunk_pos: Vector2i) -> bool:
-	if not terrain_modification_history.has(chunk_pos):
-		return true  # No modifications for this chunk = success
-
-	var chunk_mods = terrain_modification_history[chunk_pos]
-	print("[Server] Applying %d terrain modifications for chunk %s" % [chunk_mods.size(), chunk_pos])
-
-	# Sort modifications by timestamp to ensure correct order
-	var sorted_mods = chunk_mods.duplicate()
-	sorted_mods.sort_custom(func(a, b): return a.get("timestamp", 0) < b.get("timestamp", 0))
-
-	var all_successful := true
-	var successful_mods := []
-
-	for modification in sorted_mods:
-		var operation: String = modification.operation
-		var position: Array = modification.position
-		var pos_v3 := Vector3(position[0], position[1], position[2])
-		var data: Dictionary = modification.data
-
-		print("[Server] Replaying: %s at %s with data: %s" % [operation, pos_v3, data])
-
-		# Apply modification to server's terrain and track success
-		var earth_result := 0
-		match operation:
-			"dig_square":
-				var tool_name: String = data.get("tool", "stone_pickaxe")
-				print("[Server] -> dig_square with tool: %s" % tool_name)
-				earth_result = terrain_world.dig_square(pos_v3, tool_name)
-				if earth_result == 0:
-					print("[Server] WARNING: dig_square returned 0 (area likely not editable yet)")
-					all_successful = false
-				else:
-					successful_mods.append(modification)
-			"place_square":
-				print("[Server] -> place_square with unlimited earth")
-				earth_result = terrain_world.place_square(pos_v3, 999999)
-				if earth_result == 0:
-					print("[Server] WARNING: place_square returned 0 (area likely not editable yet)")
-					all_successful = false
-				else:
-					successful_mods.append(modification)
-			"flatten_square":
-				var target_height: float = data.get("target_height", pos_v3.y)
-				print("[Server] -> flatten_square at height: %f" % target_height)
-				earth_result = terrain_world.flatten_square(pos_v3, target_height)
-				# Flatten always succeeds (returns 0), assume success
-				successful_mods.append(modification)
-
-	# Only broadcast modifications that were successfully applied
-	for modification in successful_mods:
-		var operation: String = modification.operation
-		var position: Array = modification.position
-		var data: Dictionary = modification.data
-		NetworkManager.rpc_apply_terrain_modification.rpc(operation, position, data)
-
-	if all_successful:
-		print("[Server] Successfully applied and broadcasted %d modifications for chunk %s" % [chunk_mods.size(), chunk_pos])
-	else:
-		print("[Server] Partially applied %d/%d modifications for chunk %s (some areas not editable yet)" % [successful_mods.size(), chunk_mods.size(), chunk_pos])
-
-	return all_successful
-
-## Replay all terrain modifications to a newly connected player
-## Only replays modifications for currently loaded chunks
-func _replay_terrain_modifications_to_player(peer_id: int) -> void:
-	if terrain_modification_history.is_empty():
-		print("[Server] No terrain modifications to replay to player %d" % peer_id)
-		return
-
-	# Get loaded chunks from chunk_manager
-	var loaded_chunks := []
-	if terrain_world and terrain_world.chunk_manager:
-		loaded_chunks = terrain_world.chunk_manager.loaded_chunks.keys()
-
-	var total_replayed := 0
-
-	# Only replay modifications for chunks that are currently loaded
-	for chunk_pos in loaded_chunks:
-		if terrain_modification_history.has(chunk_pos):
-			var chunk_mods = terrain_modification_history[chunk_pos]
-
-			# Sort modifications by timestamp to ensure correct order
-			# (wall must be built before door is cut)
-			var sorted_mods = chunk_mods.duplicate()
-			sorted_mods.sort_custom(func(a, b): return a.get("timestamp", 0) < b.get("timestamp", 0))
-
-			for modification in sorted_mods:
-				var operation: String = modification.operation
-				var position: Array = modification.position
-				var data: Dictionary = modification.data
-
-				# Send to this specific client only
-				NetworkManager.rpc_apply_terrain_modification.rpc_id(peer_id, operation, position, data)
-				total_replayed += 1
-
-	print("[Server] Replayed %d terrain modifications from %d loaded chunks to player %d" % [total_replayed, loaded_chunks.size(), peer_id])
 
 # ============================================================================
 # PLAYER MANAGEMENT (SERVER-AUTHORITATIVE)
@@ -639,9 +413,6 @@ func _spawn_player(peer_id: int, player_name: String) -> void:
 
 	print("[Server] Spawned player %d at %s" % [peer_id, spawn_pos])
 
-	# Check for unapplied chunks near the spawn position (chunks that loaded before player connected)
-	_check_unapplied_chunks()
-
 	# Register player with chunk manager for environmental object spawning
 	if terrain_world:
 		terrain_world.register_player_for_spawning(peer_id, player)
@@ -652,11 +423,11 @@ func _spawn_player(peer_id: int, player_name: String) -> void:
 	# Send all existing buildables to the new player
 	_send_buildables_to_player(peer_id)
 
+	# Send all modified terrain chunks to the new player
+	_send_terrain_chunks_to_player(peer_id)
+
 	# Send all existing enemies to the new player
 	_send_enemies_to_player(peer_id)
-
-	# Replay all terrain modifications to the new player
-	_replay_terrain_modifications_to_player(peer_id)
 
 	# Notify all clients to spawn this player through NetworkManager
 	print("[Server] Broadcasting spawn for player %d to all clients" % peer_id)
@@ -715,9 +486,6 @@ func _despawn_player(peer_id: int) -> void:
 		player.queue_free()
 
 	spawned_players.erase(peer_id)
-
-	# Clean up player terrain modification tracking
-	player_applied_chunks.erase(peer_id)
 
 	# Notify all clients to despawn through NetworkManager
 	NetworkManager.rpc_despawn_player.rpc(peer_id)
@@ -950,20 +718,6 @@ func handle_destroy_buildable(peer_id: int, network_id: String) -> void:
 
 	print("[Server] Buildable %s destroyed successfully" % network_id)
 
-## Track all terrain modifications for replication to new clients
-## Changed to chunk-based storage: Dictionary[Vector2i, Array] where key is chunk position
-var terrain_modification_history: Dictionary = {}  # chunk_pos -> Array of {operation, position, data}
-var unapplied_chunks: Dictionary = {}  # chunk_pos -> bool (chunks that need mods applied when player gets close)
-var player_applied_chunks: Dictionary = {}  # peer_id -> Dictionary[chunk_pos -> bool] (tracks which chunks each player has triggered application for)
-const TERRAIN_HISTORY_FILE := "user://worlds/%s/terrain_history.json"
-const CHUNK_SIZE: float = 32.0  # Must match chunk_manager.chunk_size
-
-## Convert world position to chunk position
-func _world_to_chunk_pos(world_pos: Vector3) -> Vector2i:
-	return Vector2i(
-		floori(world_pos.x / CHUNK_SIZE),
-		floori(world_pos.z / CHUNK_SIZE)
-	)
 
 ## Handle terrain modification request (server-authoritative)
 func handle_terrain_modification(peer_id: int, operation: String, position: Vector3, data: Dictionary) -> void:
@@ -1046,23 +800,6 @@ func handle_terrain_modification(peer_id: int, operation: String, position: Vect
 	var position_array := [position.x, position.y, position.z]
 	NetworkManager.rpc_apply_terrain_modification.rpc(operation, position_array, data)
 
-	# Add to chunk-based history for replaying to new clients
-	var chunk_pos := _world_to_chunk_pos(position)
-	if not terrain_modification_history.has(chunk_pos):
-		terrain_modification_history[chunk_pos] = []
-
-	# Add timestamp to ensure modifications are replayed in the correct order
-	terrain_modification_history[chunk_pos].append({
-		"operation": operation,
-		"position": position_array,
-		"data": data,
-		"timestamp": Time.get_ticks_msec()  # Milliseconds since engine start
-	})
-	var total_modifications = 0
-	for chunk_mods in terrain_modification_history.values():
-		total_modifications += chunk_mods.size()
-	print("[Server] Added modification to chunk %s history (total across all chunks: %d)" % [chunk_pos, total_modifications])
-
 	print("[Server] Terrain modification complete - broadcasted to all clients")
 	print("[Server] ========================================")
 
@@ -1075,113 +812,10 @@ func handle_manual_save_request(peer_id: int) -> void:
 	_save_all_players()
 	_save_world_state()
 	_save_environmental_chunks()
-	_save_terrain_history()
 	print("[Server] Manual save complete")
 
 	# Notify all clients that save is complete
 	NetworkManager.rpc_save_completed.rpc()
-
-## Save terrain modification history to disk
-func _save_terrain_history() -> void:
-	if terrain_modification_history.is_empty():
-		print("[Server] No terrain modifications to save")
-		return
-
-	var history_file_path := TERRAIN_HISTORY_FILE % world_config.world_name
-	var file := FileAccess.open(history_file_path, FileAccess.WRITE)
-
-	if not file:
-		push_error("[Server] Failed to open terrain history file for writing: %s" % history_file_path)
-		return
-
-	# Convert chunk-based dictionary to saveable format
-	# Format: {chunk_key: [modifications], ...} where chunk_key is "x,z"
-	var save_data := {}
-	for chunk_pos in terrain_modification_history.keys():
-		var chunk_key := "%d,%d" % [chunk_pos.x, chunk_pos.y]
-		save_data[chunk_key] = terrain_modification_history[chunk_pos]
-
-	var json_string := JSON.stringify(save_data, "\t")
-	file.store_string(json_string)
-	file.close()
-
-	var total_mods = 0
-	for chunk_mods in terrain_modification_history.values():
-		total_mods += chunk_mods.size()
-	print("[Server] Saved %d terrain modifications across %d chunks to %s" % [total_mods, terrain_modification_history.size(), history_file_path])
-
-## Load terrain modification history from disk
-func _load_terrain_history() -> void:
-	var history_file_path := TERRAIN_HISTORY_FILE % world_config.world_name
-
-	if not FileAccess.file_exists(history_file_path):
-		print("[Server] No terrain history file found at %s - starting fresh" % history_file_path)
-		terrain_modification_history = {}
-		return
-
-	var file := FileAccess.open(history_file_path, FileAccess.READ)
-
-	if not file:
-		push_error("[Server] Failed to open terrain history file for reading: %s" % history_file_path)
-		terrain_modification_history = {}
-		return
-
-	var json_string := file.get_as_text()
-	file.close()
-
-	var json := JSON.new()
-	var parse_result := json.parse(json_string)
-
-	if parse_result != OK:
-		push_error("[Server] Failed to parse terrain history JSON: %s" % json.get_error_message())
-		terrain_modification_history = {}
-		return
-
-	var loaded_data = json.get_data()
-	if loaded_data is Dictionary:
-		# New format: Dictionary with string keys "x,z"
-		# Convert string keys "x,z" back to Vector2i
-		terrain_modification_history = {}
-		for key_str in loaded_data.keys():
-			var coords = key_str.split(",")
-			if coords.size() == 2:
-				var chunk_pos = Vector2i(int(coords[0]), int(coords[1]))
-				terrain_modification_history[chunk_pos] = loaded_data[key_str]
-				# Mark all loaded chunks as unapplied - they'll be applied when players get near them
-				unapplied_chunks[chunk_pos] = true
-
-		var total_mods = 0
-		for chunk_mods in terrain_modification_history.values():
-			total_mods += chunk_mods.size()
-		print("[Server] Loaded %d terrain modifications across %d chunks from %s (all marked as unapplied)" % [total_mods, terrain_modification_history.size(), history_file_path])
-
-		# Note: Modifications will be applied when chunks load AND a player is nearby (VoxelTool requirement)
-	elif loaded_data is Array:
-		# Old format: Array of modifications - convert to chunk-based Dictionary
-		print("[Server] Converting old terrain history format to chunk-based format...")
-		terrain_modification_history = {}
-
-		for modification in loaded_data:
-			var position: Array = modification.get("position", [0, 0, 0])
-			var pos_v3 := Vector3(position[0], position[1], position[2])
-			var chunk_pos := _world_to_chunk_pos(pos_v3)
-
-			if not terrain_modification_history.has(chunk_pos):
-				terrain_modification_history[chunk_pos] = []
-			terrain_modification_history[chunk_pos].append(modification)
-
-		# Mark all converted chunks as unapplied
-		for chunk_pos in terrain_modification_history.keys():
-			unapplied_chunks[chunk_pos] = true
-
-		var total_mods = loaded_data.size()
-		print("[Server] Converted %d terrain modifications to %d chunks from %s (all marked as unapplied)" % [total_mods, terrain_modification_history.size(), history_file_path])
-
-		# Save in new format immediately
-		_save_terrain_history()
-	else:
-		push_error("[Server] Terrain history file contains invalid data (expected Dictionary or Array)")
-		terrain_modification_history = {}
 
 # ============================================================================
 # CONSOLE COMMANDS (for dedicated server)
@@ -1231,7 +865,6 @@ func _execute_console_command(command: String) -> void:
 			_save_all_players()
 			_save_world_state()
 			_save_environmental_chunks()
-			_save_terrain_history()
 			print("[Server] Save complete")
 
 		"shutdown":
@@ -1257,6 +890,9 @@ func _load_world_state() -> void:
 		placed_buildables = state_data["buildables"]
 		print("[Server] Loaded %d buildables from disk" % placed_buildables.size())
 
+	# Terrain chunks are now loaded directly from ChunkManager
+	# No need to load modified_terrain_chunks from world state
+
 	# TODO: Load other world state (time_of_day, global_events, etc.)
 
 func _save_world_state() -> void:
@@ -1264,6 +900,8 @@ func _save_world_state() -> void:
 		return
 
 	var additional_data = {
+		# Terrain chunks are saved directly by ChunkManager
+		# No need to save modified_terrain_chunks here
 		# TODO: Add time_of_day, global_events, etc. when implemented
 	}
 
@@ -1393,10 +1031,6 @@ func _spawn_player_with_data(peer_id: int, player_data: Dictionary) -> void:
 			var terrain_height = terrain_world.get_terrain_height_at(saved_xz)
 			spawn_pos = Vector3(pos[0], terrain_height + 3.0, pos[2])
 
-	# Check for unapplied chunks near spawn position before spawning
-	# This ensures terrain modifications are applied before player spawns
-	_check_unapplied_chunks_near_position(spawn_pos)
-
 	# Add to world FIRST (required before setting global_position)
 	world.add_child(player, true)
 	spawned_players[peer_id] = player
@@ -1422,8 +1056,8 @@ func _spawn_player_with_data(peer_id: int, player_data: Dictionary) -> void:
 	# Send all existing buildables to the new player
 	_send_buildables_to_player(peer_id)
 
-	# Replay all terrain modifications to the new player
-	_replay_terrain_modifications_to_player(peer_id)
+	# Send all modified terrain chunks to the new player
+	_send_terrain_chunks_to_player(peer_id)
 
 	# Notify all clients to spawn this player through NetworkManager
 	var player_name = player_data.get("character_name", "Unknown")
@@ -1661,10 +1295,6 @@ func handle_respawn_request(peer_id: int) -> void:
 	# Determine spawn position (default spawn point for now)
 	var spawn_position = _get_spawn_point()
 
-	# Check for unapplied chunks near spawn position before respawning
-	# This ensures terrain modifications are applied before player spawns
-	_check_unapplied_chunks_near_position(spawn_position)
-
 	# Respawn the player on server
 	if player.has_method("respawn_at"):
 		player.respawn_at(spawn_position)
@@ -1673,6 +1303,12 @@ func handle_respawn_request(peer_id: int) -> void:
 	# Notify the client to respawn their local player
 	var pos_array = [spawn_position.x, spawn_position.y, spawn_position.z]
 	NetworkManager.rpc_player_respawned.rpc_id(peer_id, pos_array)
+
+# ============================================================================
+# TERRAIN CHUNK DATA - Removed old replay system
+# ============================================================================
+# Terrain chunks are now saved/loaded directly via ChunkManager to disk
+# No need to sync over network - clients load from disk when connecting
 
 # ============================================================================
 # MAP SYSTEM - PINS

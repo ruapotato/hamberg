@@ -221,6 +221,7 @@ func _on_connection_failed() -> void:
 
 func _on_server_disconnected() -> void:
 	print("[NetworkManager] Server disconnected")
+	client_disconnected.emit()
 	disconnect_network()
 
 # ============================================================================
@@ -609,6 +610,16 @@ func rpc_save_completed() -> void:
 	if client_node and client_node.has_method("show_save_notification"):
 		client_node.show_save_notification()
 
+## SERVER -> CLIENT: Sync modified terrain chunk
+@rpc("authority", "call_remote", "reliable")
+func rpc_sync_terrain_chunk(chunk_x: int, chunk_z: int, chunk_data: Dictionary) -> void:
+	if is_server:
+		return
+
+	var client_node := get_node_or_null("/root/Main/Client")
+	if client_node and client_node.has_method("receive_terrain_chunk"):
+		client_node.receive_terrain_chunk(chunk_x, chunk_z, chunk_data)
+
 ## CLIENT -> SERVER: Request to equip an item
 @rpc("any_peer", "call_remote", "reliable")
 func rpc_request_equip_item(slot: int, item_id: String) -> void:
@@ -763,3 +774,21 @@ func rpc_send_character_data(character_data: Dictionary) -> void:
 	var client_node := get_node_or_null("/root/Main/Client")
 	if client_node and client_node.has_method("receive_character_data"):
 		client_node.receive_character_data(character_data)
+
+# ============================================================================
+# TERRAIN MODIFICATION SYNC
+# ============================================================================
+
+## SERVER -> CLIENT: Sync all terrain modifications (sent on connect)
+@rpc("authority", "call_remote", "reliable")
+func rpc_sync_terrain_modifications(modifications: Array) -> void:
+	if is_server:
+		return
+
+	print("[NetworkManager] Received %d terrain modifications from server" % modifications.size())
+
+	var client_node := get_node_or_null("/root/Main/Client")
+	if client_node and client_node.has_method("receive_terrain_modifications"):
+		client_node.receive_terrain_modifications(modifications)
+	else:
+		push_warning("[NetworkManager] Client node not found or doesn't have receive_terrain_modifications method")
