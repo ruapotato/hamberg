@@ -1236,10 +1236,9 @@ func _update_persistent_terrain_preview() -> void:
 				else:
 					terrain_dig_preview_cube.visible = false
 
-			# WHITE cube: Show where block will be placed (ground raycast)
-			var place_pos := _raycast_terrain_target(camera)
+			# WHITE cube: Show where block will be placed (above ground surface)
+			var place_pos := _calculate_place_position(camera)
 			if place_pos != Vector3.ZERO:
-				place_pos = _snap_to_grid(place_pos)
 				cached_place_position = place_pos  # Cache for actual place operation
 				terrain_place_preview_cube.global_position = place_pos
 				terrain_place_preview_cube.scale = Vector3(1.05, 1.05, 1.05)
@@ -1316,6 +1315,33 @@ func _raycast_terrain_target(camera: Camera3D) -> Vector3:
 	var result := space_state.intersect_ray(query)
 	if result:
 		return result.position
+
+	return Vector3.ZERO
+
+## Calculate place position - finds grid cell adjacent to the surface in the direction of the normal
+func _calculate_place_position(camera: Camera3D) -> Vector3:
+	var viewport_size := get_viewport().get_visible_rect().size
+	var crosshair_pos := viewport_size / 2
+	var ray_origin := camera.project_ray_origin(crosshair_pos)
+	var ray_direction := camera.project_ray_normal(crosshair_pos)
+
+	# Raycast for terrain (layer 1 = world/terrain)
+	var space_state := get_world_3d().direct_space_state
+	var query := PhysicsRayQueryParameters3D.create(ray_origin, ray_origin + ray_direction * 50.0)
+	query.collision_mask = 1  # World layer only
+	query.exclude = [self]
+
+	var result := space_state.intersect_ray(query)
+	if result:
+		# Use the surface normal to determine which adjacent grid cell to place in
+		var normal: Vector3 = result.normal
+		var hit_point: Vector3 = result.position
+
+		# Move slightly along the normal (into the air, away from surface)
+		var point_above := hit_point + normal * 1.5
+
+		# Snap to grid
+		return _snap_to_grid(point_above)
 
 	return Vector3.ZERO
 

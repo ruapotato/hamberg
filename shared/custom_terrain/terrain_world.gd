@@ -773,9 +773,11 @@ func place_square(world_position: Vector3, earth_amount: int) -> int:
 	var center_y := int(floor(world_position.y))
 	var center_z := int(floor(world_position.z))
 
+	print("[TerrainWorld] PLACE at center (%d, %d, %d)" % [center_x, center_y, center_z])
+
 	var earth_used := 0
 
-	# Add voxels in a 3x3x3 area for smooth mound
+	# Add solid voxels in a 3x3x3 cube area
 	for dx in range(-1, 2):
 		for dy in range(-1, 2):
 			for dz in range(-1, 2):
@@ -783,24 +785,25 @@ func place_square(world_position: Vector3, earth_amount: int) -> int:
 				var wy := center_y + dy
 				var wz := center_z + dz
 
-				# Calculate density based on distance from center
+				# Calculate density based on distance from center (solid in center, gradient at edges)
 				var dist := Vector3(dx, dy, dz).length()
-				var add_density := 1.0 - (dist / 2.0)
-				add_density = clamp(add_density, 0.0, 1.0)
+				var target_density := 1.0 if dist < 1.5 else 0.5  # Solid core, softer edges
 
 				var current: float = _get_voxel_at(wx, wy, wz)
-				var new_density: float = min(1.0, current + add_density)
 
-				if new_density > current:
-					earth_used += int((new_density - current) * 4)
-					_set_voxel_at(wx, wy, wz, new_density)
+				# Only place if we're adding material (not removing)
+				if target_density > current:
+					earth_used += int((target_density - current) * 4)
+					_set_voxel_at(wx, wy, wz, target_density)
+
+	print("[TerrainWorld] Place used %d earth units" % earth_used)
 
 	chunk.record_modification("place_square", world_position, {"earth_amount": earth_amount})
 	_mark_area_dirty(world_position)
 
 	emit_signal("terrain_modified", chunk_coords.x, chunk_coords.y, "place_square", world_position)
 
-	return earth_used
+	return max(1, earth_used)  # Always return at least 1 to indicate success
 
 ## Flatten terrain to a target height
 func flatten_square(world_position: Vector3, target_height: float) -> int:
