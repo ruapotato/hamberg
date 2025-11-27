@@ -6,15 +6,15 @@ extends RefCounted
 
 # BiomeGenerator type removed - accepts any generator with required methods
 
-# Biome colors for map rendering (matches terrain shader grass colors exactly)
+# Biome colors for map rendering (MUST match terrain_material.gdshader EXACTLY)
 const BIOME_BASE_COLORS := {
-	"valley": Color(0.2, 0.5, 1.0),      # BRIGHT BLUE (serene valley)
-	"forest": Color(0.1, 0.9, 0.1),      # BRIGHT GREEN (lush forest)
-	"swamp": Color(0.5, 0.6, 0.2),       # YELLOW-GREEN (murky swamp)
-	"mountain": Color(0.8, 0.8, 0.8),    # WHITE (snow/ice)
-	"desert": Color(1.0, 0.9, 0.3),      # BRIGHT YELLOW (sandy desert)
-	"wizardland": Color(0.9, 0.2, 1.0),  # BRIGHT MAGENTA (magical)
-	"hell": Color(0.9, 0.1, 0.0)         # BRIGHT RED (hellfire)
+	"valley": Color(0.25, 0.55, 0.95),    # BRIGHT BLUE (serene meadows)
+	"forest": Color(0.15, 0.85, 0.2),     # BRIGHT GREEN (lush forest)
+	"swamp": Color(0.6, 0.75, 0.3),       # YELLOW-GREEN (murky swamp)
+	"mountain": Color(0.95, 0.97, 1.0),   # WHITE (snow/ice)
+	"desert": Color(0.95, 0.85, 0.35),    # BRIGHT YELLOW (sandy desert)
+	"wizardland": Color(0.9, 0.3, 1.0),   # BRIGHT MAGENTA (magical)
+	"hell": Color(0.9, 0.2, 0.1)          # BRIGHT RED (hellfire)
 }
 
 var biome_generator = null  # BiomeGenerator or TerrainBiomeGenerator instance

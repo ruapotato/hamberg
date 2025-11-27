@@ -1,5 +1,8 @@
-[gd_resource type="StandardMaterial3D" format=3 uid="uid://terrain_material_001"]
+[gd_resource type="ShaderMaterial" load_steps=2 format=3 uid="uid://terrain_material_001"]
+
+[ext_resource type="Shader" path="res://shared/terrain_material.gdshader" id="1_shader"]
 
 [resource]
-albedo_color = Color(0.35, 0.55, 0.25, 1)
-roughness = 0.85
+shader = ExtResource("1_shader")
+shader_parameter/world_seed = 42
+shader_parameter/biome_map_world_coverage = 40000.0

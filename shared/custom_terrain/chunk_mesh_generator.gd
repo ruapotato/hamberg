@@ -485,14 +485,17 @@ func _process_cube(chunk, neighbors: Dictionary,
 		var v1: Vector3 = edge_vertices[edge_idx1]
 		var v2: Vector3 = edge_vertices[edge_idx2]
 
-		# Calculate normal (reversed winding for correct facing)
-		var normal := (v2 - v0).cross(v1 - v0).normalized()
-
 		# Add vertices in reversed order for correct face culling
 		var vi: int = vertices.size()
 		vertices.append(v0)
 		vertices.append(v2)
 		vertices.append(v1)
+
+		# Calculate normal for the swapped triangle (v0, v2, v1)
+		# For CCW winding viewed from front: normal = (B-A) × (C-A)
+		# With A=v0, B=v2, C=v1: normal = (v2-v0) × (v1-v0)
+		# But since we swapped winding, we need to negate to point outward
+		var normal := (v1 - v0).cross(v2 - v0).normalized()
 
 		# Add normals (same for all 3 vertices of triangle)
 		normals.append(normal)
@@ -588,12 +591,13 @@ func _process_cube_lod(chunk, neighbors: Dictionary,
 		var v1: Vector3 = edge_vertices[edge_idx1]
 		var v2: Vector3 = edge_vertices[edge_idx2]
 
-		var normal := (v2 - v0).cross(v1 - v0).normalized()
-
 		var vi: int = vertices.size()
 		vertices.append(v0)
 		vertices.append(v2)
 		vertices.append(v1)
+
+		# Calculate normal for swapped triangle (v0, v2, v1) - points outward from terrain
+		var normal := (v1 - v0).cross(v2 - v0).normalized()
 
 		normals.append(normal)
 		normals.append(normal)

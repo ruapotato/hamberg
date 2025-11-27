@@ -112,10 +112,16 @@ func _setup_terrain_material() -> void:
 	var material_path = "res://assets/terrain_material.tres"
 	if ResourceLoader.exists(material_path):
 		terrain_material = load(material_path)
+		print("[TerrainWorld] Loaded material: %s (type: %s)" % [material_path, terrain_material.get_class()])
 		if terrain_material is ShaderMaterial:
-			terrain_material.set_shader_parameter("world_seed", world_seed)
-			_generate_biome_map_texture(terrain_material)
+			var shader_mat: ShaderMaterial = terrain_material as ShaderMaterial
+			shader_mat.set_shader_parameter("world_seed", world_seed)
+			print("[TerrainWorld] Set world_seed to %d" % world_seed)
+			_generate_biome_map_texture(shader_mat)
+		else:
+			push_warning("[TerrainWorld] Material is not ShaderMaterial! Type: %s" % terrain_material.get_class())
 	else:
+		push_warning("[TerrainWorld] Material file not found: %s" % material_path)
 		# Create a simple default material
 		var mat = StandardMaterial3D.new()
 		mat.albedo_color = Color(0.3, 0.6, 0.2)  # Green grass color
@@ -125,6 +131,10 @@ func _setup_terrain_material() -> void:
 
 func _generate_biome_map_texture(shader_mat: ShaderMaterial) -> void:
 	"""Generate a texture containing biome data for shader lookup"""
+	if not biome_generator:
+		push_error("[TerrainWorld] Cannot generate biome map - biome_generator is null!")
+		return
+
 	# Use smaller texture on client to avoid blocking network connection
 	# Server runs headless so it doesn't need this anyway
 	var texture_size := 256 if not is_server else 512  # Much smaller for fast generation
@@ -134,17 +144,22 @@ func _generate_biome_map_texture(shader_mat: ShaderMaterial) -> void:
 
 	var image := Image.create(texture_size, texture_size, false, Image.FORMAT_RGB8)
 
+	# Colors MUST match terrain_material.gdshader grass colors EXACTLY
 	var biome_colors := {
-		"valley": Color(0.2, 0.5, 1.0),
-		"forest": Color(0.1, 0.9, 0.1),
-		"swamp": Color(0.5, 0.6, 0.2),
-		"mountain": Color(0.8, 0.8, 0.8),
-		"desert": Color(1.0, 0.9, 0.3),
-		"wizardland": Color(0.9, 0.2, 1.0),
-		"hell": Color(0.9, 0.1, 0.0)
+		"valley": Color(0.25, 0.55, 0.95),    # BRIGHT BLUE (serene meadows)
+		"forest": Color(0.15, 0.85, 0.2),     # BRIGHT GREEN (lush forest)
+		"swamp": Color(0.6, 0.75, 0.3),       # YELLOW-GREEN (murky swamp)
+		"mountain": Color(0.95, 0.97, 1.0),   # WHITE (snow/ice)
+		"desert": Color(0.95, 0.85, 0.35),    # BRIGHT YELLOW (sandy desert)
+		"wizardland": Color(0.9, 0.3, 1.0),   # BRIGHT MAGENTA (magical)
+		"hell": Color(0.9, 0.2, 0.1)          # BRIGHT RED (hellfire)
 	}
 
 	var pixels_per_meter := float(texture_size) / world_coverage
+
+	# Sample a few biomes for debug
+	var sample_biome: String = biome_generator.get_biome_at_position(Vector2.ZERO)
+	print("[TerrainWorld] Sample biome at origin: %s" % sample_biome)
 
 	for y in texture_size:
 		for x in texture_size:
@@ -160,7 +175,7 @@ func _generate_biome_map_texture(shader_mat: ShaderMaterial) -> void:
 	shader_mat.set_shader_parameter("biome_map", texture)
 	shader_mat.set_shader_parameter("biome_map_world_coverage", world_coverage)
 
-	print("[TerrainWorld] Biome map texture generated")
+	print("[TerrainWorld] Biome map texture generated and applied to shader")
 
 func _setup_chunk_manager() -> void:
 	print("[TerrainWorld] Setting up environmental object spawning...")
