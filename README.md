@@ -228,11 +228,11 @@ You'll need:
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/hamberg.git
+git clone https://github.com/ruapotato/hamberg.git
 cd hamberg
 
 # Copy your Godot binary to the project folder
-cp /path/to/godot.linuxbsd.editor.x86_64 ./
+cp /path/to/Godot_v4.5.1-stable_linux.x86_64 ./
 
 # Make launch scripts executable (Linux/Mac)
 chmod +x launch_*.sh
@@ -244,21 +244,21 @@ chmod +x launch_*.sh
 ```bash
 ./launch_server.sh
 # OR manually:
-./godot.linuxbsd.editor.x86_64 --headless -- --server
+./Godot_v4.5.1-stable_linux.x86_64 --headless -- --server
 ```
 
 **Option 2: Client**
 ```bash
 ./launch_client.sh
 # OR manually:
-./godot.linuxbsd.editor.x86_64
+./Godot_v4.5.1-stable_linux.x86_64
 ```
 
 **Option 3: Singleplayer** (auto-local server)
 ```bash
 ./launch_singleplayer.sh
 # OR manually:
-./godot.linuxbsd.editor.x86_64 -- --singleplayer
+./Godot_v4.5.1-stable_linux.x86_64 -- --singleplayer
 ```
 
 ### Server Configuration
