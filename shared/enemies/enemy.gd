@@ -10,7 +10,7 @@ signal died(enemy: Enemy)
 @export var enemy_name: String = "Gahnome"
 @export var max_health: float = 50.0
 @export var move_speed: float = 3.0
-@export var attack_range: float = 1.5
+@export var attack_range: float = 0.8
 @export var attack_cooldown_time: float = 1.0  # Time between attacks
 @export var detection_range: float = 15.0
 @export var loot_table: Dictionary = {"wood": 2, "resin": 1}  # Drops on death (resin and wood for Gahnomes)
@@ -453,4 +453,3 @@ func _drop_loot() -> void:
 	# Spawn resource drops at enemy position
 	var pos_array = [global_position.x, global_position.y, global_position.z]
 	NetworkManager.rpc_spawn_resource_drops.rpc(loot_table, pos_array, network_ids)
-

@@ -1,46 +1,6 @@
-[gd_scene load_steps=5 format=3 uid="uid://bvoxworld001"]
+[gd_scene load_steps=2 format=3 uid="uid://bvoxworld001"]
 
 [ext_resource type="Script" uid="uid://qi6a7fctudnu" path="res://shared/voxel_world.gd" id="1"]
-[ext_resource type="Material" uid="uid://2dgdg8xfq8hg" path="res://assets/voxel_world.tres" id="2_cqqi3"]
-
-[sub_resource type="VoxelMesherTransvoxel" id="mesher"]
-
-[sub_resource type="Environment" id="Environment_1"]
-background_mode = 1
-background_color = Color(0.53, 0.81, 1, 1)
-ambient_light_source = 2
-ambient_light_color = Color(0.8, 0.9, 1, 1)
-ambient_light_energy = 0.5
-glow_enabled = true
-fog_enabled = true
-fog_light_color = Color(0.7, 0.8, 0.9, 1)
-fog_density = 0.001
-volumetric_fog_enabled = true
-volumetric_fog_density = 0.0075
-volumetric_fog_albedo = Color(0.045015045, 0.20756665, 0.043536596, 1)
-volumetric_fog_emission = Color(0.5429821, 0.83204633, 0.8816584, 1)
-volumetric_fog_length = 252.32
-volumetric_fog_detail_spread = 5.656855
-volumetric_fog_sky_affect = 0.0
 
 [node name="VoxelWorld" type="Node3D"]
 script = ExtResource("1")
-
-[node name="VoxelLodTerrain" type="VoxelLodTerrain" parent="."]
-mesher = SubResource("mesher")
-view_distance = 256
-lod_count = 5
-material = ExtResource("2_cqqi3")
-collision_mask = 2
-run_stream_in_editor = false
-mesh_block_size = 32
-
-[node name="VoxelTerrainMultiplayerSynchronizer" type="VoxelTerrainMultiplayerSynchronizer" parent="VoxelLodTerrain"]
-
-[node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
-transform = Transform3D(0.866025, -0.433013, 0.25, 0, 0.5, 0.866025, -0.5, -0.75, 0.433013, 0, 50, 0)
-light_energy = 1.2
-shadow_enabled = true
-
-[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
-environment = SubResource("Environment_1")
