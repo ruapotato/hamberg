@@ -1,0 +1,100 @@
+[gd_scene load_steps=10 format=3 uid="uid://canopy_pine_001"]
+
+[ext_resource type="Script" path="res://shared/environmental/environmental_object.gd" id="1"]
+
+[sub_resource type="CylinderMesh" id="trunk_mesh"]
+top_radius = 0.12
+bottom_radius = 0.18
+height = 12.0
+radial_segments = 6
+
+[sub_resource type="CylinderMesh" id="canopy_layer1"]
+top_radius = 0.4
+bottom_radius = 3.5
+height = 1.2
+radial_segments = 6
+
+[sub_resource type="CylinderMesh" id="canopy_layer2"]
+top_radius = 0.3
+bottom_radius = 2.8
+height = 1.0
+radial_segments = 6
+
+[sub_resource type="CylinderMesh" id="canopy_layer3"]
+top_radius = 0.15
+bottom_radius = 2.0
+height = 0.8
+radial_segments = 6
+
+[sub_resource type="StandardMaterial3D" id="trunk_mat"]
+albedo_color = Color(0.12, 0.08, 0.06, 1)
+
+[sub_resource type="StandardMaterial3D" id="foliage_mat"]
+albedo_color = Color(0.05, 0.25, 0.2, 1)
+emission_enabled = true
+emission = Color(0.0, 0.4, 0.35, 1)
+emission_energy_multiplier = 0.5
+
+[sub_resource type="CylinderShape3D" id="collision_trunk"]
+radius = 0.18
+height = 12.0
+
+[sub_resource type="CylinderShape3D" id="collision_canopy"]
+radius = 2.8
+height = 4.0
+
+[node name="CanopyPine" type="StaticBody3D"]
+collision_layer = 1
+collision_mask = 0
+script = ExtResource("1")
+cull_distance = 150.0
+lod_distances = [80.0, 120.0]
+resource_drops = {
+"dark_wood": 6
+}
+rare_drops = {
+"ancient_bark": 0.2
+}
+
+[node name="TrunkCollision" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 6.0, 0)
+shape = SubResource("collision_trunk")
+
+[node name="CanopyCollision" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 13.0, 0)
+shape = SubResource("collision_canopy")
+
+[node name="LOD0" type="Node3D" parent="."]
+
+[node name="Trunk" type="MeshInstance3D" parent="LOD0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 6.0, 0)
+mesh = SubResource("trunk_mesh")
+surface_material_override/0 = SubResource("trunk_mat")
+
+[node name="CanopyBottom" type="MeshInstance3D" parent="LOD0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 11.0, 0)
+mesh = SubResource("canopy_layer1")
+surface_material_override/0 = SubResource("foliage_mat")
+
+[node name="CanopyMiddle" type="MeshInstance3D" parent="LOD0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 12.5, 0)
+mesh = SubResource("canopy_layer2")
+surface_material_override/0 = SubResource("foliage_mat")
+
+[node name="CanopyTop" type="MeshInstance3D" parent="LOD0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 14.0, 0)
+mesh = SubResource("canopy_layer3")
+surface_material_override/0 = SubResource("foliage_mat")
+
+[node name="LOD1" type="Node3D" parent="."]
+visible = false
+
+[node name="SimpleTrunk" type="MeshInstance3D" parent="LOD1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 6.0, 0)
+mesh = SubResource("trunk_mesh")
+surface_material_override/0 = SubResource("trunk_mat")
+
+[node name="SimpleCanopy" type="MeshInstance3D" parent="LOD1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 12.0, 0)
+mesh = SubResource("canopy_layer1")
+surface_material_override/0 = SubResource("foliage_mat")

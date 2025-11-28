@@ -20,6 +20,7 @@ var tree_scene: PackedScene
 var rock_scene: PackedScene
 var grass_scene: PackedScene
 var dark_pine_scene: PackedScene
+var canopy_pine_scene: PackedScene
 var glowing_mushroom_scene: PackedScene
 
 # Spawn configurations
@@ -35,6 +36,7 @@ func _ready() -> void:
 	rock_scene = load("res://shared/environmental/rock.tscn")
 	grass_scene = load("res://shared/environmental/grass_clump.tscn")
 	dark_pine_scene = load("res://shared/environmental/dark_pine.tscn")
+	canopy_pine_scene = load("res://shared/environmental/canopy_pine.tscn")
 	glowing_mushroom_scene = load("res://shared/environmental/glowing_mushroom.tscn")
 
 	# Setup spawn configurations
@@ -92,6 +94,17 @@ func _setup_spawn_configs() -> void:
 	mushroom_config.allowed_biomes = ["dark_forest"]
 	mushroom_config.scale_variation = Vector2(0.6, 1.5)
 	spawn_configs["glowing_mushroom"] = mushroom_config
+
+	# Canopy Pine - tall trees forming upper canopy layer for dark_forest biome
+	var canopy_pine_config := SpawnConfig.new()
+	canopy_pine_config.scene = canopy_pine_scene
+	canopy_pine_config.density = 0.35
+	canopy_pine_config.min_height = -5.0
+	canopy_pine_config.max_height = 35.0
+	canopy_pine_config.max_slope = 25.0
+	canopy_pine_config.allowed_biomes = ["dark_forest"]
+	canopy_pine_config.scale_variation = Vector2(0.9, 1.4)
+	spawn_configs["canopy_pine"] = canopy_pine_config
 
 ## Spawn objects for a given chunk (procedural generation)
 ## Returns array of spawned EnvironmentalObject instances
@@ -234,7 +247,7 @@ func _spawn_object(config: SpawnConfig, xz_pos: Vector2, voxel_world: Node3D, pa
 
 	# Apply random scale with variation for trees
 	var scale_factor := rng.randf_range(config.scale_variation.x, config.scale_variation.y)
-	if object_type == "dark_pine" or object_type == "tree":
+	if object_type == "dark_pine" or object_type == "tree" or object_type == "canopy_pine":
 		# Non-uniform scale for trees: vary width and height independently
 		var width_factor := scale_factor * rng.randf_range(0.8, 1.2)
 		var height_factor := scale_factor * rng.randf_range(0.85, 1.3)
@@ -284,6 +297,12 @@ func _configure_object_properties(obj: Node3D, object_type: String) -> void:
 				obj.current_health = 30.0
 			if "resource_drops" in obj:
 				obj.resource_drops = {"glowing_spore": 2}
+		"canopy_pine":
+			if "max_health" in obj:
+				obj.max_health = 150.0
+				obj.current_health = 150.0
+			if "resource_drops" in obj:
+				obj.resource_drops = {"dark_wood": 6}
 
 ## Generate deterministic seed for a chunk
 func _get_chunk_seed(chunk_pos: Vector2i) -> int:
