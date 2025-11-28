@@ -11,10 +11,10 @@ extends Node
 
 # Spawn parameters
 const SPAWN_CHECK_INTERVAL: float = 10.0  # Check for spawns every 10 seconds
-const MIN_SPAWN_DISTANCE: float = 30.0    # Minimum distance from player (increased)
-const MAX_SPAWN_DISTANCE: float = 50.0    # Maximum distance from player (increased)
+const MIN_SPAWN_DISTANCE: float = 40.0    # Minimum distance from player (far away)
+const MAX_SPAWN_DISTANCE: float = 60.0    # Maximum distance from player (far away)
 const MAX_ENEMIES_PER_PLAYER: int = 3     # Max enemies per player in the area
-const VISUAL_CONE_HALF_ANGLE: float = 1.0 # ~60 degrees half angle to avoid (radians)
+const BEHIND_PLAYER_BIAS: float = 0.7     # 70% chance to spawn behind player
 
 # State sync parameters
 const STATE_SYNC_INTERVAL: float = 0.1   # 10Hz position relay
@@ -138,17 +138,23 @@ func _spawn_enemy_near_player(player: Node, peer_id: int = 0) -> void:
 	if server_node and server_node.has_node("TerrainWorld"):
 		terrain_world = server_node.get_node("TerrainWorld")
 
-	# Get player's forward direction angle to avoid spawning in their visual field
-	var player_forward_angle = player.rotation.y + PI  # Player looks in -Z direction
+	# Get player's backward direction angle (opposite of where they're looking)
+	var player_backward_angle = player.rotation.y  # Behind player (+Z direction in local space)
 
 	# Try multiple times to find a valid spawn position with terrain collision
 	for attempt in range(5):
-		# Generate angle that avoids player's forward visual cone
-		# Offset from player's forward by random amount outside visual cone
-		var angle_offset = randf_range(VISUAL_CONE_HALF_ANGLE, TAU - VISUAL_CONE_HALF_ANGLE)
-		var angle = player_forward_angle + angle_offset
-		# Start closer for first attempts, go further if needed
-		var distance = randf_range(MIN_SPAWN_DISTANCE * (0.5 + attempt * 0.1), MAX_SPAWN_DISTANCE * (0.5 + attempt * 0.1))
+		# Prefer spawning behind the player
+		var angle: float
+		if randf() < BEHIND_PLAYER_BIAS:
+			# Spawn behind player (within ~90 degree cone behind them)
+			angle = player_backward_angle + randf_range(-PI/2, PI/2)
+		else:
+			# Spawn to the sides (not in front)
+			var side = 1 if randf() > 0.5 else -1
+			angle = player_backward_angle + side * randf_range(PI/2, PI * 0.8)
+
+		# Use full distance range
+		var distance = randf_range(MIN_SPAWN_DISTANCE, MAX_SPAWN_DISTANCE)
 
 		var spawn_offset = Vector3(
 			cos(angle) * distance,
@@ -445,15 +451,23 @@ func _spawn_animal_near_player(player: Node, peer_id: int = 0) -> void:
 	if server_node and server_node.has_node("TerrainWorld"):
 		terrain_world = server_node.get_node("TerrainWorld")
 
-	# Get player's forward direction angle to avoid spawning in their visual field
-	var player_forward_angle = player.rotation.y + PI  # Player looks in -Z direction
+	# Get player's backward direction angle (opposite of where they're looking)
+	var player_backward_angle = player.rotation.y  # Behind player (+Z direction in local space)
 
 	# Try to find valid spawn position
 	for attempt in range(5):
-		# Generate angle that avoids player's forward visual cone
-		var angle_offset = randf_range(VISUAL_CONE_HALF_ANGLE, TAU - VISUAL_CONE_HALF_ANGLE)
-		var angle = player_forward_angle + angle_offset
-		var distance = randf_range(MIN_SPAWN_DISTANCE * (0.5 + attempt * 0.1), MAX_SPAWN_DISTANCE * (0.5 + attempt * 0.1))
+		# Prefer spawning behind the player
+		var angle: float
+		if randf() < BEHIND_PLAYER_BIAS:
+			# Spawn behind player (within ~90 degree cone behind them)
+			angle = player_backward_angle + randf_range(-PI/2, PI/2)
+		else:
+			# Spawn to the sides (not in front)
+			var side = 1 if randf() > 0.5 else -1
+			angle = player_backward_angle + side * randf_range(PI/2, PI * 0.8)
+
+		# Use full distance range
+		var distance = randf_range(MIN_SPAWN_DISTANCE, MAX_SPAWN_DISTANCE)
 
 		var spawn_offset = Vector3(
 			cos(angle) * distance,
