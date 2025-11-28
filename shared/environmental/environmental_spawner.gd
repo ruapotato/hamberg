@@ -78,45 +78,45 @@ func _setup_spawn_configs() -> void:
 	# Mushroom Trees - medium mushroom trees for dark_forest biome
 	var mushroom_tree_config := SpawnConfig.new()
 	mushroom_tree_config.scene = mushroom_tree_scene
-	mushroom_tree_config.density = 0.6
+	mushroom_tree_config.density = 0.35
 	mushroom_tree_config.min_height = -5.0
 	mushroom_tree_config.max_height = 35.0
 	mushroom_tree_config.max_slope = 35.0
 	mushroom_tree_config.allowed_biomes = ["dark_forest"]
-	mushroom_tree_config.scale_variation = Vector2(0.7, 1.4)
+	mushroom_tree_config.scale_variation = Vector2(0.8, 1.8)
 	spawn_configs["mushroom_tree"] = mushroom_tree_config
 
-	# Glowing Mushrooms - scattered fungi for dark_forest biome (high density for bioluminescent atmosphere)
+	# Glowing Mushrooms - scattered fungi for dark_forest biome (fewer but bigger for performance)
 	var mushroom_config := SpawnConfig.new()
 	mushroom_config.scene = glowing_mushroom_scene
-	mushroom_config.density = 0.65
+	mushroom_config.density = 0.3
 	mushroom_config.min_height = -5.0
 	mushroom_config.max_height = 30.0
 	mushroom_config.max_slope = 40.0
 	mushroom_config.allowed_biomes = ["dark_forest"]
-	mushroom_config.scale_variation = Vector2(0.6, 1.5)
+	mushroom_config.scale_variation = Vector2(0.8, 2.2)
 	spawn_configs["glowing_mushroom"] = mushroom_config
 
 	# Spore Clusters - floating glowing spore clusters for dark_forest biome
 	var spore_config := SpawnConfig.new()
 	spore_config.scene = spore_cluster_scene
-	spore_config.density = 0.35
+	spore_config.density = 0.2
 	spore_config.min_height = -5.0
 	spore_config.max_height = 30.0
 	spore_config.max_slope = 45.0
 	spore_config.allowed_biomes = ["dark_forest"]
-	spore_config.scale_variation = Vector2(0.7, 1.4)
+	spore_config.scale_variation = Vector2(0.8, 1.6)
 	spawn_configs["spore_cluster"] = spore_config
 
 	# Giant Mushrooms - massive mushroom trees forming upper canopy for dark_forest biome
 	var giant_mushroom_config := SpawnConfig.new()
 	giant_mushroom_config.scene = giant_mushroom_scene
-	giant_mushroom_config.density = 0.4
+	giant_mushroom_config.density = 0.25
 	giant_mushroom_config.min_height = -5.0
 	giant_mushroom_config.max_height = 35.0
 	giant_mushroom_config.max_slope = 30.0
 	giant_mushroom_config.allowed_biomes = ["dark_forest"]
-	giant_mushroom_config.scale_variation = Vector2(0.8, 1.6)
+	giant_mushroom_config.scale_variation = Vector2(1.0, 2.0)
 	spawn_configs["giant_mushroom"] = giant_mushroom_config
 
 ## Spawn objects for a given chunk (procedural generation)
