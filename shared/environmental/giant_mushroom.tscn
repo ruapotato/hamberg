@@ -6,25 +6,25 @@
 top_radius = 0.8
 bottom_radius = 1.2
 height = 18.0
-radial_segments = 10
+radial_segments = 6
 
 [sub_resource type="CylinderMesh" id="cap_mesh"]
 top_radius = 0.5
 bottom_radius = 8.0
 height = 3.0
-radial_segments = 10
+radial_segments = 6
 
 [sub_resource type="SphereMesh" id="cap_dome"]
 radius = 2.5
 height = 3.0
-radial_segments = 10
-rings = 5
+radial_segments = 6
+rings = 3
 
 [sub_resource type="TorusMesh" id="cap_ring"]
 inner_radius = 5.5
 outer_radius = 7.5
-rings = 8
-ring_segments = 12
+rings = 6
+ring_segments = 8
 
 [sub_resource type="StandardMaterial3D" id="stem_mat"]
 albedo_color = Color(0.12, 0.1, 0.16, 1)
@@ -50,8 +50,8 @@ height = 4.0
 collision_layer = 1
 collision_mask = 0
 script = ExtResource("1")
-cull_distance = 180.0
-lod_distances = [90.0, 150.0]
+cull_distance = 140.0
+lod_distances = [50.0, 100.0]
 resource_drops = {
 "fungal_wood": 8
 }
