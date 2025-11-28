@@ -6,6 +6,8 @@ shader_type spatial;
 
 uniform int world_seed = 42;
 uniform bool debug_biome_colors = false;  // Set to true to show flat biome colors (no shading)
+uniform float time = 0.0;  // Time for grass animation (set from GDScript)
+uniform bool enable_grass_detail = true;  // Enable shader-based grass detail
 
 // Dynamic biome texture system - follows the player
 uniform sampler2D biome_texture : hint_default_black, filter_linear, repeat_disable;
@@ -276,6 +278,243 @@ float multi_octave_noise(vec2 p) {
 }
 
 // ============================================================================
+// GRASS DETAIL FUNCTIONS - Creates realistic grass-like visual pattern
+// ============================================================================
+
+// Hash function for pseudo-random values
+vec2 hash22(vec2 p) {
+	vec3 p3 = fract(vec3(p.xyx) * vec3(0.1031, 0.1030, 0.0973));
+	p3 += dot(p3, p3.yzx + 33.33);
+	return fract((p3.xx + p3.yz) * p3.zy);
+}
+
+float hash21(vec2 p) {
+	return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+}
+
+// Grass blade shape - creates a thin vertical blade with pointed tip
+// Returns intensity (0-1) where 1 is the blade, 0 is between blades
+float blade_shape(vec2 uv, float blade_width, float blade_height, float bend) {
+	// Blade tapers from base to tip
+	float taper = 1.0 - (uv.y / blade_height);
+	taper = max(0.0, taper);
+	float current_width = blade_width * (0.3 + 0.7 * taper);
+
+	// Blade bends more at the top
+	float bend_amount = bend * uv.y * uv.y / (blade_height * blade_height);
+	float blade_x = uv.x - bend_amount;
+
+	// Distance from blade center
+	float dist = abs(blade_x) / current_width;
+
+	// Soft blade edge
+	float blade = 1.0 - smoothstep(0.3, 1.0, dist);
+
+	// Fade at top (pointed tip)
+	blade *= smoothstep(blade_height, blade_height * 0.85, uv.y);
+
+	// Only draw within blade height
+	blade *= step(0.0, uv.y) * step(uv.y, blade_height);
+
+	return blade;
+}
+
+// Single grass clump - multiple blades emanating from a point
+float grass_clump(vec2 p, vec2 clump_center, float wind_phase, float clump_size) {
+	vec2 local = p - clump_center;
+
+	float total = 0.0;
+
+	// Generate 5-8 blades per clump
+	float blade_count = 5.0 + hash21(clump_center) * 3.0;
+
+	for (float i = 0.0; i < 8.0; i++) {
+		if (i >= blade_count) break;
+
+		// Randomize blade properties
+		vec2 seed = clump_center + vec2(i * 17.31, i * 23.17);
+		vec2 rnd = hash22(seed);
+
+		// Blade offset from clump center
+		float angle = (i / blade_count) * 6.28 + rnd.x * 0.5;
+		float offset_dist = rnd.y * clump_size * 0.3;
+		vec2 blade_base = vec2(cos(angle), sin(angle)) * offset_dist;
+
+		// Blade dimensions
+		float blade_height = clump_size * (0.6 + rnd.x * 0.4);
+		float blade_width = clump_size * 0.08 * (0.7 + rnd.y * 0.3);
+
+		// Wind bend - varies by blade and time
+		float wind_strength = 0.3 + rnd.x * 0.4;
+		float wind = sin(wind_phase + rnd.y * 6.28 + local.x * 0.5) * wind_strength;
+		wind *= clump_size * 0.5;
+
+		// Transform to blade-local coordinates
+		// Blades point upward but we're viewing from above (XZ plane)
+		// So we interpret Y as the "up" direction in blade space
+		vec2 blade_local = local - blade_base;
+
+		// Create pseudo-3D effect: blade "height" mapped to pattern
+		float dist_from_base = length(blade_local);
+		float blade_y = dist_from_base;  // Distance = height up the blade
+		float blade_x = blade_local.x * 0.5 + blade_local.y * 0.5;  // Lateral position
+
+		float blade = blade_shape(vec2(blade_x, blade_y), blade_width, blade_height, wind);
+
+		// Height gradient for coloring (0 at base, 1 at tip)
+		float height_factor = clamp(blade_y / blade_height, 0.0, 1.0);
+
+		// Combine blades - front blades occlude back ones slightly
+		total = max(total, blade * (0.7 + 0.3 * (1.0 - i / blade_count)));
+	}
+
+	return clamp(total, 0.0, 1.0);
+}
+
+// Structure to hold grass rendering info
+struct GrassInfo {
+	float coverage;      // How much grass (0-1)
+	float height;        // Relative height on blade (0=base, 1=tip)
+	float shadow;        // Shadow between blades
+	float wind_bend;     // Current wind bend amount
+};
+
+// Main grass pattern function - creates a field of grass clumps
+GrassInfo get_grass_pattern(vec2 world_xz, float anim_time) {
+	GrassInfo info;
+	info.coverage = 0.0;
+	info.height = 0.0;
+	info.shadow = 0.0;
+	info.wind_bend = 0.0;
+
+	// Scale for grass (larger = bigger clumps, more spread out)
+	float grass_scale = 2.5;
+	vec2 scaled_pos = world_xz / grass_scale;
+
+	// Wind parameters
+	float wind_speed = 1.2;
+	float wind_dir_angle = anim_time * 0.1;  // Slowly rotating wind direction
+	vec2 wind_dir = vec2(cos(wind_dir_angle), sin(wind_dir_angle));
+	float wind_phase = anim_time * wind_speed + dot(world_xz, wind_dir) * 0.02;
+
+	// Grid-based clump placement with jitter
+	vec2 grid_cell = floor(scaled_pos);
+
+	float total_grass = 0.0;
+	float total_height = 0.0;
+	float weight_sum = 0.0;
+
+	// Check nearby cells for grass clumps
+	for (int dx = -1; dx <= 1; dx++) {
+		for (int dy = -1; dy <= 1; dy++) {
+			vec2 cell = grid_cell + vec2(float(dx), float(dy));
+
+			// Multiple clumps per cell for density
+			for (int c = 0; c < 3; c++) {
+				vec2 clump_seed = cell + vec2(float(c) * 0.33, float(c) * 0.77);
+				vec2 rnd = hash22(clump_seed);
+
+				// Skip some cells for variation
+				if (rnd.x > 0.85) continue;
+
+				// Clump position with jitter
+				vec2 clump_pos = (cell + hash22(clump_seed + 0.5)) * grass_scale;
+
+				// Clump size variation
+				float clump_size = grass_scale * (0.6 + rnd.y * 0.6);
+
+				// Distance check for early exit
+				float dist = length(world_xz - clump_pos);
+				if (dist > clump_size * 1.5) continue;
+
+				// Get grass from this clump
+				float grass = grass_clump(world_xz, clump_pos, wind_phase, clump_size);
+
+				if (grass > 0.01) {
+					// Calculate height on blade based on distance from clump center
+					float h = clamp(dist / clump_size, 0.0, 1.0);
+
+					// Weighted average for height
+					total_height += h * grass;
+					weight_sum += grass;
+
+					// Max for coverage
+					total_grass = max(total_grass, grass);
+				}
+			}
+		}
+	}
+
+	info.coverage = total_grass;
+	info.height = weight_sum > 0.0 ? total_height / weight_sum : 0.0;
+
+	// Calculate shadow based on density variation
+	float shadow_noise = value_noise_simple(scaled_pos * 3.0 + vec2(anim_time * 0.2, 0.0));
+	info.shadow = (1.0 - shadow_noise) * 0.3 * info.coverage;
+
+	// Wind bend visualization
+	info.wind_bend = sin(wind_phase) * 0.5 + 0.5;
+
+	return info;
+}
+
+// Get grass detail for fragment shader
+float get_grass_detail(vec2 xz_pos, float flatness, int biome_idx, float anim_time) {
+	// Only show grass on flat terrain
+	float slope_factor = smoothstep(0.80, 0.95, flatness);
+	if (slope_factor < 0.01) return 0.0;
+
+	// Grass intensity varies by biome
+	float biome_grass_intensity = 0.0;
+	if (biome_idx == 0) biome_grass_intensity = 1.0;       // Valley - lots of grass
+	else if (biome_idx == 1) biome_grass_intensity = 0.3;  // Dark forest - some grass
+	else if (biome_idx == 2) biome_grass_intensity = 0.5;  // Swamp - muddy grass
+	else if (biome_idx == 3) biome_grass_intensity = 0.0;  // Mountain - no grass (snow)
+	else if (biome_idx == 4) biome_grass_intensity = 0.0;  // Desert - no grass
+	else if (biome_idx == 5) biome_grass_intensity = 0.4;  // Wizardland - magical grass
+	else if (biome_idx == 6) biome_grass_intensity = 0.0;  // Hell - no grass
+
+	if (biome_grass_intensity < 0.01) return 0.0;
+
+	// Get detailed grass pattern
+	GrassInfo grass = get_grass_pattern(xz_pos, anim_time);
+
+	// Combine factors
+	return grass.coverage * slope_factor * biome_grass_intensity;
+}
+
+// Enhanced grass detail that returns full info for advanced coloring
+GrassInfo get_grass_detail_full(vec2 xz_pos, float flatness, int biome_idx, float anim_time) {
+	GrassInfo result;
+	result.coverage = 0.0;
+	result.height = 0.0;
+	result.shadow = 0.0;
+	result.wind_bend = 0.0;
+
+	// Only show grass on flat terrain
+	float slope_factor = smoothstep(0.80, 0.95, flatness);
+	if (slope_factor < 0.01) return result;
+
+	// Grass intensity varies by biome
+	float biome_grass_intensity = 0.0;
+	if (biome_idx == 0) biome_grass_intensity = 1.0;
+	else if (biome_idx == 1) biome_grass_intensity = 0.3;
+	else if (biome_idx == 2) biome_grass_intensity = 0.5;
+	else if (biome_idx == 3) biome_grass_intensity = 0.0;
+	else if (biome_idx == 4) biome_grass_intensity = 0.0;
+	else if (biome_idx == 5) biome_grass_intensity = 0.4;
+	else if (biome_idx == 6) biome_grass_intensity = 0.0;
+
+	if (biome_grass_intensity < 0.01) return result;
+
+	// Get full grass info
+	result = get_grass_pattern(xz_pos, anim_time);
+	result.coverage *= slope_factor * biome_grass_intensity;
+
+	return result;
+}
+
+// ============================================================================
 // VERTEX AND FRAGMENT SHADERS
 // ============================================================================
 
@@ -335,8 +574,11 @@ void fragment() {
 
 	vec3 grass_color;
 	vec3 rock_color;
+	int current_biome = 0;  // Track current biome for grass detail
 
 	if (blend_info.valid) {
+		current_biome = blend_info.primary_biome;
+
 		// Get colors for both biomes
 		vec3 primary_grass = get_biome_grass_color(blend_info.primary_biome);
 		vec3 primary_rock = get_biome_rock_color(blend_info.primary_biome);
@@ -349,15 +591,20 @@ void fragment() {
 			// Blend between primary and secondary based on weight
 			grass_color = mix(primary_grass, secondary_grass, blend_info.blend_weight);
 			rock_color = mix(primary_rock, secondary_rock, blend_info.blend_weight);
+
+			// Use secondary biome for grass detail if blend weight is high enough
+			if (blend_info.blend_weight > 0.5) {
+				current_biome = blend_info.secondary_biome;
+			}
 		} else {
 			grass_color = primary_grass;
 			rock_color = primary_rock;
 		}
 	} else {
 		// Fall back to procedural if outside texture bounds
-		int biome_idx = get_biome_index(xz_pos);
-		grass_color = get_biome_grass_color(biome_idx);
-		rock_color = get_biome_rock_color(biome_idx);
+		current_biome = get_biome_index(xz_pos);
+		grass_color = get_biome_grass_color(current_biome);
+		rock_color = get_biome_rock_color(current_biome);
 	}
 
 	// Calculate slope based on how vertical the surface is (in world space)
@@ -394,6 +641,63 @@ void fragment() {
 
 	// Apply variation to base color
 	vec3 color = base_color * (1.0 + combined * 0.4);
+
+	// Apply shader-based grass detail on flat terrain
+	if (enable_grass_detail) {
+		GrassInfo grass_info = get_grass_detail_full(xz_pos, flatness, current_biome, time);
+
+		if (grass_info.coverage > 0.01) {
+			// === GRASS BLADE COLORING ===
+			// Real grass blades are darker at the base (shadow, less light penetration)
+			// and lighter/yellower at the tips (new growth, more light)
+
+			// Base color (darker, more saturated - near ground)
+			vec3 blade_base_color = grass_color * 0.6;
+
+			// Tip color (lighter, slightly yellow - new growth receiving light)
+			vec3 blade_tip_color = grass_color * 1.2;
+			blade_tip_color = mix(blade_tip_color, blade_tip_color * vec3(1.05, 1.1, 0.85), 0.4);
+
+			// Interpolate blade color based on height on blade
+			float height_factor = grass_info.height;
+			vec3 blade_color = mix(blade_base_color, blade_tip_color, height_factor);
+
+			// === INTER-BLADE SHADOWS ===
+			// Darker in dense areas where blades overlap
+			float shadow_factor = grass_info.shadow * grass_info.coverage;
+			blade_color *= (1.0 - shadow_factor * 0.4);
+
+			// === SUBSURFACE SCATTERING ===
+			// Grass blades are translucent - light passes through tips
+			// This creates a bright glow when backlit
+			float sss_strength = height_factor * grass_info.coverage * 0.25;
+			vec3 sss_color = grass_color * vec3(1.1, 1.2, 0.9) * 1.3;
+			blade_color = mix(blade_color, sss_color, sss_strength * grass_info.wind_bend);
+
+			// === WIND HIGHLIGHT ===
+			// When wind bends blades, exposed sides catch more light
+			float wind_highlight = grass_info.wind_bend * grass_info.coverage * 0.15;
+			blade_color *= (1.0 + wind_highlight);
+
+			// === SPECULAR-LIKE HIGHLIGHT ON BLADE TIPS ===
+			// Grass blades have a slight sheen at the very tips
+			if (height_factor > 0.75 && grass_info.coverage > 0.5) {
+				float tip_spec = (height_factor - 0.75) * 4.0 * grass_info.coverage;
+				blade_color = mix(blade_color, vec3(1.0), tip_spec * 0.08);
+			}
+
+			// === BLEND WITH BASE TERRAIN ===
+			// Smoothly blend grass with underlying terrain based on coverage
+			// Low coverage = patches, high coverage = full grass
+			float blend_strength = smoothstep(0.0, 0.6, grass_info.coverage);
+			color = mix(color, blade_color, blend_strength);
+
+			// === EDGE DARKENING ===
+			// Slight darkening at grass patch edges for depth
+			float edge_factor = smoothstep(0.0, 0.2, grass_info.coverage);
+			color *= mix(0.92, 1.0, edge_factor);
+		}
+	}
 
 	// Simple directional lighting
 	vec3 light_dir = normalize(vec3(0.5, 1.0, 0.3));
