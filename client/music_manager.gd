@@ -5,6 +5,9 @@ extends Node
 
 @onready var audio_player: AudioStreamPlayer = AudioStreamPlayer.new()
 
+# Music volume (-6 dB = approximately half perceived loudness)
+var music_volume_db: float = -6.0
+
 # Current biome being played
 var current_biome: String = ""
 var current_track_index: int = -1
@@ -31,6 +34,7 @@ func _ready() -> void:
 	# Setup audio player
 	add_child(audio_player)
 	audio_player.bus = "Music"  # Use music bus if available
+	audio_player.volume_db = music_volume_db
 	audio_player.finished.connect(_on_track_finished)
 
 	print("[MusicManager] Ready")
