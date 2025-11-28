@@ -33,6 +33,7 @@ var environmental_scenes: Dictionary = {
 
 # Environmental object spawn queue (for non-blocking spawning)
 var environmental_spawn_queue: Array = []
+var environmental_queue_needs_sort: bool = false
 const ENVIRONMENTAL_SPAWN_BATCH_SIZE: int = 8  # Objects to spawn per frame
 
 # Client state
@@ -1062,14 +1063,17 @@ func receive_environmental_objects(chunk_pos: Vector2i, objects_data: Array) -> 
 			"obj_data": obj_data
 		})
 
+	# Mark queue as needing sort (will sort once before processing)
+	environmental_queue_needs_sort = true
+
 ## Process environmental spawn queue - spawns ENVIRONMENTAL_SPAWN_BATCH_SIZE objects per frame
 ## Prioritizes objects closest to the player
 func _process_environmental_queue() -> void:
 	if environmental_spawn_queue.is_empty():
 		return
 
-	# Sort queue by distance to player (closest first) for better visual experience
-	if local_player and is_instance_valid(local_player):
+	# Sort queue by distance to player (closest first) - only when new items added
+	if environmental_queue_needs_sort and local_player and is_instance_valid(local_player):
 		var player_pos: Vector3 = local_player.global_position
 		environmental_spawn_queue.sort_custom(func(a, b):
 			var pos_a = a.obj_data.get("pos", [0, 0, 0])
@@ -1078,6 +1082,7 @@ func _process_environmental_queue() -> void:
 			var dist_b = Vector2(pos_b[0] - player_pos.x, pos_b[2] - player_pos.z).length_squared()
 			return dist_a < dist_b
 		)
+		environmental_queue_needs_sort = false
 
 	var spawned_count := 0
 	while spawned_count < ENVIRONMENTAL_SPAWN_BATCH_SIZE and not environmental_spawn_queue.is_empty():
