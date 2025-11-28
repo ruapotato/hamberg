@@ -211,6 +211,9 @@ func _run_follower_interpolation(delta: float) -> void:
 	# Interpolate rotation
 	rotation.y = lerp_angle(rotation.y, sync_rotation_y, 8.0 * delta)
 
+	# Set velocity for animation system (so walk animation plays)
+	velocity = sync_velocity
+
 	# Update AI state for animations
 	var prev_state = ai_state
 	ai_state = sync_ai_state as AIState
