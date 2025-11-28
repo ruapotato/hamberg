@@ -325,10 +325,10 @@ float grass_clump(vec2 p, vec2 clump_center, float wind_phase, float clump_size)
 
 	float total = 0.0;
 
-	// Generate 5-8 blades per clump
-	float blade_count = 5.0 + hash21(clump_center) * 3.0;
+	// Generate 3-5 blades per clump (fewer for efficiency)
+	float blade_count = 3.0 + hash21(clump_center) * 2.0;
 
-	for (float i = 0.0; i < 8.0; i++) {
+	for (float i = 0.0; i < 5.0; i++) {
 		if (i >= blade_count) break;
 
 		// Randomize blade properties
@@ -388,7 +388,7 @@ GrassInfo get_grass_pattern(vec2 world_xz, float anim_time) {
 	info.wind_bend = 0.0;
 
 	// Scale for grass (larger = bigger clumps, more spread out)
-	float grass_scale = 1.2;  // Smaller blades for finer grass detail
+	float grass_scale = 2.5;  // Bigger for efficiency
 	vec2 scaled_pos = world_xz / grass_scale;
 
 	// Wind parameters
@@ -410,7 +410,7 @@ GrassInfo get_grass_pattern(vec2 world_xz, float anim_time) {
 			vec2 cell = grid_cell + vec2(float(dx), float(dy));
 
 			// Multiple clumps per cell for density
-			for (int c = 0; c < 3; c++) {
+			for (int c = 0; c < 2; c++) {
 				vec2 clump_seed = cell + vec2(float(c) * 0.33, float(c) * 0.77);
 				vec2 rnd = hash22(clump_seed);
 
