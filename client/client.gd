@@ -1271,6 +1271,35 @@ func update_enemy_states(states: Dictionary) -> void:
 		if enemy.has_method("apply_server_state"):
 			enemy.apply_server_state(pos, rot_y, ai_state, hp, target_peer)
 
+## Apply enemy damage forwarded from server (for HOST client)
+## Called when another player hits an enemy that this client hosts
+func apply_enemy_damage(enemy_network_id: int, damage: float, knockback: float, direction: Vector3) -> void:
+	print("[Client] apply_enemy_damage: net_id=%d, damage=%.1f" % [enemy_network_id, damage])
+
+	# Find enemy by network_id
+	var enemy: Node = null
+	for key in spawned_enemies.keys():
+		var e = spawned_enemies[key]
+		if e and is_instance_valid(e) and "network_id" in e and e.network_id == enemy_network_id:
+			enemy = e
+			break
+
+	if not enemy:
+		print("[Client] ERROR: Enemy with network_id %d not found!" % enemy_network_id)
+		return
+
+	# Only apply if we are the host for this enemy
+	if not enemy.is_host:
+		print("[Client] WARNING: Received damage for enemy %d but we are not the host" % enemy_network_id)
+		return
+
+	# Apply damage to the enemy
+	if enemy.has_method("take_damage"):
+		print("[Client] Applying %.1f damage to hosted enemy %d" % [damage, enemy_network_id])
+		enemy.take_damage(damage, knockback, direction)
+	else:
+		print("[Client] ERROR: Enemy %d has no take_damage method!" % enemy_network_id)
+
 ## Request server to perform a manual save (triggered by F5 key)
 func _request_server_save() -> void:
 	print("[Client] Requesting manual save (F5 pressed)...")

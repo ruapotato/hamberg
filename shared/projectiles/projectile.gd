@@ -53,10 +53,15 @@ func _on_body_entered(body: Node) -> void:
 	if body.has_method("take_damage"):
 		var knockback_dir = velocity.normalized()
 
-		# Damage enemies (layer 4)
+		# Damage enemies (layer 4) - use network damage system
 		if body.collision_layer & 4:
-			body.take_damage(damage, 5.0, knockback_dir)
-			print("[Projectile] Damaged enemy %s for %.1f" % [body.name, damage])
+			var enemy_network_id = body.network_id if "network_id" in body else 0
+			if enemy_network_id > 0:
+				print("[Projectile] Hit enemy %s (net_id=%d) for %.1f damage" % [body.name, enemy_network_id, damage])
+				var dir_array = [knockback_dir.x, knockback_dir.y, knockback_dir.z]
+				NetworkManager.rpc_damage_enemy.rpc_id(1, enemy_network_id, damage, 5.0, dir_array)
+			else:
+				print("[Projectile] Hit enemy %s but it has no network_id!" % body.name)
 
 		# Damage players (layer 2)
 		elif body.collision_layer & 2:

@@ -118,6 +118,9 @@ func _ready() -> void:
 	collision_layer = 4  # Enemies layer
 	collision_mask = 1 | 2  # World and Players
 
+	# Add to enemies group for raycast detection by player attacks
+	add_to_group("enemies")
+
 	weapon_data = ItemDatabase.get_item(weapon_id)
 	if not weapon_data:
 		weapon_data = ItemDatabase.get_item("fists")

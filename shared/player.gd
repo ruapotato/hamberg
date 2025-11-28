@@ -978,8 +978,13 @@ func _perform_melee_attack(camera: Camera3D, attack_range: float, damage: float,
 
 		# Check if it's an enemy
 		if hit_object.has_method("take_damage") and hit_object.collision_layer & 4:  # Enemy layer
-			print("[Player] Hit enemy %s (%.1f damage, %.1f knockback)" % [hit_object.name, damage, knockback])
-			hit_object.take_damage(damage, knockback, ray_direction)
+			# Use network damage system (same as _handle_attack)
+			var enemy_network_id = hit_object.network_id if "network_id" in hit_object else 0
+			if enemy_network_id > 0:
+				print("[Player] Special attack hit enemy %s (net_id=%d, %.1f damage, %.1f knockback)" % [hit_object.name, enemy_network_id, damage, knockback])
+				_send_enemy_damage_request(enemy_network_id, damage, knockback, ray_direction)
+			else:
+				print("[Player] Hit enemy %s but it has no network_id!" % hit_object.name)
 
 		# Check if it's an environmental object
 		elif hit_object.has_method("get_object_type") and hit_object.has_method("get_object_id"):
@@ -1002,9 +1007,13 @@ func _deal_area_damage(center: Vector3, radius: float, damage: float) -> void:
 		var distance = enemy.global_position.distance_to(center)
 		if distance <= radius:
 			var direction = (enemy.global_position - center).normalized()
-			if enemy.has_method("take_damage"):
-				enemy.take_damage(damage, 2.0, direction)
-				print("[Player] Area damage hit %s at distance %.1fm" % [enemy.name, distance])
+			# Use network damage system (same as _handle_attack)
+			var enemy_network_id = enemy.network_id if "network_id" in enemy else 0
+			if enemy_network_id > 0:
+				print("[Player] Area damage hit %s (net_id=%d) at distance %.1fm" % [enemy.name, enemy_network_id, distance])
+				_send_enemy_damage_request(enemy_network_id, damage, 2.0, direction)
+			else:
+				print("[Player] Area damage hit enemy %s but it has no network_id!" % enemy.name)
 
 ## Spawn a projectile for ranged weapons
 func _spawn_projectile(weapon_data: WeaponData, camera: Camera3D) -> void:
@@ -1075,6 +1084,7 @@ func _send_damage_request(chunk_pos: Vector2i, object_id: int, damage: float, hi
 func _send_enemy_damage_request(enemy_network_id: int, damage: float, knockback: float, direction: Vector3) -> void:
 	# Send RPC to server via NetworkManager
 	var dir_array = [direction.x, direction.y, direction.z]
+	print("[Player] Sending rpc_damage_enemy to server: net_id=%d, damage=%.1f" % [enemy_network_id, damage])
 	NetworkManager.rpc_damage_enemy.rpc_id(1, enemy_network_id, damage, knockback, dir_array)
 
 # ============================================================================

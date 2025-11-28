@@ -288,14 +288,22 @@ func rpc_damage_environmental_object(chunk_pos: Array, object_id: int, damage: f
 ## CLIENT -> SERVER: Damage enemy (client-authoritative hits using network_id)
 @rpc("any_peer", "call_remote", "reliable")
 func rpc_damage_enemy(enemy_network_id: int, damage: float, knockback: float, direction: Array) -> void:
+	print("[NetworkManager] rpc_damage_enemy received: net_id=%d, damage=%.1f, is_server=%s" % [enemy_network_id, damage, is_server])
 	if not is_server:
 		return
 
 	var peer_id := multiplayer.get_remote_sender_id()
 	var server_node := get_node_or_null("/root/Main/Server")
 	if server_node and server_node.has_method("handle_enemy_damage"):
-		var dir_v3 := Vector3(direction[0], direction[1], direction[2])
+		# Defensive check for direction array
+		var dir_v3 := Vector3.FORWARD
+		if direction.size() >= 3:
+			dir_v3 = Vector3(direction[0], direction[1], direction[2])
+		else:
+			print("[NetworkManager] WARNING: direction array invalid size: %d" % direction.size())
 		server_node.handle_enemy_damage(peer_id, enemy_network_id, damage, knockback, dir_v3)
+	else:
+		print("[NetworkManager] ERROR: Server node not found or missing handle_enemy_damage")
 
 ## CLIENT -> SERVER: Place a buildable object
 @rpc("any_peer", "call_remote", "reliable")
@@ -845,3 +853,19 @@ func rpc_broadcast_enemy_consensus(states: Dictionary) -> void:
 	var client_node := get_node_or_null("/root/Main/Client")
 	if client_node and client_node.has_method("receive_enemy_consensus"):
 		client_node.receive_enemy_consensus(states)
+
+## SERVER -> HOST CLIENT: Apply damage to enemy (forwarded from attacking player)
+## This is called by server to tell the HOST client to damage their authoritative enemy copy
+@rpc("authority", "call_remote", "reliable")
+func rpc_apply_enemy_damage(enemy_network_id: int, damage: float, knockback: float, direction: Array) -> void:
+	if is_server:
+		return
+
+	print("[NetworkManager] rpc_apply_enemy_damage received: net_id=%d, damage=%.1f" % [enemy_network_id, damage])
+
+	var client_node := get_node_or_null("/root/Main/Client")
+	if client_node and client_node.has_method("apply_enemy_damage"):
+		var dir_v3 := Vector3.FORWARD
+		if direction.size() >= 3:
+			dir_v3 = Vector3(direction[0], direction[1], direction[2])
+		client_node.apply_enemy_damage(enemy_network_id, damage, knockback, dir_v3)

@@ -1262,14 +1262,19 @@ func handle_enemy_damage(peer_id: int, enemy_network_id: int, damage: float, kno
 		print("[Server] Enemy with network_id %d not found" % enemy_network_id)
 		return
 
-	# Validate enemy has take_damage method
-	if not enemy.has_method("take_damage"):
-		print("[Server] Enemy %d doesn't have take_damage method" % enemy_network_id)
-		return
+	# Get the host_peer_id for this enemy - they run the actual AI
+	var host_peer_id = enemy.host_peer_id if "host_peer_id" in enemy else 0
 
-	# Apply damage
-	print("[Server] Player %d hit enemy %d for %.1f damage" % [peer_id, enemy_network_id, damage])
-	enemy.take_damage(damage, knockback, direction)
+	print("[Server] Player %d hit enemy %d for %.1f damage (forwarding to host %d)" % [peer_id, enemy_network_id, damage, host_peer_id])
+
+	# Apply damage on server copy (for tracking)
+	if enemy.has_method("take_damage"):
+		enemy.take_damage(damage, knockback, direction)
+
+	# Forward damage to the HOST client so they can apply it to their authoritative copy
+	if host_peer_id > 0:
+		var dir_array = [direction.x, direction.y, direction.z]
+		NetworkManager.rpc_apply_enemy_damage.rpc_id(host_peer_id, enemy_network_id, damage, knockback, dir_array)
 
 ## Handle player death (server-authoritative)
 func handle_player_death(peer_id: int) -> void:

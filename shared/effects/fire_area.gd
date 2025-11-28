@@ -48,11 +48,16 @@ func _on_area_body_exited(body: Node3D) -> void:
 		print("[FireArea] Enemy left fire: %s" % body.name)
 
 func _deal_damage_to_enemies() -> void:
-	# Deal damage to all enemies in area
+	# Deal damage to all enemies in area - use network damage system
 	for enemy in enemies_in_area:
 		if is_instance_valid(enemy) and enemy.has_method("take_damage"):
 			var direction = (enemy.global_position - global_position).normalized()
-			enemy.take_damage(damage, 0.5, direction)
+			var enemy_network_id = enemy.network_id if "network_id" in enemy else 0
+			if enemy_network_id > 0:
+				var dir_array = [direction.x, direction.y, direction.z]
+				NetworkManager.rpc_damage_enemy.rpc_id(1, enemy_network_id, damage, 0.5, dir_array)
+			else:
+				print("[FireArea] Enemy %s has no network_id!" % enemy.name)
 
 func _on_timer_timeout() -> void:
 	# Fire duration expired, clean up
