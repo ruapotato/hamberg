@@ -1,0 +1,189 @@
+extends Node
+
+## SoundManager - Handles all game sound effects
+## Provides both 3D positional sounds and 2D UI sounds
+## Uses audio player pools for efficient playback
+
+# Sound library - maps sound names to their paths
+var sounds := {
+	# Combat
+	"sword_hit": "res://audio/generated/sword_hit.wav",
+	"sword_swing": "res://audio/generated/sword_swing.wav",
+	"parry": "res://audio/generated/parry.wav",
+	"critical_hit": "res://audio/generated/critical_hit.wav",
+	"enemy_hurt": "res://audio/generated/enemy_hurt.wav",
+	"enemy_death": "res://audio/generated/enemy_death.wav",
+	"player_hurt": "res://audio/generated/player_hurt.wav",
+	"magic_cast": "res://audio/generated/magic_cast.wav",
+	"magic_hit": "res://audio/generated/magic_hit.wav",
+
+	# Movement
+	"footstep_dirt": "res://audio/generated/footstep_dirt.wav",
+	"footstep_stone": "res://audio/generated/footstep_stone.wav",
+	"footstep_wood": "res://audio/generated/footstep_wood.wav",
+	"jump": "res://audio/generated/jump.wav",
+	"land": "res://audio/generated/land.wav",
+	"dodge": "res://audio/generated/dodge.wav",
+
+	# UI
+	"ui_click": "res://audio/generated/ui_click.wav",
+	"ui_hover": "res://audio/generated/ui_hover.wav",
+	"ui_confirm": "res://audio/generated/ui_confirm.wav",
+	"ui_cancel": "res://audio/generated/ui_cancel.wav",
+	"ui_error": "res://audio/generated/ui_error.wav",
+	"menu_open": "res://audio/generated/menu_open.wav",
+	"menu_close": "res://audio/generated/menu_close.wav",
+
+	# Items
+	"item_pickup": "res://audio/generated/item_pickup.wav",
+	"health_pickup": "res://audio/generated/health_pickup.wav",
+	"coin_pickup": "res://audio/generated/coin_pickup.wav",
+	"powerup": "res://audio/generated/powerup.wav",
+	"chest_open": "res://audio/generated/chest_open.wav",
+
+	# Environment
+	"fire_crackle": "res://audio/generated/fire_crackle.wav",
+	"water_splash": "res://audio/generated/water_splash.wav",
+	"door_open": "res://audio/generated/door_open.wav",
+	"door_close": "res://audio/generated/door_close.wav",
+	"teleport": "res://audio/generated/teleport.wav",
+
+	# Notifications
+	"level_up": "res://audio/generated/level_up.wav",
+	"quest_complete": "res://audio/generated/quest_complete.wav",
+	"notification": "res://audio/generated/notification.wav",
+	"warning": "res://audio/generated/warning.wav",
+}
+
+# Preloaded audio streams for fast access
+var _streams: Dictionary = {}
+
+# Pool of 3D audio players for positional sound
+const POOL_SIZE_3D := 16
+var _player_pool_3d: Array[AudioStreamPlayer3D] = []
+var _pool_index_3d := 0
+
+# Pool of 2D audio players for UI/global sounds
+const POOL_SIZE_2D := 8
+var _player_pool_2d: Array[AudioStreamPlayer] = []
+var _pool_index_2d := 0
+
+# Volume settings (in dB)
+var master_volume := 0.0
+var sfx_volume := 0.0
+var ui_volume := 0.0
+
+
+func _ready() -> void:
+	# Preload all sounds
+	for sound_name in sounds:
+		var path = sounds[sound_name]
+		var stream = load(path)
+		if stream:
+			_streams[sound_name] = stream
+		else:
+			push_warning("[SoundManager] Failed to load sound: %s at %s" % [sound_name, path])
+
+	# Create 3D audio player pool
+	for i in POOL_SIZE_3D:
+		var player = AudioStreamPlayer3D.new()
+		player.bus = "SFX"
+		player.max_distance = 50.0
+		player.unit_size = 5.0
+		player.attenuation_model = AudioStreamPlayer3D.ATTENUATION_INVERSE_DISTANCE
+		add_child(player)
+		_player_pool_3d.append(player)
+
+	# Create 2D audio player pool
+	for i in POOL_SIZE_2D:
+		var player = AudioStreamPlayer.new()
+		player.bus = "UI"
+		add_child(player)
+		_player_pool_2d.append(player)
+
+	print("[SoundManager] Ready - loaded %d sounds" % _streams.size())
+
+
+## Play a 3D positional sound at a world position
+## Returns the AudioStreamPlayer3D for additional control (or null if sound not found)
+func play_sound(sound_name: String, position: Vector3, volume_db: float = 0.0, pitch_scale: float = 1.0) -> AudioStreamPlayer3D:
+	if not _streams.has(sound_name):
+		push_warning("[SoundManager] Unknown sound: %s" % sound_name)
+		return null
+
+	var player = _get_next_3d_player()
+	player.stream = _streams[sound_name]
+	player.global_position = position
+	player.volume_db = sfx_volume + volume_db
+	player.pitch_scale = pitch_scale
+	player.play()
+	return player
+
+
+## Play a 3D sound attached to a node (follows the node)
+func play_sound_attached(sound_name: String, target: Node3D, volume_db: float = 0.0, pitch_scale: float = 1.0) -> AudioStreamPlayer3D:
+	if not _streams.has(sound_name):
+		push_warning("[SoundManager] Unknown sound: %s" % sound_name)
+		return null
+
+	# Create a temporary player that follows the target
+	var player = AudioStreamPlayer3D.new()
+	player.bus = "SFX"
+	player.max_distance = 50.0
+	player.unit_size = 5.0
+	player.stream = _streams[sound_name]
+	player.volume_db = sfx_volume + volume_db
+	player.pitch_scale = pitch_scale
+	target.add_child(player)
+	player.play()
+
+	# Auto-cleanup when done
+	player.finished.connect(player.queue_free)
+	return player
+
+
+## Play a 2D UI sound (not positional)
+func play_ui_sound(sound_name: String, volume_db: float = 0.0, pitch_scale: float = 1.0) -> AudioStreamPlayer:
+	if not _streams.has(sound_name):
+		push_warning("[SoundManager] Unknown sound: %s" % sound_name)
+		return null
+
+	var player = _get_next_2d_player()
+	player.stream = _streams[sound_name]
+	player.volume_db = ui_volume + volume_db
+	player.pitch_scale = pitch_scale
+	player.play()
+	return player
+
+
+## Play sound with random pitch variation (great for footsteps, hits, etc.)
+func play_sound_varied(sound_name: String, position: Vector3, volume_db: float = 0.0, pitch_variance: float = 0.1) -> AudioStreamPlayer3D:
+	var pitch = randf_range(1.0 - pitch_variance, 1.0 + pitch_variance)
+	return play_sound(sound_name, position, volume_db, pitch)
+
+
+## Get the next available 3D player from the pool (round-robin)
+func _get_next_3d_player() -> AudioStreamPlayer3D:
+	var player = _player_pool_3d[_pool_index_3d]
+	_pool_index_3d = (_pool_index_3d + 1) % POOL_SIZE_3D
+	return player
+
+
+## Get the next available 2D player from the pool (round-robin)
+func _get_next_2d_player() -> AudioStreamPlayer:
+	var player = _player_pool_2d[_pool_index_2d]
+	_pool_index_2d = (_pool_index_2d + 1) % POOL_SIZE_2D
+	return player
+
+
+## Check if a sound exists
+func has_sound(sound_name: String) -> bool:
+	return _streams.has(sound_name)
+
+
+## Set volume levels
+func set_sfx_volume(volume_db: float) -> void:
+	sfx_volume = volume_db
+
+func set_ui_volume(volume_db: float) -> void:
+	ui_volume = volume_db

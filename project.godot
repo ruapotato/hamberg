@@ -22,6 +22,7 @@ NetworkManager="*res://shared/network_manager.gd"
 CraftingRecipes="*res://shared/crafting_recipes.gd"
 ItemDatabase="*res://shared/item_database.gd"
 InputDeviceManager="*res://shared/input_device_manager.gd"
+SoundManager="*res://shared/sound_manager.gd"
 
 [display]
 

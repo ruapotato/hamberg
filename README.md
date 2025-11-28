@@ -207,7 +207,9 @@ Connect clients to `127.0.0.1:7777`, explore the world, gather resources, and bu
 - [ ] Portals and fast travel
 
 ### Phase 6: Polish & Release 🎨
-- [ ] Audio system (music, SFX)
+- [x] **Procedural SFX generator** (Python-based, 36 sounds)
+- [x] **In-game audio system** (SoundManager autoload)
+- [ ] Music system
 - [ ] Particle effects
 - [ ] UI/UX improvements
 - [ ] Performance optimization
@@ -759,6 +761,60 @@ GAME_PORT=8888 ./launch_server.sh
 - Check server logs for player join messages
 - Make sure both clients connected successfully
 - Try moving around - they might spawn at the same spot
+
+---
+
+## 🔊 Audio System
+
+Hamberg features a **procedural sound effects generator** that creates all game audio from scratch using Python synthesis.
+
+### Sound Effects Generator
+
+Located in `audio/generate_sfx.py`, this Python script generates 36 high-quality .wav files using:
+- **Additive/subtractive synthesis** for tonal sounds
+- **FM synthesis** for complex timbres
+- **Filtered noise** for impacts and swooshes
+- **ADSR envelopes** for natural dynamics
+
+**Generate all sounds:**
+```bash
+source pyenv/bin/activate
+python audio/generate_sfx.py
+```
+
+**Generate specific sounds:**
+```bash
+python audio/generate_sfx.py sword_hit parry enemy_death
+```
+
+**List available sounds:**
+```bash
+python audio/generate_sfx.py --list
+```
+
+### Available Sounds (36 total)
+
+| Category | Sounds |
+|----------|--------|
+| **Combat** | sword_hit, sword_swing, parry, player_hurt, enemy_hurt, enemy_death, critical_hit |
+| **Movement** | footstep_dirt, footstep_stone, footstep_wood, jump, land, dodge |
+| **UI** | ui_click, ui_hover, ui_confirm, ui_cancel, ui_error, menu_open, menu_close |
+| **Items** | item_pickup, coin_pickup, health_pickup, powerup |
+| **Environment** | door_open, door_close, chest_open, water_splash, fire_crackle |
+| **Magic** | magic_cast, magic_hit, teleport, level_up |
+| **Notifications** | notification, quest_complete, warning |
+
+### In-Game Audio
+
+The `SoundManager` autoload provides easy sound playback:
+
+```gdscript
+# Play a sound at a 3D position
+SoundManager.play_sound("sword_hit", global_position)
+
+# Play UI sounds (2D, no position needed)
+SoundManager.play_ui_sound("ui_click")
+```
 
 ---
 

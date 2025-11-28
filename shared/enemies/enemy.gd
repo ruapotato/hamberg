@@ -19,6 +19,7 @@ enum AIState {
 	STALKING,       # Watching player from distance
 	CIRCLING,       # Strafing around the player
 	CHARGING,       # Committed rush attack
+	WINDING_UP,     # Telegraph before melee attack - gives player time to react
 	ATTACKING,      # Melee attack in progress
 	THROWING,       # Rock throw attack
 	RETREATING,     # Backing away after attack
@@ -57,11 +58,12 @@ const REPORT_INTERVAL: float = 0.1
 # ============================================================================
 @export var enemy_name: String = "Gahnome"
 @export var max_health: float = 50.0
-@export var move_speed: float = 3.0
-@export var charge_speed: float = 5.5
-@export var strafe_speed: float = 2.0
+@export var move_speed: float = 2.5
+@export var charge_speed: float = 4.5
+@export var strafe_speed: float = 1.6
 @export var attack_range: float = 1.2
 @export var attack_cooldown_time: float = 1.2
+@export var windup_time: float = 0.5  # Telegraph before attack - gives player time to block/parry
 @export var detection_range: float = 18.0
 @export var preferred_distance: float = 6.0
 @export var throw_range: float = 12.0
@@ -224,13 +226,21 @@ func _run_follower_interpolation(delta: float) -> void:
 	# Trigger animations AND local damage checks on state change
 	if prev_state != ai_state:
 		match ai_state:
+			AIState.WINDING_UP:
+				# Show telegraph on non-host clients
+				_set_windup_telegraph(true)
 			AIState.ATTACKING:
+				_set_windup_telegraph(false)
 				start_attack_animation()
+				_play_attack_swing()  # Swing arm forward for all clients
 				# LOCAL-FIRST: Non-host clients also check for damage to their player
 				if not is_host:
 					_check_local_melee_damage()
 			AIState.THROWING:
 				start_throw_animation()
+			_:
+				# Clear telegraph when entering any other state
+				_set_windup_telegraph(false)
 
 	# Update target from sync (for looking at player)
 	_update_target_from_sync()
@@ -333,6 +343,8 @@ func _update_ai(delta: float) -> void:
 			_update_circling(delta, distance)
 		AIState.CHARGING:
 			_update_charging(delta, distance)
+		AIState.WINDING_UP:
+			_update_winding_up(delta, distance)
 		AIState.ATTACKING:
 			_update_attacking(delta, distance)
 		AIState.THROWING:
@@ -442,7 +454,7 @@ func _update_circling(delta: float, distance: float) -> void:
 	circle_timer += delta
 
 	if distance < attack_range * 1.5:
-		_change_state(AIState.ATTACKING)
+		_change_state(AIState.WINDING_UP)
 		return
 
 	var to_player = target_player.global_position - global_position
@@ -472,7 +484,7 @@ func _update_charging(delta: float, distance: float) -> void:
 			has_committed_charge = true
 
 	if distance <= attack_range:
-		_change_state(AIState.ATTACKING)
+		_change_state(AIState.WINDING_UP)
 		return
 
 	var direction = charge_target_pos - global_position
@@ -487,9 +499,26 @@ func _update_charging(delta: float, distance: float) -> void:
 		if distance > attack_range * 2:
 			_change_state(AIState.STALKING)
 		else:
-			_change_state(AIState.ATTACKING)
+			_change_state(AIState.WINDING_UP)
 
 	if state_timer > 3.0:
+		_change_state(AIState.STALKING)
+
+func _update_winding_up(delta: float, distance: float) -> void:
+	# Wind-up phase - stop, face target, show telegraph
+	velocity.x = 0
+	velocity.z = 0
+	_face_target()
+
+	# Visual telegraph: tint red to warn player
+	_set_windup_telegraph(true)
+
+	# After windup_time, transition to actual attack
+	if state_timer >= windup_time:
+		_change_state(AIState.ATTACKING)
+	elif distance > attack_range * 2.0:
+		# Target moved away - abort attack
+		_set_windup_telegraph(false)
 		_change_state(AIState.STALKING)
 
 func _update_attacking(delta: float, distance: float) -> void:
@@ -497,7 +526,10 @@ func _update_attacking(delta: float, distance: float) -> void:
 	velocity.z = 0
 	_face_target()
 
-	if distance <= attack_range and attack_cooldown <= 0:
+	# Clear telegraph
+	_set_windup_telegraph(false)
+
+	if distance <= attack_range * 1.5 and attack_cooldown <= 0:
 		_do_melee_attack()
 		attack_cooldown = attack_cooldown_time
 
@@ -561,6 +593,10 @@ func _find_nearest_player() -> CharacterBody3D:
 func _do_melee_attack() -> void:
 	print("[Enemy] %s attacks with %s!" % [enemy_name, weapon_data.display_name])
 	start_attack_animation()
+	_play_attack_swing()  # Swing arm forward
+
+	# Play attack swing sound
+	SoundManager.play_sound_varied("sword_swing", global_position)
 
 	# LOCAL-FIRST: Check if MY local player is in range and being targeted
 	var my_peer_id = multiplayer.get_unique_id()
@@ -650,6 +686,9 @@ func take_damage(damage: float, knockback: float = 0.0, direction: Vector3 = Vec
 	health -= final_damage
 	print("[Enemy] %s took %.1f damage, health: %.1f" % [enemy_name, final_damage, health])
 
+	# Play enemy hurt sound
+	SoundManager.play_sound_varied("enemy_hurt", global_position)
+
 	# Create health bar on first damage
 	if not health_bar:
 		health_bar = HEALTH_BAR_SCENE.instantiate()
@@ -676,6 +715,9 @@ func _die() -> void:
 
 	is_dead = true
 	print("[Enemy] %s died!" % enemy_name)
+
+	# Play enemy death sound
+	SoundManager.play_sound("enemy_death", global_position)
 
 	died.emit(self)
 
@@ -715,7 +757,7 @@ func _setup_body() -> void:
 	body_container.rotation.y = PI
 	add_child(body_container)
 
-	var scale_factor: float = 0.66
+	var scale_factor: float = 0.79  # 20% bigger than original 0.66
 
 	# Materials
 	var skin_mat = StandardMaterial3D.new()
@@ -902,3 +944,75 @@ func _setup_body() -> void:
 	right_elbow.add_child(right_forearm)
 
 	head_base_height = 0.99 * scale_factor
+
+## Visual telegraph for wind-up attack - swing arm back and tint red
+var windup_tween: Tween = null
+var original_arm_rotation: float = 0.0
+
+func _set_windup_telegraph(enabled: bool) -> void:
+	if not body_container:
+		return
+
+	# Cancel any existing tween
+	if windup_tween and windup_tween.is_valid():
+		windup_tween.kill()
+
+	if enabled:
+		# Swing arm BACK to telegraph attack (positive X = arm goes up/back)
+		if right_arm:
+			original_arm_rotation = right_arm.rotation.x
+			windup_tween = create_tween()
+			windup_tween.tween_property(right_arm, "rotation:x", 1.2, 0.25)  # Swing back (arm up)
+		# Tint red
+		_set_body_tint(Color(1.0, 0.4, 0.4, 1.0))
+	else:
+		# Reset arm and color
+		if right_arm:
+			right_arm.rotation.x = 0.0
+		_set_body_tint(Color(1.0, 1.0, 1.0, 1.0))
+
+## Swing arm forward for attack hit
+func _play_attack_swing() -> void:
+	if not right_arm:
+		return
+
+	if windup_tween and windup_tween.is_valid():
+		windup_tween.kill()
+
+	windup_tween = create_tween()
+	# Fast swing forward from wound-up position (negative X = arm swings down/forward)
+	windup_tween.tween_property(right_arm, "rotation:x", -1.0, 0.1)  # Swing forward fast
+	windup_tween.tween_property(right_arm, "rotation:x", 0.0, 0.3)  # Return to normal
+
+	# Also clear the red tint
+	_set_body_tint(Color(1.0, 1.0, 1.0, 1.0))
+
+## Set body color tint
+func _set_body_tint(color: Color) -> void:
+	if not body_container:
+		return
+
+	for child in body_container.get_children():
+		_tint_mesh_recursive(child, color)
+
+func _tint_mesh_recursive(node: Node, color: Color) -> void:
+	if node is MeshInstance3D:
+		var mat = node.material_override
+		if mat and mat is StandardMaterial3D:
+			# Modulate the existing color
+			if color == Color(1.0, 1.0, 1.0, 1.0):
+				# Reset - we need to restore original colors
+				_restore_original_color(mat)
+			else:
+				# Store original if not stored, then tint
+				if not mat.has_meta("original_color"):
+					mat.set_meta("original_color", mat.albedo_color)
+				var orig = mat.get_meta("original_color")
+				mat.albedo_color = orig.lerp(color, 0.5)
+
+	for child in node.get_children():
+		_tint_mesh_recursive(child, color)
+
+func _restore_original_color(mat: StandardMaterial3D) -> void:
+	if mat.has_meta("original_color"):
+		mat.albedo_color = mat.get_meta("original_color")

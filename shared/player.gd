@@ -8,6 +8,8 @@ const Equipment = preload("res://shared/equipment.gd")
 const WeaponData = preload("res://shared/weapon_data.gd")
 const ShieldData = preload("res://shared/shield_data.gd")
 const Projectile = preload("res://shared/projectiles/projectile.gd")
+const HitEffectScene = preload("res://shared/effects/hit_effect.tscn")
+const ParryEffectScene = preload("res://shared/effects/parry_effect.tscn")
 
 # Movement parameters
 const WALK_SPEED: float = 5.0
@@ -682,6 +684,9 @@ func _handle_attack() -> void:
 	# Trigger attack animation
 	is_attacking = true
 	attack_timer = 0.0
+
+	# Play sword swing sound
+	SoundManager.play_sound_varied("sword_swing", global_position)
 
 	# Get camera for raycasting/aiming
 	var camera := _get_camera()
@@ -2016,6 +2021,9 @@ func take_damage(damage: float, attacker_id: int = -1, knockback_dir: Vector3 = 
 			was_parried = true
 			final_damage = 0
 
+			# Spawn parry effect
+			_spawn_parry_effect()
+
 			# Apply stun to attacker
 			_apply_stun_to_attacker(attacker_id)
 		else:
@@ -2035,9 +2043,16 @@ func take_damage(damage: float, attacker_id: int = -1, knockback_dir: Vector3 = 
 	health -= final_damage
 	print("[Player] Took %d damage, health: %d" % [final_damage, health])
 
+	# Spawn hit effect if damage was dealt
+	if final_damage > 0:
+		_spawn_hit_effect()
+
 	# Apply knockback (if not parried)
 	if not was_parried and knockback_dir.length() > 0:
-		velocity += knockback_dir * 5.0  # Knockback multiplier
+		var knockback_mult = 2.0  # Base knockback (reduced from 5.0)
+		if is_blocking:
+			knockback_mult = 0.5  # Blocking greatly reduces knockback
+		velocity += knockback_dir * knockback_mult
 
 	if health <= 0:
 		health = 0
@@ -2057,6 +2072,26 @@ func _apply_stun_to_attacker(attacker_id: int) -> void:
 	if attacker.has_method("apply_stun"):
 		attacker.apply_stun()
 		print("[Player] Stunned attacker: %s" % attacker.name)
+
+## Spawn hit particle effect at player position
+func _spawn_hit_effect() -> void:
+	var pos = global_position + Vector3(0, 1.0, 0)  # Chest height
+	var effect = HitEffectScene.instantiate()
+	get_tree().current_scene.add_child(effect)
+	effect.global_position = pos  # Set position after adding to tree
+
+	# Play player hurt sound
+	SoundManager.play_sound_varied("player_hurt", pos)
+
+## Spawn parry particle effect at player position
+func _spawn_parry_effect() -> void:
+	var pos = global_position + Vector3(0, 1.2, 0)  # Shield height
+	var effect = ParryEffectScene.instantiate()
+	get_tree().current_scene.add_child(effect)
+	effect.global_position = pos  # Set position after adding to tree
+
+	# Play parry sound
+	SoundManager.play_sound("parry", pos)
 
 ## Animate stun wobble effect
 func _animate_stun(delta: float, left_arm: Node3D, right_arm: Node3D, left_leg: Node3D, right_leg: Node3D) -> void:
@@ -2100,6 +2135,9 @@ func _die() -> void:
 
 	is_dead = true
 	print("[Player] Player died!")
+
+	# Play death sound (using player_hurt as placeholder)
+	SoundManager.play_sound("player_hurt", global_position)
 
 	# Disable physics
 	set_physics_process(false)
