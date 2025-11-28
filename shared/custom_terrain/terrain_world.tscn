@@ -6,8 +6,8 @@
 background_mode = 1
 background_color = Color(0.53, 0.81, 1, 1)
 ambient_light_source = 2
-ambient_light_color = Color(0.8, 0.9, 1, 1)
-ambient_light_energy = 0.5
+ambient_light_color = Color(0.6, 0.7, 0.8, 1)
+ambient_light_energy = 0.15
 glow_enabled = true
 fog_enabled = true
 fog_light_color = Color(0.7, 0.8, 0.9, 1)

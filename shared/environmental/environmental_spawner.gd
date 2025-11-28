@@ -74,7 +74,7 @@ func _setup_spawn_configs() -> void:
 	# Dark Pine - dense tall trees for dark_forest biome
 	var dark_pine_config := SpawnConfig.new()
 	dark_pine_config.scene = dark_pine_scene
-	dark_pine_config.density = 0.85
+	dark_pine_config.density = 0.55
 	dark_pine_config.min_height = -5.0
 	dark_pine_config.max_height = 35.0
 	dark_pine_config.max_slope = 30.0
@@ -85,7 +85,7 @@ func _setup_spawn_configs() -> void:
 	# Glowing Mushrooms - scattered fungi for dark_forest biome
 	var mushroom_config := SpawnConfig.new()
 	mushroom_config.scene = glowing_mushroom_scene
-	mushroom_config.density = 0.75
+	mushroom_config.density = 0.45
 	mushroom_config.min_height = -5.0
 	mushroom_config.max_height = 30.0
 	mushroom_config.max_slope = 40.0
