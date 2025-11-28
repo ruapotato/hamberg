@@ -20,6 +20,11 @@ var mini_map_scene := preload("res://client/ui/mini_map.tscn")
 # Enemy scenes
 var gahnome_scene := preload("res://shared/enemies/gahnome.tscn")
 
+# Animal scenes
+var deer_scene := preload("res://shared/animals/deer.tscn")
+var pig_scene := preload("res://shared/animals/pig.tscn")
+var sheep_scene := preload("res://shared/animals/sheep.tscn")
+
 # Environmental object scenes (preloaded to avoid blocking main thread)
 var environmental_scenes: Dictionary = {
 	"tree": preload("res://shared/environmental/tree.tscn"),
@@ -212,8 +217,13 @@ func _process(_delta: float) -> void:
 	_process_environmental_queue()
 
 	# Handle pause menu (Escape or Button 6)
+	# But first check if inventory is open - ESC should close it without opening pause menu
 	if (Input.is_action_just_pressed("ui_cancel") or Input.is_action_just_pressed("toggle_pause")) and is_in_game:
-		_toggle_pause_menu()
+		# Check if inventory is open - if so, close it and don't toggle pause
+		if inventory_panel_ui and inventory_panel_ui.is_inventory_open():
+			inventory_panel_ui.hide_inventory()
+		else:
+			_toggle_pause_menu()
 
 	# Handle manual save
 	if Input.is_action_just_pressed("manual_save") and is_in_game:
@@ -1278,6 +1288,12 @@ func spawn_enemy(enemy_path: NodePath, enemy_type: String, position: Vector3, en
 	match enemy_type:
 		"Gahnome":
 			enemy_scene = gahnome_scene
+		"Deer":
+			enemy_scene = deer_scene
+		"Pig":
+			enemy_scene = pig_scene
+		"Sheep":
+			enemy_scene = sheep_scene
 		_:
 			print("[Client] Unknown enemy type: %s" % enemy_type)
 			return

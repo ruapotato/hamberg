@@ -65,58 +65,62 @@ func _setup_spawn_configs() -> void:
 	rock_config.allowed_biomes = ["valley", "dark_forest", "swamp", "mountain", "desert"]
 	spawn_configs["rock"] = rock_config
 
-	# Grass - dense in valleys only (dark_forest uses glowing mushrooms instead)
+	# Grass - very dense in valleys for lush grassy look
 	var grass_config := SpawnConfig.new()
 	grass_config.scene = grass_scene
-	grass_config.density = 0.4
+	grass_config.density = 0.85
 	grass_config.min_height = -5.0
-	grass_config.max_height = 25.0
-	grass_config.max_slope = 25.0
+	grass_config.max_height = 30.0
+	grass_config.max_slope = 30.0
 	grass_config.allowed_biomes = ["valley"]
+	grass_config.scale_variation = Vector2(0.7, 1.3)
 	spawn_configs["grass"] = grass_config
 
 	# Mushroom Trees - medium mushroom trees for dark_forest biome
+	# MultiMesh: can handle high density efficiently
 	var mushroom_tree_config := SpawnConfig.new()
 	mushroom_tree_config.scene = mushroom_tree_scene
-	mushroom_tree_config.density = 0.35
+	mushroom_tree_config.density = 0.5  # Increased for dense forest
 	mushroom_tree_config.min_height = -5.0
 	mushroom_tree_config.max_height = 35.0
 	mushroom_tree_config.max_slope = 35.0
 	mushroom_tree_config.allowed_biomes = ["dark_forest"]
-	mushroom_tree_config.scale_variation = Vector2(0.8, 1.8)
+	mushroom_tree_config.scale_variation = Vector2(0.7, 2.0)
 	spawn_configs["mushroom_tree"] = mushroom_tree_config
 
-	# Glowing Mushrooms - scattered fungi for dark_forest biome (fewer but bigger for performance)
+	# Glowing Mushrooms - scattered fungi for dark_forest biome
+	# MultiMesh: massive performance boost allows high density
 	var mushroom_config := SpawnConfig.new()
 	mushroom_config.scene = glowing_mushroom_scene
-	mushroom_config.density = 0.3
+	mushroom_config.density = 0.7  # High density - MultiMesh handles it
 	mushroom_config.min_height = -5.0
 	mushroom_config.max_height = 30.0
-	mushroom_config.max_slope = 40.0
+	mushroom_config.max_slope = 45.0
 	mushroom_config.allowed_biomes = ["dark_forest"]
-	mushroom_config.scale_variation = Vector2(0.8, 2.2)
+	mushroom_config.scale_variation = Vector2(0.5, 2.5)
 	spawn_configs["glowing_mushroom"] = mushroom_config
 
 	# Spore Clusters - floating glowing spore clusters for dark_forest biome
+	# MultiMesh: efficient rendering allows more clusters
 	var spore_config := SpawnConfig.new()
 	spore_config.scene = spore_cluster_scene
-	spore_config.density = 0.2
+	spore_config.density = 0.5  # Increased for atmosphere
 	spore_config.min_height = -5.0
 	spore_config.max_height = 30.0
-	spore_config.max_slope = 45.0
+	spore_config.max_slope = 50.0
 	spore_config.allowed_biomes = ["dark_forest"]
-	spore_config.scale_variation = Vector2(0.8, 1.6)
+	spore_config.scale_variation = Vector2(0.6, 1.8)
 	spawn_configs["spore_cluster"] = spore_config
 
 	# Giant Mushrooms - massive mushroom trees forming upper canopy for dark_forest biome
 	var giant_mushroom_config := SpawnConfig.new()
 	giant_mushroom_config.scene = giant_mushroom_scene
-	giant_mushroom_config.density = 0.25
+	giant_mushroom_config.density = 0.35  # Slightly increased
 	giant_mushroom_config.min_height = -5.0
 	giant_mushroom_config.max_height = 35.0
 	giant_mushroom_config.max_slope = 30.0
 	giant_mushroom_config.allowed_biomes = ["dark_forest"]
-	giant_mushroom_config.scale_variation = Vector2(1.0, 2.0)
+	giant_mushroom_config.scale_variation = Vector2(0.8, 2.2)
 	spawn_configs["giant_mushroom"] = giant_mushroom_config
 
 ## Spawn objects for a given chunk (procedural generation)
@@ -338,3 +342,114 @@ func set_world_seed(seed_value: int) -> void:
 ## Set chunk size (should match chunk manager)
 func set_chunk_size(size: float) -> void:
 	chunk_size = size
+
+## Generate transforms for MultiMesh spawning (no scene instantiation)
+## Returns a Dictionary: object_type -> Array[Transform3D]
+func generate_chunk_transforms(chunk_pos: Vector2i, voxel_world: Node3D) -> Dictionary:
+	var result: Dictionary = {}
+
+	# Create deterministic RNG for this chunk
+	var rng := RandomNumberGenerator.new()
+	var chunk_seed := _get_chunk_seed(chunk_pos)
+	rng.seed = chunk_seed
+
+	# Calculate chunk world bounds
+	var chunk_world_pos := Vector2(chunk_pos.x * chunk_size, chunk_pos.y * chunk_size)
+
+	# Attempt to spawn each object type
+	for object_type in spawn_configs.keys():
+		var config: SpawnConfig = spawn_configs[object_type]
+		var transforms: Array[Transform3D] = []
+
+		# Determine how many objects to try spawning in this chunk
+		var attempts := int(chunk_size * chunk_size * config.density / 10.0)
+
+		for i in attempts:
+			# Generate random position within chunk
+			var local_x := rng.randf_range(0, chunk_size)
+			var local_z := rng.randf_range(0, chunk_size)
+			var world_pos := Vector2(chunk_world_pos.x + local_x, chunk_world_pos.y + local_z)
+
+			# Check if we should spawn here
+			if _should_spawn_at_position(world_pos, config, voxel_world, rng):
+				var transform := _generate_transform(config, world_pos, voxel_world, rng, object_type)
+				if transform != Transform3D.IDENTITY:
+					transforms.append(transform)
+
+		if not transforms.is_empty():
+			result[object_type] = transforms
+
+	return result
+
+## Generate dense grass transforms for a chunk (optimized for high density)
+## Returns Array[Transform3D] for grass placement
+func generate_dense_grass_transforms(chunk_pos: Vector2i, voxel_world: Node3D, density_multiplier: float = 1.0) -> Array[Transform3D]:
+	var transforms: Array[Transform3D] = []
+
+	# Create deterministic RNG for this chunk
+	var rng := RandomNumberGenerator.new()
+	var chunk_seed := _get_chunk_seed(chunk_pos) + 12345  # Different seed offset for grass
+	rng.seed = chunk_seed
+
+	var chunk_world_pos := Vector2(chunk_pos.x * chunk_size, chunk_pos.y * chunk_size)
+
+	# Extremely high density - ~8000 grass clumps per 32x32 chunk (100x original)
+	var grass_per_chunk := int(chunk_size * chunk_size * 8.0 * density_multiplier)
+
+	for i in grass_per_chunk:
+		var local_x := rng.randf_range(0, chunk_size)
+		var local_z := rng.randf_range(0, chunk_size)
+		var world_pos := Vector2(chunk_world_pos.x + local_x, chunk_world_pos.y + local_z)
+
+		# Quick height/biome check
+		var height: float = voxel_world.get_terrain_height_at(world_pos)
+		if height < -5.0 or height > 30.0:
+			continue
+
+		# Biome check - only in valleys
+		var biome: String = voxel_world.get_biome_at(world_pos)
+		if biome != "valley":
+			continue
+
+		# Slope check (simplified)
+		var slope := _estimate_slope_at(world_pos, voxel_world)
+		if slope > 35.0:
+			continue
+
+		# Get surface position
+		var surface_pos: Vector3 = voxel_world.find_surface_position(world_pos, 100.0, 200.0)
+
+		# Random rotation and scale
+		var rotation_y := rng.randf_range(0, TAU)
+		var scale_factor := rng.randf_range(0.6, 1.4)
+
+		var basis := Basis.from_euler(Vector3(0, rotation_y, 0)) * Basis.from_scale(Vector3(scale_factor, scale_factor, scale_factor))
+		transforms.append(Transform3D(basis, surface_pos))
+
+	return transforms
+
+## Generate a single transform for an object
+func _generate_transform(config: SpawnConfig, xz_pos: Vector2, voxel_world: Node3D, rng: RandomNumberGenerator, object_type: String) -> Transform3D:
+	# Find surface height
+	var surface_pos: Vector3 = voxel_world.find_surface_position(xz_pos, 100.0, 200.0)
+
+	# Apply random rotation (Y axis only)
+	var rotation_y: float = 0.0
+	if config.rotation_variation:
+		rotation_y = rng.randf_range(0, TAU)
+
+	# Apply random scale with variation
+	var scale_factor := rng.randf_range(config.scale_variation.x, config.scale_variation.y)
+	var scale_vec: Vector3
+
+	if object_type == "mushroom_tree" or object_type == "giant_mushroom" or object_type == "tree":
+		# Non-uniform scale for trees: vary width and height independently
+		var width_factor := scale_factor * rng.randf_range(0.8, 1.2)
+		var height_factor := scale_factor * rng.randf_range(0.85, 1.4)
+		scale_vec = Vector3(width_factor, height_factor, width_factor)
+	else:
+		scale_vec = Vector3.ONE * scale_factor
+
+	# Build transform
+	var basis := Basis.from_euler(Vector3(0, rotation_y, 0)) * Basis.from_scale(scale_vec)
+	return Transform3D(basis, surface_pos)

@@ -29,24 +29,27 @@ const BUILDING_COSTS: Dictionary = {
 func _initialize_recipes() -> void:
 	recipes.clear()
 
-	# Basic starting tools (no workbench required)
+	# Basic starting tools (no workbench required - shown in Tab menu)
 	add_recipe("hammer", 1, {"wood": 10})
 	add_recipe("torch", 1, {"wood": 1, "resin": 1})
-	add_recipe("stone_pickaxe", 1, {"wood": 5, "stone": 10})
-	add_recipe("stone_hoe", 1, {"wood": 5, "stone": 5})
-	# Note: workbench is now buildable via hammer, not craftable
+	add_recipe("club", 1, {"wood": 6})
+	add_recipe("fireplace", 1, {"stone": 5, "wood": 2})
 
-	# Tier 1 Weapons - Wood & Stone (no workbench required for Tier 1)
-	add_recipe("stone_sword", 1, {"wood": 10, "stone": 5})
-	add_recipe("stone_axe", 1, {"wood": 20, "stone": 10})  # 2x sword cost
-	add_recipe("stone_knife", 1, {"wood": 5, "stone": 2})  # 0.5x sword cost
-	add_recipe("fire_wand", 1, {"wood": 3, "resin": 7})
-	add_recipe("bow", 1, {"wood": 10, "resin": 1})
+	# Tools (workbench required)
+	add_recipe("stone_pickaxe", 1, {"wood": 5, "stone": 10}, "workbench")
+	add_recipe("stone_hoe", 1, {"wood": 5, "stone": 5}, "workbench")
 
-	# Shields (no workbench required for Tier 1)
-	add_recipe("tower_shield", 1, {"wood": 15})
-	add_recipe("round_shield", 1, {"wood": 10})
-	add_recipe("buckler", 1, {"wood": 5})
+	# Tier 1 Weapons - Wood & Stone (workbench required)
+	add_recipe("stone_sword", 1, {"wood": 10, "stone": 5}, "workbench")
+	add_recipe("stone_axe", 1, {"wood": 20, "stone": 10}, "workbench")
+	add_recipe("stone_knife", 1, {"wood": 5, "stone": 2}, "workbench")
+	add_recipe("fire_wand", 1, {"wood": 3, "resin": 7}, "workbench")
+	add_recipe("bow", 1, {"wood": 10, "resin": 1}, "workbench")
+
+	# Shields (workbench required)
+	add_recipe("tower_shield", 1, {"wood": 15}, "workbench")
+	add_recipe("round_shield", 1, {"wood": 10}, "workbench")
+	add_recipe("buckler", 1, {"wood": 5}, "workbench")
 
 	print("[CraftingRecipes] Initialized %d recipes" % recipes.size())
 
@@ -81,6 +84,15 @@ func get_craftable_recipes(inventory: Node) -> Array[Dictionary]:
 ## Get all recipes, regardless of whether player can craft them
 func get_all_recipes() -> Array[Dictionary]:
 	return recipes.duplicate()
+
+## Get basic recipes (no crafting station required - shown in Tab menu)
+func get_basic_recipes() -> Array[Dictionary]:
+	var basic: Array[Dictionary] = []
+	for recipe in recipes:
+		var station: String = recipe.get("crafting_station", "")
+		if station.is_empty():
+			basic.append(recipe)
+	return basic
 
 ## Check if a recipe can be crafted with current inventory
 ## nearby_stations: Array of crafting station names the player is near (e.g., ["workbench"])

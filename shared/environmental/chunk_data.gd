@@ -57,6 +57,11 @@ func destroy_object_at_position(pos: Vector3, threshold: float = 0.5) -> bool:
 			return true
 	return false
 
+## Mark an object as destroyed by index
+func mark_object_destroyed(index: int) -> void:
+	if index >= 0 and index < objects.size():
+		objects[index].is_destroyed = true
+
 ## Get all active (not destroyed) objects
 func get_active_objects() -> Array[ObjectData]:
 	var active: Array[ObjectData] = []
@@ -64,6 +69,14 @@ func get_active_objects() -> Array[ObjectData]:
 		if not obj_data.is_destroyed:
 			active.append(obj_data)
 	return active
+
+## Get all destroyed objects
+func get_destroyed_objects() -> Array[ObjectData]:
+	var destroyed: Array[ObjectData] = []
+	for obj_data in objects:
+		if obj_data.is_destroyed:
+			destroyed.append(obj_data)
+	return destroyed
 
 ## Serialize to dictionary for saving
 func to_dict() -> Dictionary:

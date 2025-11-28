@@ -30,6 +30,20 @@ var active_pings: Array = []
 @onready var map_texture_rect: TextureRect = $Panel/MapTextureRect
 @onready var refresh_timer: Timer = $RefreshTimer
 @onready var overlay: Control = $Panel/Overlay
+@onready var biome_label: Label = $BiomeLabel
+
+# Biome tracking
+var current_biome: String = "Valley"
+
+## Format biome name from snake_case to Title Case
+func _format_biome_name(biome: String) -> String:
+	var words = biome.split("_")
+	var formatted = ""
+	for word in words:
+		if formatted != "":
+			formatted += " "
+		formatted += word.capitalize()
+	return formatted
 
 func _ready() -> void:
 	# Setup refresh timer for viewport updates (cheap, just moves the viewport)
@@ -114,6 +128,14 @@ func refresh_map() -> void:
 		return
 
 	var player_xz := Vector2(local_player.global_position.x, local_player.global_position.z)
+
+	# Update biome label
+	if biome_generator and biome_generator.has_method("get_biome_at_position"):
+		var biome = biome_generator.get_biome_at_position(player_xz)
+		if biome != current_biome:
+			current_biome = biome
+			if biome_label:
+				biome_label.text = _format_biome_name(biome)
 
 	# Check if player is near the edge of the buffer
 	var distance_from_center := player_xz.distance_to(buffer_center)

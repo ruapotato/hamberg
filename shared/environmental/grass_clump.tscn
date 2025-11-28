@@ -1,40 +1,40 @@
-[gd_scene load_steps=4 format=3 uid="uid://grass_env_001"]
+[gd_scene load_steps=3 format=3 uid="uid://grass_env_001"]
 
 [ext_resource type="Script" path="res://shared/environmental/environmental_object.gd" id="1"]
 
 [sub_resource type="QuadMesh" id="grass_blade"]
-size = Vector2(0.4, 0.6)
+size = Vector2(0.08, 0.35)
 
 [sub_resource type="StandardMaterial3D" id="grass_mat"]
-albedo_color = Color(0.3, 0.6, 0.25, 1)
+albedo_color = Color(0.25, 0.55, 0.2, 1)
 cull_mode = 2
 billboard_mode = 1
 
-[sub_resource type="CylinderShape3D" id="collision_shape"]
-radius = 0.2
-height = 0.5
-
-[node name="GrassClump" type="StaticBody3D"]
-collision_layer = 1
-collision_mask = 0
+[node name="GrassClump" type="Node3D"]
 script = ExtResource("1")
-cull_distance = 30.0
-
-[node name="GrassCollision" type="CollisionShape3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.25, 0)
-shape = SubResource("collision_shape")
+cull_distance = 25.0
 
 [node name="Blade1" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.3, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.18, 0)
 mesh = SubResource("grass_blade")
 surface_material_override/0 = SubResource("grass_mat")
 
 [node name="Blade2" type="MeshInstance3D" parent="."]
-transform = Transform3D(0.707, 0, 0.707, 0, 1, 0, -0.707, 0, 0.707, 0.15, 0.25, 0.1)
+transform = Transform3D(0.866, 0, 0.5, 0, 1, 0, -0.5, 0, 0.866, 0.06, 0.16, 0.03)
 mesh = SubResource("grass_blade")
 surface_material_override/0 = SubResource("grass_mat")
 
 [node name="Blade3" type="MeshInstance3D" parent="."]
-transform = Transform3D(0.707, 0, -0.707, 0, 1, 0, 0.707, 0, 0.707, -0.1, 0.3, -0.15)
+transform = Transform3D(0.5, 0, -0.866, 0, 1, 0, 0.866, 0, 0.5, -0.05, 0.17, -0.04)
+mesh = SubResource("grass_blade")
+surface_material_override/0 = SubResource("grass_mat")
+
+[node name="Blade4" type="MeshInstance3D" parent="."]
+transform = Transform3D(0.707, 0, 0.707, 0, 1, 0, -0.707, 0, 0.707, 0.04, 0.15, -0.05)
+mesh = SubResource("grass_blade")
+surface_material_override/0 = SubResource("grass_mat")
+
+[node name="Blade5" type="MeshInstance3D" parent="."]
+transform = Transform3D(0.966, 0, -0.259, 0, 1, 0, 0.259, 0, 0.966, -0.03, 0.19, 0.05)
 mesh = SubResource("grass_blade")
 surface_material_override/0 = SubResource("grass_mat")

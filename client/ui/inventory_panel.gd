@@ -36,6 +36,11 @@ func _process(_delta: float) -> void:
 	if Input.is_action_just_pressed("toggle_inventory"):
 		toggle_inventory()
 
+	# Close inventory with ESC
+	if is_open and Input.is_action_just_pressed("ui_cancel"):
+		hide_inventory()
+		return
+
 	# Handle D-pad navigation when inventory is open
 	if is_open:
 		# D-pad left/right navigates horizontally
@@ -64,6 +69,7 @@ func _create_slots() -> void:
 		slot.slot_clicked.connect(_on_slot_clicked)
 		slot.slot_right_clicked.connect(_on_slot_right_clicked)
 		slot.drag_ended.connect(_on_slot_drag_ended)
+		slot.drag_dropped_outside.connect(_on_slot_dropped_outside)
 		inventory_grid.add_child(slot)
 		slots.append(slot)
 
@@ -136,6 +142,27 @@ func _on_slot_drag_ended(from_slot: int, to_slot: int) -> void:
 	# Request server to swap items in inventory
 	NetworkManager.rpc_request_swap_slots.rpc_id(1, from_slot, to_slot)
 
+func _on_slot_dropped_outside(slot_index: int) -> void:
+	if not player_inventory:
+		return
+
+	# Get the item data at this slot
+	var inventory_data = player_inventory.get_inventory_data()
+	if slot_index >= inventory_data.size():
+		return
+
+	var slot_data = inventory_data[slot_index]
+	if slot_data.is_empty():
+		return
+
+	var item_id = slot_data.get("item", "")
+	var amount = slot_data.get("amount", 0)
+	if item_id.is_empty() or amount <= 0:
+		return
+
+	print("[InventoryPanel] Requesting to drop %d x %s from slot %d" % [amount, item_id, slot_index])
+	NetworkManager.rpc_request_drop_item.rpc_id(1, slot_index, amount)
+
 ## Toggle inventory visibility
 func toggle_inventory() -> void:
 	if is_open:
@@ -149,6 +176,9 @@ func show_inventory() -> void:
 	visible = true
 	refresh_display()
 
+	# Update recipe button states based on current inventory
+	_update_recipe_buttons()
+
 	# Initialize focus visual for controller
 	_update_focus_visual()
 
@@ -156,12 +186,15 @@ func show_inventory() -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
 ## Hide inventory panel
-func hide_inventory() -> void:
+## Returns true if it was open (for ESC handling)
+func hide_inventory() -> bool:
+	var was_open = is_open
 	is_open = false
 	visible = false
 
 	# Release mouse cursor (back to captured for FPS controls)
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	return was_open
 
 ## Link to player's inventory
 func set_player_inventory(inventory: Node) -> void:
@@ -233,7 +266,7 @@ func _on_equipment_changed(slot) -> void:
 func is_inventory_open() -> bool:
 	return is_open
 
-## Populate crafting recipe list
+## Populate crafting recipe list (only basic recipes - no station required)
 func _populate_recipes() -> void:
 	if not recipe_list:
 		return
@@ -242,10 +275,10 @@ func _populate_recipes() -> void:
 	for child in recipe_list.get_children():
 		child.queue_free()
 
-	# Add all recipes
-	var all_recipes = CraftingRecipes.get_all_recipes()
+	# Add only basic recipes (no workbench required)
+	var basic_recipes = CraftingRecipes.get_basic_recipes()
 
-	for recipe in all_recipes:
+	for recipe in basic_recipes:
 		var recipe_button = _create_recipe_button(recipe)
 		recipe_list.add_child(recipe_button)
 

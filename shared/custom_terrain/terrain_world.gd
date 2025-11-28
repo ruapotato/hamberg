@@ -239,6 +239,14 @@ func _process(delta: float) -> void:
 	if not is_initialized:
 		return
 
+	# Update shader time for grass animation (client only)
+	if not is_server and terrain_material is ShaderMaterial:
+		var shader_mat: ShaderMaterial = terrain_material as ShaderMaterial
+		var current_time = shader_mat.get_shader_parameter("time")
+		if current_time == null:
+			current_time = 0.0
+		shader_mat.set_shader_parameter("time", current_time + delta)
+
 	# Process pending chunk loads (rate limited to avoid blocking network)
 	chunk_load_timer += delta
 	if chunk_load_timer >= CHUNK_LOAD_INTERVAL and pending_chunk_loads.size() > 0:
@@ -811,7 +819,7 @@ func dig_square(world_position: Vector3, tool_name: String = "stone_pickaxe") ->
 	var center_y := int(floor(world_position.y))
 	var center_z := int(floor(world_position.z))
 
-	var earth_collected := 0
+	var any_material_removed := false
 
 	# Remove voxels in a 2x2x2 area
 	for dx in range(0, 2):
@@ -824,7 +832,7 @@ func dig_square(world_position: Vector3, tool_name: String = "stone_pickaxe") ->
 				# Get current density
 				var current := _get_voxel_at(wx, wy, wz)
 				if current > 0.1:
-					earth_collected += int(current * 4)
+					any_material_removed = true
 
 				# Set to air
 				_set_voxel_at(wx, wy, wz, 0.0)
@@ -834,7 +842,8 @@ func dig_square(world_position: Vector3, tool_name: String = "stone_pickaxe") ->
 
 	emit_signal("terrain_modified", chunk_coords.x, chunk_coords.y, "dig_square", world_position)
 
-	return earth_collected
+	# 1 dig = 1 earth (balanced gameplay)
+	return 1 if any_material_removed else 0
 
 ## Place earth in a square pattern
 func place_square(world_position: Vector3, earth_amount: int) -> int:
@@ -851,7 +860,7 @@ func place_square(world_position: Vector3, earth_amount: int) -> int:
 	var center_y := int(floor(world_position.y))
 	var center_z := int(floor(world_position.z))
 
-	var earth_used := 0
+	var any_material_placed := false
 
 	# Add solid voxels in a 2x2x2 cube area
 	for dx in range(0, 2):
@@ -869,14 +878,15 @@ func place_square(world_position: Vector3, earth_amount: int) -> int:
 
 				# Only place if we're adding material (not removing)
 				if target_density > current:
-					earth_used += int((target_density - current) * 4)
+					any_material_placed = true
 					_set_voxel_at(wx, wy, wz, target_density)
 
 	_mark_area_dirty(world_position)
 
 	emit_signal("terrain_modified", chunk_coords.x, chunk_coords.y, "place_square", world_position)
 
-	return max(1, earth_used)  # Always return at least 1 to indicate success
+	# 1 place = 1 earth cost (balanced gameplay)
+	return 1 if any_material_placed else 0
 
 ## Flatten terrain to a target height
 func flatten_square(world_position: Vector3, target_height: float) -> int:

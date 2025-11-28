@@ -227,6 +227,31 @@ func _update_environmental_chunks() -> void:
 			if player and is_instance_valid(player):
 				terrain_world.update_player_spawn_position(peer_id, player.global_position)
 
+## Extract object data from a MultimeshChunk for network transmission
+func _get_chunk_objects_data(mm_chunk) -> Array:
+	var objects_data: Array = []
+	var id_counter := 0
+
+	# MultimeshChunk stores instances in a dict: object_type -> Array[InstanceData]
+	for object_type in mm_chunk.instances.keys():
+		var inst_array: Array = mm_chunk.instances[object_type]
+		var transform_array: Array = mm_chunk.instance_transforms[object_type]
+
+		for i in inst_array.size():
+			var inst = inst_array[i]
+			if not inst.destroyed:
+				var transform: Transform3D = transform_array[i]
+				objects_data.append({
+					"id": id_counter,
+					"type": object_type,
+					"pos": [transform.origin.x, transform.origin.y, transform.origin.z],
+					"rot": [inst.rotation.x, inst.rotation.y, inst.rotation.z],
+					"scale": [inst.scale.x, inst.scale.y, inst.scale.z]
+				})
+			id_counter += 1
+
+	return objects_data
+
 func _on_chunk_loaded(chunk_pos: Vector2i) -> void:
 	# When server loads a chunk, broadcast its objects to all clients
 	if not terrain_world or not terrain_world.chunk_manager:
@@ -235,29 +260,18 @@ func _on_chunk_loaded(chunk_pos: Vector2i) -> void:
 	var chunk_manager = terrain_world.chunk_manager
 	var objects_data: Array = []
 
-	# Get objects in this chunk
+	# Get objects in this chunk (now a MultimeshChunk)
 	if chunk_manager.loaded_chunks.has(chunk_pos):
-		var objects = chunk_manager.loaded_chunks[chunk_pos]
-
-		for i in objects.size():
-			var obj = objects[i]
-			if is_instance_valid(obj):
-				var obj_type = "unknown"
-				if obj.has_method("get_object_type"):
-					obj_type = obj.get_object_type()
-
-				var obj_pos = obj.global_position
-				objects_data.append({
-					"id": i,  # Local ID within chunk
-					"type": obj_type,
-					"pos": [obj_pos.x, obj_pos.y, obj_pos.z],
-					"rot": [obj.rotation.x, obj.rotation.y, obj.rotation.z],
-					"scale": [obj.scale.x, obj.scale.y, obj.scale.z]
-				})
+		var mm_chunk = chunk_manager.loaded_chunks[chunk_pos]
+		objects_data = _get_chunk_objects_data(mm_chunk)
+		print("[Server] Chunk %s has %d instances dict entries" % [chunk_pos, mm_chunk.instances.size()])
 
 	# Broadcast to all clients
 	if objects_data.size() > 0:
+		print("[Server] Sending %d objects for chunk %s to clients" % [objects_data.size(), chunk_pos])
 		NetworkManager.rpc_spawn_environmental_objects.rpc([chunk_pos.x, chunk_pos.y], objects_data)
+	else:
+		print("[Server] No objects to send for chunk %s" % chunk_pos)
 
 func _on_chunk_unloaded(chunk_pos: Vector2i) -> void:
 	# When server unloads a chunk, tell clients to despawn it
@@ -273,23 +287,8 @@ func _send_loaded_chunks_to_player(peer_id: int) -> void:
 
 	# Iterate through all loaded chunks and send them to the new player
 	for chunk_pos in chunk_manager.loaded_chunks.keys():
-		var objects = chunk_manager.loaded_chunks[chunk_pos]
-		var objects_data: Array = []
-
-		for i in objects.size():
-			var obj = objects[i]
-			if is_instance_valid(obj):
-				var obj_type = "unknown"
-				if obj.has_method("get_object_type"):
-					obj_type = obj.get_object_type()
-
-				objects_data.append({
-					"id": i,
-					"type": obj_type,
-					"pos": [obj.global_position.x, obj.global_position.y, obj.global_position.z],
-					"rot": [obj.rotation.x, obj.rotation.y, obj.rotation.z],
-					"scale": [obj.scale.x, obj.scale.y, obj.scale.z]
-				})
+		var mm_chunk = chunk_manager.loaded_chunks[chunk_pos]
+		var objects_data = _get_chunk_objects_data(mm_chunk)
 
 		# Send this chunk to the new player only
 		if objects_data.size() > 0:
@@ -554,8 +553,9 @@ func handle_hit_report(peer_id: int, target_id: int, damage: float, hit_position
 	NetworkManager.rpc_broadcast_hit.rpc(target_id, damage, hit_position)
 
 ## Handle environmental object damage from NetworkManager
+## Uses position-based lookup to find the nearest instance in the MultimeshChunk
 func handle_environmental_damage(peer_id: int, chunk_pos: Vector2i, object_id: int, damage: float, hit_position: Vector3) -> void:
-	print("[Server] Player %d damaged object %d in chunk %s (damage: %.1f)" % [peer_id, object_id, chunk_pos, damage])
+	print("[Server] Player %d damaged object at position %s in chunk %s (damage: %.1f)" % [peer_id, hit_position, chunk_pos, damage])
 
 	if not terrain_world or not terrain_world.chunk_manager:
 		push_error("[Server] Cannot handle damage - terrain_world not initialized!")
@@ -568,45 +568,45 @@ func handle_environmental_damage(peer_id: int, chunk_pos: Vector2i, object_id: i
 		push_warning("[Server] Chunk %s not loaded, ignoring damage" % chunk_pos)
 		return
 
-	var objects: Array = chunk_manager.loaded_chunks[chunk_pos]
+	# Get the MultimeshChunk and find the nearest instance to the hit position
+	var mm_chunk = chunk_manager.loaded_chunks[chunk_pos]
+	var result = mm_chunk.get_instance_at_position(hit_position, 3.0)  # 3m max distance
 
-	# Validate object ID
-	if object_id < 0 or object_id >= objects.size():
-		push_error("[Server] Invalid object ID %d in chunk %s" % [object_id, chunk_pos])
+	if result.index < 0:
+		print("[Server] No instance found near hit position %s" % hit_position)
 		return
 
-	var obj = objects[object_id]
-	if not is_instance_valid(obj):
-		push_warning("[Server] Object %d in chunk %s is not valid" % [object_id, chunk_pos])
-		return
+	var object_type: String = result.object_type
+	var instance_index: int = result.index
 
-	# Apply damage
-	if obj.has_method("take_damage"):
-		var was_destroyed: bool = obj.take_damage(damage)
+	# Apply damage through the MultimeshChunk
+	var was_destroyed: bool = mm_chunk.apply_damage(object_type, instance_index, damage)
 
-		if was_destroyed:
-			print("[Server] Object %d in chunk %s destroyed!" % [object_id, chunk_pos])
+	if was_destroyed:
+		print("[Server] Instance %s #%d in chunk %s destroyed!" % [object_type, instance_index, chunk_pos])
 
-			# Get resource drops before object is destroyed
-			var resource_drops: Dictionary = obj.get_resource_drops() if obj.has_method("get_resource_drops") else {}
+		# Get resource drops from the mesh library
+		var mesh_library = mm_chunk.mesh_library
+		var obj_def = mesh_library.get_object_def(object_type) if mesh_library else null
+		var resource_drops: Dictionary = obj_def.resource_drops.duplicate() if obj_def else {}
 
-			# Broadcast destruction to all clients
-			NetworkManager.rpc_destroy_environmental_object.rpc([chunk_pos.x, chunk_pos.y], object_id)
+		# Broadcast destruction to all clients (use object_id from client for compatibility)
+		NetworkManager.rpc_destroy_environmental_object.rpc([chunk_pos.x, chunk_pos.y], object_id)
 
-			# Broadcast resource drops to all clients (including position)
-			if not resource_drops.is_empty():
-				var pos_array = [hit_position.x, hit_position.y, hit_position.z]
+		# Broadcast resource drops to all clients (including position)
+		if not resource_drops.is_empty():
+			var pos_array = [hit_position.x, hit_position.y, hit_position.z]
 
-				# Generate network IDs for each item on the server
-				var network_ids: Array = []
-				for resource_type in resource_drops:
-					var amount: int = resource_drops[resource_type]
-					for i in amount:
-						# Use server time and chunk/object info for unique IDs
-						var net_id = "%s_%d_%d_%d" % [chunk_pos, object_id, Time.get_ticks_msec(), i]
-						network_ids.append(net_id)
+			# Generate network IDs for each item on the server
+			var network_ids: Array = []
+			for resource_type in resource_drops:
+				var amount: int = resource_drops[resource_type]
+				for i in amount:
+					# Use server time and chunk/object info for unique IDs
+					var net_id = "%s_%d_%d_%d" % [chunk_pos, instance_index, Time.get_ticks_msec(), i]
+					network_ids.append(net_id)
 
-				NetworkManager.rpc_spawn_resource_drops.rpc(resource_drops, pos_array, network_ids)
+			NetworkManager.rpc_spawn_resource_drops.rpc(resource_drops, pos_array, network_ids)
 
 			# Mark chunk as modified
 			chunk_manager.modified_chunks[chunk_pos] = true
@@ -614,8 +614,7 @@ func handle_environmental_damage(peer_id: int, chunk_pos: Vector2i, object_id: i
 			# Object took damage but not destroyed
 			# TODO: Could broadcast damage effect to clients
 			pass
-	else:
-		push_warning("[Server] Object doesn't have take_damage method")
+	# If not destroyed, the object just took damage - no action needed
 
 ## Handle buildable placement request from NetworkManager
 func handle_place_buildable(peer_id: int, piece_name: String, position: Vector3, rotation_y: float) -> void:
@@ -1247,6 +1246,61 @@ func handle_swap_slots_request(peer_id: int, slot_a: int, slot_b: int) -> void:
 
 	# Sync inventory to client
 	var inventory_data = inventory.get_inventory_data()
+	NetworkManager.rpc_sync_inventory.rpc_id(peer_id, inventory_data)
+
+## Handle item drop request from inventory
+func handle_drop_item_request(peer_id: int, slot: int, amount: int) -> void:
+	if not spawned_players.has(peer_id):
+		return
+
+	var player = spawned_players[peer_id]
+	if not player or not is_instance_valid(player):
+		return
+
+	if not player.has_node("Inventory"):
+		return
+
+	var inventory = player.get_node("Inventory")
+	var inventory_data = inventory.get_inventory_data()
+
+	# Validate slot
+	if slot < 0 or slot >= inventory_data.size():
+		return
+
+	var slot_data = inventory_data[slot]
+	if slot_data.is_empty():
+		return
+
+	var item_id: String = slot_data.get("item", "")
+	var slot_amount: int = slot_data.get("amount", 0)
+
+	if item_id.is_empty() or slot_amount <= 0:
+		return
+
+	# Remove item from inventory
+	inventory.remove_item(item_id, slot_amount)
+
+	print("[Server] Player %d dropping %d x %s from slot %d" % [peer_id, slot_amount, item_id, slot])
+
+	# Get player position for spawning the dropped item - in front of player
+	var player_forward = -player.global_transform.basis.z.normalized()
+	var drop_pos: Vector3 = player.global_position + player_forward * 2.0 + Vector3(0, 0.5, 0)
+
+	# Generate network IDs for the dropped items
+	var network_ids: Array = []
+	for i in slot_amount:
+		var net_id = "drop_%d_%d_%d" % [peer_id, Time.get_ticks_msec(), i]
+		network_ids.append(net_id)
+
+	# Create resource drops dictionary
+	var resource_drops: Dictionary = {item_id: slot_amount}
+	var pos_array = [drop_pos.x, drop_pos.y, drop_pos.z]
+
+	# Broadcast the dropped items to all clients
+	NetworkManager.rpc_spawn_resource_drops.rpc(resource_drops, pos_array, network_ids)
+
+	# Sync inventory to client
+	inventory_data = inventory.get_inventory_data()
 	NetworkManager.rpc_sync_inventory.rpc_id(peer_id, inventory_data)
 
 ## Handle enemy damage request (client-authoritative hits using network_id)

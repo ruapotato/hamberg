@@ -1,0 +1,21 @@
+[gd_scene load_steps=3 format=3 uid="uid://deer_animal_scene"]
+
+[ext_resource type="Script" path="res://shared/animals/deer.gd" id="1"]
+
+[sub_resource type="CapsuleShape3D" id="collision_shape"]
+radius = 0.2
+height = 0.8
+
+[node name="Deer" type="CharacterBody3D" groups=["enemies", "animals"]]
+collision_layer = 4
+collision_mask = 3
+script = ExtResource("1")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.4, 0)
+shape = SubResource("collision_shape")
+
+# BodyContainer for custom mesh replacement
+# Add mesh children here to override the procedural mesh
+# The mesh should face -Z direction (forward in Godot)
+[node name="BodyContainer" type="Node3D" parent="."]

@@ -7,6 +7,7 @@ signal slot_clicked(slot_index: int)
 signal slot_right_clicked(slot_index: int)
 signal drag_started(slot_index: int)
 signal drag_ended(from_slot: int, to_slot: int)
+signal drag_dropped_outside(slot_index: int)
 
 @export var slot_index: int = 0
 @export var is_hotbar_slot: bool = false
@@ -48,6 +49,10 @@ func _on_gui_input(event: InputEvent) -> void:
 					if target_slot != null and target_slot != self:
 						print("[InventorySlot] Drag ended: %d -> %d" % [slot_index, target_slot.slot_index])
 						drag_ended.emit(slot_index, target_slot.slot_index)
+					elif target_slot == null:
+						# Dropped outside any slot - drop the item
+						print("[InventorySlot] Dropped outside: slot %d" % slot_index)
+						drag_dropped_outside.emit(slot_index)
 				else:
 					# Just a click
 					print("[InventorySlot] Left clicked slot %d" % slot_index)
@@ -149,6 +154,8 @@ func _set_placeholder_icon(item: String) -> void:
 			icon_color = Color(0.6, 0.4, 0.2)  # Workbench brown
 		"wooden_wall", "wooden_floor", "wooden_door", "wooden_beam", "wooden_roof":
 			icon_color = Color(0.5, 0.35, 0.2)  # Building material
+		"raw_venison", "raw_pork", "raw_mutton":
+			icon_color = Color(0.85, 0.4, 0.35)  # Raw meat red
 		_:
 			icon_color = Color(0.8, 0.8, 0.8)  # Default light gray
 

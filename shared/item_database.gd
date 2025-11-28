@@ -23,14 +23,25 @@ func _initialize_items() -> void:
 	_register_resource("iron", "Iron", "Strong metal ore.", 50, 3.0)
 	_register_resource("copper", "Copper", "Reddish metal ore.", 50, 2.5)
 
-	# Tools (existing)
+	# Raw meat (from passive animals)
+	_register_resource("raw_venison", "Raw Venison", "Raw deer meat. Cook it to eat safely.", 20, 1.5)
+	_register_resource("raw_pork", "Raw Pork", "Raw pig meat. Cook it to eat safely.", 20, 2.0)
+	_register_resource("raw_mutton", "Raw Mutton", "Raw sheep meat. Cook it to eat safely.", 20, 1.8)
+
+	# Basic tools (no workbench required)
 	_register_tool("hammer", "Hammer", "Used for building structures.", 1)
 	_register_tool("torch", "Torch", "Provides light in dark places.", 20)
+	_register_tool("fireplace", "Fireplace", "A simple stone fireplace. Place to create a warm campfire.", 1)
+
+	# Advanced tools (workbench required)
 	_register_tool("stone_pickaxe", "Stone Pickaxe", "Used for terrain modification. Left click: dig square, Middle click: place earth square (consumes earth from inventory).", 1)
 	_register_tool("stone_hoe", "Stone Hoe", "Used for flattening terrain. Left/Right click: flatten 4x4 area (8m x 8m) to a perfect grid level at your standing height.", 1)
 
 	# Tier 0: Unarmed
 	_register_weapon_fists()
+
+	# Basic weapons (no workbench required)
+	_register_weapon_club()
 
 	# Tier 1 Weapons - Wood & Stone
 	_register_weapon_stone_sword()
@@ -83,6 +94,23 @@ func _register_weapon_fists() -> void:
 	weapon.weight = 0.0
 	# No weapon scene - fists are always visible (viewmodel arms)
 	items["fists"] = weapon
+
+## Basic club weapon (no workbench required)
+func _register_weapon_club() -> void:
+	var weapon = WeaponData.new()
+	weapon.item_id = "club"
+	weapon.display_name = "Wooden Club"
+	weapon.description = "A simple wooden club. Basic blunt damage."
+	weapon.weapon_type = WeaponData.WeaponType.MELEE_ONE_HAND
+	weapon.damage = 12.0  # Slightly better than fists
+	weapon.damage_type = WeaponData.DamageType.BLUNT
+	weapon.attack_speed = 1.3  # Medium speed
+	weapon.knockback = 8.0  # Good knockback
+	weapon.durability = 80
+	weapon.stamina_cost = 8.0
+	weapon.weight = 2.5
+	# Uses fists animation/no scene for now - simple club
+	items["club"] = weapon
 
 ## Tier 1 Weapons
 func _register_weapon_stone_sword() -> void:
