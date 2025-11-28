@@ -22,6 +22,7 @@ var grass_scene: PackedScene
 var mushroom_tree_scene: PackedScene
 var giant_mushroom_scene: PackedScene
 var glowing_mushroom_scene: PackedScene
+var spore_cluster_scene: PackedScene
 
 # Spawn configurations
 var spawn_configs: Dictionary = {}
@@ -38,6 +39,7 @@ func _ready() -> void:
 	mushroom_tree_scene = load("res://shared/environmental/mushroom_tree.tscn")
 	giant_mushroom_scene = load("res://shared/environmental/giant_mushroom.tscn")
 	glowing_mushroom_scene = load("res://shared/environmental/glowing_mushroom.tscn")
+	spore_cluster_scene = load("res://shared/environmental/spore_cluster.tscn")
 
 	# Setup spawn configurations
 	_setup_spawn_configs()
@@ -84,16 +86,27 @@ func _setup_spawn_configs() -> void:
 	mushroom_tree_config.scale_variation = Vector2(0.7, 1.4)
 	spawn_configs["mushroom_tree"] = mushroom_tree_config
 
-	# Glowing Mushrooms - scattered fungi for dark_forest biome
+	# Glowing Mushrooms - scattered fungi for dark_forest biome (high density for bioluminescent atmosphere)
 	var mushroom_config := SpawnConfig.new()
 	mushroom_config.scene = glowing_mushroom_scene
-	mushroom_config.density = 0.45
+	mushroom_config.density = 0.65
 	mushroom_config.min_height = -5.0
 	mushroom_config.max_height = 30.0
 	mushroom_config.max_slope = 40.0
 	mushroom_config.allowed_biomes = ["dark_forest"]
 	mushroom_config.scale_variation = Vector2(0.6, 1.5)
 	spawn_configs["glowing_mushroom"] = mushroom_config
+
+	# Spore Clusters - floating glowing spore clusters for dark_forest biome
+	var spore_config := SpawnConfig.new()
+	spore_config.scene = spore_cluster_scene
+	spore_config.density = 0.35
+	spore_config.min_height = -5.0
+	spore_config.max_height = 30.0
+	spore_config.max_slope = 45.0
+	spore_config.allowed_biomes = ["dark_forest"]
+	spore_config.scale_variation = Vector2(0.7, 1.4)
+	spawn_configs["spore_cluster"] = spore_config
 
 	# Giant Mushrooms - massive mushroom trees forming upper canopy for dark_forest biome
 	var giant_mushroom_config := SpawnConfig.new()
@@ -303,6 +316,12 @@ func _configure_object_properties(obj: Node3D, object_type: String) -> void:
 				obj.current_health = 180.0
 			if "resource_drops" in obj:
 				obj.resource_drops = {"fungal_wood": 8}
+		"spore_cluster":
+			if "max_health" in obj:
+				obj.max_health = 25.0
+				obj.current_health = 25.0
+			if "resource_drops" in obj:
+				obj.resource_drops = {"glowing_spore": 3}
 
 ## Generate deterministic seed for a chunk
 func _get_chunk_seed(chunk_pos: Vector2i) -> int:

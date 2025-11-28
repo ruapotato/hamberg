@@ -20,6 +20,10 @@ const STATE_SYNC_INTERVAL: float = 0.1   # 10Hz position relay
 
 # Enemy scenes
 const GAHNOME_SCENE = preload("res://shared/enemies/gahnome.tscn")
+const SPORELING_SCENE = preload("res://shared/enemies/sporeling.tscn")
+
+# Biome-specific enemy types
+const DARK_FOREST_BIOMES = ["dark_forest"]
 
 # Tracking
 var spawn_timer: float = 0.0
@@ -135,15 +139,25 @@ func _spawn_enemy_near_player(player: Node, peer_id: int = 0) -> void:
 			# Fallback: use player's Y (less accurate for hilly terrain)
 			spawn_position.y = player.global_position.y + 1.0
 
+		# Get biome at spawn position to determine enemy type
+		var biome = "valley"  # Default biome
+		if terrain_world and terrain_world.has_method("get_biome_at"):
+			biome = terrain_world.get_biome_at(Vector2(spawn_position.x, spawn_position.z))
+
+		# Choose enemy scene based on biome
+		var enemy_scene = GAHNOME_SCENE
+		if biome in DARK_FOREST_BIOMES:
+			enemy_scene = SPORELING_SCENE
+
 		# Check if terrain collision exists at this position
 		if terrain_world and terrain_world.has_method("has_collision_at_position"):
 			if terrain_world.has_collision_at_position(spawn_position):
 				# Valid spawn position with collision - spawn the enemy
-				_spawn_enemy(GAHNOME_SCENE, spawn_position, peer_id)
+				_spawn_enemy(enemy_scene, spawn_position, peer_id)
 				return
 		else:
 			# No terrain world check available, spawn anyway (fallback)
-			_spawn_enemy(GAHNOME_SCENE, spawn_position, peer_id)
+			_spawn_enemy(enemy_scene, spawn_position, peer_id)
 			return
 
 	# All attempts failed - don't spawn (terrain not loaded yet)
