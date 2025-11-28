@@ -724,7 +724,7 @@ func _handle_attack() -> void:
 
 		# Get attack direction from camera
 		var viewport_size := get_viewport().get_visible_rect().size
-		var crosshair_offset := Vector2(21.0, -50.0)
+		var crosshair_offset := Vector2(-21.0, -50.0)
 		var crosshair_pos := viewport_size / 2 + crosshair_offset
 		var ray_origin := camera.project_ray_origin(crosshair_pos)
 		var ray_direction := camera.project_ray_normal(crosshair_pos)
@@ -913,11 +913,11 @@ func _special_attack_sword_stab(weapon_data: WeaponData, camera: Camera3D) -> vo
 	# Perform melee raycast attack
 	_perform_melee_attack(camera, attack_range, damage, knockback)
 
-## Fire wand special: Area fire effect at mouse position (ground fire)
-func _special_attack_fire_wand_area(weapon_data: WeaponData, camera: Camera3D) -> void:
-	var brain_power_cost: float = 30.0  # Very high brain power cost
-	var damage: float = weapon_data.damage * 1.2  # 1.2x damage per tick
-	var area_radius: float = 5.0  # 5 meter radius
+## Fire wand special: Area fire effect around the player (defensive fire ring)
+func _special_attack_fire_wand_area(weapon_data: WeaponData, _camera: Camera3D) -> void:
+	var brain_power_cost: float = 25.0  # Moderate brain power cost
+	var damage: float = weapon_data.damage * 0.4  # 0.4x damage per tick (low DoT)
+	var area_radius: float = 3.5  # 3.5 meter radius defensive ring
 	var duration: float = 3.0  # 3 seconds of burning
 
 	# Check brain power cost (fire wand is a MAGIC weapon)
@@ -925,39 +925,24 @@ func _special_attack_fire_wand_area(weapon_data: WeaponData, camera: Camera3D) -
 		print("[Player] Not enough brain power for fire area!")
 		return
 
-	print("[Player] Fire wand AREA EFFECT!")
+	print("[Player] Fire wand AREA EFFECT around player!")
 
 	# Trigger special attack animation
 	is_special_attacking = true
 	special_attack_timer = 0.0
 
-	# Raycast to find ground position at mouse cursor
-	var viewport_size := get_viewport().get_visible_rect().size
-	var crosshair_offset := Vector2(21.0, -50.0)
-	var crosshair_pos := viewport_size / 2 + crosshair_offset
-	var ray_origin := camera.project_ray_origin(crosshair_pos)
-	var ray_direction := camera.project_ray_normal(crosshair_pos)
+	# Spawn fire area at player's position (defensive fire ring)
+	var player_ground_pos: Vector3 = global_position
+	print("[Player] Creating fire area around player at %s" % player_ground_pos)
 
-	var space_state := get_world_3d().direct_space_state
-	var query := PhysicsRayQueryParameters3D.create(ray_origin, ray_origin + ray_direction * 100.0)
-	query.collision_mask = 1  # World layer only
-	query.exclude = [self]
-
-	var result := space_state.intersect_ray(query)
-	if result:
-		var ground_pos: Vector3 = result.position
-		print("[Player] Creating fire area at %s" % ground_pos)
-
-		# Spawn fire area effect scene
-		var fire_area_scene = load("res://shared/effects/fire_area.tscn")
-		var fire_area = fire_area_scene.instantiate()
-		get_tree().root.add_child(fire_area)
-		fire_area.global_position = ground_pos
-		fire_area.radius = area_radius
-		fire_area.damage = damage
-		fire_area.duration = duration
-	else:
-		print("[Player] No ground found for fire area")
+	# Spawn fire area effect scene
+	var fire_area_scene = load("res://shared/effects/fire_area.tscn")
+	var fire_area = fire_area_scene.instantiate()
+	get_tree().root.add_child(fire_area)
+	fire_area.global_position = player_ground_pos
+	fire_area.radius = area_radius
+	fire_area.damage = damage
+	fire_area.duration = duration
 
 ## Default special attack (1.5x damage, same as normal attack otherwise)
 func _special_attack_default(weapon_data: WeaponData, camera: Camera3D) -> void:
@@ -1000,7 +985,7 @@ func _special_attack_default(weapon_data: WeaponData, camera: Camera3D) -> void:
 ## Helper: Perform melee raycast attack (extracted from _handle_attack)
 func _perform_melee_attack(camera: Camera3D, attack_range: float, damage: float, knockback: float) -> void:
 	var viewport_size := get_viewport().get_visible_rect().size
-	var crosshair_offset := Vector2(21.0, -50.0)
+	var crosshair_offset := Vector2(-21.0, -50.0)
 	var crosshair_pos := viewport_size / 2 + crosshair_offset
 	var ray_origin := camera.project_ray_origin(crosshair_pos)
 	var ray_direction := camera.project_ray_normal(crosshair_pos)
@@ -1078,7 +1063,7 @@ func _spawn_projectile(weapon_data: WeaponData, camera: Camera3D) -> void:
 
 	# Calculate target position from crosshair
 	var viewport_size := get_viewport().get_visible_rect().size
-	var crosshair_offset := Vector2(21.0, -50.0)
+	var crosshair_offset := Vector2(-21.0, -50.0)
 	var crosshair_pos := viewport_size / 2 + crosshair_offset
 	var ray_origin := camera.project_ray_origin(crosshair_pos)
 	var ray_direction := camera.project_ray_normal(crosshair_pos)
@@ -2368,7 +2353,10 @@ func _find_hand_attach_point(hand_name: String) -> Node3D:
 	if not arm or not is_instance_valid(arm):
 		return null
 
-	# Find HandAttach node in the arm
+	# Find HandAttach node in the arm (it's under Elbow)
+	if arm.has_node("Elbow/HandAttach"):
+		return arm.get_node("Elbow/HandAttach")
+	# Fallback: check directly under arm
 	if arm.has_node("HandAttach"):
 		return arm.get_node("HandAttach")
 

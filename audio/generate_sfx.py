@@ -783,6 +783,48 @@ def gen_fire_crackle():
     save_wav(audio, "fire_crackle")
 
 
+def gen_fire_burn_loop():
+    """Longer fire burning loop - intense flames with roar and crackle."""
+    duration = 3.0  # 3 seconds for better looping
+    t = np.linspace(0, duration, int(SAMPLE_RATE * duration))
+
+    # Base fire roar - low frequency rumble
+    roar = noise(duration, 'brown')
+    roar = bandpass(roar, 50, 300)
+    # Modulate the roar for intensity variation
+    roar_mod = 0.6 + 0.4 * np.sin(2 * np.pi * 0.5 * t)
+    roar *= roar_mod
+
+    # Mid-range flames whooshing
+    flames = noise(duration, 'pink')
+    flames = bandpass(flames, 200, 1500)
+    # Add some variation
+    flame_mod = 0.5 + 0.5 * (0.5 * np.sin(2 * np.pi * 1.2 * t) + 0.5 * np.sin(2 * np.pi * 0.7 * t + 0.5))
+    flames *= flame_mod
+
+    # High frequency crackle/hiss
+    crackle = noise(duration, 'white')
+    crackle = bandpass(crackle, 1000, 4000)
+    crackle *= 0.3
+
+    # Random pops and snaps throughout
+    for _ in range(40):
+        pop_pos = int(np.random.uniform(0, duration) * SAMPLE_RATE)
+        pop_len = int(np.random.uniform(0.01, 0.08) * SAMPLE_RATE)
+        if pop_pos + pop_len < len(crackle):
+            pop = np.random.randn(pop_len)
+            pop = highpass(pop, 800)
+            pop *= np.exp(-np.linspace(0, 1, pop_len) * 25)
+            crackle[pop_pos:pop_pos + pop_len] += pop * np.random.uniform(0.3, 1.0)
+
+    # Combine all layers
+    audio = roar * 0.4 + flames * 0.4 + crackle * 0.2
+
+    # Crossfade for seamless loop
+    audio = fade(normalize(audio, 0.7), fade_in_ms=100, fade_out_ms=100)
+    save_wav(audio, "fire_burn_loop")
+
+
 def gen_wind_ambient():
     """Ambient wind loop - gentle outdoor atmosphere."""
     duration = 4.0  # Longer for seamless looping
@@ -1363,6 +1405,7 @@ SOUND_GENERATORS = {
     'chest_open': gen_chest_open,
     'water_splash': gen_water_splash,
     'fire_crackle': gen_fire_crackle,
+    'fire_burn_loop': gen_fire_burn_loop,
     'wind_ambient': gen_wind_ambient,
     'wind_gust': gen_wind_gust,
     'tree_chop': gen_tree_chop,
