@@ -19,8 +19,8 @@ class SpawnConfig:
 var tree_scene: PackedScene
 var rock_scene: PackedScene
 var grass_scene: PackedScene
-var dark_pine_scene: PackedScene
-var canopy_pine_scene: PackedScene
+var mushroom_tree_scene: PackedScene
+var giant_mushroom_scene: PackedScene
 var glowing_mushroom_scene: PackedScene
 
 # Spawn configurations
@@ -35,8 +35,8 @@ func _ready() -> void:
 	tree_scene = load("res://shared/environmental/tree.tscn")
 	rock_scene = load("res://shared/environmental/rock.tscn")
 	grass_scene = load("res://shared/environmental/grass_clump.tscn")
-	dark_pine_scene = load("res://shared/environmental/dark_pine.tscn")
-	canopy_pine_scene = load("res://shared/environmental/canopy_pine.tscn")
+	mushroom_tree_scene = load("res://shared/environmental/mushroom_tree.tscn")
+	giant_mushroom_scene = load("res://shared/environmental/giant_mushroom.tscn")
 	glowing_mushroom_scene = load("res://shared/environmental/glowing_mushroom.tscn")
 
 	# Setup spawn configurations
@@ -73,16 +73,16 @@ func _setup_spawn_configs() -> void:
 	grass_config.allowed_biomes = ["valley"]
 	spawn_configs["grass"] = grass_config
 
-	# Dark Pine - dense tall trees for dark_forest biome
-	var dark_pine_config := SpawnConfig.new()
-	dark_pine_config.scene = dark_pine_scene
-	dark_pine_config.density = 0.55
-	dark_pine_config.min_height = -5.0
-	dark_pine_config.max_height = 35.0
-	dark_pine_config.max_slope = 30.0
-	dark_pine_config.allowed_biomes = ["dark_forest"]
-	dark_pine_config.scale_variation = Vector2(0.7, 1.3)
-	spawn_configs["dark_pine"] = dark_pine_config
+	# Mushroom Trees - medium mushroom trees for dark_forest biome
+	var mushroom_tree_config := SpawnConfig.new()
+	mushroom_tree_config.scene = mushroom_tree_scene
+	mushroom_tree_config.density = 0.6
+	mushroom_tree_config.min_height = -5.0
+	mushroom_tree_config.max_height = 35.0
+	mushroom_tree_config.max_slope = 35.0
+	mushroom_tree_config.allowed_biomes = ["dark_forest"]
+	mushroom_tree_config.scale_variation = Vector2(0.7, 1.4)
+	spawn_configs["mushroom_tree"] = mushroom_tree_config
 
 	# Glowing Mushrooms - scattered fungi for dark_forest biome
 	var mushroom_config := SpawnConfig.new()
@@ -95,16 +95,16 @@ func _setup_spawn_configs() -> void:
 	mushroom_config.scale_variation = Vector2(0.6, 1.5)
 	spawn_configs["glowing_mushroom"] = mushroom_config
 
-	# Canopy Pine - tall trees forming upper canopy layer for dark_forest biome
-	var canopy_pine_config := SpawnConfig.new()
-	canopy_pine_config.scene = canopy_pine_scene
-	canopy_pine_config.density = 0.35
-	canopy_pine_config.min_height = -5.0
-	canopy_pine_config.max_height = 35.0
-	canopy_pine_config.max_slope = 25.0
-	canopy_pine_config.allowed_biomes = ["dark_forest"]
-	canopy_pine_config.scale_variation = Vector2(0.9, 1.4)
-	spawn_configs["canopy_pine"] = canopy_pine_config
+	# Giant Mushrooms - massive mushroom trees forming upper canopy for dark_forest biome
+	var giant_mushroom_config := SpawnConfig.new()
+	giant_mushroom_config.scene = giant_mushroom_scene
+	giant_mushroom_config.density = 0.4
+	giant_mushroom_config.min_height = -5.0
+	giant_mushroom_config.max_height = 35.0
+	giant_mushroom_config.max_slope = 30.0
+	giant_mushroom_config.allowed_biomes = ["dark_forest"]
+	giant_mushroom_config.scale_variation = Vector2(0.8, 1.6)
+	spawn_configs["giant_mushroom"] = giant_mushroom_config
 
 ## Spawn objects for a given chunk (procedural generation)
 ## Returns array of spawned EnvironmentalObject instances
@@ -247,10 +247,10 @@ func _spawn_object(config: SpawnConfig, xz_pos: Vector2, voxel_world: Node3D, pa
 
 	# Apply random scale with variation for trees
 	var scale_factor := rng.randf_range(config.scale_variation.x, config.scale_variation.y)
-	if object_type == "dark_pine" or object_type == "tree" or object_type == "canopy_pine":
-		# Non-uniform scale for trees: vary width and height independently
+	if object_type == "mushroom_tree" or object_type == "giant_mushroom" or object_type == "tree":
+		# Non-uniform scale for mushroom trees: vary width and height independently
 		var width_factor := scale_factor * rng.randf_range(0.8, 1.2)
-		var height_factor := scale_factor * rng.randf_range(0.85, 1.3)
+		var height_factor := scale_factor * rng.randf_range(0.85, 1.4)
 		obj.scale = Vector3(width_factor, height_factor, width_factor)
 	else:
 		obj.scale = Vector3.ONE * scale_factor
@@ -285,24 +285,24 @@ func _configure_object_properties(obj: Node3D, object_type: String) -> void:
 				obj.current_health = 10.0
 			if "resource_drops" in obj:
 				obj.resource_drops = {}  # Grass drops nothing
-		"dark_pine":
+		"mushroom_tree":
 			if "max_health" in obj:
-				obj.max_health = 120.0
-				obj.current_health = 120.0
+				obj.max_health = 100.0
+				obj.current_health = 100.0
 			if "resource_drops" in obj:
-				obj.resource_drops = {"dark_wood": 4}
+				obj.resource_drops = {"fungal_wood": 4}
 		"glowing_mushroom":
 			if "max_health" in obj:
 				obj.max_health = 30.0
 				obj.current_health = 30.0
 			if "resource_drops" in obj:
 				obj.resource_drops = {"glowing_spore": 2}
-		"canopy_pine":
+		"giant_mushroom":
 			if "max_health" in obj:
-				obj.max_health = 150.0
-				obj.current_health = 150.0
+				obj.max_health = 180.0
+				obj.current_health = 180.0
 			if "resource_drops" in obj:
-				obj.resource_drops = {"dark_wood": 6}
+				obj.resource_drops = {"fungal_wood": 8}
 
 ## Generate deterministic seed for a chunk
 func _get_chunk_seed(chunk_pos: Vector2i) -> int:

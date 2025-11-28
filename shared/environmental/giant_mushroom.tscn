@@ -1,0 +1,103 @@
+[gd_scene load_steps=10 format=3 uid="uid://giant_mushroom_001"]
+
+[ext_resource type="Script" path="res://shared/environmental/environmental_object.gd" id="1"]
+
+[sub_resource type="CylinderMesh" id="stem_mesh"]
+top_radius = 0.8
+bottom_radius = 1.2
+height = 18.0
+radial_segments = 10
+
+[sub_resource type="CylinderMesh" id="cap_mesh"]
+top_radius = 0.5
+bottom_radius = 8.0
+height = 3.0
+radial_segments = 10
+
+[sub_resource type="SphereMesh" id="cap_dome"]
+radius = 2.5
+height = 3.0
+radial_segments = 10
+rings = 5
+
+[sub_resource type="TorusMesh" id="cap_ring"]
+inner_radius = 5.5
+outer_radius = 7.5
+rings = 8
+ring_segments = 12
+
+[sub_resource type="StandardMaterial3D" id="stem_mat"]
+albedo_color = Color(0.12, 0.1, 0.16, 1)
+emission_enabled = true
+emission = Color(0.08, 0.04, 0.12, 1)
+emission_energy_multiplier = 0.2
+
+[sub_resource type="StandardMaterial3D" id="cap_mat"]
+albedo_color = Color(0.05, 0.12, 0.2, 1)
+emission_enabled = true
+emission = Color(0.0, 0.25, 0.45, 1)
+emission_energy_multiplier = 1.0
+
+[sub_resource type="CylinderShape3D" id="collision_stem"]
+radius = 1.2
+height = 18.0
+
+[sub_resource type="CylinderShape3D" id="collision_cap"]
+radius = 7.0
+height = 4.0
+
+[node name="GiantMushroom" type="StaticBody3D"]
+collision_layer = 1
+collision_mask = 0
+script = ExtResource("1")
+cull_distance = 180.0
+lod_distances = [90.0, 150.0]
+resource_drops = {
+"fungal_wood": 8
+}
+rare_drops = {
+"ancient_spore": 0.25
+}
+
+[node name="StemCollision" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 9.0, 0)
+shape = SubResource("collision_stem")
+
+[node name="CapCollision" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 19.5, 0)
+shape = SubResource("collision_cap")
+
+[node name="LOD0" type="Node3D" parent="."]
+
+[node name="Stem" type="MeshInstance3D" parent="LOD0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 9.0, 0)
+mesh = SubResource("stem_mesh")
+surface_material_override/0 = SubResource("stem_mat")
+
+[node name="Cap" type="MeshInstance3D" parent="LOD0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 18.5, 0)
+mesh = SubResource("cap_mesh")
+surface_material_override/0 = SubResource("cap_mat")
+
+[node name="CapDome" type="MeshInstance3D" parent="LOD0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 20.5, 0)
+mesh = SubResource("cap_dome")
+surface_material_override/0 = SubResource("cap_mat")
+
+[node name="CapRing" type="MeshInstance3D" parent="LOD0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 18.0, 0)
+mesh = SubResource("cap_ring")
+surface_material_override/0 = SubResource("cap_mat")
+
+[node name="LOD1" type="Node3D" parent="."]
+visible = false
+
+[node name="SimpleStem" type="MeshInstance3D" parent="LOD1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 9.0, 0)
+mesh = SubResource("stem_mesh")
+surface_material_override/0 = SubResource("stem_mat")
+
+[node name="SimpleCap" type="MeshInstance3D" parent="LOD1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 18.5, 0)
+mesh = SubResource("cap_mesh")
+surface_material_override/0 = SubResource("cap_mat")

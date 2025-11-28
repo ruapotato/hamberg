@@ -1049,12 +1049,12 @@ func receive_environmental_objects(chunk_pos: Vector2i, objects_data: Array) -> 
 				obj_scene = load("res://shared/environmental/rock.tscn")
 			"grass":
 				obj_scene = load("res://shared/environmental/grass_clump.tscn")
-			"dark_pine":
-				obj_scene = load("res://shared/environmental/dark_pine.tscn")
+			"mushroom_tree":
+				obj_scene = load("res://shared/environmental/mushroom_tree.tscn")
 			"glowing_mushroom":
 				obj_scene = load("res://shared/environmental/glowing_mushroom.tscn")
-			"canopy_pine":
-				obj_scene = load("res://shared/environmental/canopy_pine.tscn")
+			"giant_mushroom":
+				obj_scene = load("res://shared/environmental/giant_mushroom.tscn")
 			_:
 				push_error("[Client] Unknown environmental object type: %s" % obj_type)
 				continue
