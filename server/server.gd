@@ -361,7 +361,13 @@ func _send_enemies_to_player(peer_id: int) -> void:
 		var enemy_name = enemy.enemy_name if "enemy_name" in enemy else "Enemy"
 		# IMPORTANT: Use enemy_name not node.name (which changes at runtime)
 		var enemy_type = enemy_name  # Always "Gahnome", not "@CharacterBody3D@5366"
-		var position = [enemy.global_position.x, enemy.global_position.y, enemy.global_position.z]
+
+		# Get network_id and host_peer_id from the enemy
+		var net_id = enemy.network_id if "network_id" in enemy else 0
+		var host_peer = enemy.host_peer_id if "host_peer_id" in enemy else 0
+
+		# Position array must include network_id and host_peer_id for client to work properly
+		var position = [enemy.global_position.x, enemy.global_position.y, enemy.global_position.z, net_id, host_peer]
 
 		# Send to this specific client only
 		NetworkManager.rpc_spawn_enemy.rpc_id(peer_id, enemy_path, enemy_type, position, enemy_name)
@@ -1282,9 +1288,10 @@ func handle_drop_item_request(peer_id: int, slot: int, amount: int) -> void:
 
 	print("[Server] Player %d dropping %d x %s from slot %d" % [peer_id, slot_amount, item_id, slot])
 
-	# Get player position for spawning the dropped item - in front of player
+	# Get player position for spawning the dropped item - in front of player at same height
 	var player_forward = -player.global_transform.basis.z.normalized()
-	var drop_pos: Vector3 = player.global_position + player_forward * 2.0 + Vector3(0, 0.5, 0)
+	var drop_pos: Vector3 = player.global_position + player_forward * 2.0
+	drop_pos.y = player.global_position.y + 1.0  # Drop at player height + small offset
 
 	# Generate network IDs for the dropped items
 	var network_ids: Array = []
@@ -1329,6 +1336,43 @@ func handle_enemy_damage(peer_id: int, enemy_network_id: int, damage: float, kno
 	if host_peer_id > 0:
 		var dir_array = [direction.x, direction.y, direction.z]
 		NetworkManager.rpc_apply_enemy_damage.rpc_id(host_peer_id, enemy_network_id, damage, knockback, dir_array)
+
+## Handle enemy death notification from host client (host has already dropped loot)
+func handle_enemy_died(peer_id: int, enemy_network_id: int) -> void:
+	var enemy_spawner = get_node_or_null("EnemySpawner")
+	if not enemy_spawner:
+		print("[Server] EnemySpawner not found for enemy death!")
+		return
+
+	var enemy = enemy_spawner.network_id_to_enemy.get(enemy_network_id)
+	if not enemy or not is_instance_valid(enemy):
+		print("[Server] Enemy with network_id %d not found for death notification" % enemy_network_id)
+		return
+
+	# Verify sender is the host for this enemy
+	var host_peer_id = enemy_spawner.enemy_host_peers.get(enemy_network_id, 0)
+	if host_peer_id != peer_id:
+		print("[Server] Warning: Death notification from peer %d but host is %d" % [peer_id, host_peer_id])
+		# Still process it - host may have changed
+
+	print("[Server] Enemy %d died (notified by host %d)" % [enemy_network_id, peer_id])
+
+	# Broadcast despawn to all clients
+	var enemy_path = enemy_spawner.enemy_paths.get(enemy, enemy.get_path())
+	NetworkManager.rpc_despawn_enemy.rpc(enemy_path)
+
+	# Clean up enemy from spawner tracking
+	enemy_spawner.spawned_enemies.erase(enemy)
+	if enemy in enemy_spawner.enemy_paths:
+		enemy_spawner.enemy_paths.erase(enemy)
+	if enemy in enemy_spawner.enemy_network_ids:
+		enemy_spawner.enemy_network_ids.erase(enemy)
+	enemy_spawner.network_id_to_enemy.erase(enemy_network_id)
+	enemy_spawner.enemy_host_peers.erase(enemy_network_id)
+	enemy_spawner.host_position_reports.erase(enemy_network_id)
+
+	# Queue free the server's enemy copy
+	enemy.queue_free()
 
 ## Handle player death (server-authoritative)
 func handle_player_death(peer_id: int) -> void:

@@ -472,6 +472,17 @@ func rpc_destroy_environmental_object(chunk_pos: Array, object_id: int) -> void:
 		var chunk_pos_v2i := Vector2i(chunk_pos[0], chunk_pos[1])
 		client_node.destroy_environmental_object(chunk_pos_v2i, object_id)
 
+## CLIENT → SERVER: Request resource drops (e.g., from enemy loot)
+## Server will broadcast to all clients
+@rpc("any_peer", "call_remote", "reliable")
+func rpc_request_resource_drops(resources: Dictionary, position: Array, network_ids: Array) -> void:
+	# Only server handles this
+	if not multiplayer.is_server():
+		return
+
+	# Broadcast to all clients (including the requester)
+	rpc_spawn_resource_drops.rpc(resources, position, network_ids)
+
 ## SERVER → CLIENTS: Spawn resource items at a position with server-generated network IDs
 @rpc("authority", "call_remote", "reliable")
 func rpc_spawn_resource_drops(resources: Dictionary, position: Array, network_ids: Array) -> void:
@@ -740,6 +751,18 @@ func rpc_update_enemy_states(states: Dictionary) -> void:
 	var client_node := get_node_or_null("/root/Main/Client")
 	if client_node and client_node.has_method("update_enemy_states"):
 		client_node.update_enemy_states(states)
+
+## HOST CLIENT -> SERVER: Notify server that enemy died (host has dropped loot)
+@rpc("any_peer", "call_remote", "reliable")
+func rpc_notify_enemy_died(enemy_network_id: int) -> void:
+	var sender_id := multiplayer.get_remote_sender_id()
+
+	if not is_server:
+		return
+
+	var server_node := get_node_or_null("/root/Main/Server")
+	if server_node and server_node.has_method("handle_enemy_died"):
+		server_node.handle_enemy_died(sender_id, enemy_network_id)
 
 # ============================================================================
 # MAP SYSTEM - PINGS

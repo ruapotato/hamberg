@@ -20,6 +20,12 @@ var flee_from_player: CharacterBody3D = null  # Track which player to flee from
 const FLEE_DURATION: float = 5.0  # How long to flee after being damaged
 const FLEE_SPEED_MULTIPLIER: float = 1.5  # Run faster when fleeing
 
+# Valheim-style erratic flee behavior
+var direction_change_timer: float = 0.0
+const MIN_DIRECTION_CHANGE_TIME: float = 0.8  # Min time before direction change
+const MAX_DIRECTION_CHANGE_TIME: float = 2.0  # Max time before direction change
+const DIRECTION_CHANGE_ANGLE: float = 1.2  # Max angle change in radians (~70 degrees)
+
 # Skittishness - how easily spooked (can be overridden in subclasses)
 var flee_detection_range: float = 8.0  # Start fleeing when player is this close
 var is_skittish: bool = false  # If true, flees when player gets too close
@@ -120,13 +126,31 @@ func _detect_nearby_player() -> CharacterBody3D:
 func _start_fleeing_from(player: CharacterBody3D) -> void:
 	flee_from_player = player
 	flee_timer = FLEE_DURATION
+	direction_change_timer = randf_range(MIN_DIRECTION_CHANGE_TIME, MAX_DIRECTION_CHANGE_TIME)
 	_update_flee_direction()
 
-## Flee from danger - actively run away from player
+## Flee from danger - actively run away from player with erratic direction changes (Valheim-style)
 func _update_fleeing(delta: float) -> void:
-	# Update flee direction to always run away from player
-	if flee_from_player and is_instance_valid(flee_from_player):
-		_update_flee_direction()
+	# Update direction change timer
+	direction_change_timer -= delta
+
+	# Periodically change direction for erratic flee behavior
+	if direction_change_timer <= 0:
+		direction_change_timer = randf_range(MIN_DIRECTION_CHANGE_TIME, MAX_DIRECTION_CHANGE_TIME)
+
+		# Start with away-from-player direction, then add random offset
+		if flee_from_player and is_instance_valid(flee_from_player):
+			var away_dir = global_position - flee_from_player.global_position
+			away_dir.y = 0
+			if away_dir.length() > 0.1:
+				flee_target = away_dir.normalized()
+			else:
+				var angle = randf() * TAU
+				flee_target = Vector3(cos(angle), 0, sin(angle))
+
+		# Add random angle offset (can veer left or right significantly)
+		var angle_offset = randf_range(-DIRECTION_CHANGE_ANGLE, DIRECTION_CHANGE_ANGLE)
+		flee_target = flee_target.rotated(Vector3.UP, angle_offset)
 
 	# Run in flee direction
 	var flee_dir = flee_target.normalized()
@@ -135,11 +159,6 @@ func _update_fleeing(delta: float) -> void:
 	velocity.x = flee_dir.x * flee_speed
 	velocity.z = flee_dir.z * flee_speed
 	_face_movement()
-
-	# Add slight randomness to feel more natural (small angle variation)
-	if randf() < 0.03:  # 3% chance per frame
-		var angle_adjust = randf_range(-0.2, 0.2)
-		flee_target = flee_target.rotated(Vector3.UP, angle_adjust)
 
 	# Use RETREATING state for animation sync (existing state in Enemy)
 	ai_state = AIState.RETREATING

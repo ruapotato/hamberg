@@ -39,11 +39,13 @@ func _on_gui_input(event: InputEvent) -> void:
 				if not item_name.is_empty():
 					is_dragging = true
 					drag_started.emit(slot_index)
+					_create_drag_preview()
 					print("[InventorySlot] Started dragging slot %d" % slot_index)
 			else:
 				# Released - end drag if dragging
 				if is_dragging:
 					is_dragging = false
+					_destroy_drag_preview()
 					# Find slot under mouse
 					var target_slot = _get_slot_under_mouse()
 					if target_slot != null and target_slot != self:
@@ -179,3 +181,88 @@ func _get_slot_under_mouse() -> Node:
 				return child
 
 	return null
+
+## Create a visual drag preview that follows the mouse
+func _create_drag_preview() -> void:
+	if drag_preview:
+		_destroy_drag_preview()
+
+	# Create a container for the drag preview
+	drag_preview = Panel.new()
+	drag_preview.custom_minimum_size = Vector2(60, 70)
+	drag_preview.size = Vector2(60, 70)
+	drag_preview.mouse_filter = Control.MOUSE_FILTER_IGNORE  # Don't block mouse
+
+	# Create a darker semi-transparent background
+	var style = StyleBoxFlat.new()
+	style.bg_color = Color(0.2, 0.2, 0.25, 0.9)
+	style.border_color = Color(0.4, 0.4, 0.5, 1.0)
+	style.set_border_width_all(2)
+	style.set_corner_radius_all(4)
+	drag_preview.add_theme_stylebox_override("panel", style)
+
+	# Create the item icon
+	var icon = ColorRect.new()
+	icon.custom_minimum_size = Vector2(36, 36)
+	icon.size = Vector2(36, 36)
+	icon.position = Vector2(12, 6)
+	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	# Copy color from current icon
+	if item_icon:
+		icon.color = item_icon.color
+	drag_preview.add_child(icon)
+
+	# Create item name label
+	var name_label = Label.new()
+	name_label.text = _get_display_name(item_name)
+	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	name_label.custom_minimum_size = Vector2(60, 20)
+	name_label.size = Vector2(60, 20)
+	name_label.position = Vector2(0, 46)
+	name_label.add_theme_font_size_override("font_size", 10)
+	name_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	drag_preview.add_child(name_label)
+
+	# Create amount label if more than 1
+	if item_amount > 1:
+		var amt_label = Label.new()
+		amt_label.text = str(item_amount)
+		amt_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		amt_label.custom_minimum_size = Vector2(20, 15)
+		amt_label.size = Vector2(20, 15)
+		amt_label.position = Vector2(38, 28)
+		amt_label.add_theme_font_size_override("font_size", 12)
+		amt_label.add_theme_color_override("font_color", Color.YELLOW)
+		amt_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		drag_preview.add_child(amt_label)
+
+	# Add to root canvas for proper z-ordering (above everything)
+	var canvas_layer = CanvasLayer.new()
+	canvas_layer.layer = 100  # Very high layer to be on top
+	canvas_layer.name = "DragPreviewLayer"
+	get_tree().root.add_child(canvas_layer)
+	canvas_layer.add_child(drag_preview)
+
+	# Position at mouse
+	_update_drag_preview_position()
+
+## Destroy the drag preview
+func _destroy_drag_preview() -> void:
+	if drag_preview:
+		# Also remove the canvas layer parent
+		var canvas_layer = drag_preview.get_parent()
+		if canvas_layer:
+			canvas_layer.queue_free()
+		drag_preview = null
+
+## Update drag preview position to follow mouse
+func _update_drag_preview_position() -> void:
+	if drag_preview and is_dragging:
+		var mouse_pos = get_viewport().get_mouse_position()
+		# Offset so cursor is at top-left corner of preview
+		drag_preview.global_position = mouse_pos + Vector2(10, 10)
+
+## Process to update drag preview position
+func _process(_delta: float) -> void:
+	if is_dragging and drag_preview:
+		_update_drag_preview_position()

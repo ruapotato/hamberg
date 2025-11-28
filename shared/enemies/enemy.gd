@@ -707,23 +707,29 @@ func take_damage(damage: float, knockback: float = 0.0, direction: Vector3 = Vec
 
 	if health <= 0:
 		health = 0
-		_die()
+		# Only host triggers death (drops loot, notifies server)
+		# Server and non-host clients just track health = 0
+		if is_host:
+			_die()
 
 func _die() -> void:
 	if is_dead:
 		return
 
 	is_dead = true
-	print("[Enemy] %s died!" % enemy_name)
+	print("[Enemy] %s died! (is_host=%s, network_id=%d)" % [enemy_name, is_host, network_id])
 
 	# Play enemy death sound
 	SoundManager.play_sound("enemy_death", global_position)
 
 	died.emit(self)
 
-	# Drop loot (only host does this to avoid duplicates)
+	# Host drops loot and notifies server of death
+	# (_die is only called when is_host=true, but keep check for safety)
 	if is_host:
 		_drop_loot()
+		# Notify server so it can broadcast despawn to all clients
+		NetworkManager.rpc_notify_enemy_died.rpc_id(1, network_id)
 
 	# Death animation
 	if body_container:
@@ -746,7 +752,7 @@ func _drop_loot() -> void:
 			network_ids.append(net_id)
 
 	var pos_array = [global_position.x, global_position.y, global_position.z]
-	NetworkManager.rpc_spawn_resource_drops.rpc_id(1, loot_table, pos_array, network_ids)
+	NetworkManager.rpc_request_resource_drops.rpc_id(1, loot_table, pos_array, network_ids)
 
 # ============================================================================
 # VISUAL SETUP

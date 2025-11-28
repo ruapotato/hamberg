@@ -1207,13 +1207,20 @@ func spawn_resource_drops(resources: Dictionary, position: Vector3, network_ids:
 			# Random spawn offset around hit position
 			var offset = Vector3(
 				randf_range(-0.5, 0.5),
-				0.0,  # Don't offset vertically - let item handle its own height
+				0.0,
 				randf_range(-0.5, 0.5)
 			)
 
-			# Spawn at ground level (use hit position X/Z but lower Y)
-			var spawn_pos = position + offset
-			spawn_pos.y = position.y - 1.0  # Spawn about 1m below hit point (roughly ground level)
+			# Get XZ position with offset
+			var spawn_xz = Vector2(position.x + offset.x, position.z + offset.z)
+
+			# Query actual terrain height to ensure item appears above ground
+			var terrain_height = position.y - 1.0  # Fallback
+			if terrain_world and terrain_world.has_method("get_terrain_height_at"):
+				terrain_height = terrain_world.get_terrain_height_at(spawn_xz)
+
+			# Spawn slightly above terrain surface so item is visible
+			var spawn_pos = Vector3(spawn_xz.x, terrain_height + 0.5, spawn_xz.y)
 
 			# Use server-provided network ID for consistency across all clients
 			var net_id = network_ids[id_index]

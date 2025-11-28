@@ -11,6 +11,7 @@ var is_open: bool = false
 var player_inventory: Node = null  # Reference to player's inventory
 var item_discovery_tracker: Node = null  # Reference to discovery tracker
 var selected_index: int = 0  # For controller D-pad navigation
+var just_opened_frames: int = 0  # Delay before accepting craft input to prevent E key from auto-crafting
 
 @onready var panel: Panel = $Panel
 @onready var recipe_list: VBoxContainer = $Panel/ScrollContainer/RecipeList
@@ -154,6 +155,7 @@ func show_menu() -> void:
 
 	is_open = true
 	visible = true
+	just_opened_frames = 2  # Wait 2 frames before accepting craft input (prevents E key from auto-crafting)
 
 	# Show mouse cursor
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
@@ -184,6 +186,10 @@ func _process(_delta: float) -> void:
 	if not is_open:
 		return
 
+	# Decrement the frame delay counter
+	if just_opened_frames > 0:
+		just_opened_frames -= 1
+
 	# Close menu with Escape or B button
 	if Input.is_action_just_pressed("ui_cancel") or Input.is_action_just_pressed("jump"):
 		hide_menu()
@@ -195,8 +201,8 @@ func _process(_delta: float) -> void:
 	elif Input.is_action_just_pressed("hotbar_equip"):  # D-pad Up
 		_move_selection(-1)
 
-	# A button to craft selected recipe
-	if Input.is_action_just_pressed("interact"):
+	# A button to craft selected recipe (only if not just opened)
+	if just_opened_frames == 0 and Input.is_action_just_pressed("interact"):
 		_craft_selected_recipe()
 
 ## Move selection up/down (controller D-pad)
