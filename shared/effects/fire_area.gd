@@ -29,28 +29,48 @@ func _ready() -> void:
 		particles.process_material = particles.process_material.duplicate()
 		var mat = particles.process_material as ParticleProcessMaterial
 		mat.emission_sphere_radius = radius
-		# Scale particle amount based on area (minimum 10 particles)
-		particles.amount = max(10, int(30 * radius))
-		particles.visibility_aabb = AABB(Vector3(-radius - 1, 0, -radius - 1), Vector3((radius + 1) * 2, 4, (radius + 1) * 2))
-		# Scale particle size based on radius - smaller fires have smaller particles
-		var size_scale = clampf(radius / 5.0, 0.3, 1.0)  # 5.0 is the "normal" radius
-		mat.scale_min = 0.3 * size_scale
-		mat.scale_max = 1.0 * size_scale
-		# Set particle lifetime to match duration (but cap it so they don't hang around too long)
-		particles.lifetime = clampf(duration, 0.3, 1.0)
 
-	# Setup light to match radius - smaller fires are dimmer
+		# Check if this is a small impact fire (short duration) vs sustained area fire
+		var is_impact_fire = duration < 1.0
+
+		if is_impact_fire:
+			# Small impact fire - just a quick burst, not a ground fire
+			particles.amount = 8  # Very few particles
+			particles.explosiveness = 0.9  # All spawn at once like an explosion
+			particles.lifetime = 0.2  # Very short lived
+			mat.scale_min = 0.1
+			mat.scale_max = 0.25
+			mat.initial_velocity_min = 0.5
+			mat.initial_velocity_max = 1.5
+			mat.gravity = Vector3(0, 2, 0)  # Float up quickly
+		else:
+			# Normal sustained fire area
+			particles.amount = max(20, int(30 * radius))
+			particles.lifetime = clampf(duration * 0.5, 0.5, 1.0)
+			var size_scale = clampf(radius / 5.0, 0.4, 1.0)
+			mat.scale_min = 0.3 * size_scale
+			mat.scale_max = 1.0 * size_scale
+
+		particles.visibility_aabb = AABB(Vector3(-radius - 1, 0, -radius - 1), Vector3((radius + 1) * 2, 4, (radius + 1) * 2))
+
+	# Setup light to match radius - smaller fires are dimmer, impact fires very dim
 	if ground_glow:
-		ground_glow.omni_range = radius * 1.5
-		var light_scale = clampf(radius / 5.0, 0.3, 1.0)
-		ground_glow.light_energy = 3.0 * light_scale
+		if duration < 1.0:
+			# Impact fire - minimal glow
+			ground_glow.omni_range = radius
+			ground_glow.light_energy = 1.0
+		else:
+			ground_glow.omni_range = radius * 1.5
+			var light_scale = clampf(radius / 5.0, 0.4, 1.0)
+			ground_glow.light_energy = 3.0 * light_scale
 
 	# Setup timer
 	$Timer.wait_time = duration
 	$Timer.start()
 
-	# Play fire burn sound
-	_play_fire_sound()
+	# Play fire burn sound (skip for impact fires - too brief)
+	if duration >= 1.0:
+		_play_fire_sound()
 
 	print("[FireArea] Created fire area (radius: %.1fm, damage: %.1f, duration: %.1fs)" % [radius, damage, duration])
 

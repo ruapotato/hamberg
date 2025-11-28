@@ -938,11 +938,12 @@ func _special_attack_fire_wand_area(weapon_data: WeaponData, _camera: Camera3D) 
 	# Spawn fire area effect scene
 	var fire_area_scene = load("res://shared/effects/fire_area.tscn")
 	var fire_area = fire_area_scene.instantiate()
-	get_tree().root.add_child(fire_area)
-	fire_area.global_position = player_ground_pos
+	# Set properties BEFORE adding to tree so _ready() uses correct values
 	fire_area.radius = area_radius
 	fire_area.damage = damage
 	fire_area.duration = duration
+	get_tree().root.add_child(fire_area)
+	fire_area.global_position = player_ground_pos
 
 ## Default special attack (1.5x damage, same as normal attack otherwise)
 func _special_attack_default(weapon_data: WeaponData, camera: Camera3D) -> void:

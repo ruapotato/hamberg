@@ -59,9 +59,10 @@ func _spawn_fire_area() -> void:
 	var fire_area_scene = load("res://shared/effects/fire_area.tscn")
 	if fire_area_scene:
 		var fire_area = fire_area_scene.instantiate()
-		get_tree().root.add_child(fire_area)
-		fire_area.global_position = global_position
+		# Set properties BEFORE adding to tree so _ready() uses correct values
 		fire_area.radius = fire_area_radius
 		fire_area.damage = fire_area_damage
 		fire_area.duration = fire_area_duration
+		get_tree().root.add_child(fire_area)
+		fire_area.global_position = global_position
 		print("[Fireball] Spawned fire area at %s" % global_position)
