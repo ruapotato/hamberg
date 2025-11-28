@@ -27,7 +27,7 @@ const EXTREME_ZONE_RADIUS := 20000.0  # Extreme biomes (heavy hell presence)
 # Terrain parameters per biome
 var biome_heights := {
 	"valley": {"base": 5.0, "amplitude": 10.0, "roughness": 0.3},
-	"forest": {"base": 8.0, "amplitude": 15.0, "roughness": 0.4},
+	"dark_forest": {"base": 8.0, "amplitude": 15.0, "roughness": 0.4},
 	"swamp": {"base": -2.0, "amplitude": 5.0, "roughness": 0.2},
 	"mountain": {"base": 40.0, "amplitude": 30.0, "roughness": 0.6},
 	"desert": {"base": 3.0, "amplitude": 8.0, "roughness": 0.25},
@@ -132,13 +132,13 @@ func _get_biome_at_position(xz_pos: Vector2) -> String:
 			if normalized < 0.5:
 				return "valley"
 			else:
-				return "forest"
+				return "dark_forest"
 
 		1:  # Mid zone - more variety with swamp and desert
 			if normalized < 0.25:
 				return "valley"  # Some safe areas still exist
 			elif normalized < 0.5:
-				return "forest"
+				return "dark_forest"
 			elif normalized < 0.75:
 				return "swamp"
 			else:
@@ -146,7 +146,7 @@ func _get_biome_at_position(xz_pos: Vector2) -> String:
 
 		2:  # Danger zone - mountains and wizardland appear
 			if normalized < 0.15:
-				return "forest"  # Occasional safe pockets
+				return "dark_forest"  # Occasional safe pockets
 			elif normalized < 0.3:
 				return "swamp"
 			elif normalized < 0.5:
@@ -231,7 +231,7 @@ func _get_blended_height_at_position(xz_pos: Vector2) -> float:
 			# Blend between valley (0.0-0.5) and forest (0.5-1.0)
 			var t: float = clamp(normalized * 2.0, 0.0, 1.0)
 			var valley_height: float = calculate_height.call("valley")
-			var forest_height: float = calculate_height.call("forest")
+			var forest_height: float = calculate_height.call("dark_forest")
 			final_height = lerp(valley_height, forest_height, t)
 
 		1:  # Mid zone - 4 biomes
@@ -239,7 +239,7 @@ func _get_blended_height_at_position(xz_pos: Vector2) -> float:
 				# Blend valley (0.0-0.25) to forest (0.25-0.5)
 				var t: float = clamp(normalized * 4.0, 0.0, 1.0)
 				var h1: float = calculate_height.call("valley")
-				var h2: float = calculate_height.call("forest")
+				var h2: float = calculate_height.call("dark_forest")
 				final_height = lerp(h1, h2, t)
 			else:
 				# Blend swamp (0.5-0.75) to desert (0.75-1.0)
@@ -253,7 +253,7 @@ func _get_blended_height_at_position(xz_pos: Vector2) -> float:
 			if normalized < 0.3:
 				# forest (0.0-0.15) to swamp (0.15-0.3)
 				var t: float = clamp(normalized / 0.3, 0.0, 1.0)
-				var h1: float = calculate_height.call("forest")
+				var h1: float = calculate_height.call("dark_forest")
 				var h2: float = calculate_height.call("swamp")
 				final_height = lerp(h1, h2, t)
 			elif normalized < 0.5:

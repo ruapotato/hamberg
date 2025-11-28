@@ -24,7 +24,7 @@ const EXTREME_ZONE_RADIUS := 20000.0
 # Terrain parameters per biome
 var biome_heights := {
 	"valley": {"base": 5.0, "amplitude": 10.0, "roughness": 0.3},
-	"forest": {"base": 8.0, "amplitude": 15.0, "roughness": 0.4},
+	"dark_forest": {"base": 8.0, "amplitude": 15.0, "roughness": 0.4},
 	"swamp": {"base": -2.0, "amplitude": 5.0, "roughness": 0.2},
 	"mountain": {"base": 40.0, "amplitude": 30.0, "roughness": 0.6},
 	"desert": {"base": 3.0, "amplitude": 8.0, "roughness": 0.25},
@@ -182,7 +182,7 @@ func _get_biome_index(xz_pos: Vector2) -> int:
 func _biome_index_to_name(idx: int) -> String:
 	match idx:
 		0: return "valley"
-		1: return "forest"
+		1: return "dark_forest"
 		2: return "swamp"
 		3: return "mountain"
 		4: return "desert"

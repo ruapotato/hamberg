@@ -19,6 +19,8 @@ class SpawnConfig:
 var tree_scene: PackedScene
 var rock_scene: PackedScene
 var grass_scene: PackedScene
+var dark_pine_scene: PackedScene
+var glowing_mushroom_scene: PackedScene
 
 # Spawn configurations
 var spawn_configs: Dictionary = {}
@@ -32,19 +34,21 @@ func _ready() -> void:
 	tree_scene = load("res://shared/environmental/tree.tscn")
 	rock_scene = load("res://shared/environmental/rock.tscn")
 	grass_scene = load("res://shared/environmental/grass_clump.tscn")
+	dark_pine_scene = load("res://shared/environmental/dark_pine.tscn")
+	glowing_mushroom_scene = load("res://shared/environmental/glowing_mushroom.tscn")
 
 	# Setup spawn configurations
 	_setup_spawn_configs()
 
 func _setup_spawn_configs() -> void:
-	# Trees - spawn in valleys and forests
+	# Trees - spawn in valleys only (dark_forest uses dark_pine instead)
 	var tree_config := SpawnConfig.new()
 	tree_config.scene = tree_scene
 	tree_config.density = 0.15
 	tree_config.min_height = -5.0
 	tree_config.max_height = 30.0
 	tree_config.max_slope = 35.0
-	tree_config.allowed_biomes = ["valley", "forest"]
+	tree_config.allowed_biomes = ["valley"]
 	spawn_configs["tree"] = tree_config
 
 	# Rocks - spawn everywhere
@@ -54,18 +58,40 @@ func _setup_spawn_configs() -> void:
 	rock_config.min_height = -10.0
 	rock_config.max_height = 60.0
 	rock_config.max_slope = 60.0
-	rock_config.allowed_biomes = ["valley", "forest", "swamp", "mountain", "desert"]
+	rock_config.allowed_biomes = ["valley", "dark_forest", "swamp", "mountain", "desert"]
 	spawn_configs["rock"] = rock_config
 
-	# Grass - dense in valleys
+	# Grass - dense in valleys only (dark_forest uses glowing mushrooms instead)
 	var grass_config := SpawnConfig.new()
 	grass_config.scene = grass_scene
 	grass_config.density = 0.4
 	grass_config.min_height = -5.0
 	grass_config.max_height = 25.0
 	grass_config.max_slope = 25.0
-	grass_config.allowed_biomes = ["valley", "forest"]
+	grass_config.allowed_biomes = ["valley"]
 	spawn_configs["grass"] = grass_config
+
+	# Dark Pine - dense tall trees for dark_forest biome
+	var dark_pine_config := SpawnConfig.new()
+	dark_pine_config.scene = dark_pine_scene
+	dark_pine_config.density = 0.85
+	dark_pine_config.min_height = -5.0
+	dark_pine_config.max_height = 35.0
+	dark_pine_config.max_slope = 30.0
+	dark_pine_config.allowed_biomes = ["dark_forest"]
+	dark_pine_config.scale_variation = Vector2(0.7, 1.3)
+	spawn_configs["dark_pine"] = dark_pine_config
+
+	# Glowing Mushrooms - scattered fungi for dark_forest biome
+	var mushroom_config := SpawnConfig.new()
+	mushroom_config.scene = glowing_mushroom_scene
+	mushroom_config.density = 0.75
+	mushroom_config.min_height = -5.0
+	mushroom_config.max_height = 30.0
+	mushroom_config.max_slope = 40.0
+	mushroom_config.allowed_biomes = ["dark_forest"]
+	mushroom_config.scale_variation = Vector2(0.6, 1.5)
+	spawn_configs["glowing_mushroom"] = mushroom_config
 
 ## Spawn objects for a given chunk (procedural generation)
 ## Returns array of spawned EnvironmentalObject instances
@@ -240,6 +266,18 @@ func _configure_object_properties(obj: Node3D, object_type: String) -> void:
 				obj.current_health = 10.0
 			if "resource_drops" in obj:
 				obj.resource_drops = {}  # Grass drops nothing
+		"dark_pine":
+			if "max_health" in obj:
+				obj.max_health = 120.0
+				obj.current_health = 120.0
+			if "resource_drops" in obj:
+				obj.resource_drops = {"dark_wood": 4}
+		"glowing_mushroom":
+			if "max_health" in obj:
+				obj.max_health = 30.0
+				obj.current_health = 30.0
+			if "resource_drops" in obj:
+				obj.resource_drops = {"glowing_spore": 2}
 
 ## Generate deterministic seed for a chunk
 func _get_chunk_seed(chunk_pos: Vector2i) -> int:
