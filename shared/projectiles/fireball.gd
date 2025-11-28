@@ -2,8 +2,8 @@ extends Projectile
 
 ## Fireball - Arcing projectile that applies gravity and creates fire area on impact
 
-@export var gravity_strength: float = 12.0  # Gravity strength (lower = floatier)
-@export var speed_multiplier: float = 0.6  # Slow down the projectile
+@export var gravity_strength: float = 0.02  # Gravity strength (lower = floatier, more range)
+@export var speed_multiplier: float = 1.0  # Full speed for long range
 @export var fire_area_radius: float = 5.0
 @export var fire_area_damage: float = 12.0
 @export var fire_area_duration: float = 3.0
