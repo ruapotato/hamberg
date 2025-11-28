@@ -388,7 +388,7 @@ GrassInfo get_grass_pattern(vec2 world_xz, float anim_time) {
 	info.wind_bend = 0.0;
 
 	// Scale for grass (larger = bigger clumps, more spread out)
-	float grass_scale = 2.5;
+	float grass_scale = 1.2;  // Smaller blades for finer grass detail
 	vec2 scaled_pos = world_xz / grass_scale;
 
 	// Wind parameters
@@ -481,6 +481,154 @@ float get_grass_detail(vec2 xz_pos, float flatness, int biome_idx, float anim_ti
 
 	// Combine factors
 	return grass.coverage * slope_factor * biome_grass_intensity;
+}
+
+// ============================================================================
+// FOREST FLOOR PATTERN - Mushrooms and roots for dark forest biome
+// ============================================================================
+
+// Structure for forest floor rendering info
+struct ForestFloorInfo {
+	float coverage;      // How much pattern visible (0-1)
+	float is_mushroom;   // 1.0 = mushroom cap, 0.0 = root/moss
+	float is_root;       // 1.0 = root tendril
+	float height;        // Height on element (0=base, 1=top)
+	float glow;          // Bioluminescent glow amount
+};
+
+// Mushroom cap shape - creates round caps with darker gills underneath
+float mushroom_cap(vec2 p, vec2 center, float radius) {
+	float dist = length(p - center);
+
+	// Soft circular cap
+	float cap = 1.0 - smoothstep(radius * 0.6, radius, dist);
+
+	// Darker ring for gills at edge
+	float gill_ring = smoothstep(radius * 0.4, radius * 0.7, dist) *
+	                  (1.0 - smoothstep(radius * 0.7, radius * 0.9, dist));
+
+	return cap - gill_ring * 0.3;
+}
+
+// Root tendril pattern - creates twisting organic lines
+float root_tendril(vec2 p, float anim_time) {
+	// Multiple overlapping root patterns at different scales
+	float root = 0.0;
+
+	// Create twisting tendrils using sine waves
+	for (float i = 0.0; i < 4.0; i++) {
+		float angle = i * 0.785 + hash21(vec2(i, 0.0)) * 3.14;
+		vec2 dir = vec2(cos(angle), sin(angle));
+
+		// Project position onto root direction
+		float along = dot(p, dir);
+		float perp = dot(p, vec2(-dir.y, dir.x));
+
+		// Wavy root pattern
+		float wave = sin(along * 2.0 + i * 2.0 + anim_time * 0.05) * 0.3;
+		float root_dist = abs(perp - wave);
+
+		// Thickness varies along length
+		float thickness = 0.08 + 0.04 * sin(along * 3.0 + i);
+
+		float tendril = 1.0 - smoothstep(thickness * 0.5, thickness, root_dist);
+
+		// Fade at ends
+		tendril *= smoothstep(-2.0, -0.5, along) * smoothstep(2.0, 0.5, along);
+
+		root = max(root, tendril * (0.6 + 0.4 * hash21(vec2(i, 1.0))));
+	}
+
+	return root;
+}
+
+// Get forest floor pattern for dark forest biome
+ForestFloorInfo get_forest_floor_pattern(vec2 world_xz, float anim_time) {
+	ForestFloorInfo info;
+	info.coverage = 0.0;
+	info.is_mushroom = 0.0;
+	info.is_root = 0.0;
+	info.height = 0.0;
+	info.glow = 0.0;
+
+	float pattern_scale = 2.0;
+	vec2 scaled_pos = world_xz / pattern_scale;
+
+	// Grid for mushroom placement
+	vec2 grid_cell = floor(scaled_pos);
+
+	float mushroom_total = 0.0;
+	float root_total = 0.0;
+
+	// Check nearby cells for mushrooms
+	for (int dx = -1; dx <= 1; dx++) {
+		for (int dy = -1; dy <= 1; dy++) {
+			vec2 cell = grid_cell + vec2(float(dx), float(dy));
+
+			// 2-4 mushrooms per cell, but many cells are empty
+			for (int m = 0; m < 4; m++) {
+				vec2 mush_seed = cell + vec2(float(m) * 0.25, float(m) * 0.75);
+				vec2 rnd = hash22(mush_seed);
+
+				// Only 30% of potential mushrooms exist (sparse clusters)
+				if (rnd.x > 0.3) continue;
+
+				// Mushroom position with jitter
+				vec2 mush_pos = (cell + hash22(mush_seed + 0.5)) * pattern_scale;
+
+				// Mushroom size variation (small to medium)
+				float mush_radius = pattern_scale * (0.15 + rnd.y * 0.25);
+
+				// Distance check
+				float dist = length(world_xz - mush_pos);
+				if (dist > mush_radius * 1.5) continue;
+
+				// Get mushroom cap pattern
+				float cap = mushroom_cap(world_xz, mush_pos, mush_radius);
+
+				if (cap > mushroom_total) {
+					mushroom_total = cap;
+
+					// Height: center is top of cap
+					info.height = 1.0 - clamp(dist / (mush_radius * 0.8), 0.0, 1.0);
+
+					// Glow for bioluminescent effect (some mushrooms glow)
+					float glow_chance = hash21(mush_seed + 10.0);
+					if (glow_chance > 0.6) {
+						// Subtle pulsing glow
+						info.glow = cap * (0.3 + 0.2 * sin(anim_time * 0.5 + rnd.x * 6.28));
+					}
+				}
+			}
+		}
+	}
+
+	// Root pattern (covers most of the floor)
+	root_total = root_tendril(scaled_pos, anim_time);
+
+	// Add some moss patches using noise
+	float moss = value_noise_simple(scaled_pos * 1.5) * 0.5;
+	moss += value_noise_simple(scaled_pos * 4.0) * 0.3;
+	moss = smoothstep(0.3, 0.7, moss);
+
+	// Combine: mushrooms on top, roots and moss below
+	if (mushroom_total > 0.1) {
+		info.coverage = mushroom_total;
+		info.is_mushroom = 1.0;
+		info.is_root = 0.0;
+	} else if (root_total > 0.1) {
+		info.coverage = root_total * 0.8;
+		info.is_root = 1.0;
+		info.is_mushroom = 0.0;
+		info.height = 0.3;  // Roots are low
+	} else {
+		info.coverage = moss * 0.4;
+		info.is_mushroom = 0.0;
+		info.is_root = 0.0;
+		info.height = 0.1;  // Moss is very low
+	}
+
+	return info;
 }
 
 // Enhanced grass detail that returns full info for advanced coloring
@@ -642,60 +790,110 @@ void fragment() {
 	// Apply variation to base color
 	vec3 color = base_color * (1.0 + combined * 0.4);
 
-	// Apply shader-based grass detail on flat terrain
+	// Apply shader-based ground detail on flat terrain
 	if (enable_grass_detail) {
-		GrassInfo grass_info = get_grass_detail_full(xz_pos, flatness, current_biome, time);
+		// Dark forest biome (index 1) gets special mushroom/root pattern
+		if (current_biome == 1 && flatness > 0.8) {
+			// === DARK FOREST FLOOR - MUSHROOMS AND ROOTS ===
+			ForestFloorInfo forest_info = get_forest_floor_pattern(xz_pos, time);
 
-		if (grass_info.coverage > 0.01) {
-			// === GRASS BLADE COLORING ===
-			// Real grass blades are darker at the base (shadow, less light penetration)
-			// and lighter/yellower at the tips (new growth, more light)
+			if (forest_info.coverage > 0.01) {
+				vec3 floor_color = grass_color;  // Base is dark teal-green
 
-			// Base color (darker, more saturated - near ground)
-			vec3 blade_base_color = grass_color * 0.6;
+				if (forest_info.is_mushroom > 0.5) {
+					// === MUSHROOM COLORING ===
+					// Mushroom cap - varies from base color at edges to lighter at center
+					vec3 cap_edge = grass_color * 0.7;  // Darker edge
+					vec3 cap_center = grass_color * 1.4;  // Brighter center
+					// Add some warm tones to mushroom tops
+					cap_center = mix(cap_center, cap_center * vec3(1.2, 1.1, 0.9), 0.3);
 
-			// Tip color (lighter, slightly yellow - new growth receiving light)
-			vec3 blade_tip_color = grass_color * 1.2;
-			blade_tip_color = mix(blade_tip_color, blade_tip_color * vec3(1.05, 1.1, 0.85), 0.4);
+					floor_color = mix(cap_edge, cap_center, forest_info.height);
 
-			// Interpolate blade color based on height on blade
-			float height_factor = grass_info.height;
-			vec3 blade_color = mix(blade_base_color, blade_tip_color, height_factor);
+					// Add slight specular highlight at mushroom top
+					if (forest_info.height > 0.7) {
+						float spec = (forest_info.height - 0.7) * 3.0;
+						floor_color = mix(floor_color, vec3(0.8, 0.9, 0.7), spec * 0.2);
+					}
 
-			// === INTER-BLADE SHADOWS ===
-			// Darker in dense areas where blades overlap
-			float shadow_factor = grass_info.shadow * grass_info.coverage;
-			blade_color *= (1.0 - shadow_factor * 0.4);
+					// Bioluminescent glow
+					if (forest_info.glow > 0.01) {
+						vec3 glow_color = vec3(0.2, 0.9, 0.5);  // Cyan-green glow
+						floor_color = mix(floor_color, glow_color, forest_info.glow * 0.6);
+					}
+				} else if (forest_info.is_root > 0.5) {
+					// === ROOT COLORING ===
+					// Roots are darker, more brown-tinted
+					vec3 root_color = grass_color * 0.5;
+					root_color = mix(root_color, root_color * vec3(1.1, 0.9, 0.8), 0.4);  // Slight brown tint
+					floor_color = root_color;
+				} else {
+					// === MOSS COLORING ===
+					// Moss is softer, slightly brighter green
+					vec3 moss_color = grass_color * 0.8;
+					moss_color = mix(moss_color, moss_color * vec3(0.9, 1.1, 0.85), 0.3);
+					floor_color = moss_color;
+				}
 
-			// === SUBSURFACE SCATTERING ===
-			// Grass blades are translucent - light passes through tips
-			// This creates a bright glow when backlit
-			float sss_strength = height_factor * grass_info.coverage * 0.25;
-			vec3 sss_color = grass_color * vec3(1.1, 1.2, 0.9) * 1.3;
-			blade_color = mix(blade_color, sss_color, sss_strength * grass_info.wind_bend);
-
-			// === WIND HIGHLIGHT ===
-			// When wind bends blades, exposed sides catch more light
-			float wind_highlight = grass_info.wind_bend * grass_info.coverage * 0.15;
-			blade_color *= (1.0 + wind_highlight);
-
-			// === SPECULAR-LIKE HIGHLIGHT ON BLADE TIPS ===
-			// Grass blades have a slight sheen at the very tips
-			if (height_factor > 0.75 && grass_info.coverage > 0.5) {
-				float tip_spec = (height_factor - 0.75) * 4.0 * grass_info.coverage;
-				blade_color = mix(blade_color, vec3(1.0), tip_spec * 0.08);
+				// Blend with base terrain
+				float blend_strength = smoothstep(0.0, 0.5, forest_info.coverage);
+				color = mix(color, floor_color, blend_strength);
 			}
+		} else {
+			// === OTHER BIOMES - GRASS BLADES ===
+			GrassInfo grass_info = get_grass_detail_full(xz_pos, flatness, current_biome, time);
 
-			// === BLEND WITH BASE TERRAIN ===
-			// Smoothly blend grass with underlying terrain based on coverage
-			// Low coverage = patches, high coverage = full grass
-			float blend_strength = smoothstep(0.0, 0.6, grass_info.coverage);
-			color = mix(color, blade_color, blend_strength);
+			if (grass_info.coverage > 0.01) {
+				// === GRASS BLADE COLORING ===
+				// Real grass blades are darker at the base (shadow, less light penetration)
+				// and lighter/yellower at the tips (new growth, more light)
 
-			// === EDGE DARKENING ===
-			// Slight darkening at grass patch edges for depth
-			float edge_factor = smoothstep(0.0, 0.2, grass_info.coverage);
-			color *= mix(0.92, 1.0, edge_factor);
+				// Base color (darker, more saturated - near ground)
+				vec3 blade_base_color = grass_color * 0.6;
+
+				// Tip color (lighter, slightly yellow - new growth receiving light)
+				vec3 blade_tip_color = grass_color * 1.2;
+				blade_tip_color = mix(blade_tip_color, blade_tip_color * vec3(1.05, 1.1, 0.85), 0.4);
+
+				// Interpolate blade color based on height on blade
+				float height_factor = grass_info.height;
+				vec3 blade_color = mix(blade_base_color, blade_tip_color, height_factor);
+
+				// === INTER-BLADE SHADOWS ===
+				// Darker in dense areas where blades overlap
+				float shadow_factor = grass_info.shadow * grass_info.coverage;
+				blade_color *= (1.0 - shadow_factor * 0.4);
+
+				// === SUBSURFACE SCATTERING ===
+				// Grass blades are translucent - light passes through tips
+				// This creates a bright glow when backlit
+				float sss_strength = height_factor * grass_info.coverage * 0.25;
+				vec3 sss_color = grass_color * vec3(1.1, 1.2, 0.9) * 1.3;
+				blade_color = mix(blade_color, sss_color, sss_strength * grass_info.wind_bend);
+
+				// === WIND HIGHLIGHT ===
+				// When wind bends blades, exposed sides catch more light
+				float wind_highlight = grass_info.wind_bend * grass_info.coverage * 0.15;
+				blade_color *= (1.0 + wind_highlight);
+
+				// === SPECULAR-LIKE HIGHLIGHT ON BLADE TIPS ===
+				// Grass blades have a slight sheen at the very tips
+				if (height_factor > 0.75 && grass_info.coverage > 0.5) {
+					float tip_spec = (height_factor - 0.75) * 4.0 * grass_info.coverage;
+					blade_color = mix(blade_color, vec3(1.0), tip_spec * 0.08);
+				}
+
+				// === BLEND WITH BASE TERRAIN ===
+				// Smoothly blend grass with underlying terrain based on coverage
+				// Low coverage = patches, high coverage = full grass
+				float blend_strength = smoothstep(0.0, 0.6, grass_info.coverage);
+				color = mix(color, blade_color, blend_strength);
+
+				// === EDGE DARKENING ===
+				// Slight darkening at grass patch edges for depth
+				float edge_factor = smoothstep(0.0, 0.2, grass_info.coverage);
+				color *= mix(0.92, 1.0, edge_factor);
+			}
 		}
 	}
 
