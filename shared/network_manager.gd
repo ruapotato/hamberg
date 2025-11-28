@@ -285,16 +285,17 @@ func rpc_damage_environmental_object(chunk_pos: Array, object_id: int, damage: f
 		var chunk_pos_v2i := Vector2i(chunk_pos[0], chunk_pos[1])
 		server_node.handle_environmental_damage(peer_id, chunk_pos_v2i, object_id, damage, hit_position)
 
-## CLIENT -> SERVER: Damage enemy
+## CLIENT -> SERVER: Damage enemy (client-authoritative hits using network_id)
 @rpc("any_peer", "call_remote", "reliable")
-func rpc_damage_enemy(enemy_path: NodePath, damage: float, knockback: float, direction: Vector3) -> void:
+func rpc_damage_enemy(enemy_network_id: int, damage: float, knockback: float, direction: Array) -> void:
 	if not is_server:
 		return
 
 	var peer_id := multiplayer.get_remote_sender_id()
 	var server_node := get_node_or_null("/root/Main/Server")
 	if server_node and server_node.has_method("handle_enemy_damage"):
-		server_node.handle_enemy_damage(peer_id, enemy_path, damage, knockback, direction)
+		var dir_v3 := Vector3(direction[0], direction[1], direction[2])
+		server_node.handle_enemy_damage(peer_id, enemy_network_id, damage, knockback, dir_v3)
 
 ## CLIENT -> SERVER: Place a buildable object
 @rpc("any_peer", "call_remote", "reliable")

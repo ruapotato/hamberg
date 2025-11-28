@@ -726,10 +726,13 @@ func _handle_attack() -> void:
 
 			# Check if it's an enemy
 			if hit_object.has_method("take_damage") and hit_object.collision_layer & 4:  # Enemy layer
-				print("[Player] Attacking enemy %s with %s (%.1f damage, %.1f knockback)" % [hit_object.name, weapon_data.display_name, damage, knockback])
-				# SERVER-AUTHORITATIVE: Send damage request to server
-				var enemy_path = hit_object.get_path()
-				_send_enemy_damage_request(enemy_path, damage, knockback, ray_direction)
+				# Get network_id from enemy (client-authoritative hit detection)
+				var enemy_network_id = hit_object.network_id if "network_id" in hit_object else 0
+				if enemy_network_id > 0:
+					print("[Player] Attacking enemy %s (net_id=%d) with %s (%.1f damage, %.1f knockback)" % [hit_object.name, enemy_network_id, weapon_data.display_name, damage, knockback])
+					_send_enemy_damage_request(enemy_network_id, damage, knockback, ray_direction)
+				else:
+					print("[Player] Hit enemy %s but it has no network_id!" % hit_object.name)
 
 			# Check if it's an environmental object
 			elif hit_object.has_method("get_object_type") and hit_object.has_method("get_object_id"):
@@ -1068,10 +1071,11 @@ func _send_damage_request(chunk_pos: Vector2i, object_id: int, damage: float, hi
 	# Send RPC to server via NetworkManager
 	NetworkManager.rpc_damage_environmental_object.rpc_id(1, [chunk_pos.x, chunk_pos.y], object_id, damage, hit_position)
 
-## Send enemy damage request to server
-func _send_enemy_damage_request(enemy_path: NodePath, damage: float, knockback: float, direction: Vector3) -> void:
+## Send enemy damage request to server (client-authoritative hit using network_id)
+func _send_enemy_damage_request(enemy_network_id: int, damage: float, knockback: float, direction: Vector3) -> void:
 	# Send RPC to server via NetworkManager
-	NetworkManager.rpc_damage_enemy.rpc_id(1, enemy_path, damage, knockback, direction)
+	var dir_array = [direction.x, direction.y, direction.z]
+	NetworkManager.rpc_damage_enemy.rpc_id(1, enemy_network_id, damage, knockback, dir_array)
 
 # ============================================================================
 # TERRAIN MODIFICATION (PICKAXE, HOE)

@@ -1249,21 +1249,26 @@ func handle_swap_slots_request(peer_id: int, slot_a: int, slot_b: int) -> void:
 	var inventory_data = inventory.get_inventory_data()
 	NetworkManager.rpc_sync_inventory.rpc_id(peer_id, inventory_data)
 
-## Handle enemy damage request (server-authoritative)
-func handle_enemy_damage(peer_id: int, enemy_path: NodePath, damage: float, knockback: float, direction: Vector3) -> void:
-	# Get the enemy node
-	var enemy = get_node_or_null(enemy_path)
+## Handle enemy damage request (client-authoritative hits using network_id)
+func handle_enemy_damage(peer_id: int, enemy_network_id: int, damage: float, knockback: float, direction: Vector3) -> void:
+	# Look up enemy by network_id using EnemySpawner's lookup table
+	var enemy_spawner = get_node_or_null("EnemySpawner")
+	if not enemy_spawner:
+		print("[Server] EnemySpawner not found!")
+		return
+
+	var enemy = enemy_spawner.network_id_to_enemy.get(enemy_network_id)
 	if not enemy or not is_instance_valid(enemy):
-		print("[Server] Enemy not found: %s" % enemy_path)
+		print("[Server] Enemy with network_id %d not found" % enemy_network_id)
 		return
 
 	# Validate enemy has take_damage method
 	if not enemy.has_method("take_damage"):
-		print("[Server] Enemy %s doesn't have take_damage method" % enemy_path)
+		print("[Server] Enemy %d doesn't have take_damage method" % enemy_network_id)
 		return
 
 	# Apply damage
-	print("[Server] Applying %d damage to enemy %s" % [damage, enemy_path])
+	print("[Server] Player %d hit enemy %d for %.1f damage" % [peer_id, enemy_network_id, damage])
 	enemy.take_damage(damage, knockback, direction)
 
 ## Handle player death (server-authoritative)
