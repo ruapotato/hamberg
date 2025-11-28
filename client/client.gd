@@ -32,7 +32,8 @@ var environmental_scenes: Dictionary = {
 }
 
 # Environmental object spawn queue (for non-blocking spawning)
-var environmental_spawn_queue: Array = []
+# Dictionary of chunk_pos -> Array of obj_data, so we can prioritize closest chunks
+var environmental_spawn_queues: Dictionary = {}
 const ENVIRONMENTAL_SPAWN_BATCH_SIZE: int = 8  # Objects to spawn per frame
 
 # Client state
@@ -1047,6 +1048,10 @@ func receive_environmental_objects(chunk_pos: Vector2i, objects_data: Array) -> 
 	if not environmental_chunks.has(chunk_pos):
 		environmental_chunks[chunk_pos] = {}
 
+	# Create queue entry for this chunk if it doesn't exist
+	if not environmental_spawn_queues.has(chunk_pos):
+		environmental_spawn_queues[chunk_pos] = []
+
 	# Queue each object for spawning (instead of spawning immediately)
 	for obj_data in objects_data:
 		var obj_type = obj_data.get("type", "unknown")
@@ -1056,25 +1061,50 @@ func receive_environmental_objects(chunk_pos: Vector2i, objects_data: Array) -> 
 			push_error("[Client] Unknown environmental object type: %s" % obj_type)
 			continue
 
-		# Add to spawn queue with chunk info
-		environmental_spawn_queue.append({
-			"chunk_pos": chunk_pos,
-			"obj_data": obj_data
-		})
+		# Add to this chunk's spawn queue
+		environmental_spawn_queues[chunk_pos].append(obj_data)
 
 ## Process environmental spawn queue - spawns ENVIRONMENTAL_SPAWN_BATCH_SIZE objects per frame
+## Prioritizes chunks closest to player (cheap O(n_chunks) operation)
 func _process_environmental_queue() -> void:
-	if environmental_spawn_queue.is_empty():
+	if environmental_spawn_queues.is_empty():
 		return
 
+	# Find closest chunk with queued objects (only ~10-20 chunks, very fast)
+	var closest_chunk: Vector2i = Vector2i.ZERO
+	var closest_dist_sq: float = INF
+	var player_chunk: Vector2i = Vector2i.ZERO
+
+	if local_player:
+		var player_pos = local_player.global_position
+		# Assume 32 unit chunk size (matches environmental_spawner.gd)
+		player_chunk = Vector2i(int(player_pos.x / 32.0), int(player_pos.z / 32.0))
+
+	for chunk_pos in environmental_spawn_queues.keys():
+		var queue: Array = environmental_spawn_queues[chunk_pos]
+		if queue.is_empty():
+			continue
+		# Calculate distance squared (cheaper than sqrt)
+		var dx = chunk_pos.x - player_chunk.x
+		var dy = chunk_pos.y - player_chunk.y
+		var dist_sq = dx * dx + dy * dy
+		if dist_sq < closest_dist_sq:
+			closest_dist_sq = dist_sq
+			closest_chunk = chunk_pos
+
+	# No chunks with objects to spawn
+	if closest_dist_sq == INF:
+		return
+
+	# Spawn objects from the closest chunk
+	var chunk_queue: Array = environmental_spawn_queues[closest_chunk]
 	var spawned_count := 0
-	while spawned_count < ENVIRONMENTAL_SPAWN_BATCH_SIZE and not environmental_spawn_queue.is_empty():
-		var queue_item = environmental_spawn_queue.pop_front()
-		var chunk_pos: Vector2i = queue_item.chunk_pos
-		var obj_data = queue_item.obj_data
+
+	while spawned_count < ENVIRONMENTAL_SPAWN_BATCH_SIZE and not chunk_queue.is_empty():
+		var obj_data = chunk_queue.pop_front()
 
 		# Skip if chunk was already despawned
-		if not environmental_chunks.has(chunk_pos):
+		if not environmental_chunks.has(closest_chunk):
 			continue
 
 		var obj_id = obj_data.get("id", -1)
@@ -1104,14 +1134,22 @@ func _process_environmental_queue() -> void:
 		if obj.has_method("set_object_id"):
 			obj.set_object_id(obj_id)
 		if obj.has_method("set_chunk_position"):
-			obj.set_chunk_position(chunk_pos)
+			obj.set_chunk_position(closest_chunk)
 
 		# Store in chunk
-		environmental_chunks[chunk_pos][obj_id] = obj
+		environmental_chunks[closest_chunk][obj_id] = obj
 		spawned_count += 1
+
+	# Clean up empty chunk queues
+	if chunk_queue.is_empty():
+		environmental_spawn_queues.erase(closest_chunk)
 
 ## Despawn environmental objects for a chunk
 func despawn_environmental_objects(chunk_pos: Vector2i) -> void:
+	# Clear any queued objects for this chunk
+	if environmental_spawn_queues.has(chunk_pos):
+		environmental_spawn_queues.erase(chunk_pos)
+
 	if not environmental_chunks.has(chunk_pos):
 		return
 
@@ -1227,7 +1265,7 @@ func _cleanup_environmental_objects() -> void:
 	for chunk_pos in environmental_chunks.keys():
 		despawn_environmental_objects(chunk_pos)
 	environmental_chunks.clear()
-	environmental_spawn_queue.clear()
+	environmental_spawn_queues.clear()
 
 ## Spawn an enemy (client-host model: one client runs AI, others interpolate)
 func spawn_enemy(enemy_path: NodePath, enemy_type: String, position: Vector3, enemy_name: String, network_id: int = 0, host_peer_id: int = 0) -> void:
