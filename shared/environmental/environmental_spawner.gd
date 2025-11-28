@@ -232,9 +232,15 @@ func _spawn_object(config: SpawnConfig, xz_pos: Vector2, voxel_world: Node3D, pa
 		rotation_y = rng.randf_range(0, TAU)
 		obj.rotation.y = rotation_y
 
-	# Apply random scale
+	# Apply random scale with variation for trees
 	var scale_factor := rng.randf_range(config.scale_variation.x, config.scale_variation.y)
-	obj.scale = Vector3.ONE * scale_factor
+	if object_type == "dark_pine" or object_type == "tree":
+		# Non-uniform scale for trees: vary width and height independently
+		var width_factor := scale_factor * rng.randf_range(0.8, 1.2)
+		var height_factor := scale_factor * rng.randf_range(0.85, 1.3)
+		obj.scale = Vector3(width_factor, height_factor, width_factor)
+	else:
+		obj.scale = Vector3.ONE * scale_factor
 
 	# Store metadata on object for later reference
 	if obj.has_method("set_object_type"):
