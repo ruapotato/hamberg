@@ -3,8 +3,8 @@
 [ext_resource type="Script" uid="uid://cas7o7d3rajgs" path="res://shared/enemies/enemy.gd" id="1"]
 
 [sub_resource type="CapsuleShape3D" id="collision_shape"]
-radius = 0.155
-height = 1.2
+radius = 0.12
+height = 0.7
 
 [node name="Gahnome" type="CharacterBody3D" groups=["enemies"]]
 collision_layer = 4
@@ -12,5 +12,5 @@ collision_mask = 3
 script = ExtResource("1")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.35, 0)
 shape = SubResource("collision_shape")

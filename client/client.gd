@@ -1181,7 +1181,7 @@ func _cleanup_environmental_objects() -> void:
 		despawn_environmental_objects(chunk_pos)
 	environmental_chunks.clear()
 
-## Spawn an enemy (visual only on client)
+## Spawn an enemy (visual only on client - server-authoritative sync)
 func spawn_enemy(enemy_path: NodePath, enemy_type: String, position: Vector3, enemy_name: String) -> void:
 	# Don't spawn if already exists
 	if spawned_enemies.has(enemy_path):
@@ -1199,13 +1199,19 @@ func spawn_enemy(enemy_path: NodePath, enemy_type: String, position: Vector3, en
 	# Instantiate enemy (client-side visual only)
 	var enemy = enemy_scene.instantiate()
 	enemy.name = str(enemy_path).get_file()  # Use the path's last part as name
+
+	# Mark as remote - client only interpolates, no AI simulation
+	enemy.is_remote = true
+	enemy.server_position = position
+
 	world.add_child(enemy)
 	enemy.global_position = position
 
-	# Track enemy
+	# Track enemy (also store by string path for update lookups)
 	spawned_enemies[enemy_path] = enemy
+	spawned_enemies[str(enemy_path)] = enemy  # Duplicate for string lookup
 
-	print("[Client] Spawned enemy %s at %s" % [enemy_name, position])
+	print("[Client] Spawned enemy %s at %s (server-authoritative)" % [enemy_name, position])
 
 ## Despawn an enemy
 func despawn_enemy(enemy_path: NodePath) -> void:
@@ -1213,10 +1219,31 @@ func despawn_enemy(enemy_path: NodePath) -> void:
 	if enemy and is_instance_valid(enemy):
 		enemy.queue_free()
 		spawned_enemies.erase(enemy_path)
+		spawned_enemies.erase(str(enemy_path))
 		print("[Client] Despawned enemy %s" % enemy_path)
 
-# CLIENT-AUTHORITATIVE: Each client simulates enemies independently
-# No server state updates needed - enemies run full AI/physics on all clients
+## Update enemy states from server (called at 10Hz)
+## Compact format: { "path_string": [px, py, pz, rot_y, state, hp], ... }
+func update_enemy_states(states: Dictionary) -> void:
+	for path_str in states:
+		# Find enemy by path string
+		var enemy = spawned_enemies.get(path_str)
+		if not enemy or not is_instance_valid(enemy):
+			continue
+
+		# Extract state data from compact array [px, py, pz, rot_y, state, hp]
+		var state_arr: Array = states[path_str]
+		if state_arr.size() < 6:
+			continue
+
+		var pos = Vector3(state_arr[0], state_arr[1], state_arr[2])
+		var rot_y: float = state_arr[3]
+		var ai_state: int = int(state_arr[4])
+		var hp: float = state_arr[5]
+
+		# Apply server state to enemy
+		if enemy.has_method("apply_server_state"):
+			enemy.apply_server_state(pos, rot_y, ai_state, hp)
 
 ## Request server to perform a manual save (triggered by F5 key)
 func _request_server_save() -> void:

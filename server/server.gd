@@ -1059,6 +1059,9 @@ func _spawn_player_with_data(peer_id: int, player_data: Dictionary) -> void:
 	# Send all modified terrain chunks to the new player (deferred to ensure chunks are loaded first)
 	call_deferred("_send_terrain_chunks_to_player", peer_id)
 
+	# Send all existing enemies to the new player
+	_send_enemies_to_player(peer_id)
+
 	# Notify all clients to spawn this player through NetworkManager
 	var player_name = player_data.get("character_name", "Unknown")
 	print("[Server] Broadcasting spawn for player %d to all clients" % peer_id)

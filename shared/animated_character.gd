@@ -8,6 +8,8 @@ class_name AnimatedCharacter
 var animation_phase: float = 0.0
 var is_attacking: bool = false
 var attack_timer: float = 0.0
+var is_throwing: bool = false
+var throw_timer: float = 0.0
 
 # Stun state
 var is_stunned: bool = false
@@ -18,6 +20,7 @@ const STUN_DAMAGE_MULTIPLIER: float = 1.5  # Extra damage taken while stunned
 # Animation configuration (override in subclasses)
 @export var walk_speed: float = 5.0
 @export var attack_animation_time: float = 0.3  # Match player attack timing
+@export var throw_animation_time: float = 0.5  # Throwing animation duration
 
 # Body part references (set by subclasses)
 var body_container: Node3D = null
@@ -49,6 +52,12 @@ func update_animations(delta: float) -> void:
 		if attack_timer >= attack_animation_time:
 			is_attacking = false
 
+	# Update throw timer
+	if is_throwing:
+		throw_timer += delta
+		if throw_timer >= throw_animation_time:
+			is_throwing = false
+
 	# Stun animation overrides everything
 	if is_stunned:
 		_animate_stun(delta)
@@ -63,8 +72,11 @@ func update_animations(delta: float) -> void:
 	else:
 		_animate_idle(delta)
 
+	# Throw animation (overrides arm movement) - has priority over attack
+	if is_throwing:
+		_animate_throw(delta)
 	# Attack animation (overrides arm movement)
-	if is_attacking:
+	elif is_attacking:
 		_animate_attack(delta)
 
 ## Animate walking (legs and arms swinging)
@@ -167,6 +179,45 @@ func _animate_attack(delta: float) -> void:
 func start_attack_animation() -> void:
 	is_attacking = true
 	attack_timer = 0.0
+
+## Animate throw (overhand throwing motion)
+func _animate_throw(delta: float) -> void:
+	if not right_arm:
+		return
+
+	var throw_progress = throw_timer / throw_animation_time
+
+	# Throwing motion: wind up (arm back), then throw forward
+	var arm_angle: float
+	var elbow_angle: float
+
+	if throw_progress < 0.4:
+		# Wind up - arm goes back
+		var windup = throw_progress / 0.4
+		arm_angle = -windup * 1.5  # Arm rotates backward
+		elbow_angle = windup * 0.8  # Elbow bends
+	else:
+		# Throw - arm comes forward fast
+		var throw_phase = (throw_progress - 0.4) / 0.6
+		arm_angle = -1.5 + throw_phase * 2.5  # Swing from back to forward
+		elbow_angle = 0.8 - throw_phase * 1.0  # Elbow extends
+
+	right_arm.rotation.x = arm_angle
+
+	# Elbow extends during throw
+	var right_elbow = right_arm.get_node_or_null("Elbow")
+	if right_elbow:
+		right_elbow.rotation.x = elbow_angle
+
+	# Body leans into throw
+	if torso:
+		var lean = sin(throw_progress * PI) * 0.2
+		torso.rotation.x = lean
+
+## Start a throw animation
+func start_throw_animation() -> void:
+	is_throwing = true
+	throw_timer = 0.0
 
 ## Animate stun (wobble effect)
 func _animate_stun(delta: float) -> void:

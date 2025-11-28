@@ -707,8 +707,9 @@ func rpc_despawn_enemy(enemy_path: NodePath) -> void:
 		client_node.despawn_enemy(enemy_path)
 
 ## SERVER -> CLIENTS: Update enemy states (position, animation)
+## Compact format: { "path": [px, py, pz, rot, state, hp], ... }
 @rpc("authority", "call_remote", "unreliable_ordered")
-func rpc_update_enemy_states(states: Array) -> void:
+func rpc_update_enemy_states(states: Dictionary) -> void:
 	if is_server:
 		return
 

@@ -249,13 +249,16 @@ func _process(delta: float) -> void:
 			var coords = pending_chunk_loads.pop_front()
 			_load_chunk_immediate(coords[0], coords[1])
 
-	# Only generate meshes on clients (server doesn't need visual meshes)
+	# Generate meshes on clients, collision only on server
 	if not is_server:
-		# Start new mesh generation tasks (threaded)
+		# Client: Start new mesh generation tasks (threaded)
 		_start_threaded_mesh_updates()
-
-		# Apply completed mesh results on main thread
+		# Client: Apply completed mesh results on main thread
 		_apply_completed_meshes()
+	else:
+		# Server (headless): Generate collision shapes for physics
+		# Server doesn't need visual meshes, just collision for enemies/NPCs
+		_update_server_collision()
 
 	# Update chunks around players and check for LOD changes
 	for peer_id in tracked_players:
@@ -648,6 +651,78 @@ func _update_chunk_mesh(chunk) -> void:
 
 	chunk.is_dirty = false
 
+## Server-side: Generate collision shapes for physics (no visual meshes)
+## Called every frame to process dirty chunks
+var server_collision_queue: Array = []
+
+func _update_server_collision() -> void:
+	# Process pending collision updates (rate limited)
+	const MAX_COLLISION_UPDATES_PER_FRAME := 2
+
+	# Build queue from dirty chunks if empty
+	if server_collision_queue.is_empty():
+		for chunk_key in chunks:
+			var chunk = chunks[chunk_key]
+			if chunk.is_dirty and not chunk_colliders.has(chunk_key):
+				server_collision_queue.append(chunk_key)
+
+	# Process a limited number per frame
+	var processed := 0
+	while processed < MAX_COLLISION_UPDATES_PER_FRAME and server_collision_queue.size() > 0:
+		var chunk_key: String = server_collision_queue.pop_front()
+
+		if not chunks.has(chunk_key):
+			continue
+
+		var chunk = chunks[chunk_key]
+		if not chunk.is_dirty:
+			continue
+
+		_generate_server_collision_for_chunk(chunk)
+		processed += 1
+
+## Generate collision shape for a single chunk (server-side, no visual mesh)
+func _generate_server_collision_for_chunk(chunk) -> void:
+	var key: String = chunk.get_key()
+
+	# Skip if already has collision
+	if chunk_colliders.has(key):
+		chunk.is_dirty = false
+		return
+
+	# Gather neighbor chunks for seamless collision generation
+	var neighbors := {}
+	for dx in [-1, 0, 1]:
+		for dz in [-1, 0, 1]:
+			if dx == 0 and dz == 0:
+				continue
+			var nkey := ChunkDataClass.make_key(chunk.chunk_x + dx, chunk.chunk_z + dz)
+			if chunks.has(nkey):
+				neighbors[nkey] = chunks[nkey]
+
+	# Generate mesh (required for collision shape generation)
+	var mesh: ArrayMesh = mesh_generator.generate_mesh(chunk, neighbors, 1)  # LOD 1 for faster generation
+
+	if mesh == null or mesh.get_surface_count() == 0:
+		chunk.is_dirty = false
+		return
+
+	# Generate collision shape from mesh
+	var collision_shape: ConcavePolygonShape3D = mesh_generator.generate_collision_shape(mesh)
+	if collision_shape:
+		var static_body := StaticBody3D.new()
+		static_body.name = "ChunkCollider_%s" % key
+		static_body.collision_layer = 1  # World layer
+		static_body.collision_mask = 0
+		add_child(static_body)
+		chunk_colliders[key] = static_body
+
+		var shape_node := CollisionShape3D.new()
+		shape_node.shape = collision_shape
+		static_body.add_child(shape_node)
+
+	chunk.is_dirty = false
+
 ## Remove visual elements for a chunk
 func _remove_chunk_visuals(key: String) -> void:
 	if chunk_meshes.has(key):
@@ -891,6 +966,13 @@ func find_surface_position(xz_pos: Vector2, search_start_y: float = 100.0, searc
 
 	# Fallback to height estimation
 	return Vector3(xz_pos.x, get_terrain_height_at(xz_pos), xz_pos.y)
+
+## Check if a position has terrain collision loaded (for safe spawning)
+## Both server and client now check actual collision shapes
+func has_collision_at_position(world_pos: Vector3) -> bool:
+	var chunk_coords := ChunkDataClass.world_to_chunk_coords(world_pos)
+	var key := ChunkDataClass.make_key(chunk_coords.x, chunk_coords.y)
+	return chunk_colliders.has(key)
 
 ## Save all modified chunks
 func save_environmental_chunks() -> void:
