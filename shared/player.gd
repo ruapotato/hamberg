@@ -704,51 +704,76 @@ func _handle_attack() -> void:
 		# RANGED ATTACK: Spawn projectile
 		_spawn_projectile(weapon_data, camera)
 	else:
-		# MELEE ATTACK: Raycast from crosshair position
-		var viewport_size := get_viewport().get_visible_rect().size
+		# MELEE ATTACK: Cone/sphere area attack in front of player
+		# Much more forgiving than precise raycast targeting
 
-		# Crosshair is offset to match crosshair.tscn (20px right, 50px up)
+		# Get attack direction from camera
+		var viewport_size := get_viewport().get_visible_rect().size
 		var crosshair_offset := Vector2(21.0, -50.0)
 		var crosshair_pos := viewport_size / 2 + crosshair_offset
 		var ray_origin := camera.project_ray_origin(crosshair_pos)
 		var ray_direction := camera.project_ray_normal(crosshair_pos)
-		var ray_end := ray_origin + ray_direction * attack_range
 
-		# Perform raycast
+		# Calculate attack sphere center (in front of player at half attack range)
+		var attack_center := global_position + Vector3(0, 1.2, 0) + ray_direction * (attack_range * 0.6)
+		var hit_radius := 1.5  # Generous hit sphere radius
+
+		# Find all enemies in hit area using sphere query
 		var space_state := get_world_3d().direct_space_state
-		var query := PhysicsRayQueryParameters3D.create(ray_origin, ray_end)
-		query.collision_mask = 1 | 4  # World layer (1) and Enemies layer (bit 2 = 4)
-		query.exclude = [self]  # Exclude the player themselves from the raycast
+		var shape := SphereShape3D.new()
+		shape.radius = hit_radius
+		var shape_query := PhysicsShapeQueryParameters3D.new()
+		shape_query.shape = shape
+		shape_query.transform = Transform3D(Basis.IDENTITY, attack_center)
+		shape_query.collision_mask = 4  # Enemies layer only
+		shape_query.exclude = [self]
 
-		var result := space_state.intersect_ray(query)
-		if result:
-			var hit_object: Object = result.collider
+		var hits := space_state.intersect_shape(shape_query, 8)  # Max 8 enemies
 
-			# Check if it's an enemy
-			if hit_object.has_method("take_damage") and hit_object.collision_layer & 4:  # Enemy layer
-				# Get network_id from enemy (client-authoritative hit detection)
-				var enemy_network_id = hit_object.network_id if "network_id" in hit_object else 0
-				if enemy_network_id > 0:
-					print("[Player] Attacking enemy %s (net_id=%d) with %s (%.1f damage, %.1f knockback)" % [hit_object.name, enemy_network_id, weapon_data.display_name, damage, knockback])
-					_send_enemy_damage_request(enemy_network_id, damage, knockback, ray_direction)
-				else:
-					print("[Player] Hit enemy %s but it has no network_id!" % hit_object.name)
+		var hit_enemy := false
+		var closest_enemy: Node = null
+		var closest_distance := 999.0
 
-			# Check if it's an environmental object
-			elif hit_object.has_method("get_object_type") and hit_object.has_method("get_object_id"):
-				var object_type: String = hit_object.get_object_type()
-				var object_id: int = hit_object.get_object_id()
-				var chunk_pos: Vector2i = hit_object.chunk_position if "chunk_position" in hit_object else Vector2i.ZERO
+		# Find the closest enemy that's in front of us (within attack cone)
+		for hit in hits:
+			var collider = hit.collider
+			if collider and collider.has_method("take_damage") and collider.collision_layer & 4:
+				# Check if enemy is roughly in front of player (within ~60 degree cone)
+				var enemy_pos: Vector3 = collider.global_position
+				var to_enemy: Vector3 = (enemy_pos - global_position).normalized()
+				var dot: float = ray_direction.dot(to_enemy)
+				if dot > 0.5:  # ~60 degree cone in front
+					var dist: float = enemy_pos.distance_to(attack_center)
+					if dist < closest_distance:
+						closest_distance = dist
+						closest_enemy = collider
 
-				print("[Player] Attacking %s (ID: %d in chunk %s)" % [object_type, object_id, chunk_pos])
-
-				# Send damage request to server
-				_send_damage_request(chunk_pos, object_id, damage, result.position)
+		# Damage the closest enemy in the attack cone
+		if closest_enemy:
+			var enemy_network_id = closest_enemy.network_id if "network_id" in closest_enemy else 0
+			if enemy_network_id > 0:
+				print("[Player] Melee hit enemy %s (net_id=%d) with %s (%.1f damage)" % [closest_enemy.name, enemy_network_id, weapon_data.display_name, damage])
+				_send_enemy_damage_request(enemy_network_id, damage, knockback, ray_direction)
+				hit_enemy = true
 			else:
-				print("[Player] Hit non-damageable object")
-		else:
-			# Attack missed (no raycast hit)
-			pass
+				print("[Player] Hit enemy %s but it has no network_id!" % closest_enemy.name)
+
+		# If no enemy hit, still check for environmental objects with a raycast
+		if not hit_enemy:
+			var ray_end := ray_origin + ray_direction * attack_range
+			var ray_query := PhysicsRayQueryParameters3D.create(ray_origin, ray_end)
+			ray_query.collision_mask = 1  # World layer only
+			ray_query.exclude = [self]
+
+			var result := space_state.intersect_ray(ray_query)
+			if result:
+				var hit_object: Object = result.collider
+				if hit_object.has_method("get_object_type") and hit_object.has_method("get_object_id"):
+					var object_type: String = hit_object.get_object_type()
+					var object_id: int = hit_object.get_object_id()
+					var chunk_pos: Vector2i = hit_object.chunk_position if "chunk_position" in hit_object else Vector2i.ZERO
+					print("[Player] Attacking %s (ID: %d in chunk %s)" % [object_type, object_id, chunk_pos])
+					_send_damage_request(chunk_pos, object_id, damage, result.position)
 
 ## Handle special attack input (CLIENT-SIDE) - Middle mouse button attacks
 func _handle_special_attack() -> void:
