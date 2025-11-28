@@ -2,7 +2,12 @@ extends Node
 
 ## EnemySpawner - Server-side enemy spawning system
 ## Spawns enemies naturally around players
-## SERVER-AUTHORITATIVE: Broadcasts enemy state to all clients at 10Hz
+## CLIENT-HOST MODEL:
+## - One client is designated as "host" for each enemy
+## - Host client runs full AI/physics using their terrain collision
+## - Host sends position reports to server at 10Hz
+## - Server relays host position to all other clients
+## - Server handles health/damage (authoritative)
 
 # Spawn parameters
 const SPAWN_CHECK_INTERVAL: float = 10.0  # Check for spawns every 10 seconds
@@ -11,7 +16,7 @@ const MAX_SPAWN_DISTANCE: float = 40.0    # Maximum distance from player
 const MAX_ENEMIES_PER_PLAYER: int = 3     # Max enemies per player in the area
 
 # State sync parameters
-const STATE_SYNC_INTERVAL: float = 0.1   # 10Hz state broadcast
+const STATE_SYNC_INTERVAL: float = 0.1   # 10Hz position relay
 
 # Enemy scenes
 const GAHNOME_SCENE = preload("res://shared/enemies/gahnome.tscn")
@@ -21,6 +26,17 @@ var spawn_timer: float = 0.0
 var state_sync_timer: float = 0.0
 var spawned_enemies: Array[Node] = []
 var enemy_paths: Dictionary = {}  # Node -> NodePath (cached for performance)
+var enemy_network_ids: Dictionary = {}  # Node -> int (network ID)
+var network_id_to_enemy: Dictionary = {}  # int -> Node (reverse lookup)
+var next_network_id: int = 1  # Counter for generating unique network IDs
+
+# Host tracking - which client is running AI for each enemy
+var enemy_host_peers: Dictionary = {}  # network_id -> peer_id (who is hosting this enemy)
+
+# Latest position reports from host clients (one per enemy)
+# Format: { network_id: { position: Vector3, rotation_y: float, ai_state: int, timestamp: float }, ... }
+var host_position_reports: Dictionary = {}
+const REPORT_TIMEOUT: float = 0.5  # Discard reports older than 0.5 seconds
 
 # Reference to server node
 var server_node: Node = null
@@ -72,7 +88,8 @@ func _check_spawns() -> void:
 		if nearby_enemies < MAX_ENEMIES_PER_PLAYER:
 			var enemies_to_spawn = MAX_ENEMIES_PER_PLAYER - nearby_enemies
 			for i in range(enemies_to_spawn):
-				_spawn_enemy_near_player(player)
+				# The player that triggered the spawn becomes the host
+				_spawn_enemy_near_player(player, peer_id)
 
 ## Count enemies near a position
 func _count_nearby_enemies(position: Vector3) -> int:
@@ -84,8 +101,8 @@ func _count_nearby_enemies(position: Vector3) -> int:
 				count += 1
 	return count
 
-## Spawn an enemy near a player
-func _spawn_enemy_near_player(player: Node) -> void:
+## Spawn an enemy near a player (player becomes the host for this enemy)
+func _spawn_enemy_near_player(player: Node, peer_id: int = 0) -> void:
 	# Validate and fix spawn position
 	# Don't spawn if player Y is invalid (fell through world or died)
 	if player.global_position.y < -50 or player.global_position.y > 500:
@@ -122,18 +139,28 @@ func _spawn_enemy_near_player(player: Node) -> void:
 		if terrain_world and terrain_world.has_method("has_collision_at_position"):
 			if terrain_world.has_collision_at_position(spawn_position):
 				# Valid spawn position with collision - spawn the enemy
-				_spawn_enemy(GAHNOME_SCENE, spawn_position)
+				_spawn_enemy(GAHNOME_SCENE, spawn_position, peer_id)
 				return
 		else:
 			# No terrain world check available, spawn anyway (fallback)
-			_spawn_enemy(GAHNOME_SCENE, spawn_position)
+			_spawn_enemy(GAHNOME_SCENE, spawn_position, peer_id)
 			return
 
 	# All attempts failed - don't spawn (terrain not loaded yet)
 
-## Spawn an enemy at a position
-func _spawn_enemy(enemy_scene: PackedScene, position: Vector3) -> void:
+## Spawn an enemy at a position with assigned host client
+func _spawn_enemy(enemy_scene: PackedScene, position: Vector3, host_peer_id: int = 0) -> void:
 	var enemy = enemy_scene.instantiate()
+
+	# Assign network ID BEFORE adding to tree (so it's available in _ready)
+	var net_id = next_network_id
+	next_network_id += 1
+	if "network_id" in enemy:
+		enemy.network_id = net_id
+
+	# Assign host peer ID
+	if "host_peer_id" in enemy:
+		enemy.host_peer_id = host_peer_id
 
 	# Add to world container FIRST (before setting global_position)
 	if server_node and server_node.has_node("World"):
@@ -149,22 +176,30 @@ func _spawn_enemy(enemy_scene: PackedScene, position: Vector3) -> void:
 		if "last_valid_position" in enemy:
 			enemy.last_valid_position = position
 
-		# Track enemy and cache its path
+		# Track enemy and cache its path + network ID
 		spawned_enemies.append(enemy)
 		enemy_paths[enemy] = enemy.get_path()
+		enemy_network_ids[enemy] = net_id
+		network_id_to_enemy[net_id] = enemy
+
+		# Track host peer for this enemy
+		enemy_host_peers[net_id] = host_peer_id
+
+		# Initialize position report storage for this enemy
+		host_position_reports[net_id] = {}
 
 		# Connect death signal
 		if enemy.has_signal("died"):
 			enemy.died.connect(_on_enemy_died)
 
 		var enemy_name = enemy.enemy_name if "enemy_name" in enemy else "Enemy"
-		print("[EnemySpawner] Spawned %s at %s" % [enemy_name, position])
+		print("[EnemySpawner] Spawned %s at %s (network_id=%d, host_peer=%d)" % [enemy_name, position, net_id, host_peer_id])
 
-		# Broadcast enemy spawn to all clients
+		# Broadcast enemy spawn to all clients (include network_id AND host_peer_id in position array)
 		var enemy_path = enemy_paths[enemy]
 		# IMPORTANT: Use enemy_name (from exported var) not node.name (which changes at runtime)
 		var enemy_type = enemy_name  # Always "Gahnome", not "@CharacterBody3D@5366"
-		var pos_array = [position.x, position.y, position.z]
+		var pos_array = [position.x, position.y, position.z, net_id, host_peer_id]  # Include network_id and host_peer_id
 		NetworkManager.rpc_spawn_enemy.rpc(enemy_path, enemy_type, pos_array, enemy_name)
 	else:
 		print("[EnemySpawner] ERROR: WorldContainer not found!")
@@ -183,6 +218,12 @@ func _on_enemy_died(enemy: Node) -> void:
 		spawned_enemies.erase(enemy)
 	if enemy in enemy_paths:
 		enemy_paths.erase(enemy)
+	if enemy in enemy_network_ids:
+		var net_id = enemy_network_ids[enemy]
+		enemy_network_ids.erase(enemy)
+		network_id_to_enemy.erase(net_id)
+		enemy_host_peers.erase(net_id)
+		host_position_reports.erase(net_id)
 
 ## Clean up dead/invalid enemies
 func _cleanup_dead_enemies() -> void:
@@ -198,9 +239,17 @@ func _cleanup_dead_enemies() -> void:
 		spawned_enemies.erase(enemy)
 		if enemy in enemy_paths:
 			enemy_paths.erase(enemy)
+		if enemy in enemy_network_ids:
+			var net_id = enemy_network_ids[enemy]
+			enemy_network_ids.erase(enemy)
+			network_id_to_enemy.erase(net_id)
+			enemy_host_peers.erase(net_id)
+			host_position_reports.erase(net_id)
 
 ## Broadcast all enemy states to clients (called at 10Hz)
-## Uses compact format: { "path_string": [px, py, pz, rot, state, hp], ... }
+## VALHEIM-STYLE: Server relays host client's position reports to all other clients
+## Server is authoritative for health only
+## Uses compact format: { "path_string": [px, py, pz, rot, state, hp, target_peer], ... }
 func _broadcast_enemy_states() -> void:
 	if spawned_enemies.is_empty():
 		return
@@ -212,17 +261,44 @@ func _broadcast_enemy_states() -> void:
 			continue
 		if enemy.is_dead:
 			continue
-		if not enemy.has_method("get_sync_state"):
-			continue
 
-		# Get cached path
+		# Get network ID and cached path
+		var net_id = enemy_network_ids.get(enemy, 0)
 		var path = enemy_paths.get(enemy)
-		if not path:
+		if not path or net_id == 0:
 			continue
 
-		# Get enemy state as compact array
-		var state = enemy.get_sync_state()
-		states[str(path)] = state
+		# Get host's position report (from client running AI)
+		var report = host_position_reports.get(net_id, {})
+		if report.is_empty():
+			# No report from host yet - use enemy's spawn position
+			states[str(path)] = [
+				snappedf(enemy.global_position.x, 0.01),
+				snappedf(enemy.global_position.y, 0.01),
+				snappedf(enemy.global_position.z, 0.01),
+				0.0,  # rotation
+				0,    # ai_state (IDLE)
+				snappedf(enemy.health if "health" in enemy else 50.0, 0.1),
+				0,    # target_peer
+			]
+			continue
+
+		# Check if report is stale
+		var current_time = Time.get_ticks_msec() / 1000.0
+		if current_time - report.get("timestamp", 0.0) > REPORT_TIMEOUT:
+			continue  # Skip stale reports
+
+		# Combine host's position/state with server's authoritative health
+		var hp = enemy.health if "health" in enemy else 50.0
+		states[str(path)] = [
+			snappedf(report.position.x, 0.01),
+			snappedf(report.position.y, 0.01),
+			snappedf(report.position.z, 0.01),
+			snappedf(report.rotation_y, 0.01),
+			report.ai_state,
+			snappedf(hp, 0.1),
+			report.target_peer,
+		]
 
 	# Broadcast to all clients
 	if not states.is_empty():
@@ -235,3 +311,46 @@ func spawn_enemy_at(position: Vector3, enemy_type: String = "gahnome") -> void:
 			_spawn_enemy(GAHNOME_SCENE, position)
 		_:
 			print("[EnemySpawner] Unknown enemy type: %s" % enemy_type)
+
+# ============================================================================
+# HOST POSITION REPORTS SYSTEM
+# ============================================================================
+
+## Receive position report from host client
+## Called via RPC from NetworkManager.rpc_report_enemy_position
+func receive_enemy_position_report(peer_id: int, enemy_network_id: int, position: Vector3, rotation_y: float, ai_state: int, target_peer: int = 0) -> void:
+	# Only accept reports from the designated host for this enemy
+	var expected_host = enemy_host_peers.get(enemy_network_id, 0)
+	if peer_id != expected_host:
+		# Non-host sent a report - ignore it
+		return
+
+	# Store the host's report (including target for relay)
+	host_position_reports[enemy_network_id] = {
+		"position": position,
+		"rotation_y": rotation_y,
+		"ai_state": ai_state,
+		"target_peer": target_peer,
+		"timestamp": Time.get_ticks_msec() / 1000.0
+	}
+
+## Get host position for an enemy (used during _broadcast_enemy_states)
+func _get_host_position(net_id: int) -> Dictionary:
+	var report = host_position_reports.get(net_id, {})
+	if report.is_empty():
+		return {}
+
+	# Check if report is stale
+	var current_time = Time.get_ticks_msec() / 1000.0
+	if current_time - report.get("timestamp", 0.0) > REPORT_TIMEOUT:
+		return {}
+
+	return report
+
+## Get network ID for an enemy node
+func get_enemy_network_id(enemy: Node) -> int:
+	return enemy_network_ids.get(enemy, 0)
+
+## Get host peer ID for an enemy
+func get_enemy_host_peer(net_id: int) -> int:
+	return enemy_host_peers.get(net_id, 0)

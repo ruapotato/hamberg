@@ -544,6 +544,20 @@ func receive_hit(target_id: int, damage: float, hit_position: Vector3) -> void:
 	# TODO: Play hit effects
 	# For Phase 1, just log it
 
+## Receive enemy damage to local player (called by NetworkManager)
+func receive_enemy_damage(damage: float, attacker_id: int, knockback_dir: Vector3) -> void:
+	print("[Client] Received enemy damage: %.1f from attacker %d" % [damage, attacker_id])
+
+	# Apply damage to local player
+	if local_player and is_instance_valid(local_player):
+		if local_player.has_method("take_damage"):
+			local_player.take_damage(damage, attacker_id, knockback_dir)
+			print("[Client] Applied %.1f damage to local player" % damage)
+		else:
+			push_warning("[Client] Local player doesn't have take_damage method")
+	else:
+		push_warning("[Client] No valid local player to apply damage to")
+
 # ============================================================================
 # CAMERA MANAGEMENT
 # ============================================================================
@@ -1181,8 +1195,8 @@ func _cleanup_environmental_objects() -> void:
 		despawn_environmental_objects(chunk_pos)
 	environmental_chunks.clear()
 
-## Spawn an enemy (visual only on client - server-authoritative sync)
-func spawn_enemy(enemy_path: NodePath, enemy_type: String, position: Vector3, enemy_name: String) -> void:
+## Spawn an enemy (client-host model: one client runs AI, others interpolate)
+func spawn_enemy(enemy_path: NodePath, enemy_type: String, position: Vector3, enemy_name: String, network_id: int = 0, host_peer_id: int = 0) -> void:
 	# Don't spawn if already exists
 	if spawned_enemies.has(enemy_path):
 		return
@@ -1196,13 +1210,23 @@ func spawn_enemy(enemy_path: NodePath, enemy_type: String, position: Vector3, en
 			print("[Client] Unknown enemy type: %s" % enemy_type)
 			return
 
-	# Instantiate enemy (client-side visual only)
+	# Instantiate enemy
 	var enemy = enemy_scene.instantiate()
 	enemy.name = str(enemy_path).get_file()  # Use the path's last part as name
 
-	# Mark as remote - client only interpolates, no AI simulation
-	enemy.is_remote = true
-	enemy.server_position = position
+	# Set network_id BEFORE adding to tree (so it's available in _ready)
+	if "network_id" in enemy:
+		enemy.network_id = network_id
+
+	# Determine if this client is the host for this enemy
+	var my_peer_id = multiplayer.get_unique_id()
+	var am_host = (host_peer_id > 0 and my_peer_id == host_peer_id)
+
+	# Set host/remote flags
+	enemy.is_host = am_host
+	enemy.is_remote = true  # All client enemies are "remote" (not server-spawned)
+	enemy.host_peer_id = host_peer_id
+	enemy.sync_position = position  # Initial sync position for non-host interpolation
 
 	world.add_child(enemy)
 	enemy.global_position = position
@@ -1211,7 +1235,8 @@ func spawn_enemy(enemy_path: NodePath, enemy_type: String, position: Vector3, en
 	spawned_enemies[enemy_path] = enemy
 	spawned_enemies[str(enemy_path)] = enemy  # Duplicate for string lookup
 
-	print("[Client] Spawned enemy %s at %s (server-authoritative)" % [enemy_name, position])
+	var role = "HOST" if am_host else "remote"
+	print("[Client] Spawned enemy %s at %s (network_id=%d, %s)" % [enemy_name, position, network_id, role])
 
 ## Despawn an enemy
 func despawn_enemy(enemy_path: NodePath) -> void:
@@ -1223,7 +1248,7 @@ func despawn_enemy(enemy_path: NodePath) -> void:
 		print("[Client] Despawned enemy %s" % enemy_path)
 
 ## Update enemy states from server (called at 10Hz)
-## Compact format: { "path_string": [px, py, pz, rot_y, state, hp], ... }
+## Compact format: { "path_string": [px, py, pz, rot_y, state, hp, target_peer], ... }
 func update_enemy_states(states: Dictionary) -> void:
 	for path_str in states:
 		# Find enemy by path string
@@ -1231,7 +1256,7 @@ func update_enemy_states(states: Dictionary) -> void:
 		if not enemy or not is_instance_valid(enemy):
 			continue
 
-		# Extract state data from compact array [px, py, pz, rot_y, state, hp]
+		# Extract state data from compact array [px, py, pz, rot_y, state, hp, target_peer]
 		var state_arr: Array = states[path_str]
 		if state_arr.size() < 6:
 			continue
@@ -1240,10 +1265,11 @@ func update_enemy_states(states: Dictionary) -> void:
 		var rot_y: float = state_arr[3]
 		var ai_state: int = int(state_arr[4])
 		var hp: float = state_arr[5]
+		var target_peer: int = int(state_arr[6]) if state_arr.size() > 6 else 0
 
-		# Apply server state to enemy
+		# Apply server state to enemy (includes target_peer for Valheim-style sync)
 		if enemy.has_method("apply_server_state"):
-			enemy.apply_server_state(pos, rot_y, ai_state, hp)
+			enemy.apply_server_state(pos, rot_y, ai_state, hp, target_peer)
 
 ## Request server to perform a manual save (triggered by F5 key)
 func _request_server_save() -> void:

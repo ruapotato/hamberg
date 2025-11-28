@@ -687,6 +687,7 @@ func rpc_player_respawned(spawn_position: Array) -> void:
 		client_node.handle_player_respawned(pos)
 
 ## SERVER -> CLIENTS: Spawn an enemy
+## position array: [x, y, z, network_id, host_peer_id]
 @rpc("authority", "call_remote", "reliable")
 func rpc_spawn_enemy(enemy_path: NodePath, enemy_type: String, position: Array, enemy_name: String) -> void:
 	if is_server:
@@ -694,7 +695,10 @@ func rpc_spawn_enemy(enemy_path: NodePath, enemy_type: String, position: Array, 
 
 	var client_node := get_node_or_null("/root/Main/Client")
 	if client_node and client_node.has_method("spawn_enemy"):
-		client_node.spawn_enemy(enemy_path, enemy_type, Vector3(position[0], position[1], position[2]), enemy_name)
+		var pos = Vector3(position[0], position[1], position[2])
+		var net_id = position[3] if position.size() > 3 else 0
+		var host_peer_id = position[4] if position.size() > 4 else 0
+		client_node.spawn_enemy(enemy_path, enemy_type, pos, enemy_name, net_id, host_peer_id)
 
 ## SERVER -> CLIENTS: Despawn an enemy
 @rpc("authority", "call_remote", "reliable")
@@ -777,6 +781,23 @@ func rpc_send_character_data(character_data: Dictionary) -> void:
 		client_node.receive_character_data(character_data)
 
 # ============================================================================
+# ENEMY DAMAGE TO PLAYER
+# ============================================================================
+
+## SERVER -> CLIENT: Enemy deals damage to player (server-authoritative)
+@rpc("authority", "call_remote", "reliable")
+func rpc_enemy_damage_player(damage: float, attacker_id: int, knockback_dir: Array) -> void:
+	if is_server:
+		return
+
+	print("[NetworkManager] Received enemy damage: %.1f" % damage)
+
+	var client_node := get_node_or_null("/root/Main/Client")
+	if client_node and client_node.has_method("receive_enemy_damage"):
+		var kb_vector = Vector3(knockback_dir[0], knockback_dir[1], knockback_dir[2])
+		client_node.receive_enemy_damage(damage, attacker_id, kb_vector)
+
+# ============================================================================
 # TERRAIN MODIFICATION SYNC
 # ============================================================================
 
@@ -793,3 +814,33 @@ func rpc_sync_terrain_modifications(modifications: Array) -> void:
 		client_node.receive_terrain_modifications(modifications)
 	else:
 		push_warning("[NetworkManager] Client node not found or doesn't have receive_terrain_modifications method")
+
+# ============================================================================
+# CLIENT-SIDE ENEMY SIMULATION WITH SERVER CONSENSUS
+# ============================================================================
+
+## CLIENT -> SERVER: Host client reports enemy position/state/target at 10Hz
+## Server relays this to all other clients for Valheim-style sync
+@rpc("any_peer", "call_remote", "unreliable_ordered")
+func rpc_report_enemy_position(enemy_network_id: int, position: Array, rotation_y: float, ai_state: int, target_peer: int = 0) -> void:
+	if not is_server:
+		return
+
+	var peer_id := multiplayer.get_remote_sender_id()
+	var server_node := get_node_or_null("/root/Main/Server")
+	if server_node and server_node.has_node("EnemySpawner"):
+		var spawner = server_node.get_node("EnemySpawner")
+		if spawner.has_method("receive_enemy_position_report"):
+			var pos_v3 := Vector3(position[0], position[1], position[2])
+			spawner.receive_enemy_position_report(peer_id, enemy_network_id, pos_v3, rotation_y, ai_state, target_peer)
+
+## SERVER -> CLIENTS: Broadcast consensus enemy positions
+## Format: { network_id: [px, py, pz, rot_y, state, hp], ... }
+@rpc("authority", "call_remote", "unreliable_ordered")
+func rpc_broadcast_enemy_consensus(states: Dictionary) -> void:
+	if is_server:
+		return
+
+	var client_node := get_node_or_null("/root/Main/Client")
+	if client_node and client_node.has_method("receive_enemy_consensus"):
+		client_node.receive_enemy_consensus(states)

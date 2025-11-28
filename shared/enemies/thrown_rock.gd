@@ -92,14 +92,21 @@ func _on_body_entered(body: Node3D) -> void:
 
 	# Hit a player!
 	if body.is_in_group("players"):
-		print("[ThrownRock] Hit player!")
+		print("[ThrownRock] Hit player: %s" % body.name)
 
-		# Apply damage
-		if body.has_method("take_damage"):
-			var knockback_dir = velocity.normalized()
-			knockback_dir.y = 0.2  # Slight upward knockback
-			knockback_dir = knockback_dir.normalized()
-			body.take_damage(damage, 0, knockback_dir)
+		# LOCAL-FIRST DAMAGE: Only apply damage if this is MY local player
+		# Check if the hit player is the local player
+		var my_peer_id = multiplayer.get_unique_id()
+		var local_player_name = "Player_" + str(my_peer_id)
+
+		if body.name == local_player_name:
+			# This is MY player - apply damage locally
+			if body.has_method("take_damage"):
+				var knockback_dir = velocity.normalized()
+				knockback_dir.y = 0.2  # Slight upward knockback
+				knockback_dir = knockback_dir.normalized()
+				print("[ThrownRock] Dealing %.1f damage to local player" % damage)
+				body.take_damage(damage, 0, knockback_dir * 5.0)  # knockback strength
 
 		# Destroy the rock
 		queue_free()

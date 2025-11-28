@@ -727,8 +727,9 @@ func _handle_attack() -> void:
 			# Check if it's an enemy
 			if hit_object.has_method("take_damage") and hit_object.collision_layer & 4:  # Enemy layer
 				print("[Player] Attacking enemy %s with %s (%.1f damage, %.1f knockback)" % [hit_object.name, weapon_data.display_name, damage, knockback])
-				# CLIENT-AUTHORITATIVE: Damage enemy directly on client
-				hit_object.take_damage(damage, knockback, ray_direction)
+				# SERVER-AUTHORITATIVE: Send damage request to server
+				var enemy_path = hit_object.get_path()
+				_send_enemy_damage_request(enemy_path, damage, knockback, ray_direction)
 
 			# Check if it's an environmental object
 			elif hit_object.has_method("get_object_type") and hit_object.has_method("get_object_id"):

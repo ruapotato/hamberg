@@ -659,11 +659,17 @@ func _update_server_collision() -> void:
 	# Process pending collision updates (rate limited)
 	const MAX_COLLISION_UPDATES_PER_FRAME := 2
 
-	# Build queue from dirty chunks if empty
+	# Build queue from chunks that need collision (no collider yet OR dirty)
 	if server_collision_queue.is_empty():
 		for chunk_key in chunks:
-			var chunk = chunks[chunk_key]
-			if chunk.is_dirty and not chunk_colliders.has(chunk_key):
+			# Queue chunks that don't have collision yet, or need regeneration
+			if not chunk_colliders.has(chunk_key):
+				server_collision_queue.append(chunk_key)
+			elif chunks[chunk_key].is_dirty:
+				# Chunk was modified - remove old collider and regenerate
+				var old_collider = chunk_colliders[chunk_key]
+				old_collider.queue_free()
+				chunk_colliders.erase(chunk_key)
 				server_collision_queue.append(chunk_key)
 
 	# Process a limited number per frame
@@ -675,9 +681,6 @@ func _update_server_collision() -> void:
 			continue
 
 		var chunk = chunks[chunk_key]
-		if not chunk.is_dirty:
-			continue
-
 		_generate_server_collision_for_chunk(chunk)
 		processed += 1
 
@@ -716,6 +719,7 @@ func _generate_server_collision_for_chunk(chunk) -> void:
 		static_body.collision_mask = 0
 		add_child(static_body)
 		chunk_colliders[key] = static_body
+		print("[TerrainWorld] Generated server collision for chunk %s" % key)
 
 		var shape_node := CollisionShape3D.new()
 		shape_node.shape = collision_shape
