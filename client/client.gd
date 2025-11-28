@@ -20,6 +20,21 @@ var mini_map_scene := preload("res://client/ui/mini_map.tscn")
 # Enemy scenes
 var gahnome_scene := preload("res://shared/enemies/gahnome.tscn")
 
+# Environmental object scenes (preloaded to avoid blocking main thread)
+var environmental_scenes: Dictionary = {
+	"tree": preload("res://shared/environmental/tree.tscn"),
+	"rock": preload("res://shared/environmental/rock.tscn"),
+	"grass": preload("res://shared/environmental/grass_clump.tscn"),
+	"mushroom_tree": preload("res://shared/environmental/mushroom_tree.tscn"),
+	"glowing_mushroom": preload("res://shared/environmental/glowing_mushroom.tscn"),
+	"giant_mushroom": preload("res://shared/environmental/giant_mushroom.tscn"),
+	"spore_cluster": preload("res://shared/environmental/spore_cluster.tscn"),
+}
+
+# Environmental object spawn queue (for non-blocking spawning)
+var environmental_spawn_queue: Array = []
+const ENVIRONMENTAL_SPAWN_BATCH_SIZE: int = 8  # Objects to spawn per frame
+
 # Client state
 var is_connected: bool = false
 var is_in_game: bool = false
@@ -191,6 +206,9 @@ func _process(_delta: float) -> void:
 		if queued_mods_check_timer >= QUEUED_MODS_CHECK_INTERVAL:
 			queued_mods_check_timer = 0.0
 			_check_queued_terrain_modifications()
+
+	# Process environmental object spawn queue (runs even during loading)
+	_process_environmental_queue()
 
 	# Handle pause menu (Escape or Button 6)
 	if (Input.is_action_just_pressed("ui_cancel") or Input.is_action_just_pressed("toggle_pause")) and is_in_game:
@@ -1023,44 +1041,50 @@ func receive_terrain_chunk(chunk_x: int, chunk_z: int, chunk_data: Dictionary) -
 # ENVIRONMENTAL OBJECT MANAGEMENT (CLIENT-SIDE VISUAL ONLY)
 # ============================================================================
 
-## Receive environmental objects from server
+## Receive environmental objects from server - queues for batch spawning
 func receive_environmental_objects(chunk_pos: Vector2i, objects_data: Array) -> void:
-
 	# Create chunk entry if it doesn't exist
 	if not environmental_chunks.has(chunk_pos):
 		environmental_chunks[chunk_pos] = {}
 
-	var chunk_objects = environmental_chunks[chunk_pos]
-
-	# Spawn each object
+	# Queue each object for spawning (instead of spawning immediately)
 	for obj_data in objects_data:
+		var obj_type = obj_data.get("type", "unknown")
+
+		# Validate type exists in our preloaded scenes
+		if not environmental_scenes.has(obj_type):
+			push_error("[Client] Unknown environmental object type: %s" % obj_type)
+			continue
+
+		# Add to spawn queue with chunk info
+		environmental_spawn_queue.append({
+			"chunk_pos": chunk_pos,
+			"obj_data": obj_data
+		})
+
+## Process environmental spawn queue - spawns ENVIRONMENTAL_SPAWN_BATCH_SIZE objects per frame
+func _process_environmental_queue() -> void:
+	if environmental_spawn_queue.is_empty():
+		return
+
+	var spawned_count := 0
+	while spawned_count < ENVIRONMENTAL_SPAWN_BATCH_SIZE and not environmental_spawn_queue.is_empty():
+		var queue_item = environmental_spawn_queue.pop_front()
+		var chunk_pos: Vector2i = queue_item.chunk_pos
+		var obj_data = queue_item.obj_data
+
+		# Skip if chunk was already despawned
+		if not environmental_chunks.has(chunk_pos):
+			continue
+
 		var obj_id = obj_data.get("id", -1)
 		var obj_type = obj_data.get("type", "unknown")
 		var pos_array = obj_data.get("pos", [0, 0, 0])
 		var rot_array = obj_data.get("rot", [0, 0, 0])
 		var scale_array = obj_data.get("scale", [1, 1, 1])
 
-		# Instantiate the appropriate scene based on type
-		var obj_scene: PackedScene = null
-		match obj_type:
-			"tree":
-				obj_scene = load("res://shared/environmental/tree.tscn")
-			"rock":
-				obj_scene = load("res://shared/environmental/rock.tscn")
-			"grass":
-				obj_scene = load("res://shared/environmental/grass_clump.tscn")
-			"mushroom_tree":
-				obj_scene = load("res://shared/environmental/mushroom_tree.tscn")
-			"glowing_mushroom":
-				obj_scene = load("res://shared/environmental/glowing_mushroom.tscn")
-			"giant_mushroom":
-				obj_scene = load("res://shared/environmental/giant_mushroom.tscn")
-			"spore_cluster":
-				obj_scene = load("res://shared/environmental/spore_cluster.tscn")
-			_:
-				push_error("[Client] Unknown environmental object type: %s" % obj_type)
-				continue
-
+		# Use preloaded scene (no blocking load!)
+		var obj_scene: PackedScene = environmental_scenes.get(obj_type)
 		if not obj_scene:
 			continue
 
@@ -1083,7 +1107,8 @@ func receive_environmental_objects(chunk_pos: Vector2i, objects_data: Array) -> 
 			obj.set_chunk_position(chunk_pos)
 
 		# Store in chunk
-		chunk_objects[obj_id] = obj
+		environmental_chunks[chunk_pos][obj_id] = obj
+		spawned_count += 1
 
 ## Despawn environmental objects for a chunk
 func despawn_environmental_objects(chunk_pos: Vector2i) -> void:
@@ -1202,6 +1227,7 @@ func _cleanup_environmental_objects() -> void:
 	for chunk_pos in environmental_chunks.keys():
 		despawn_environmental_objects(chunk_pos)
 	environmental_chunks.clear()
+	environmental_spawn_queue.clear()
 
 ## Spawn an enemy (client-host model: one client runs AI, others interpolate)
 func spawn_enemy(enemy_path: NodePath, enemy_type: String, position: Vector3, enemy_name: String, network_id: int = 0, host_peer_id: int = 0) -> void:
