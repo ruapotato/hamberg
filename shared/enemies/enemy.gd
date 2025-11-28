@@ -745,10 +745,12 @@ func _drop_loot() -> void:
 	print("[Enemy] Dropping loot: %s" % loot_table)
 
 	var network_ids: Array = []
+	var id_counter: int = 0  # Global counter to ensure unique IDs across all resource types
 	for resource_type in loot_table:
 		var amount: int = loot_table[resource_type]
 		for i in amount:
-			var net_id = "%s_%d_%d" % [enemy_name, Time.get_ticks_msec(), i]
+			var net_id = "%s_%d_%d" % [enemy_name, Time.get_ticks_msec(), id_counter]
+			id_counter += 1
 			network_ids.append(net_id)
 
 	var pos_array = [global_position.x, global_position.y, global_position.z]

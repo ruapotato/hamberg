@@ -18,6 +18,9 @@ var player_spawn_area_center: Vector2 = Vector2(0, 0) # Center of spawn area
 # Buildable management
 var placed_buildables: Dictionary = {} # network_id -> {piece_name, position, rotation_y}
 
+# Resource item pickup tracking (prevents duplicate pickups)
+var picked_up_items: Dictionary = {} # network_id -> true (items that have already been picked up)
+
 # Terrain chunks are now saved directly to disk via ChunkManager
 # No need for in-memory modified_terrain_chunks dictionary
 
@@ -1092,6 +1095,11 @@ func _spawn_player_with_data(peer_id: int, player_data: Dictionary) -> void:
 
 ## Handle item pickup request (server-authoritative)
 func handle_pickup_request(peer_id: int, item_name: String, amount: int, network_id: String) -> void:
+	# Check if item was already picked up (prevents duplicate pickups)
+	if picked_up_items.has(network_id):
+		print("[Server] Ignoring duplicate pickup request for item: %s" % network_id)
+		return
+
 	if not spawned_players.has(peer_id):
 		return
 
@@ -1103,6 +1111,9 @@ func handle_pickup_request(peer_id: int, item_name: String, amount: int, network
 		return
 
 	var inventory = player.get_node("Inventory")
+
+	# Mark item as picked up BEFORE adding to inventory (prevents race conditions)
+	picked_up_items[network_id] = true
 
 	# Try to add item to inventory
 	var remaining = inventory.add_item(item_name, amount)

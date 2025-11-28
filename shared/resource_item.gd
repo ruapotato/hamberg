@@ -10,6 +10,7 @@ extends Area3D
 var spawn_time: float = 0.0
 var bob_offset: float = 0.0  # Random bob phase
 var network_id: String = ""  # Unique ID for network sync
+var pickup_requested: bool = false  # Prevents duplicate pickup requests
 
 # Visual
 var mesh_instance: MeshInstance3D
@@ -88,6 +89,10 @@ func _create_mesh() -> void:
 	add_child(collision_shape)
 
 func _on_body_entered(body: Node3D) -> void:
+	# Prevent duplicate pickup requests
+	if pickup_requested:
+		return
+
 	# Check if it's a player
 	if not body.has_node("Inventory"):
 		return
@@ -98,6 +103,8 @@ func _on_body_entered(body: Node3D) -> void:
 
 	# Send pickup request to server (server-authoritative)
 	if NetworkManager and NetworkManager.is_client:
+		pickup_requested = true  # Mark as requested to prevent duplicates
+		set_deferred("monitorable", false)  # Disable collision detection
 		print("[ResourceItem] Requesting pickup of %d x %s (network_id: %s)" % [amount, item_name, network_id])
 		NetworkManager.rpc_request_pickup_item.rpc_id(1, item_name, amount, network_id)
 
