@@ -30,3 +30,6 @@ doc/
 modules/voxel/doc/
 platform/
 Godot*
+
+# Python virtual environment
+pyenv/

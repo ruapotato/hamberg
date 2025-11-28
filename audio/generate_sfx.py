@@ -345,6 +345,27 @@ def gen_footstep_dirt():
     save_wav(audio, "footstep_dirt")
 
 
+def gen_footstep_grass():
+    """Subtle grass footstep - light rustling sound."""
+    duration = 0.12
+    t = np.linspace(0, duration, int(SAMPLE_RATE * duration))
+
+    # Very soft grass rustle - high-passed pink noise
+    rustle = noise(duration, 'pink')
+    rustle = bandpass(rustle, 800, 4000)
+    rustle *= np.exp(-t * 35)
+
+    # Subtle low thud - very quiet
+    thud = noise(duration, 'brown')
+    thud = lowpass(thud, 100)
+    thud *= np.exp(-t * 50)
+
+    audio = rustle * 0.7 + thud * 0.3
+    # Keep it subtle - normalize to lower level
+    audio = fade(normalize(audio, 0.4), fade_in_ms=2, fade_out_ms=15)
+    save_wav(audio, "footstep_grass")
+
+
 def gen_footstep_stone():
     """Footstep on stone/hard surface."""
     duration = 0.12
@@ -762,6 +783,378 @@ def gen_fire_crackle():
     save_wav(audio, "fire_crackle")
 
 
+def gen_wind_ambient():
+    """Ambient wind loop - gentle outdoor atmosphere."""
+    duration = 4.0  # Longer for seamless looping
+    t = np.linspace(0, duration, int(SAMPLE_RATE * duration))
+
+    # Base wind - filtered brown noise
+    wind = noise(duration, 'brown')
+    wind = bandpass(wind, 80, 600)
+
+    # Slow modulation for natural variation
+    mod1 = 0.4 + 0.6 * (0.5 * np.sin(2 * np.pi * 0.15 * t) + 0.5)
+    mod2 = 0.5 + 0.5 * (0.5 * np.sin(2 * np.pi * 0.23 * t + 1.0) + 0.5)
+
+    wind *= mod1 * mod2
+
+    # Higher frequency gusts layered on top
+    gusts = noise(duration, 'pink')
+    gusts = bandpass(gusts, 200, 1200)
+
+    # Gust modulation - occasional swells
+    gust_mod = 0.3 * (0.5 * np.sin(2 * np.pi * 0.08 * t) + 0.5) ** 2
+    gusts *= gust_mod
+
+    # Very subtle high whistling
+    whistle = noise(duration, 'white')
+    whistle = bandpass(whistle, 1500, 3500)
+    whistle *= 0.05 * (0.5 * np.sin(2 * np.pi * 0.12 * t + 0.5) + 0.5)
+
+    audio = wind * 0.7 + gusts * 0.25 + whistle * 0.05
+
+    # Long crossfade for seamless loop
+    audio = fade(normalize(audio, 0.35), fade_in_ms=200, fade_out_ms=200)
+    save_wav(audio, "wind_ambient")
+
+
+def gen_wind_gust():
+    """Short wind gust sound effect."""
+    duration = 1.5
+    t = np.linspace(0, duration, int(SAMPLE_RATE * duration))
+
+    # Wind whoosh
+    gust = noise(duration, 'pink')
+    gust = bandpass(gust, 150, 1500)
+
+    # Bell curve envelope for gust
+    env = np.exp(-((t - duration/2) ** 2) / (2 * 0.25 ** 2))
+
+    audio = gust * env
+    audio = fade(normalize(audio, 0.6), fade_in_ms=50, fade_out_ms=100)
+    save_wav(audio, "wind_gust")
+
+
+def gen_punch_hit():
+    """Meaty fist punch/hit sound - solid thump with flesh impact."""
+    duration = 0.25
+    t = np.linspace(0, duration, int(SAMPLE_RATE * duration))
+
+    # Deep thump - the core of the punch
+    thump = noise(duration, 'brown')
+    thump = lowpass(thump, 200)
+    thump *= np.exp(-t * 25)
+
+    # Low frequency punch "boom"
+    boom = sine_wave(60, duration) * np.exp(-t * 20)
+    boom += sine_wave(40, duration) * np.exp(-t * 15) * 0.5
+
+    # Flesh slap - higher mid frequencies
+    slap = noise(duration, 'pink')
+    slap = bandpass(slap, 300, 1500)
+    slap *= np.exp(-t * 40)
+
+    # Quick attack transient
+    click = noise(0.02, 'white')
+    click = bandpass(click, 500, 2000)
+    click *= np.exp(-np.linspace(0, 1, len(click)) * 80)
+
+    audio = np.zeros(int(SAMPLE_RATE * duration))
+    audio[:len(click)] += click * 0.4
+    audio += thump * 0.35 + boom * 0.35 + slap * 0.25
+
+    # Slight compression/distortion for punch
+    audio = distortion(audio, 1.3)
+
+    audio = fade(normalize(audio, 0.85), fade_in_ms=1, fade_out_ms=40)
+    save_wav(audio, "punch_hit")
+
+
+def gen_punch_swing():
+    """Fast whoosh sound for throwing a punch - quick air displacement."""
+    duration = 0.15
+    t = np.linspace(0, duration, int(SAMPLE_RATE * duration))
+
+    # Fast whoosh - short burst of filtered noise
+    whoosh = noise(duration, 'pink')
+
+    # Bandpass filter for whoosh character
+    whoosh = highpass(lowpass(whoosh, 2000), 400)
+
+    # Fast attack, medium decay - punch is quick
+    envelope = np.exp(-t * 30) * (1 - np.exp(-t * 200))
+    whoosh *= envelope
+
+    # Add slight pitch sweep (air rushing past)
+    sweep = np.sin(2 * np.pi * (300 + t * 1000) * t) * np.exp(-t * 40)
+
+    audio = whoosh * 0.7 + sweep * 0.3
+
+    audio = fade(normalize(audio, 0.8), fade_in_ms=1, fade_out_ms=20)
+    save_wav(audio, "punch_swing")
+
+
+def gen_block():
+    """Shield/weapon blocking sound."""
+    duration = 0.2
+    t = np.linspace(0, duration, int(SAMPLE_RATE * duration))
+
+    # Metallic clang
+    clang = np.sin(2 * np.pi * 400 * t) * np.exp(-t * 20)
+    clang += np.sin(2 * np.pi * 650 * t) * np.exp(-t * 25) * 0.6
+    clang += np.sin(2 * np.pi * 200 * t) * np.exp(-t * 15) * 0.4
+
+    # Impact thud
+    thud = noise(duration, 'brown')
+    thud = lowpass(thud, 250)
+    thud *= np.exp(-t * 30)
+
+    audio = clang * 0.5 + thud * 0.5
+    audio = fade(normalize(audio, 0.7), fade_in_ms=1, fade_out_ms=30)
+    save_wav(audio, "block")
+
+
+def gen_tree_chop():
+    """Axe hitting tree - wood chopping sound."""
+    duration = 0.3
+    t = np.linspace(0, duration, int(SAMPLE_RATE * duration))
+
+    # Wood crack/thunk
+    crack = noise(duration, 'pink')
+    crack = bandpass(crack, 200, 2500)
+    crack *= np.exp(-t * 25)
+
+    # Hollow wood resonance
+    resonance = sine_wave(150, duration) * np.exp(-t * 15)
+    resonance += sine_wave(280, duration) * np.exp(-t * 20) * 0.5
+
+    # Sharp initial impact
+    impact = noise(0.03, 'white')
+    impact = highpass(impact, 800)
+    impact *= np.exp(-np.linspace(0, 1, len(impact)) * 60)
+
+    audio = np.zeros(int(SAMPLE_RATE * duration))
+    audio[:len(impact)] += impact * 0.5
+    audio += crack * 0.4 + resonance * 0.3
+
+    audio = fade(normalize(audio, 0.8), fade_in_ms=1, fade_out_ms=40)
+    save_wav(audio, "tree_chop")
+
+
+def gen_rock_break():
+    """Pickaxe hitting rock/stone."""
+    duration = 0.25
+    t = np.linspace(0, duration, int(SAMPLE_RATE * duration))
+
+    # Sharp stone crack
+    crack = noise(duration, 'white')
+    crack = bandpass(crack, 500, 4000)
+    crack *= np.exp(-t * 35)
+
+    # Metallic ring from pickaxe
+    ring = np.sin(2 * np.pi * 1500 * t) * np.exp(-t * 30)
+    ring += np.sin(2 * np.pi * 2200 * t) * np.exp(-t * 40) * 0.4
+
+    # Low impact
+    thud = noise(duration, 'brown')
+    thud = lowpass(thud, 200)
+    thud *= np.exp(-t * 40)
+
+    audio = crack * 0.4 + ring * 0.3 + thud * 0.3
+    audio = fade(normalize(audio, 0.8), fade_in_ms=0, fade_out_ms=30)
+    save_wav(audio, "rock_break")
+
+
+def gen_place_block():
+    """Placing a block/building material."""
+    duration = 0.15
+    t = np.linspace(0, duration, int(SAMPLE_RATE * duration))
+
+    # Soft thump
+    thump = noise(duration, 'brown')
+    thump = lowpass(thump, 300)
+    thump *= np.exp(-t * 30)
+
+    # Material settling sound
+    settle = noise(duration, 'pink')
+    settle = bandpass(settle, 200, 1500)
+    settle *= np.exp(-t * 35)
+
+    audio = thump * 0.6 + settle * 0.4
+    audio = fade(normalize(audio, 0.6), fade_in_ms=2, fade_out_ms=20)
+    save_wav(audio, "place_block")
+
+
+def gen_dig_dirt():
+    """Digging/removing dirt block."""
+    duration = 0.2
+    t = np.linspace(0, duration, int(SAMPLE_RATE * duration))
+
+    # Crunchy digging
+    dig = noise(duration, 'pink')
+    dig = bandpass(dig, 150, 2000)
+    dig *= np.exp(-t * 20)
+
+    # Soft thud
+    thud = noise(duration, 'brown')
+    thud = lowpass(thud, 150)
+    thud *= np.exp(-t * 25)
+
+    audio = dig * 0.6 + thud * 0.4
+    audio = fade(normalize(audio, 0.7), fade_in_ms=2, fade_out_ms=25)
+    save_wav(audio, "dig_dirt")
+
+
+def gen_splash_small():
+    """Small splash - stepping in water or small object."""
+    duration = 0.3
+    t = np.linspace(0, duration, int(SAMPLE_RATE * duration))
+
+    splash = noise(duration, 'white')
+    splash = bandpass(splash, 300, 3000)
+    splash *= np.exp(-t * 15)
+
+    # A few small bubbles
+    for i in range(3):
+        bubble_start = int(np.random.uniform(0.05, 0.15) * SAMPLE_RATE)
+        bubble_dur = np.random.uniform(0.03, 0.06)
+        bubble_freq = np.random.uniform(400, 700)
+        bubble = sine_wave(bubble_freq, bubble_dur)
+        bubble *= np.exp(-np.linspace(0, 1, len(bubble)) * 25)
+
+        if bubble_start + len(bubble) < len(splash):
+            splash[bubble_start:bubble_start + len(bubble)] += bubble * 0.15
+
+    audio = fade(normalize(splash, 0.6), fade_in_ms=2, fade_out_ms=40)
+    save_wav(audio, "splash_small")
+
+
+def gen_eat():
+    """Eating/consuming food sound."""
+    duration = 0.35
+    t = np.linspace(0, duration, int(SAMPLE_RATE * duration))
+
+    # Crunchy chewing
+    crunch = noise(duration, 'pink')
+    crunch = bandpass(crunch, 300, 3000)
+
+    # Rhythmic chewing pattern
+    chew_pattern = np.abs(np.sin(2 * np.pi * 6 * t))
+    crunch *= chew_pattern * np.exp(-t * 4)
+
+    # Subtle mouth sounds
+    mouth = noise(duration, 'brown')
+    mouth = bandpass(mouth, 100, 800)
+    mouth *= 0.3 * chew_pattern
+
+    audio = crunch * 0.7 + mouth * 0.3
+    audio = fade(normalize(audio, 0.5), fade_in_ms=10, fade_out_ms=40)
+    save_wav(audio, "eat")
+
+
+def gen_equip():
+    """Equipping weapon/item sound."""
+    duration = 0.25
+    t = np.linspace(0, duration, int(SAMPLE_RATE * duration))
+
+    # Metallic scrape/slide
+    scrape = noise(duration, 'pink')
+    scrape = bandpass(scrape, 500, 3000)
+    scrape *= np.exp(-t * 15)
+
+    # Click at end
+    click_start = int(0.15 * SAMPLE_RATE)
+    click = noise(0.05, 'white')
+    click = highpass(click, 1000)
+    click *= np.exp(-np.linspace(0, 1, len(click)) * 50)
+
+    audio = scrape.copy()
+    if click_start + len(click) < len(audio):
+        audio[click_start:click_start + len(click)] += click * 0.6
+
+    audio = fade(normalize(audio, 0.6), fade_in_ms=5, fade_out_ms=30)
+    save_wav(audio, "equip")
+
+
+def gen_unequip():
+    """Unequipping/dropping item sound."""
+    duration = 0.2
+    t = np.linspace(0, duration, int(SAMPLE_RATE * duration))
+
+    # Quick metallic slide down
+    slide = noise(duration, 'pink')
+    slide = bandpass(slide, 400, 2500)
+    slide *= np.exp(-t * 20)
+
+    # Soft thud
+    thud = noise(0.1, 'brown')
+    thud = lowpass(thud, 200)
+    thud *= np.exp(-np.linspace(0, 1, len(thud)) * 25)
+
+    audio = slide.copy()
+    thud_start = int(0.08 * SAMPLE_RATE)
+    if thud_start + len(thud) < len(audio):
+        audio[thud_start:thud_start + len(thud)] += thud * 0.4
+
+    audio = fade(normalize(audio, 0.5), fade_in_ms=3, fade_out_ms=25)
+    save_wav(audio, "unequip")
+
+
+def gen_birds_ambient():
+    """Ambient bird chirping - outdoor atmosphere."""
+    duration = 5.0  # Longer for variety
+    t = np.linspace(0, duration, int(SAMPLE_RATE * duration))
+
+    audio = np.zeros(int(SAMPLE_RATE * duration))
+
+    # Generate several random bird chirps
+    for _ in range(8):
+        chirp_start = int(np.random.uniform(0.2, duration - 0.5) * SAMPLE_RATE)
+        chirp_dur = np.random.uniform(0.1, 0.3)
+        chirp_freq = np.random.uniform(2000, 4000)
+
+        chirp_t = np.linspace(0, chirp_dur, int(SAMPLE_RATE * chirp_dur))
+
+        # Frequency modulation for realistic chirp
+        freq_mod = chirp_freq + 500 * np.sin(2 * np.pi * 15 * chirp_t)
+        chirp = np.sin(2 * np.pi * np.cumsum(freq_mod) / SAMPLE_RATE)
+        chirp *= np.exp(-chirp_t * 8)
+
+        # Volume variation
+        vol = np.random.uniform(0.2, 0.5)
+
+        if chirp_start + len(chirp) < len(audio):
+            audio[chirp_start:chirp_start + len(chirp)] += chirp * vol
+
+    audio = fade(normalize(audio, 0.4), fade_in_ms=100, fade_out_ms=100)
+    save_wav(audio, "birds_ambient")
+
+
+def gen_crickets_ambient():
+    """Ambient cricket chirping - nighttime atmosphere."""
+    duration = 4.0
+    t = np.linspace(0, duration, int(SAMPLE_RATE * duration))
+
+    audio = np.zeros(int(SAMPLE_RATE * duration))
+
+    # Multiple crickets at different rates
+    for i in range(4):
+        cricket_freq = 4000 + i * 300
+        chirp_rate = 8 + i * 2  # Chirps per second
+
+        # On/off pattern
+        pattern = np.abs(np.sin(2 * np.pi * chirp_rate * t)) > 0.7
+        cricket = np.sin(2 * np.pi * cricket_freq * t) * pattern.astype(float)
+
+        # Add slight frequency wobble
+        cricket *= 0.15 + 0.1 * np.sin(2 * np.pi * (0.3 + i * 0.1) * t)
+
+        audio += cricket * 0.2
+
+    audio = fade(normalize(audio, 0.25), fade_in_ms=100, fade_out_ms=100)
+    save_wav(audio, "crickets_ambient")
+
+
 # =============================================================================
 # SPECIAL / MAGIC SOUNDS
 # =============================================================================
@@ -932,14 +1325,19 @@ SOUND_GENERATORS = {
     'enemy_hurt': gen_enemy_hurt,
     'enemy_death': gen_enemy_death,
     'critical_hit': gen_critical_hit,
+    'punch_hit': gen_punch_hit,
+    'punch_swing': gen_punch_swing,
+    'block': gen_block,
 
     # Movement
     'footstep_dirt': gen_footstep_dirt,
+    'footstep_grass': gen_footstep_grass,
     'footstep_stone': gen_footstep_stone,
     'footstep_wood': gen_footstep_wood,
     'jump': gen_jump,
     'land': gen_land,
     'dodge': gen_dodge,
+    'splash_small': gen_splash_small,
 
     # UI
     'ui_click': gen_ui_click,
@@ -955,6 +1353,9 @@ SOUND_GENERATORS = {
     'coin_pickup': gen_coin_pickup,
     'health_pickup': gen_health_pickup,
     'powerup': gen_powerup,
+    'equip': gen_equip,
+    'unequip': gen_unequip,
+    'eat': gen_eat,
 
     # Environment
     'door_open': gen_door_open,
@@ -962,6 +1363,14 @@ SOUND_GENERATORS = {
     'chest_open': gen_chest_open,
     'water_splash': gen_water_splash,
     'fire_crackle': gen_fire_crackle,
+    'wind_ambient': gen_wind_ambient,
+    'wind_gust': gen_wind_gust,
+    'tree_chop': gen_tree_chop,
+    'rock_break': gen_rock_break,
+    'place_block': gen_place_block,
+    'dig_dirt': gen_dig_dirt,
+    'birds_ambient': gen_birds_ambient,
+    'crickets_ambient': gen_crickets_ambient,
 
     # Magic/Special
     'magic_cast': gen_magic_cast,

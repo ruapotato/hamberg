@@ -11,6 +11,9 @@ var attack_timer: float = 0.0
 var is_throwing: bool = false
 var throw_timer: float = 0.0
 
+# Footstep tracking (for sound triggering)
+var _prev_leg_sin: float = 0.0  # Previous sin(animation_phase) value for zero-crossing detection
+
 # Stun state
 var is_stunned: bool = false
 var stun_timer: float = 0.0
@@ -86,7 +89,15 @@ func _animate_walking(delta: float, horizontal_speed: float) -> void:
 	var speed_multiplier = horizontal_speed / walk_speed
 	animation_phase += delta * 8.0 * speed_multiplier
 
-	var leg_angle = sin(animation_phase) * 0.3
+	var leg_sin = sin(animation_phase)
+	var leg_angle = leg_sin * 0.3
+
+	# Detect footsteps via zero-crossing of leg sine wave
+	# When sin crosses from + to - or - to +, a foot hits the ground
+	if _prev_leg_sin != 0.0:  # Skip first frame
+		if (_prev_leg_sin > 0 and leg_sin <= 0) or (_prev_leg_sin < 0 and leg_sin >= 0):
+			_play_footstep()
+	_prev_leg_sin = leg_sin
 	var arm_angle = sin(animation_phase) * 0.2
 
 	# Legs swing opposite with knee articulation
@@ -125,6 +136,12 @@ func _animate_walking(delta: float, horizontal_speed: float) -> void:
 	if head and head_base_height > 0:
 		var bob = sin(animation_phase * 2.0) * 0.015
 		head.position.y = head_base_height + bob
+
+## Play a footstep sound - override in subclasses for different surfaces
+func _play_footstep() -> void:
+	# Default implementation uses grass sound
+	if SoundManager:
+		SoundManager.play_sound_varied("footstep_grass", global_position, -6.0, 0.15)
 
 ## Animate idle (return to neutral, breathing)
 func _animate_idle(delta: float) -> void:

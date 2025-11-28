@@ -16,14 +16,19 @@ var sounds := {
 	"player_hurt": "res://audio/generated/player_hurt.wav",
 	"magic_cast": "res://audio/generated/magic_cast.wav",
 	"magic_hit": "res://audio/generated/magic_hit.wav",
+	"punch_hit": "res://audio/generated/punch_hit.wav",
+	"punch_swing": "res://audio/generated/punch_swing.wav",
+	"block": "res://audio/generated/block.wav",
 
 	# Movement
 	"footstep_dirt": "res://audio/generated/footstep_dirt.wav",
+	"footstep_grass": "res://audio/generated/footstep_grass.wav",
 	"footstep_stone": "res://audio/generated/footstep_stone.wav",
 	"footstep_wood": "res://audio/generated/footstep_wood.wav",
 	"jump": "res://audio/generated/jump.wav",
 	"land": "res://audio/generated/land.wav",
 	"dodge": "res://audio/generated/dodge.wav",
+	"splash_small": "res://audio/generated/splash_small.wav",
 
 	# UI
 	"ui_click": "res://audio/generated/ui_click.wav",
@@ -40,6 +45,9 @@ var sounds := {
 	"coin_pickup": "res://audio/generated/coin_pickup.wav",
 	"powerup": "res://audio/generated/powerup.wav",
 	"chest_open": "res://audio/generated/chest_open.wav",
+	"equip": "res://audio/generated/equip.wav",
+	"unequip": "res://audio/generated/unequip.wav",
+	"eat": "res://audio/generated/eat.wav",
 
 	# Environment
 	"fire_crackle": "res://audio/generated/fire_crackle.wav",
@@ -47,6 +55,14 @@ var sounds := {
 	"door_open": "res://audio/generated/door_open.wav",
 	"door_close": "res://audio/generated/door_close.wav",
 	"teleport": "res://audio/generated/teleport.wav",
+	"wind_ambient": "res://audio/generated/wind_ambient.wav",
+	"wind_gust": "res://audio/generated/wind_gust.wav",
+	"tree_chop": "res://audio/generated/tree_chop.wav",
+	"rock_break": "res://audio/generated/rock_break.wav",
+	"place_block": "res://audio/generated/place_block.wav",
+	"dig_dirt": "res://audio/generated/dig_dirt.wav",
+	"birds_ambient": "res://audio/generated/birds_ambient.wav",
+	"crickets_ambient": "res://audio/generated/crickets_ambient.wav",
 
 	# Notifications
 	"level_up": "res://audio/generated/level_up.wav",
@@ -72,6 +88,11 @@ var _pool_index_2d := 0
 var master_volume := 0.0
 var sfx_volume := 0.0
 var ui_volume := 0.0
+var ambient_volume := -12.0  # Ambient sounds are quieter by default
+
+# Ambient sound player (for looping background sounds like wind)
+var _ambient_player: AudioStreamPlayer = null
+var _current_ambient: String = ""
 
 
 func _ready() -> void:
@@ -100,6 +121,14 @@ func _ready() -> void:
 		player.bus = "UI"
 		add_child(player)
 		_player_pool_2d.append(player)
+
+	# Create ambient audio player for looping background sounds
+	_ambient_player = AudioStreamPlayer.new()
+	_ambient_player.bus = "SFX"
+	_ambient_player.volume_db = ambient_volume
+	add_child(_ambient_player)
+	# Connect finished signal to restart for looping
+	_ambient_player.finished.connect(_on_ambient_finished)
 
 	print("[SoundManager] Ready - loaded %d sounds" % _streams.size())
 
@@ -187,3 +216,40 @@ func set_sfx_volume(volume_db: float) -> void:
 
 func set_ui_volume(volume_db: float) -> void:
 	ui_volume = volume_db
+
+func set_ambient_volume(volume_db: float) -> void:
+	ambient_volume = volume_db
+	if _ambient_player:
+		_ambient_player.volume_db = ambient_volume
+
+
+## Play a looping ambient sound (like wind, rain, etc.)
+## Stops any currently playing ambient sound first
+func play_ambient(sound_name: String, volume_db: float = 0.0) -> void:
+	if not _streams.has(sound_name):
+		push_warning("[SoundManager] Unknown ambient sound: %s" % sound_name)
+		return
+
+	# Don't restart if already playing this ambient
+	if _current_ambient == sound_name and _ambient_player.playing:
+		return
+
+	_current_ambient = sound_name
+	_ambient_player.stream = _streams[sound_name]
+	_ambient_player.volume_db = ambient_volume + volume_db
+	_ambient_player.play()
+	print("[SoundManager] Started ambient sound: %s" % sound_name)
+
+
+## Stop the current ambient sound
+func stop_ambient() -> void:
+	if _ambient_player and _ambient_player.playing:
+		_ambient_player.stop()
+		print("[SoundManager] Stopped ambient sound: %s" % _current_ambient)
+	_current_ambient = ""
+
+
+## Called when ambient sound finishes - restart for looping
+func _on_ambient_finished() -> void:
+	if _current_ambient != "" and _streams.has(_current_ambient):
+		_ambient_player.play()

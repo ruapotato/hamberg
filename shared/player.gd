@@ -27,6 +27,7 @@ var gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
 var current_animation_state: String = "idle"
 var is_local_player: bool = false
 var animation_phase: float = 0.0  # Accumulated phase for smooth animation cycles
+var _last_footstep_phase: float = 0.0  # Track phase for footstep sound triggering
 var is_game_loaded: bool = false  # Set to true when loading is complete
 
 # Jump/landing animation state
@@ -182,6 +183,8 @@ func _ready() -> void:
 	# Setup terrain preview shapes (only for local player)
 	if is_local_player:
 		_setup_terrain_preview_shapes()
+		# Start ambient wind sound for atmosphere
+		SoundManager.play_ambient("wind_ambient")
 
 	if is_local_player:
 		# Local player uses client prediction
@@ -416,6 +419,8 @@ func _apply_movement(input_data: Dictionary, delta: float) -> void:
 	if jump_pressed and is_on_floor():
 		if consume_stamina(JUMP_STAMINA_COST):
 			velocity.y = JUMP_VELOCITY
+			if is_local_player:
+				SoundManager.play_sound_varied("jump", global_position, -3.0, 0.1)
 
 	# Movement speed (sprint drains stamina, blocking reduces speed)
 	var can_sprint = is_sprinting and stamina > 0 and not is_blocking  # Can't sprint while blocking
@@ -488,6 +493,8 @@ func _update_animation_state() -> void:
 		landing_timer = 0.0
 		is_jumping = false
 		is_falling = false
+		if is_local_player:
+			SoundManager.play_sound_varied("land", global_position, -3.0, 0.1)
 
 	# Update floor tracking
 	was_on_floor_last_frame = on_floor
@@ -685,8 +692,11 @@ func _handle_attack() -> void:
 	is_attacking = true
 	attack_timer = 0.0
 
-	# Play sword swing sound
-	SoundManager.play_sound_varied("sword_swing", global_position)
+	# Play attack sound based on weapon (punch swing for unarmed, sword swing for weapons)
+	if equipped_weapon_visual:
+		SoundManager.play_sound_varied("sword_swing", global_position)
+	else:
+		SoundManager.play_sound_varied("punch_swing", global_position)
 
 	# Get camera for raycasting/aiming
 	var camera := _get_camera()
@@ -1819,6 +1829,15 @@ func _update_body_animations(delta: float) -> void:
 		# Moving - different animation based on blocking state
 		var speed_multiplier = horizontal_speed / WALK_SPEED
 		animation_phase += delta * 8.0 * speed_multiplier
+
+		# Play footstep sound when leg hits ground (phase crosses PI boundaries)
+		# Each PI of phase = one footstep (left or right foot)
+		if is_on_floor() and is_local_player:
+			var current_step = int(animation_phase / PI)
+			var last_step = int(_last_footstep_phase / PI)
+			if current_step != last_step:
+				SoundManager.play_sound_varied("footstep_grass", global_position, -8.0, 0.15)
+		_last_footstep_phase = animation_phase
 
 		if is_blocking:
 			# Defensive shuffle - small leg movements, LEFT arm stays raised (shield)
