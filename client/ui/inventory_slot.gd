@@ -19,7 +19,8 @@ var is_equipped: bool = false  # Is this item equipped?
 var is_dragging: bool = false
 var drag_preview: Control = null
 
-@onready var item_icon: ColorRect = $ItemIcon
+@onready var item_icon: TextureRect = $ItemIcon
+@onready var item_icon_bg: TextureRect = $ItemIconBg
 @onready var item_name_label: Label = $ItemNameLabel
 @onready var amount_label: Label = $AmountLabel
 @onready var selection_border: Panel = $SelectionBorder
@@ -98,10 +99,10 @@ func update_display() -> void:
 
 	if item_icon:
 		item_icon.visible = has_item
-		# TODO: Load actual item icons
-		# For now, just show a colored rectangle based on item type
+		if item_icon_bg:
+			item_icon_bg.visible = false  # Will be set by _set_item_icon if needed
 		if has_item:
-			_set_placeholder_icon(item_name)
+			_set_item_icon(item_name)
 
 	if item_name_label:
 		item_name_label.visible = has_item
@@ -130,38 +131,26 @@ func _get_display_name(item: String) -> String:
 		display += word.capitalize()
 	return display
 
-## Placeholder icon coloring (until we have actual icons)
-func _set_placeholder_icon(item: String) -> void:
+## Set item icon textures
+func _set_item_icon(item: String) -> void:
 	if not item_icon:
 		return
 
-	# Set color based on item type
-	var icon_color := Color.WHITE
-	match item:
-		"wood":
-			icon_color = Color(0.6, 0.4, 0.2)  # Brown
-		"stone":
-			icon_color = Color(0.5, 0.5, 0.5)  # Gray
-		"iron":
-			icon_color = Color(0.3, 0.3, 0.4)  # Dark gray-blue
-		"copper":
-			icon_color = Color(0.8, 0.5, 0.2)  # Copper color
-		"resin":
-			icon_color = Color(0.9, 0.7, 0.0)  # Golden/amber color
-		"wooden_club", "hammer", "stone_axe", "stone_pickaxe":
-			icon_color = Color(0.7, 0.6, 0.4)  # Tool color
-		"torch":
-			icon_color = Color(0.9, 0.6, 0.1)  # Torch orange
-		"workbench":
-			icon_color = Color(0.6, 0.4, 0.2)  # Workbench brown
-		"wooden_wall", "wooden_floor", "wooden_door", "wooden_beam", "wooden_roof":
-			icon_color = Color(0.5, 0.35, 0.2)  # Building material
-		"raw_venison", "raw_pork", "raw_mutton":
-			icon_color = Color(0.85, 0.4, 0.35)  # Raw meat red
-		_:
-			icon_color = Color(0.8, 0.8, 0.8)  # Default light gray
+	# Clear background icon by default
+	if item_icon_bg:
+		item_icon_bg.texture = null
+		item_icon_bg.visible = false
 
-	item_icon.color = icon_color
+	# Try to load icon from images/icons/{item}.png
+	var icon_path = "res://images/icons/%s.png" % item
+	if ResourceLoader.exists(icon_path):
+		var tex = load(icon_path)
+		if tex:
+			item_icon.texture = tex
+			return
+
+	# Fallback: no texture (will show nothing)
+	item_icon.texture = null
 
 ## Get the inventory slot under the mouse cursor
 func _get_slot_under_mouse() -> Node:
@@ -202,14 +191,16 @@ func _create_drag_preview() -> void:
 	drag_preview.add_theme_stylebox_override("panel", style)
 
 	# Create the item icon
-	var icon = ColorRect.new()
+	var icon = TextureRect.new()
 	icon.custom_minimum_size = Vector2(36, 36)
 	icon.size = Vector2(36, 36)
 	icon.position = Vector2(12, 6)
 	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	# Copy color from current icon
-	if item_icon:
-		icon.color = item_icon.color
+	icon.expand_mode = TextureRect.EXPAND_FIT_WIDTH_PROPORTIONAL
+	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	# Copy texture from current icon
+	if item_icon and item_icon.texture:
+		icon.texture = item_icon.texture
 	drag_preview.add_child(icon)
 
 	# Create item name label

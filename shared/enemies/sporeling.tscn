@@ -1,6 +1,6 @@
 [gd_scene load_steps=3 format=3 uid="uid://sporeling_001"]
 
-[ext_resource type="Script" uid="uid://sporeling_script" path="res://shared/enemies/sporeling.gd" id="1"]
+[ext_resource type="Script" path="res://shared/enemies/sporeling.gd" id="1"]
 
 [sub_resource type="CapsuleShape3D" id="collision_shape"]
 radius = 0.18
