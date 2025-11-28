@@ -877,6 +877,52 @@ def gen_wind_gust():
     save_wav(audio, "wind_gust")
 
 
+def gen_fireball_flight():
+    """Fireball in flight - whooshing fiery wind with crackling."""
+    duration = 1.5  # Loopable duration
+    t = np.linspace(0, duration, int(SAMPLE_RATE * duration))
+
+    # Base wind whoosh - constant rushing air
+    wind = noise(duration, 'pink')
+    wind = bandpass(wind, 200, 1800)
+    # Slight modulation for natural feel
+    wind_mod = 0.7 + 0.3 * np.sin(2 * np.pi * 2.5 * t)
+    wind *= wind_mod
+
+    # Fire roar - lower frequency rumble
+    roar = noise(duration, 'brown')
+    roar = bandpass(roar, 80, 400)
+    roar_mod = 0.6 + 0.4 * np.sin(2 * np.pi * 1.8 * t + 0.5)
+    roar *= roar_mod
+
+    # Fire crackle - high frequency pops
+    crackle = noise(duration, 'white')
+    crackle = bandpass(crackle, 1500, 5000)
+    crackle *= 0.3
+
+    # Random pops/sparks
+    for _ in range(20):
+        pop_pos = int(np.random.uniform(0, duration) * SAMPLE_RATE)
+        pop_len = int(np.random.uniform(0.01, 0.04) * SAMPLE_RATE)
+        if pop_pos + pop_len < len(crackle):
+            pop = np.random.randn(pop_len)
+            pop = highpass(pop, 1000)
+            pop *= np.exp(-np.linspace(0, 1, pop_len) * 35)
+            crackle[pop_pos:pop_pos + pop_len] += pop * np.random.uniform(0.3, 0.8)
+
+    # Subtle high whistle for speed
+    whistle = noise(duration, 'white')
+    whistle = bandpass(whistle, 2500, 4500)
+    whistle *= 0.15
+
+    # Combine layers - emphasize wind and fire equally
+    audio = wind * 0.35 + roar * 0.30 + crackle * 0.20 + whistle * 0.15
+
+    # Crossfade for seamless loop
+    audio = fade(normalize(audio, 0.7), fade_in_ms=80, fade_out_ms=80)
+    save_wav(audio, "fireball_flight")
+
+
 def gen_punch_hit():
     """Meaty fist punch/hit sound - solid thump with flesh impact."""
     duration = 0.25
@@ -1406,6 +1452,7 @@ SOUND_GENERATORS = {
     'water_splash': gen_water_splash,
     'fire_crackle': gen_fire_crackle,
     'fire_burn_loop': gen_fire_burn_loop,
+    'fireball_flight': gen_fireball_flight,
     'wind_ambient': gen_wind_ambient,
     'wind_gust': gen_wind_gust,
     'tree_chop': gen_tree_chop,

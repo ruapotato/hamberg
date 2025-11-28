@@ -2,12 +2,39 @@ extends Projectile
 
 ## Fireball - Arcing projectile that applies gravity and creates fire area on impact
 
-@export var gravity_strength: float = 15.0  # Gravity strength
+@export var gravity_strength: float = 12.0  # Gravity strength (lower = floatier)
+@export var speed_multiplier: float = 0.6  # Slow down the projectile
 @export var fire_area_radius: float = 5.0
 @export var fire_area_damage: float = 12.0
 @export var fire_area_duration: float = 3.0
 
 var initial_direction: Vector3 = Vector3.ZERO
+var audio_player: AudioStreamPlayer3D
+
+func _ready() -> void:
+	super._ready()  # Connect collision signals from parent
+	_setup_flight_sound()
+
+func _setup_flight_sound() -> void:
+	"""Setup and start playing the fireball flight sound"""
+	audio_player = AudioStreamPlayer3D.new()
+	audio_player.max_distance = 30.0
+	audio_player.unit_size = 8.0
+	add_child(audio_player)
+
+	var sound_path = "res://audio/generated/fireball_flight.wav"
+	if ResourceLoader.exists(sound_path):
+		var stream = load(sound_path)
+		if stream:
+			audio_player.stream = stream
+			audio_player.play()
+			# Loop when sound finishes (fireball can fly for up to 8 seconds)
+			audio_player.finished.connect(_on_flight_sound_finished)
+
+func _on_flight_sound_finished() -> void:
+	"""Restart the flight sound to loop it"""
+	if audio_player and not has_hit:
+		audio_player.play()
 
 func _physics_process(delta: float) -> void:
 	if has_hit:
@@ -31,7 +58,8 @@ func setup(start_pos: Vector3, direction: Vector3, speed: float, dmg: float, sho
 
 	# Shoot exactly in the direction the player is aiming
 	# Gravity will naturally arc it down - aim up for distance, level/down for close range
-	velocity = direction.normalized() * speed
+	# Apply speed multiplier for slower, more dramatic fireball
+	velocity = direction.normalized() * speed * speed_multiplier
 	initial_direction = direction.normalized()
 	damage = dmg
 	owner_id = shooter_id
@@ -46,6 +74,10 @@ func _hit() -> void:
 	"""Called when fireball hits something - spawn fire area"""
 	has_hit = true
 	velocity = Vector3.ZERO
+
+	# Stop flight sound
+	if audio_player:
+		audio_player.stop()
 
 	# Spawn fire area at impact location
 	_spawn_fire_area()
