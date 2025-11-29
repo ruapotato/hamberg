@@ -440,20 +440,37 @@ func _draw_player_markers() -> void:
 	if not local_player:
 		return
 
+	# Get map rect position for converting to local coords
+	var map_global_pos := map_texture_rect.global_position
+
 	# Draw local player
 	var player_xz := Vector2(local_player.global_position.x, local_player.global_position.z)
 	var screen_pos := _world_to_screen_pos(player_xz)
+	var local_pos := screen_pos - global_position  # Convert to local coords
 
 	# Check if on screen
 	if _is_on_screen(screen_pos):
-		# Draw player marker with direction indicator
-		draw_circle(screen_pos, 8, Color.GREEN)
-		draw_circle(screen_pos, 8, Color.WHITE, false, 2.0)
+		# Draw player marker (green with white outline)
+		draw_circle(local_pos, 10, Color.GREEN)
+		draw_circle(local_pos, 10, Color.WHITE, false, 2.0)
 
-		# Draw crosshair to show exact position
-		var cross_size := 15.0
-		draw_line(screen_pos + Vector2(-cross_size, 0), screen_pos + Vector2(cross_size, 0), Color.WHITE, 1.0)
-		draw_line(screen_pos + Vector2(0, -cross_size), screen_pos + Vector2(0, cross_size), Color.WHITE, 1.0)
+		# Draw direction indicator (chevron pointing camera direction)
+		var camera_controller = local_player.get_node_or_null("CameraController")
+		if camera_controller and "camera_rotation" in camera_controller:
+			var camera_yaw: float = camera_controller.camera_rotation.x
+			var arrow_angle: float = -camera_yaw + PI / 2.0 + PI
+
+			var v_length := 18.0
+			var v_width := 12.0
+
+			var tip := local_pos + Vector2(cos(arrow_angle), sin(arrow_angle)) * v_length
+			var left := local_pos + Vector2(cos(arrow_angle + 2.8), sin(arrow_angle + 2.8)) * v_width
+			var right := local_pos + Vector2(cos(arrow_angle - 2.8), sin(arrow_angle - 2.8)) * v_width
+
+			draw_line(left, tip, Color.BLACK, 4.0)
+			draw_line(right, tip, Color.BLACK, 4.0)
+			draw_line(left, tip, Color.YELLOW, 2.0)
+			draw_line(right, tip, Color.YELLOW, 2.0)
 
 	# Draw remote players
 	for peer_id in remote_players:
@@ -461,32 +478,61 @@ func _draw_player_markers() -> void:
 		if player and is_instance_valid(player):
 			var remote_xz := Vector2(player.global_position.x, player.global_position.z)
 			var remote_screen := _world_to_screen_pos(remote_xz)
+			var remote_local := remote_screen - global_position
 
 			if _is_on_screen(remote_screen):
-				draw_circle(remote_screen, 6, Color.BLUE)
-				draw_circle(remote_screen, 6, Color.WHITE, false, 2.0)
+				draw_circle(remote_local, 8, Color.BLUE)
+				draw_circle(remote_local, 8, Color.WHITE, false, 2.0)
 
 func _draw_pins() -> void:
 	for pin in map_pins:
 		var screen_pos := _world_to_screen_pos(pin.pos)
+		var local_pos := screen_pos - global_position  # Convert to local coords
 
 		if _is_on_screen(screen_pos):
-			# Draw pin marker (red flag icon)
-			draw_circle(screen_pos, 5, Color.RED)
-			draw_line(screen_pos, screen_pos + Vector2(0, -15), Color.RED, 2.0)
+			# Draw pin marker (flag icon)
+			draw_circle(local_pos, 5, Color.RED)
+			draw_line(local_pos, local_pos + Vector2(0, -12), Color.RED, 2.0)
+			# Small flag triangle
+			var flag_points := PackedVector2Array([
+				local_pos + Vector2(1, -12),
+				local_pos + Vector2(10, -9),
+				local_pos + Vector2(1, -6)
+			])
+			draw_colored_polygon(flag_points, Color.RED)
+
+			# Draw pin name
+			var font: Font = ThemeDB.fallback_font
+			var font_size: int = 12
+			var text_size := font.get_string_size(pin.name, HORIZONTAL_ALIGNMENT_CENTER, -1, font_size)
+			var text_pos := local_pos + Vector2(-text_size.x * 0.5, -18)
+
+			# Outline
+			for offset in [Vector2(-1, -1), Vector2(1, -1), Vector2(-1, 1), Vector2(1, 1)]:
+				draw_string(font, text_pos + offset, pin.name, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, Color.BLACK)
+			draw_string(font, text_pos, pin.name, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, Color.WHITE)
 
 func _draw_pings() -> void:
 	for ping in active_pings:
 		var screen_pos := _world_to_screen_pos(ping.pos)
+		var local_pos := screen_pos - global_position  # Convert to local coords
 
 		if _is_on_screen(screen_pos):
+			# Get ping color based on peer
+			var ping_color: Color = Color.YELLOW
+			if ping.from_peer != multiplayer.get_unique_id():
+				var colors := [Color.CYAN, Color.MAGENTA, Color.ORANGE, Color.LIME]
+				ping_color = colors[ping.from_peer % colors.size()]
+
 			# Draw pulsing circle (opacity based on time left)
 			var alpha: float = ping.time_left / 15.0
-			var radius: float = lerp(20.0, 5.0, alpha)
-			var color: Color = Color.YELLOW
+			var pulse: float = 1.0 + sin(Time.get_ticks_msec() * 0.008) * 0.3
+			var radius: float = lerp(25.0, 8.0, alpha) * pulse
+			var color: Color = ping_color
 			color.a = alpha
 
-			draw_circle(screen_pos, radius, color, false, 3.0)
+			draw_circle(local_pos, radius, color, false, 3.0)
+			draw_circle(local_pos, radius * 0.4, color)
 
 func _is_on_screen(screen_pos: Vector2) -> bool:
 	var rect_pos := map_texture_rect.global_position

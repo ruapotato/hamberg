@@ -282,8 +282,9 @@ func _draw_player_markers() -> void:
 			var remote_screen := _world_to_screen_pos(remote_xz)
 
 			if _is_on_screen(remote_screen):
-				overlay.draw_circle(remote_screen, 4, Color.BLUE)
-				overlay.draw_circle(remote_screen, 4, Color.WHITE, false, 1.5)
+				var local_pos := remote_screen - map_texture_rect.global_position
+				overlay.draw_circle(local_pos, 4, Color.BLUE)
+				overlay.draw_circle(local_pos, 4, Color.WHITE, false, 1.5)
 
 func _draw_pins() -> void:
 	var center := overlay.size * 0.5
