@@ -54,6 +54,7 @@ var rename_popup: Panel = null
 
 # UI nodes
 @onready var map_texture_rect: TextureRect = $Panel/MapContainer/MapTextureRect
+@onready var overlay: Control = $Panel/MapContainer/MapTextureRect/Overlay
 @onready var zoom_label: Label = $Panel/TopBar/ZoomLabel
 @onready var position_label: Label = $Panel/TopBar/PositionLabel
 @onready var close_button: Button = $Panel/TopBar/CloseButton
@@ -77,6 +78,10 @@ func _ready() -> void:
 
 	# Create rename popup
 	_create_rename_popup()
+
+	# Connect overlay draw
+	if overlay:
+		overlay.draw.connect(_draw_overlay)
 
 	print("[WorldMap] Full-screen map initialized - READY")
 
@@ -186,10 +191,11 @@ func _process(delta: float) -> void:
 	_update_ui_labels()
 
 	# Queue redraw for custom rendering (player markers, pins, pings)
-	queue_redraw()
+	if overlay:
+		overlay.queue_redraw()
 
-func _draw() -> void:
-	if not visible:
+func _draw_overlay() -> void:
+	if not visible or not overlay:
 		return
 
 	# Draw player markers, pins, and pings on top of the map texture
@@ -359,7 +365,8 @@ func _on_rename_confirmed() -> void:
 		pin_renamed.emit(old_pin.pos, new_name)
 
 	_hide_rename_popup()
-	queue_redraw()
+	if overlay:
+		overlay.queue_redraw()
 
 func _on_pin_delete_pressed() -> void:
 	if selected_pin_index >= 0 and selected_pin_index < map_pins.size():
@@ -369,7 +376,8 @@ func _on_pin_delete_pressed() -> void:
 		map_pins.remove_at(selected_pin_index)
 
 	_hide_rename_popup()
-	queue_redraw()
+	if overlay:
+		overlay.queue_redraw()
 
 func _on_rename_cancelled() -> void:
 	_hide_rename_popup()
@@ -391,7 +399,8 @@ func _place_pin_at_mouse(mouse_pos: Vector2) -> void:
 
 	# Show rename popup immediately so user can name it
 	_show_pin_popup(map_pins.size() - 1, get_global_mouse_position())
-	queue_redraw()
+	if overlay:
+		overlay.queue_redraw()
 
 func _send_ping_at_mouse(mouse_pos: Vector2) -> void:
 	var world_pos := _mouse_to_world_pos(mouse_pos)
@@ -419,7 +428,7 @@ func _mouse_to_world_pos(mouse_pos: Vector2) -> Vector2:
 	return Vector2(world_x, world_z)
 
 func _world_to_screen_pos(world_pos: Vector2) -> Vector2:
-	# Convert world position to screen position on map
+	# Convert world position to screen position on map (global coords)
 	var map_size := map_texture_rect.size
 	var visible_world_size := BASE_WORLD_SIZE * current_zoom_level
 
@@ -436,23 +445,42 @@ func _world_to_screen_pos(world_pos: Vector2) -> Vector2:
 
 	return Vector2(screen_x, screen_y) + map_texture_rect.global_position
 
-func _draw_player_markers() -> void:
-	if not local_player:
-		return
+func _world_to_overlay_pos(world_pos: Vector2) -> Vector2:
+	# Convert world position to overlay local coords (for drawing)
+	var map_size := overlay.size
+	var visible_world_size := BASE_WORLD_SIZE * current_zoom_level
 
-	# Get map rect position for converting to local coords
-	var map_global_pos := map_texture_rect.global_position
+	# Offset from center of current view
+	var offset := world_pos - current_center
+
+	# Normalize to -0.5 to 0.5 relative to visible area
+	var norm_x := offset.x / visible_world_size
+	var norm_y := offset.y / visible_world_size
+
+	# Convert to overlay local coordinates
+	var local_x := (norm_x + 0.5) * map_size.x
+	var local_y := (norm_y + 0.5) * map_size.y
+
+	return Vector2(local_x, local_y)
+
+func _is_pos_visible(local_pos: Vector2) -> bool:
+	# Check if position is within overlay bounds
+	return local_pos.x >= 0 and local_pos.x <= overlay.size.x and \
+		   local_pos.y >= 0 and local_pos.y <= overlay.size.y
+
+func _draw_player_markers() -> void:
+	if not local_player or not overlay:
+		return
 
 	# Draw local player
 	var player_xz := Vector2(local_player.global_position.x, local_player.global_position.z)
-	var screen_pos := _world_to_screen_pos(player_xz)
-	var local_pos := screen_pos - global_position  # Convert to local coords
+	var local_pos := _world_to_overlay_pos(player_xz)
 
 	# Check if on screen
-	if _is_on_screen(screen_pos):
+	if _is_pos_visible(local_pos):
 		# Draw player marker (green with white outline)
-		draw_circle(local_pos, 10, Color.GREEN)
-		draw_circle(local_pos, 10, Color.WHITE, false, 2.0)
+		overlay.draw_circle(local_pos, 10, Color.GREEN)
+		overlay.draw_circle(local_pos, 10, Color.WHITE, false, 2.0)
 
 		# Draw direction indicator (chevron pointing camera direction)
 		var camera_controller = local_player.get_node_or_null("CameraController")
@@ -467,57 +495,60 @@ func _draw_player_markers() -> void:
 			var left := local_pos + Vector2(cos(arrow_angle + 2.8), sin(arrow_angle + 2.8)) * v_width
 			var right := local_pos + Vector2(cos(arrow_angle - 2.8), sin(arrow_angle - 2.8)) * v_width
 
-			draw_line(left, tip, Color.BLACK, 4.0)
-			draw_line(right, tip, Color.BLACK, 4.0)
-			draw_line(left, tip, Color.YELLOW, 2.0)
-			draw_line(right, tip, Color.YELLOW, 2.0)
+			overlay.draw_line(left, tip, Color.BLACK, 4.0)
+			overlay.draw_line(right, tip, Color.BLACK, 4.0)
+			overlay.draw_line(left, tip, Color.YELLOW, 2.0)
+			overlay.draw_line(right, tip, Color.YELLOW, 2.0)
 
 	# Draw remote players
 	for peer_id in remote_players:
 		var player = remote_players[peer_id]
 		if player and is_instance_valid(player):
 			var remote_xz := Vector2(player.global_position.x, player.global_position.z)
-			var remote_screen := _world_to_screen_pos(remote_xz)
-			var remote_local := remote_screen - global_position
+			var remote_local := _world_to_overlay_pos(remote_xz)
 
-			if _is_on_screen(remote_screen):
-				draw_circle(remote_local, 8, Color.BLUE)
-				draw_circle(remote_local, 8, Color.WHITE, false, 2.0)
+			if _is_pos_visible(remote_local):
+				overlay.draw_circle(remote_local, 8, Color.BLUE)
+				overlay.draw_circle(remote_local, 8, Color.WHITE, false, 2.0)
 
 func _draw_pins() -> void:
-	for pin in map_pins:
-		var screen_pos := _world_to_screen_pos(pin.pos)
-		var local_pos := screen_pos - global_position  # Convert to local coords
+	if not overlay:
+		return
 
-		if _is_on_screen(screen_pos):
+	for pin in map_pins:
+		var local_pos := _world_to_overlay_pos(pin.pos)
+
+		if _is_pos_visible(local_pos):
 			# Draw pin marker (flag icon)
-			draw_circle(local_pos, 5, Color.RED)
-			draw_line(local_pos, local_pos + Vector2(0, -12), Color.RED, 2.0)
+			overlay.draw_circle(local_pos, 5, Color.RED)
+			overlay.draw_line(local_pos, local_pos + Vector2(0, -12), Color.RED, 2.0)
 			# Small flag triangle
 			var flag_points := PackedVector2Array([
 				local_pos + Vector2(1, -12),
 				local_pos + Vector2(10, -9),
 				local_pos + Vector2(1, -6)
 			])
-			draw_colored_polygon(flag_points, Color.RED)
+			overlay.draw_colored_polygon(flag_points, Color.RED)
 
 			# Draw pin name
 			var font: Font = ThemeDB.fallback_font
 			var font_size: int = 12
 			var text_size := font.get_string_size(pin.name, HORIZONTAL_ALIGNMENT_CENTER, -1, font_size)
-			var text_pos := local_pos + Vector2(-text_size.x * 0.5, -18)
+			var text_pos := local_pos + Vector2(-text_size.x * 0.5, -20)
 
 			# Outline
 			for offset in [Vector2(-1, -1), Vector2(1, -1), Vector2(-1, 1), Vector2(1, 1)]:
-				draw_string(font, text_pos + offset, pin.name, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, Color.BLACK)
-			draw_string(font, text_pos, pin.name, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, Color.WHITE)
+				overlay.draw_string(font, text_pos + offset, pin.name, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, Color.BLACK)
+			overlay.draw_string(font, text_pos, pin.name, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, Color.WHITE)
 
 func _draw_pings() -> void:
-	for ping in active_pings:
-		var screen_pos := _world_to_screen_pos(ping.pos)
-		var local_pos := screen_pos - global_position  # Convert to local coords
+	if not overlay:
+		return
 
-		if _is_on_screen(screen_pos):
+	for ping in active_pings:
+		var local_pos := _world_to_overlay_pos(ping.pos)
+
+		if _is_pos_visible(local_pos):
 			# Get ping color based on peer
 			var ping_color: Color = Color.YELLOW
 			if ping.from_peer != multiplayer.get_unique_id():
@@ -531,8 +562,8 @@ func _draw_pings() -> void:
 			var color: Color = ping_color
 			color.a = alpha
 
-			draw_circle(local_pos, radius, color, false, 3.0)
-			draw_circle(local_pos, radius * 0.4, color)
+			overlay.draw_circle(local_pos, radius, color, false, 3.0)
+			overlay.draw_circle(local_pos, radius * 0.4, color)
 
 func _is_on_screen(screen_pos: Vector2) -> bool:
 	var rect_pos := map_texture_rect.global_position
