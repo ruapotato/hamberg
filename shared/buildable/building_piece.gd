@@ -122,13 +122,13 @@ func _setup_snap_points() -> void:
 			snap_points.append({"position": Vector3(-half_x, -half_height, 0), "normal": Vector3.LEFT, "type": "roof_edge"})
 
 		"wooden_stairs":
-			# Stairs: bottom snap to floor, top snap to upper floor, side snaps to walls
+			# Stairs: bottom snap to floor/stairs, top snap to upper floor/stairs, side snaps to walls
 			var half_x = grid_size.x / 2.0
 			var half_z = grid_size.z / 2.0
 			var half_height = grid_size.y / 2.0
-			# Bottom snap (to first floor)
+			# Bottom snap (to floor or top of another stair segment)
 			snap_points.append({"position": Vector3(0, -half_height, half_z), "normal": Vector3.DOWN, "type": "stairs_bottom"})
-			# Top snap (to second floor)
+			# Top snap (to floor above or bottom of another stair segment) - for chaining stairs
 			snap_points.append({"position": Vector3(0, half_height, -half_z), "normal": Vector3.UP, "type": "stairs_top"})
 			# Side snaps for walls
 			snap_points.append({"position": Vector3(half_x, 0, 0), "normal": Vector3.RIGHT, "type": "stairs_side"})

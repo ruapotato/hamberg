@@ -265,6 +265,24 @@ func _find_nearest_snap_point(cursor_position: Vector3) -> Dictionary:
 		if not wall_stack_result.is_empty():
 			return wall_stack_result
 
+	# For doors: snap to floor_top (like walls) and between walls
+	if current_piece_name == "wooden_door":
+		var door_snap_result = _find_door_snap(cursor_position)
+		if not door_snap_result.is_empty():
+			return door_snap_result
+
+	# For stairs: snap to floor_top at bottom, floor at top
+	if current_piece_name == "wooden_stairs":
+		var stairs_snap_result = _find_stairs_snap(cursor_position)
+		if not stairs_snap_result.is_empty():
+			return stairs_snap_result
+
+	# For roofs: snap to wall_top
+	if current_piece_name in ["wooden_roof_26", "wooden_roof_45"]:
+		var roof_snap_result = _find_roof_snap(cursor_position)
+		if not roof_snap_result.is_empty():
+			return roof_snap_result
+
 	# For other pieces, use the old snap point system
 	var nearest_snap: Dictionary = {}
 	var nearest_distance: float = snap_distance_threshold
@@ -590,6 +608,276 @@ func _find_wall_stack_snap(cursor_position: Vector3) -> Dictionary:
 						best_snap = our_snap_result
 						best_distance_from_ray = perpendicular_distance
 						best_distance_along_ray = distance_along_ray
+
+	return best_snap
+
+## Door snapping - snaps to floor_top like walls, fits between walls
+func _find_door_snap(cursor_position: Vector3) -> Dictionary:
+	if not world or not ghost_preview or not camera:
+		return {}
+
+	var camera_pos = camera.global_position
+	var camera_forward = -camera.global_transform.basis.z
+
+	var best_snap: Dictionary = {}
+	var best_distance_from_ray: float = INF
+	var best_distance_along_ray: float = INF
+
+	const MAX_PERPENDICULAR_DISTANCE: float = 3.0
+
+	var door_half_height = ghost_preview.grid_size.y / 2.0
+
+	# Search for floors and walls to snap to
+	for child in world.get_children():
+		if child == ghost_preview:
+			continue
+
+		if not ("piece_name" in child):
+			continue
+
+		var is_floor = child.piece_name == "wooden_floor"
+		var is_wall = child.piece_name == "wooden_wall"
+
+		if not is_floor and not is_wall:
+			continue
+
+		# Skip if piece is too far
+		var to_piece = child.global_position - camera_pos
+		var distance_along_camera = to_piece.dot(camera_forward)
+		if distance_along_camera < 0 or distance_along_camera > placement_distance + 5.0:
+			continue
+
+		if "snap_points" in child:
+			for snap_point in child.snap_points:
+				var snap_type: String = snap_point.get("type", "")
+				# Doors snap to floor_top or wall_edge
+				if snap_type != "floor_top" and snap_type != "wall_edge":
+					continue
+
+				var snap_pos_local: Vector3 = snap_point.position
+				var snap_pos_global: Vector3 = child.global_transform * snap_pos_local
+
+				var to_snap = snap_pos_global - camera_pos
+				var distance_along_ray = to_snap.dot(camera_forward)
+
+				if distance_along_ray < 0 or distance_along_ray > placement_distance + 5.0:
+					continue
+
+				var closest_point_on_ray = camera_pos + camera_forward * distance_along_ray
+				var perpendicular_distance = snap_pos_global.distance_to(closest_point_on_ray)
+
+				if perpendicular_distance > MAX_PERPENDICULAR_DISTANCE:
+					continue
+
+				var is_better = false
+				if perpendicular_distance < best_distance_from_ray - 0.1:
+					is_better = true
+				elif abs(perpendicular_distance - best_distance_from_ray) < 0.1:
+					if distance_along_ray < best_distance_along_ray:
+						is_better = true
+
+				if is_better:
+					var door_pos: Vector3
+					var door_rotation: float = ghost_preview.rotation.y
+
+					if snap_type == "floor_top":
+						# Place door on top of floor
+						door_pos = Vector3(
+							snap_pos_global.x,
+							snap_pos_global.y + door_half_height,
+							snap_pos_global.z
+						)
+					else:  # wall_edge - snap beside a wall
+						# Get wall's rotation and place door with matching rotation
+						door_rotation = child.rotation.y
+						var wall_normal = child.global_transform.basis * snap_point.normal
+						door_pos = snap_pos_global + wall_normal * 1.0  # Offset by door half-width
+						door_pos.y = child.global_position.y  # Same height as wall
+
+					best_snap = {
+						"position": door_pos,
+						"rotation": door_rotation
+					}
+					best_distance_from_ray = perpendicular_distance
+					best_distance_along_ray = distance_along_ray
+
+	return best_snap
+
+## Stairs snapping - snaps to floor_top at bottom, or chains to other stairs
+func _find_stairs_snap(cursor_position: Vector3) -> Dictionary:
+	if not world or not ghost_preview or not camera:
+		return {}
+
+	var camera_pos = camera.global_position
+	var camera_forward = -camera.global_transform.basis.z
+
+	var best_snap: Dictionary = {}
+	var best_distance_from_ray: float = INF
+	var best_distance_along_ray: float = INF
+
+	const MAX_PERPENDICULAR_DISTANCE: float = 3.0
+
+	var stairs_half_height = ghost_preview.grid_size.y / 2.0
+	var stairs_half_z = ghost_preview.grid_size.z / 2.0
+
+	# Search for floors and stairs to snap to
+	for child in world.get_children():
+		if child == ghost_preview:
+			continue
+
+		if not ("piece_name" in child):
+			continue
+
+		var is_floor = child.piece_name == "wooden_floor"
+		var is_stairs = child.piece_name == "wooden_stairs"
+
+		if not is_floor and not is_stairs:
+			continue
+
+		# Skip if piece is too far
+		var to_piece = child.global_position - camera_pos
+		var distance_along_camera = to_piece.dot(camera_forward)
+		if distance_along_camera < 0 or distance_along_camera > placement_distance + 5.0:
+			continue
+
+		if "snap_points" in child:
+			for snap_point in child.snap_points:
+				var snap_type: String = snap_point.get("type", "")
+
+				# Snap to floor_top or stairs_top
+				if snap_type != "floor_top" and snap_type != "stairs_top":
+					continue
+
+				var snap_pos_local: Vector3 = snap_point.position
+				var snap_pos_global: Vector3 = child.global_transform * snap_pos_local
+
+				var to_snap = snap_pos_global - camera_pos
+				var distance_along_ray = to_snap.dot(camera_forward)
+
+				if distance_along_ray < 0 or distance_along_ray > placement_distance + 5.0:
+					continue
+
+				var closest_point_on_ray = camera_pos + camera_forward * distance_along_ray
+				var perpendicular_distance = snap_pos_global.distance_to(closest_point_on_ray)
+
+				if perpendicular_distance > MAX_PERPENDICULAR_DISTANCE:
+					continue
+
+				var is_better = false
+				if perpendicular_distance < best_distance_from_ray - 0.1:
+					is_better = true
+				elif abs(perpendicular_distance - best_distance_from_ray) < 0.1:
+					if distance_along_ray < best_distance_along_ray:
+						is_better = true
+
+				if is_better:
+					var stairs_pos: Vector3
+					var stairs_rotation: float
+
+					if snap_type == "floor_top":
+						# Place stairs so bottom is on floor, offset by half depth
+						# Stairs go UP in -Z direction (local), so offset in +Z for bottom placement
+						var stairs_forward = Vector3(0, 0, 1).rotated(Vector3.UP, ghost_preview.rotation.y)
+						stairs_pos = Vector3(
+							snap_pos_global.x - stairs_forward.x * stairs_half_z,
+							snap_pos_global.y + stairs_half_height,
+							snap_pos_global.z - stairs_forward.z * stairs_half_z
+						)
+						stairs_rotation = ghost_preview.rotation.y
+					else:  # stairs_top - chain to another stair segment
+						# Match the rotation of the stairs we're connecting to
+						stairs_rotation = child.rotation.y
+						# Our bottom is at local (0, -half_height, half_z)
+						# We want our bottom to be at snap_pos_global (the top of the existing stairs)
+						# So our center = snap_pos_global - rotated_bottom_offset
+						var bottom_offset_local = Vector3(0, -stairs_half_height, stairs_half_z)
+						var bottom_offset_rotated = bottom_offset_local.rotated(Vector3.UP, stairs_rotation)
+						stairs_pos = snap_pos_global - bottom_offset_rotated
+
+					best_snap = {
+						"position": stairs_pos,
+						"rotation": stairs_rotation
+					}
+					best_distance_from_ray = perpendicular_distance
+					best_distance_along_ray = distance_along_ray
+
+	return best_snap
+
+## Roof snapping - snaps to wall_top
+func _find_roof_snap(cursor_position: Vector3) -> Dictionary:
+	if not world or not ghost_preview or not camera:
+		return {}
+
+	var camera_pos = camera.global_position
+	var camera_forward = -camera.global_transform.basis.z
+
+	var best_snap: Dictionary = {}
+	var best_distance_from_ray: float = INF
+	var best_distance_along_ray: float = INF
+
+	const MAX_PERPENDICULAR_DISTANCE: float = 3.0
+
+	var roof_half_height = ghost_preview.grid_size.y / 2.0
+
+	# Search for walls to snap to
+	for child in world.get_children():
+		if child == ghost_preview:
+			continue
+
+		if not ("piece_name" in child):
+			continue
+
+		if child.piece_name != "wooden_wall":
+			continue
+
+		# Skip if piece is too far
+		var to_piece = child.global_position - camera_pos
+		var distance_along_camera = to_piece.dot(camera_forward)
+		if distance_along_camera < 0 or distance_along_camera > placement_distance + 5.0:
+			continue
+
+		if "snap_points" in child:
+			for snap_point in child.snap_points:
+				var snap_type: String = snap_point.get("type", "")
+				if snap_type != "wall_top":
+					continue
+
+				var snap_pos_local: Vector3 = snap_point.position
+				var snap_pos_global: Vector3 = child.global_transform * snap_pos_local
+
+				var to_snap = snap_pos_global - camera_pos
+				var distance_along_ray = to_snap.dot(camera_forward)
+
+				if distance_along_ray < 0 or distance_along_ray > placement_distance + 5.0:
+					continue
+
+				var closest_point_on_ray = camera_pos + camera_forward * distance_along_ray
+				var perpendicular_distance = snap_pos_global.distance_to(closest_point_on_ray)
+
+				if perpendicular_distance > MAX_PERPENDICULAR_DISTANCE:
+					continue
+
+				var is_better = false
+				if perpendicular_distance < best_distance_from_ray - 0.1:
+					is_better = true
+				elif abs(perpendicular_distance - best_distance_from_ray) < 0.1:
+					if distance_along_ray < best_distance_along_ray:
+						is_better = true
+
+				if is_better:
+					# Place roof on top of wall, matching wall rotation
+					var roof_pos = Vector3(
+						snap_pos_global.x,
+						snap_pos_global.y + roof_half_height,
+						snap_pos_global.z
+					)
+
+					best_snap = {
+						"position": roof_pos,
+						"rotation": child.rotation.y  # Match wall rotation
+					}
+					best_distance_from_ray = perpendicular_distance
+					best_distance_along_ray = distance_along_ray
 
 	return best_snap
 

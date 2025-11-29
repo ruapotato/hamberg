@@ -1,24 +1,39 @@
-[gd_scene load_steps=6 format=3 uid="uid://wooden_stairs_001"]
+[gd_scene load_steps=7 format=3 uid="uid://wooden_stairs_001"]
 
 [ext_resource type="Script" path="res://shared/buildable/building_piece.gd" id="1"]
 
 [sub_resource type="BoxMesh" id="step1_mesh"]
-size = Vector3(2.0, 0.4, 0.5)
+size = Vector3(2.0, 0.3, 0.4)
 
 [sub_resource type="BoxMesh" id="step2_mesh"]
-size = Vector3(2.0, 0.4, 0.5)
+size = Vector3(2.0, 0.3, 0.4)
 
 [sub_resource type="BoxMesh" id="step3_mesh"]
-size = Vector3(2.0, 0.4, 0.5)
+size = Vector3(2.0, 0.3, 0.4)
 
 [sub_resource type="BoxMesh" id="step4_mesh"]
-size = Vector3(2.0, 0.4, 0.5)
+size = Vector3(2.0, 0.3, 0.4)
+
+[sub_resource type="BoxMesh" id="step5_mesh"]
+size = Vector3(2.0, 0.3, 0.4)
 
 [sub_resource type="StandardMaterial3D" id="wood_mat"]
 albedo_color = Color(0.5, 0.35, 0.2, 1)
 
-[sub_resource type="BoxShape3D" id="stairs_collision"]
-size = Vector3(2.0, 2.0, 2.0)
+[sub_resource type="BoxShape3D" id="step1_col"]
+size = Vector3(2.0, 0.3, 0.4)
+
+[sub_resource type="BoxShape3D" id="step2_col"]
+size = Vector3(2.0, 0.3, 0.4)
+
+[sub_resource type="BoxShape3D" id="step3_col"]
+size = Vector3(2.0, 0.3, 0.4)
+
+[sub_resource type="BoxShape3D" id="step4_col"]
+size = Vector3(2.0, 0.3, 0.4)
+
+[sub_resource type="BoxShape3D" id="step5_col"]
+size = Vector3(2.0, 0.3, 0.4)
 
 [node name="WoodenStairs" type="StaticBody3D"]
 collision_layer = 1
@@ -30,25 +45,46 @@ snap_to_grid = true
 can_rotate = true
 
 [node name="Step1" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.8, 0.75)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.85, 0.8)
 mesh = SubResource("step1_mesh")
 surface_material_override/0 = SubResource("wood_mat")
 
+[node name="Step1Col" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.85, 0.8)
+shape = SubResource("step1_col")
+
 [node name="Step2" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.4, 0.25)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.45, 0.4)
 mesh = SubResource("step2_mesh")
 surface_material_override/0 = SubResource("wood_mat")
 
+[node name="Step2Col" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.45, 0.4)
+shape = SubResource("step2_col")
+
 [node name="Step3" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.25)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.05, 0.0)
 mesh = SubResource("step3_mesh")
 surface_material_override/0 = SubResource("wood_mat")
 
+[node name="Step3Col" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.05, 0.0)
+shape = SubResource("step3_col")
+
 [node name="Step4" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.4, -0.75)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.35, -0.4)
 mesh = SubResource("step4_mesh")
 surface_material_override/0 = SubResource("wood_mat")
 
-[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 0.7071, 0.7071, 0, -0.7071, 0.7071, 0, 0, 0)
-shape = SubResource("stairs_collision")
+[node name="Step4Col" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.35, -0.4)
+shape = SubResource("step4_col")
+
+[node name="Step5" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.75, -0.8)
+mesh = SubResource("step5_mesh")
+surface_material_override/0 = SubResource("wood_mat")
+
+[node name="Step5Col" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.75, -0.8)
+shape = SubResource("step5_col")
