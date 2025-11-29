@@ -137,7 +137,7 @@ func _register_weapon_stone_axe() -> void:
 	weapon.display_name = "Stone Axe (Head Smasher)"
 	weapon.description = "A heavy two-handed axe. Slow but devastating. Required for chopping trees."
 	weapon.weapon_type = WeaponData.WeaponType.MELEE_TWO_HAND
-	weapon.damage = 30.0  # 2x sword damage
+	weapon.damage = 15.0  # Balanced for trees and combat
 	weapon.damage_type = WeaponData.DamageType.SLASH
 	weapon.attack_speed = 0.8  # Slower than sword
 	weapon.knockback = 15.0  # High knockback
