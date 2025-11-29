@@ -141,11 +141,11 @@ func _input(event: InputEvent) -> void:
 	if not visible or is_toggling:
 		return
 
-	# Handle ESC or M to close map with higher priority
+	# Handle ESC to close map (don't use M - interferes with typing pin names)
 	if event is InputEventKey:
 		var key_event := event as InputEventKey
 		if key_event.pressed and not key_event.echo:
-			if key_event.keycode == KEY_ESCAPE or key_event.keycode == KEY_M:
+			if key_event.keycode == KEY_ESCAPE:
 				visible = false
 				is_toggling = false
 				Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
@@ -173,8 +173,8 @@ func _process(delta: float) -> void:
 	if not visible or is_toggling:
 		return
 
-	# Handle ESC or M to close map
-	if Input.is_action_just_pressed("ui_cancel") or Input.is_action_just_pressed("toggle_map"):
+	# Handle ESC to close map (don't use toggle_map/M - interferes with typing pin names)
+	if Input.is_action_just_pressed("ui_cancel"):
 		visible = false
 		is_toggling = false
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
@@ -598,10 +598,27 @@ func set_remote_players(players: Dictionary) -> void:
 	remote_players = players
 
 func load_pins(pins: Array) -> void:
-	"""Load pins from save data"""
-	map_pins = pins
-	print("[WorldMap] Loaded %d pins from save data" % pins.size())
+	"""Load pins from save data (converts arrays back to Vector2)"""
+	map_pins = []
+	for pin in pins:
+		var pos_data = pin.get("pos", [0, 0])
+		var pos: Vector2
+		# Handle both array format [x, y] and potential Vector2 format
+		if pos_data is Array:
+			pos = Vector2(pos_data[0], pos_data[1])
+		elif pos_data is Vector2:
+			pos = pos_data
+		else:
+			pos = Vector2.ZERO
+		map_pins.append({"pos": pos, "name": pin.get("name", "Pin")})
+	print("[WorldMap] Loaded %d pins from save data" % map_pins.size())
 
 func get_pins() -> Array:
-	"""Get current pins for saving"""
-	return map_pins
+	"""Get current pins for saving (converts Vector2 to arrays for JSON)"""
+	var serializable_pins: Array = []
+	for pin in map_pins:
+		serializable_pins.append({
+			"pos": [pin.pos.x, pin.pos.y],
+			"name": pin.name
+		})
+	return serializable_pins

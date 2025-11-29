@@ -461,7 +461,9 @@ func _despawn_player(peer_id: int) -> void:
 		var character_id = player_characters[peer_id]
 
 		if player and is_instance_valid(player):
-			var player_data = PlayerDataManager.serialize_player(player)
+			# Get map pins for this player
+			var pins = player_map_pins.get(peer_id, [])
+			var player_data = PlayerDataManager.serialize_player(player, pins)
 
 			# Debug: Check inventory contents
 			if player_data.has("inventory"):
@@ -496,6 +498,8 @@ func _despawn_player(peer_id: int) -> void:
 		player.queue_free()
 
 	spawned_players.erase(peer_id)
+	player_map_pins.erase(peer_id)
+	player_characters.erase(peer_id)
 
 	# Notify all clients to despawn through NetworkManager
 	NetworkManager.rpc_despawn_player.rpc(peer_id)

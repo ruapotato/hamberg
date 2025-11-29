@@ -256,6 +256,10 @@ func _process(_delta: float) -> void:
 		# Check if debug console is open - if so, close it and don't toggle pause
 		if debug_console_ui and debug_console_ui.visible:
 			debug_console_ui.hide_console()
+		# Check if world map is open - if so, close it and don't toggle pause
+		elif world_map_ui and world_map_ui.visible:
+			world_map_ui.visible = false
+			Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 		# Check if inventory is open - if so, close it and don't toggle pause
 		elif inventory_panel_ui and inventory_panel_ui.is_inventory_open():
 			inventory_panel_ui.hide_inventory()
@@ -269,9 +273,10 @@ func _process(_delta: float) -> void:
 	if Input.is_action_just_pressed("manual_save") and is_in_game:
 		_request_server_save()
 
-	# Handle map toggle
+	# Handle map open (M only opens, ESC closes - so you can type M in pin names)
 	if Input.is_action_just_pressed("toggle_map") and is_in_game:
-		_toggle_world_map()
+		if world_map_ui and not world_map_ui.visible:
+			_toggle_world_map()
 
 	# Handle debug console toggle (F5)
 	if Input.is_action_just_pressed("toggle_debug_console"):
@@ -1161,7 +1166,10 @@ func _sync_map_markers_from_pins() -> void:
 
 	var pins = world_map_ui.get_pins()
 	for pin in pins:
-		_create_map_marker(pin.pos, pin.name)
+		# get_pins() returns arrays for JSON serialization, convert to Vector2
+		var pos_data = pin.get("pos", [0, 0])
+		var pos: Vector2 = Vector2(pos_data[0], pos_data[1]) if pos_data is Array else pos_data
+		_create_map_marker(pos, pin.get("name", "Pin"))
 
 # ============================================================================
 # CHARACTER SELECTION AND PERSISTENCE
@@ -1232,7 +1240,10 @@ func receive_character_data(character_data: Dictionary) -> void:
 		# Create 3D markers for loaded pins
 		for pin in pins:
 			if pin.has("pos") and pin.has("name"):
-				_create_map_marker(pin.pos, pin.name)
+				# Pins from server use array format [x, y] for JSON
+				var pos_data = pin.get("pos", [0, 0])
+				var pos: Vector2 = Vector2(pos_data[0], pos_data[1]) if pos_data is Array else pos_data
+				_create_map_marker(pos, pin.get("name", "Pin"))
 
 ## Receive inventory slot update from server
 func receive_inventory_slot_update(slot: int, item: String, amount: int) -> void:

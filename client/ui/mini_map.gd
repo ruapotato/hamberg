@@ -392,8 +392,19 @@ func set_remote_players(players: Dictionary) -> void:
 	remote_players = players
 
 func set_pins(pins: Array) -> void:
-	"""Update pins array"""
-	map_pins = pins
+	"""Update pins array (handles both array and Vector2 formats)"""
+	map_pins = []
+	for pin in pins:
+		var pos_data = pin.get("pos", [0, 0])
+		var pos: Vector2
+		# Handle both array format [x, y] and Vector2 format
+		if pos_data is Array:
+			pos = Vector2(pos_data[0], pos_data[1])
+		elif pos_data is Vector2:
+			pos = pos_data
+		else:
+			pos = Vector2.ZERO
+		map_pins.append({"pos": pos, "name": pin.get("name", "Pin")})
 
 # Debug timer for logging
 var debug_log_timer: float = 0.0
