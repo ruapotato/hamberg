@@ -31,6 +31,10 @@ func _ready() -> void:
 
 	print("[ResourceItem] Spawned %d x %s" % [amount, item_name])
 
+	# Check for already-overlapping bodies after a brief delay
+	# (body_entered doesn't fire for bodies already overlapping at spawn)
+	get_tree().create_timer(0.1).timeout.connect(_check_overlapping_bodies)
+
 func _process(delta: float) -> void:
 	# Bob up and down
 	var time = Time.get_ticks_msec() / 1000.0 + bob_offset
@@ -111,3 +115,14 @@ func _on_body_entered(body: Node3D) -> void:
 func set_item_data(item: String, qty: int) -> void:
 	item_name = item
 	amount = qty
+
+## Check for bodies already overlapping when spawned
+func _check_overlapping_bodies() -> void:
+	if pickup_requested:
+		return
+
+	var overlapping = get_overlapping_bodies()
+	for body in overlapping:
+		_on_body_entered(body)
+		if pickup_requested:
+			break
