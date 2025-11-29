@@ -63,14 +63,16 @@ var attack_timer: float = 0.0
 const ATTACK_ANIMATION_TIME: float = 0.3
 const KNIFE_ANIMATION_TIME: float = 0.225  # 25% faster than normal (0.3 * 0.75)
 const SWORD_ANIMATION_TIME: float = 0.3  # Normal speed
+const AXE_ANIMATION_TIME: float = 0.5  # Slower, heavier swings
 var current_attack_animation_time: float = 0.3  # Actual animation time for current attack
 
-# Combo system (for weapons like knife)
-var combo_count: int = 0  # Current combo hit (0, 1, 2 for knife's 3-hit combo)
+# Combo system (for weapons like knife and axe)
+var combo_count: int = 0  # Current combo hit (0, 1, 2 for 3-hit combo)
 var combo_timer: float = 0.0  # Time since last attack in combo
-const COMBO_WINDOW: float = 1.0  # Time window to continue combo
-const MAX_COMBO: int = 3  # Maximum combo hits (knife has 3-hit combo)
-var current_combo_animation: int = 0  # Which animation to play (0=right slash, 1=left slash, 2=jab)
+const COMBO_WINDOW: float = 1.2  # Time window to continue combo
+const MAX_COMBO: int = 3  # Maximum combo hits
+var current_combo_animation: int = 0  # Which animation to play
+var current_weapon_type: String = ""  # Track weapon for combo animations (knife, axe, etc.)
 
 # Special attack state
 var is_special_attacking: bool = false
@@ -78,7 +80,13 @@ var special_attack_timer: float = 0.0
 const SPECIAL_ATTACK_ANIMATION_TIME: float = 0.5  # Longer than normal attacks
 const KNIFE_SPECIAL_ANIMATION_TIME: float = 0.4  # Faster for knife lunge
 const SWORD_SPECIAL_ANIMATION_TIME: float = 0.6  # Slower for sword jab
+const AXE_SPECIAL_ANIMATION_TIME: float = 0.8  # Full spin takes longer
 var current_special_attack_animation_time: float = 0.5  # Actual special animation time
+
+# Axe spin attack state
+var is_spinning: bool = false
+var spin_rotation: float = 0.0  # Current spin rotation for body
+var spin_hit_enemies: Array = []  # Enemies already hit during spin
 var is_lunging: bool = false  # Track if player is performing a lunge attack
 var lunge_direction: Vector3 = Vector3.ZERO  # Direction of lunge for maintaining momentum
 const LUNGE_FORWARD_FORCE: float = 15.0  # Continuous forward force during lunge
@@ -646,16 +654,22 @@ func _handle_attack() -> void:
 	if not weapon_data:
 		weapon_data = ItemDatabase.get_item("fists")
 
-	# COMBO SYSTEM: Check if this is a knife (which has combo attacks)
+	# COMBO SYSTEM: Check weapon type for combo attacks
 	var is_knife = weapon_data.item_id == "stone_knife"
 	var is_sword = weapon_data.item_id == "stone_sword"
+	var is_axe = weapon_data.item_id == "stone_axe"
 	var combo_multiplier: float = 1.0  # Damage multiplier based on combo
+
+	# Track weapon type for animations
+	current_weapon_type = weapon_data.item_id
 
 	# Set animation speed based on weapon type
 	if is_knife:
 		current_attack_animation_time = KNIFE_ANIMATION_TIME  # 25% faster
 	elif is_sword:
 		current_attack_animation_time = SWORD_ANIMATION_TIME  # Normal speed
+	elif is_axe:
+		current_attack_animation_time = AXE_ANIMATION_TIME  # Slower, heavier
 	else:
 		current_attack_animation_time = ATTACK_ANIMATION_TIME  # Default
 
@@ -685,6 +699,24 @@ func _handle_attack() -> void:
 		# Advance combo
 		combo_count = (combo_count + 1) % MAX_COMBO
 		combo_timer = COMBO_WINDOW  # Reset combo window
+
+	elif is_axe:
+		# Store current combo animation BEFORE incrementing
+		current_combo_animation = combo_count  # 0=overhead, 1=sweep, 2=uppercut
+
+		# Axe has a 3-hit combo: overhead slam, horizontal sweep, powerful uppercut
+		if combo_count == 0:
+			print("[Player] Axe combo hit 1 - OVERHEAD SLAM!")
+		elif combo_count == 1:
+			print("[Player] Axe combo hit 2 - HORIZONTAL SWEEP!")
+		else:  # combo_count == 2
+			combo_multiplier = 1.75  # 75% more damage on finisher
+			print("[Player] Axe combo FINISHER - RISING CLEAVE! (Hit %d)" % (combo_count + 1))
+
+		# Advance combo
+		combo_count = (combo_count + 1) % MAX_COMBO
+		combo_timer = COMBO_WINDOW  # Reset combo window
+
 	else:
 		# Non-combo weapons always use default slash animation
 		current_combo_animation = 0
@@ -875,6 +907,8 @@ func _handle_special_attack() -> void:
 			_special_attack_knife_lunge(weapon_data, camera)
 		"stone_sword":
 			_special_attack_sword_stab(weapon_data, camera)
+		"stone_axe":
+			_special_attack_axe_spin(weapon_data, camera)
 		"fire_wand":
 			_special_attack_fire_wand_area(weapon_data, camera)
 		_:
@@ -966,6 +1000,43 @@ func _special_attack_sword_stab(weapon_data: WeaponData, camera: Camera3D) -> vo
 
 	# Perform melee raycast attack
 	_perform_melee_attack(camera, attack_range, damage, knockback)
+
+## Axe special: Spinning whirlwind attack (360 degree spin, hits everything around)
+func _special_attack_axe_spin(weapon_data: WeaponData, camera: Camera3D) -> void:
+	var stamina_cost: float = 35.0  # High stamina cost for powerful spin
+	var damage: float = weapon_data.damage * 1.5  # 1.5x damage during spin
+	var knockback: float = weapon_data.knockback * 2.0  # Double knockback, sends enemies flying
+	var attack_range: float = 4.0  # Close range spin
+
+	# Check stamina cost
+	if not consume_stamina(stamina_cost):
+		print("[Player] Not enough stamina for axe spin!")
+		return
+
+	print("[Player] Axe WHIRLWIND SPIN attack!")
+
+	# Trigger special attack animation
+	is_special_attacking = true
+	is_spinning = true
+	spin_rotation = 0.0
+	spin_hit_enemies.clear()
+	special_attack_timer = 0.0
+	current_special_attack_animation_time = AXE_SPECIAL_ANIMATION_TIME
+
+	# Store attack parameters for continuous hit detection during spin
+	lunge_damage = damage  # Reuse lunge_damage for spin damage
+	lunge_knockback = knockback
+
+	# Rotate player mesh to face initial attack direction
+	if is_local_player and body_container:
+		var camera_controller = get_node_or_null("CameraController")
+		if camera_controller and "camera_rotation" in camera_controller:
+			var camera_yaw = camera_controller.camera_rotation.x
+			body_container.rotation.y = camera_yaw + PI
+
+	SoundManager.play_sound_varied("sword_swing", global_position)
+
+	# Perform initial hit check in front (damage dealt continuously during spin via _physics_process)
 
 ## Fire wand special: Area fire effect around the player (defensive fire ring)
 func _special_attack_fire_wand_area(weapon_data: WeaponData, _camera: Camera3D) -> void:
@@ -1672,9 +1743,24 @@ func _update_body_animations(delta: float) -> void:
 	# Update special attack animation
 	if is_special_attacking:
 		special_attack_timer += delta
+
+		# Axe spin: rotate body and check for hits during spin
+		if is_spinning and body_container:
+			var spin_progress = special_attack_timer / current_special_attack_animation_time
+			# Full 360 degree spin (plus a bit extra for follow-through)
+			spin_rotation = spin_progress * TAU * 1.1
+			body_container.rotation.y += delta * 15.0  # Fast spin
+
+			# Check for enemies in range during spin (every frame)
+			_check_spin_hits()
+
 		if special_attack_timer >= current_special_attack_animation_time:
 			is_special_attacking = false
 			special_attack_timer = 0.0
+			# Reset spin state
+			if is_spinning:
+				is_spinning = false
+				spin_hit_enemies.clear()
 			# DON'T reset is_lunging here - it persists until landing!
 			# DON'T reset weapon rotation here - knife stays horizontal until landing!
 
@@ -1828,77 +1914,54 @@ func _update_body_animations(delta: float) -> void:
 	elif is_special_attacking and right_arm:
 		var attack_progress = special_attack_timer / current_special_attack_animation_time
 
-		# Strong overhead slash or thrust (more dramatic than normal attacks)
-		var swing_x = -sin(attack_progress * PI) * 2.0  # Very strong forward/down motion
-		var swing_z = sin(attack_progress * PI) * -0.5  # Some horizontal motion
-		right_arm.rotation.x = swing_x
-		right_arm.rotation.z = swing_z
+		if is_spinning:
+			# AXE SPIN - Arms extended horizontally, spinning with body
+			# Both arms out to sides holding the axe
+			right_arm.rotation.x = -0.3  # Slightly forward
+			right_arm.rotation.z = -1.5  # Extended to the right
+			if left_arm:
+				left_arm.rotation.x = -0.3
+				left_arm.rotation.z = 1.5  # Extended to the left
+			# Arms fully extended during spin
+			if right_elbow:
+				right_elbow.rotation.x = -0.1
+			if left_elbow:
+				left_elbow.rotation.x = -0.1
+		else:
+			# Default special attack animation
+			# Strong overhead slash or thrust (more dramatic than normal attacks)
+			var swing_x = -sin(attack_progress * PI) * 2.0  # Very strong forward/down motion
+			var swing_z = sin(attack_progress * PI) * -0.5  # Some horizontal motion
+			right_arm.rotation.x = swing_x
+			right_arm.rotation.z = swing_z
 
-		# Elbow bends during windup and extends on strike
-		if right_elbow:
-			var elbow_bend = -sin(attack_progress * PI) * 0.8  # Negative = bend inward
-			right_elbow.rotation.x = elbow_bend
+			# Elbow bends during windup and extends on strike
+			if right_elbow:
+				var elbow_bend = -sin(attack_progress * PI) * 0.8  # Negative = bend inward
+				right_elbow.rotation.x = elbow_bend
 	# Attack animation overrides arm movement (RIGHT arm for weapons)
 	elif is_attacking and right_arm:
 		var attack_progress = attack_timer / current_attack_animation_time
 
-		# Different animations based on combo type
-		match current_combo_animation:
-			0:  # Right-to-left slash (starts right, sweeps left across body)
-				# Horizontal sweep from right to left
-				var start_z = -1.2  # Start extended to right
-				var end_z = 0.6     # End swept across to left
-				var horizontal_angle = lerp(start_z, end_z, attack_progress)
-				right_arm.rotation.z = horizontal_angle
+		# Different animations based on weapon type and combo
+		if current_weapon_type == "stone_axe":
+			# AXE COMBO ANIMATIONS - Big, powerful two-handed swings
+			_animate_axe_attack(attack_progress, right_arm, left_arm, right_elbow, left_elbow)
+		elif current_weapon_type == "stone_knife":
+			# KNIFE COMBO ANIMATIONS
+			_animate_knife_attack(attack_progress, right_arm, right_elbow)
+		else:
+			# DEFAULT SLASH ANIMATION
+			var start_z = -1.0
+			var end_z = 0.5
+			var horizontal_angle = lerp(start_z, end_z, attack_progress)
+			right_arm.rotation.z = horizontal_angle
+			var forward_angle = -sin(attack_progress * PI) * 0.8
+			right_arm.rotation.x = forward_angle
 
-				# Forward motion during slash
-				var forward_angle = -sin(attack_progress * PI) * 0.8
-				right_arm.rotation.x = forward_angle
-
-				# Elbow extends during slash
-				if right_elbow:
-					var elbow_bend = -sin(attack_progress * PI) * 0.6
-					right_elbow.rotation.x = elbow_bend
-
-			1:  # Left-to-right slash (reverse of first slash)
-				# Horizontal sweep from left to right
-				var start_z = 0.6   # Start crossed over to left
-				var end_z = -1.2    # End swept to right
-				var horizontal_angle = lerp(start_z, end_z, attack_progress)
-				right_arm.rotation.z = horizontal_angle
-
-				# Forward motion during slash
-				var forward_angle = -sin(attack_progress * PI) * 0.8
-				right_arm.rotation.x = forward_angle
-
-				# Elbow extends during slash
-				if right_elbow:
-					var elbow_bend = -sin(attack_progress * PI) * 0.6
-					right_elbow.rotation.x = elbow_bend
-
-			2:  # Forward jab/thrust (finisher)
-				# Strong forward thrust (minimal horizontal movement)
-				var jab_angle = -sin(attack_progress * PI) * 1.8  # Strong forward jab
-				right_arm.rotation.x = jab_angle
-				right_arm.rotation.z = -0.3  # Slight angle for natural look
-
-				# Elbow extends fully on jab
-				if right_elbow:
-					var elbow_extend = -sin(attack_progress * PI) * 0.9
-					right_elbow.rotation.x = elbow_extend
-
-			_:  # Default slash (same as animation 0)
-				var start_z = -1.0
-				var end_z = 0.5
-				var horizontal_angle = lerp(start_z, end_z, attack_progress)
-				right_arm.rotation.z = horizontal_angle
-				var forward_angle = -sin(attack_progress * PI) * 0.8
-				right_arm.rotation.x = forward_angle
-
-				# Elbow extends during slash
-				if right_elbow:
-					var elbow_bend = -sin(attack_progress * PI) * 0.6
-					right_elbow.rotation.x = elbow_bend
+			if right_elbow:
+				var elbow_bend = -sin(attack_progress * PI) * 0.6
+				right_elbow.rotation.x = elbow_bend
 	elif right_arm:
 		# Normal arm swing will be handled below
 		pass
@@ -2059,6 +2122,182 @@ func pickup_item(item_name: String, amount: int) -> bool:
 		print("[Player] Inventory full! Couldn't pick up %d x %s" % [remaining, item_name])
 
 	return remaining < amount
+
+# ============================================================================
+# WEAPON ATTACK ANIMATIONS
+# ============================================================================
+
+## Animate knife combo attacks
+func _animate_knife_attack(progress: float, right_arm: Node3D, right_elbow: Node3D) -> void:
+	match current_combo_animation:
+		0:  # Right-to-left slash
+			var start_z = -1.2
+			var end_z = 0.6
+			var horizontal_angle = lerp(start_z, end_z, progress)
+			right_arm.rotation.z = horizontal_angle
+			var forward_angle = -sin(progress * PI) * 0.8
+			right_arm.rotation.x = forward_angle
+			if right_elbow:
+				right_elbow.rotation.x = -sin(progress * PI) * 0.6
+
+		1:  # Left-to-right slash
+			var start_z = 0.6
+			var end_z = -1.2
+			var horizontal_angle = lerp(start_z, end_z, progress)
+			right_arm.rotation.z = horizontal_angle
+			var forward_angle = -sin(progress * PI) * 0.8
+			right_arm.rotation.x = forward_angle
+			if right_elbow:
+				right_elbow.rotation.x = -sin(progress * PI) * 0.6
+
+		2:  # Forward jab (finisher)
+			var jab_angle = -sin(progress * PI) * 1.8
+			right_arm.rotation.x = jab_angle
+			right_arm.rotation.z = -0.3
+			if right_elbow:
+				right_elbow.rotation.x = -sin(progress * PI) * 0.9
+
+## Check for enemy hits during axe spin attack
+func _check_spin_hits() -> void:
+	if not is_local_player:
+		return
+
+	var space_state = get_world_3d().direct_space_state
+	var attack_center = global_position + Vector3.UP * 1.0  # Chest height
+	var spin_radius = 3.5  # Attack radius
+
+	# Use shape query to find all enemies in radius
+	var shape = SphereShape3D.new()
+	shape.radius = spin_radius
+
+	var query = PhysicsShapeQueryParameters3D.new()
+	query.shape = shape
+	query.transform = Transform3D(Basis.IDENTITY, attack_center)
+	query.collision_mask = 4  # Enemy layer
+
+	var results = space_state.intersect_shape(query, 10)
+
+	for result in results:
+		var collider = result.collider
+		if collider and collider.has_method("take_damage"):
+			# Check if already hit this enemy during this spin
+			if collider in spin_hit_enemies:
+				continue
+
+			# Mark as hit
+			spin_hit_enemies.append(collider)
+
+			# Get enemy network ID and send damage
+			var enemy_network_id = collider.network_id if "network_id" in collider else 0
+			if enemy_network_id > 0:
+				var hit_direction = (collider.global_position - global_position).normalized()
+				print("[Player] Spin attack hit enemy %s!" % collider.name)
+				_send_enemy_damage_request(enemy_network_id, lunge_damage, lunge_knockback, hit_direction)
+
+				# Play hit sound
+				SoundManager.play_sound_varied("sword_swing", global_position)
+
+## Animate axe combo attacks - big, heavy two-handed swings
+func _animate_axe_attack(progress: float, right_arm: Node3D, left_arm: Node3D, right_elbow: Node3D, left_elbow: Node3D) -> void:
+	match current_combo_animation:
+		0:  # OVERHEAD SLAM - Raise axe high, bring it crashing down
+			# Wind up: arms go UP and BACK (first 30% of animation)
+			# Strike: arms slam DOWN and FORWARD (remaining 70%)
+			var windup_end = 0.3
+
+			if progress < windup_end:
+				# Windup phase - raise arms overhead
+				var windup_progress = progress / windup_end
+				# Arms go up and back
+				right_arm.rotation.x = lerp(0.0, 2.5, windup_progress)  # Way up and back
+				right_arm.rotation.z = lerp(0.0, -0.3, windup_progress)
+				if left_arm:
+					left_arm.rotation.x = lerp(0.0, 2.2, windup_progress)  # Left arm follows
+					left_arm.rotation.z = lerp(0.0, 0.3, windup_progress)
+				# Elbows bent during windup
+				if right_elbow:
+					right_elbow.rotation.x = lerp(0.0, -1.2, windup_progress)
+				if left_elbow:
+					left_elbow.rotation.x = lerp(0.0, -1.0, windup_progress)
+			else:
+				# Strike phase - SLAM down hard
+				var strike_progress = (progress - windup_end) / (1.0 - windup_end)
+				# Arms slam down with massive arc
+				right_arm.rotation.x = lerp(2.5, -1.8, strike_progress)  # From overhead to forward/down
+				right_arm.rotation.z = lerp(-0.3, 0.0, strike_progress)
+				if left_arm:
+					left_arm.rotation.x = lerp(2.2, -1.5, strike_progress)
+					left_arm.rotation.z = lerp(0.3, 0.0, strike_progress)
+				# Elbows extend during strike
+				if right_elbow:
+					right_elbow.rotation.x = lerp(-1.2, -0.2, strike_progress)
+				if left_elbow:
+					left_elbow.rotation.x = lerp(-1.0, -0.2, strike_progress)
+
+		1:  # HORIZONTAL SWEEP - Wide swing from right to left
+			# Big horizontal arc across the body
+			var windup_end = 0.25
+
+			if progress < windup_end:
+				# Windup - pull back to right side
+				var windup_progress = progress / windup_end
+				right_arm.rotation.z = lerp(0.0, -1.8, windup_progress)  # Far right
+				right_arm.rotation.x = lerp(0.0, -0.5, windup_progress)  # Slightly forward
+				if left_arm:
+					left_arm.rotation.z = lerp(0.0, -1.0, windup_progress)
+					left_arm.rotation.x = lerp(0.0, -0.3, windup_progress)
+				if right_elbow:
+					right_elbow.rotation.x = lerp(0.0, -0.8, windup_progress)
+			else:
+				# Sweep across - powerful horizontal slash
+				var sweep_progress = (progress - windup_end) / (1.0 - windup_end)
+				right_arm.rotation.z = lerp(-1.8, 1.2, sweep_progress)  # From far right to left
+				right_arm.rotation.x = lerp(-0.5, -0.8, sweep_progress)  # Stay forward
+				if left_arm:
+					left_arm.rotation.z = lerp(-1.0, 0.8, sweep_progress)
+					left_arm.rotation.x = lerp(-0.3, -0.6, sweep_progress)
+				# Arms extend during sweep
+				if right_elbow:
+					right_elbow.rotation.x = lerp(-0.8, -0.1, sweep_progress)
+				if left_elbow:
+					left_elbow.rotation.x = lerp(-0.6, -0.1, sweep_progress)
+
+		2:  # RISING CLEAVE (FINISHER) - Diagonal upward slash with full body commitment
+			# Start low, slash diagonally upward with maximum power
+			var windup_end = 0.35
+
+			if progress < windup_end:
+				# Wind down and to the right - preparing for upward cleave
+				var windup_progress = progress / windup_end
+				right_arm.rotation.x = lerp(0.0, -1.5, windup_progress)  # Down and forward
+				right_arm.rotation.z = lerp(0.0, -1.5, windup_progress)  # To the right/low
+				if left_arm:
+					left_arm.rotation.x = lerp(0.0, -1.2, windup_progress)
+					left_arm.rotation.z = lerp(0.0, -1.0, windup_progress)
+				if right_elbow:
+					right_elbow.rotation.x = lerp(0.0, -1.0, windup_progress)
+			else:
+				# RISING CLEAVE - diagonal upward with explosive power
+				var cleave_progress = (progress - windup_end) / (1.0 - windup_end)
+				# Dramatic upward diagonal arc
+				right_arm.rotation.x = lerp(-1.5, 2.0, cleave_progress)  # From low to high
+				right_arm.rotation.z = lerp(-1.5, 0.8, cleave_progress)  # From right to slightly left
+				if left_arm:
+					left_arm.rotation.x = lerp(-1.2, 1.8, cleave_progress)
+					left_arm.rotation.z = lerp(-1.0, 0.5, cleave_progress)
+				# Arms fully extend on the upswing
+				if right_elbow:
+					right_elbow.rotation.x = lerp(-1.0, 0.0, cleave_progress)
+				if left_elbow:
+					left_elbow.rotation.x = lerp(-0.8, 0.0, cleave_progress)
+
+		_:  # Default - same as overhead slam
+			var swing = -sin(progress * PI) * 2.0
+			right_arm.rotation.x = swing
+			if left_arm:
+				left_arm.rotation.x = swing * 0.8
+			if right_elbow:
+				right_elbow.rotation.x = -sin(progress * PI) * 0.8
 
 # ============================================================================
 # STAMINA & HEALTH SYSTEM

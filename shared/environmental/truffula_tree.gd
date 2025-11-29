@@ -9,7 +9,7 @@ extends Node3D
 @export var fade_in_distance: float = 100.0
 
 # Tree stats
-@export var max_health: float = 100.0
+@export var max_health: float = 180.0  # Takes 6 axe hits (30 damage each)
 @export var required_tool_type: String = "axe"  # Must use axe to damage
 
 var chunk_position: Vector2i
