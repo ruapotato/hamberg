@@ -1539,8 +1539,8 @@ func spawn_fallen_log(position: Vector3, rotation_y: float, network_id: String) 
 	print("[Client] Fallen log spawned at %s" % log_instance.global_position)
 
 ## Spawn split logs at multiple positions (from a chopped fallen log)
-func spawn_split_logs(positions: Array, network_ids: Array, rotation_y: float = 0.0) -> void:
-	print("[Client] Spawning %d split logs" % positions.size())
+func spawn_split_logs(positions: Array, network_ids: Array, log_axis_angle: float = 0.0) -> void:
+	print("[Client] Spawning %d split logs (axis angle: %.2f)" % [positions.size(), log_axis_angle])
 
 	var split_log_scene = preload("res://shared/environmental/split_log.tscn")
 
@@ -1554,9 +1554,12 @@ func spawn_split_logs(positions: Array, network_ids: Array, rotation_y: float = 
 
 		world.add_child(log_instance)
 		log_instance.global_position = pos
-		# Align with parent log and lie down
-		log_instance.rotation.y = rotation_y
-		log_instance.rotation.z = PI / 2  # Lying on side like the big log was
+
+		# Rotate split log to lie along the fallen log's axis
+		# The cylinder's local Y axis needs to point horizontally in the log_axis direction
+		# log_axis_angle is the angle in the XZ plane where the log's length points
+		# First rotate to lie down (X rotation), then orient along axis (Y rotation)
+		log_instance.rotation = Vector3(0, log_axis_angle, PI / 2)
 
 	print("[Client] Split logs spawned successfully")
 
