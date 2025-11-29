@@ -14,6 +14,7 @@ var biome_generator = null  # BiomeGenerator or TerrainBiomeGenerator instance
 var cached_map_texture: ImageTexture = null  # Large pre-generated buffer
 var atlas_texture: AtlasTexture = null  # Viewport into the buffer
 var buffer_center: Vector2 = Vector2.ZERO  # World position at center of buffer
+var displayed_center: Vector2 = Vector2.ZERO  # Actual world position at center of displayed map (may differ due to clamping)
 var buffer_world_size: float = 800.0  # World units covered by buffer (4x visible area)
 var buffer_pixel_size: int = 128  # Pixel size of buffer texture (reduced for performance)
 
@@ -112,6 +113,7 @@ func _regenerate_buffer(center: Vector2) -> void:
 	print("[MiniMap] Generating %dx%d buffer covering %.0f units..." % [buffer_pixel_size, buffer_pixel_size, buffer_world_size])
 
 	buffer_center = center
+	displayed_center = center  # Initially centered on buffer center
 	cached_map_texture = map_generator.generate_map_texture(center, buffer_world_size, buffer_pixel_size)
 
 	# Create atlas texture to show a viewport into the buffer
@@ -154,6 +156,7 @@ func _update_viewport(player_pos: Vector2) -> void:
 	"""Update the atlas viewport to center on player (no texture regeneration)"""
 	# Calculate world units per pixel in the buffer
 	var world_to_buffer_scale := float(buffer_pixel_size) / buffer_world_size
+	var buffer_to_world_scale := buffer_world_size / float(buffer_pixel_size)
 
 	# Convert player position relative to buffer center into buffer pixel coordinates
 	var relative_pos := player_pos - buffer_center
@@ -171,6 +174,13 @@ func _update_viewport(player_pos: Vector2) -> void:
 	region_x = clamp(region_x, 0, buffer_pixel_size - visible_buffer_pixels)
 	region_y = clamp(region_y, 0, buffer_pixel_size - visible_buffer_pixels)
 
+	# Calculate the actual displayed center (may differ from player pos due to clamping)
+	var displayed_pixel_x := region_x + (visible_buffer_pixels * 0.5)
+	var displayed_pixel_y := region_y + (visible_buffer_pixels * 0.5)
+	var displayed_offset_x := (displayed_pixel_x - (buffer_pixel_size * 0.5)) * buffer_to_world_scale
+	var displayed_offset_y := (displayed_pixel_y - (buffer_pixel_size * 0.5)) * buffer_to_world_scale
+	displayed_center = buffer_center + Vector2(displayed_offset_x, displayed_offset_y)
+
 	# Update the atlas region (just moves the viewport, no pixel generation!)
 	atlas_texture.region = Rect2(region_x, region_y, visible_buffer_pixels, visible_buffer_pixels)
 
@@ -178,14 +188,12 @@ func _on_refresh_timeout() -> void:
 	refresh_map()
 
 func _world_to_screen_pos(world_pos: Vector2) -> Vector2:
-	if not local_player or not overlay:
+	if not overlay:
 		return Vector2.ZERO
 
-	# Center is always player position
-	var player_xz := Vector2(local_player.global_position.x, local_player.global_position.z)
-
-	# Offset from center
-	var offset := world_pos - player_xz
+	# Use the actual displayed center (accounts for viewport clamping)
+	# This ensures markers align with the terrain even near buffer edges
+	var offset := world_pos - displayed_center
 
 	# Normalize to -0.5 to 0.5 based on visible world size
 	var norm_x := offset.x / MINI_MAP_WORLD_SIZE
