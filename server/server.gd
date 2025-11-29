@@ -1996,7 +1996,7 @@ func handle_debug_give_item(peer_id: int, item_name: String, amount: int) -> voi
 	var network_ids: Array = []
 	for i in amount:
 		# Use counter for unique IDs
-		network_ids.append("%s_%d" % [item_type, resource_item_counter])
+		network_ids.append("%s_%d" % [item_name, resource_item_counter])
 		resource_item_counter += 1
 
 	print("[Server] DEBUG: Generated %d network IDs" % network_ids.size())
