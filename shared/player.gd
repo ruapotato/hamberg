@@ -63,7 +63,7 @@ var attack_timer: float = 0.0
 const ATTACK_ANIMATION_TIME: float = 0.3
 const KNIFE_ANIMATION_TIME: float = 0.225  # 25% faster than normal (0.3 * 0.75)
 const SWORD_ANIMATION_TIME: float = 0.3  # Normal speed
-const AXE_ANIMATION_TIME: float = 0.5  # Slower, heavier swings
+const AXE_ANIMATION_TIME: float = 0.45  # Faster swings
 var current_attack_animation_time: float = 0.3  # Actual animation time for current attack
 
 # Combo system (for weapons like knife and axe)
@@ -118,6 +118,7 @@ var body_container: Node3D = null
 # Equipped weapon/shield visuals
 var equipped_weapon_visual: Node3D = null  # Main hand weapon
 var equipped_shield_visual: Node3D = null  # Off hand shield
+var weapon_wrist_pivot: Node3D = null  # Pivot point for weapon rotation (simulates wrist)
 
 # Terrain dig visual feedback
 var terrain_preview_cube: MeshInstance3D = null    # Temporary shape after placement
@@ -441,7 +442,8 @@ func _apply_movement(input_data: Dictionary, delta: float) -> void:
 			# Reset weapon rotation
 			if equipped_weapon_visual:
 				equipped_weapon_visual.rotation_degrees = Vector3(90, 0, 0)
-				print("[Player] Reset weapon to 90 degrees")
+			if weapon_wrist_pivot:
+				weapon_wrist_pivot.rotation_degrees = Vector3.ZERO
 
 	# Jumping (with stamina cost)
 	if jump_pressed and is_on_floor():
@@ -505,7 +507,8 @@ func _apply_movement(input_data: Dictionary, delta: float) -> void:
 		# Reset weapon rotation when lunge completes (on landing)
 		if equipped_weapon_visual:
 			equipped_weapon_visual.rotation_degrees = Vector3(90, 0, 0)
-			print("[Player] Reset weapon to 90 degrees")
+		if weapon_wrist_pivot:
+			weapon_wrist_pivot.rotation_degrees = Vector3.ZERO
 
 	# Rotate VISUAL body to face movement direction (not the CharacterBody3D!)
 	# UNLESS blocking or lunging - then stay facing shield/lunge direction
@@ -726,6 +729,8 @@ func _handle_attack() -> void:
 		# Reset weapon to normal angle
 		if equipped_weapon_visual:
 			equipped_weapon_visual.rotation_degrees = Vector3(90, 0, 0)
+		if weapon_wrist_pivot:
+			weapon_wrist_pivot.rotation_degrees = Vector3.ZERO
 
 	# Use weapon stats
 	var damage: float = weapon_data.damage * combo_multiplier
@@ -1739,6 +1744,9 @@ func _update_body_animations(delta: float) -> void:
 			# Reset weapon rotation after attack completes
 			if equipped_weapon_visual:
 				equipped_weapon_visual.rotation_degrees = Vector3(90, 0, 0)
+			# Reset wrist pivot to neutral
+			if weapon_wrist_pivot:
+				weapon_wrist_pivot.rotation_degrees = Vector3.ZERO
 
 	# Update special attack animation
 	if is_special_attacking:
@@ -1761,6 +1769,9 @@ func _update_body_animations(delta: float) -> void:
 			if is_spinning:
 				is_spinning = false
 				spin_hit_enemies.clear()
+				# Reset wrist pivot after spin (but NOT weapon - stay at 90 degrees)
+				if weapon_wrist_pivot:
+					weapon_wrist_pivot.rotation_degrees = Vector3.ZERO
 			# DON'T reset is_lunging here - it persists until landing!
 			# DON'T reset weapon rotation here - knife stays horizontal until landing!
 
@@ -2190,131 +2201,125 @@ func _check_spin_hits() -> void:
 				# Play hit sound
 				SoundManager.play_sound_varied("sword_swing", global_position)
 
-## Animate axe combo attacks - big arcing swings with weapon rotation
-## Attack 1: Horizontal RIGHT to LEFT sweep
-## Attack 2: Horizontal LEFT to RIGHT sweep
-## Attack 3 (Finisher): Overhead SLAM
+## Animate axe combo attacks - SIMPLE wide sweeping arcs
+## The ARM does the work - axe head sweeps IN FRONT of the player
+## Axe aligns with arm (0 degrees) during swings
 func _animate_axe_attack(progress: float, right_arm: Node3D, left_arm: Node3D, right_elbow: Node3D, left_elbow: Node3D) -> void:
-	# Get the weapon visual for rotation during swings
-	var weapon = equipped_weapon_visual
+	# Reset wrist pivot
+	if weapon_wrist_pivot:
+		weapon_wrist_pivot.rotation_degrees = Vector3.ZERO
+
+	# Align axe with arm during swings, head pointing AWAY from player
+	if equipped_weapon_visual:
+		equipped_weapon_visual.rotation_degrees.x = 180.0
 
 	match current_combo_animation:
-		0:  # BIG HORIZONTAL SWEEP: RIGHT to LEFT
-			var windup_end = 0.2  # Quick windup
+		0:  # SWEEP RIGHT TO LEFT - two-handed, chest height
+			var windup_end = 0.25
 
 			if progress < windup_end:
-				# Windup - arms go to the RIGHT, axe cocked back
 				var t = progress / windup_end
-				# Right arm goes out to side and back
-				right_arm.rotation.x = lerp(0.0, 0.3, t)  # Slightly back
-				right_arm.rotation.z = lerp(0.0, -1.2, t)  # Out to right side
-				if left_arm:
-					left_arm.rotation.x = lerp(0.0, 0.2, t)
-					left_arm.rotation.z = lerp(0.0, -0.8, t)  # Follows right arm
-				# Elbows stay relatively straight for power
-				if right_elbow:
-					right_elbow.rotation.x = lerp(0.0, -0.3, t)
-				# Rotate axe - head pointing RIGHT and UP ready to swing
-				if weapon:
-					weapon.rotation_degrees.x = lerp(90.0, 45.0, t)  # Tilt head up
-					weapon.rotation_degrees.z = lerp(0.0, -45.0, t)  # Angle for sweep
-			else:
-				# SWEEP - powerful horizontal arc from right to left
-				var t = (progress - windup_end) / (1.0 - windup_end)
-				# Arms sweep across body
-				right_arm.rotation.x = lerp(0.3, -0.5, t)  # Forward during swing
-				right_arm.rotation.z = lerp(-1.2, 1.0, t)  # Sweep from right to left
-				if left_arm:
-					left_arm.rotation.x = lerp(0.2, -0.4, t)
-					left_arm.rotation.z = lerp(-0.8, 0.6, t)
-				# Arms extend for reach
-				if right_elbow:
-					right_elbow.rotation.x = lerp(-0.3, -0.1, t)
-				# Axe follows the arc - head leads the swing
-				if weapon:
-					weapon.rotation_degrees.x = lerp(45.0, 120.0, t)  # Head swings through
-					weapon.rotation_degrees.z = lerp(-45.0, 60.0, t)  # Follow-through
+				var t_ease = t * t * (3.0 - 2.0 * t)
 
-		1:  # BIG HORIZONTAL SWEEP: LEFT to RIGHT (reverse)
+				# Lower chest height
+				right_arm.rotation.x = lerp(0.0, -0.9, t_ease)   # Lower
+				right_arm.rotation.z = lerp(0.0, -1.6, t_ease)
+				if right_elbow:
+					right_elbow.rotation.x = lerp(0.0, -0.7, t_ease)
+
+				if left_arm:
+					left_arm.rotation.x = lerp(0.0, -1.0, t_ease)
+					left_arm.rotation.z = lerp(0.0, -0.8, t_ease)
+				if left_elbow:
+					left_elbow.rotation.x = lerp(0.0, -0.9, t_ease)
+
+			else:
+				var t = (progress - windup_end) / (1.0 - windup_end)
+				var t_power = t * t
+
+				right_arm.rotation.x = lerp(-0.9, -1.0, t_power)
+				right_arm.rotation.z = lerp(-1.6, 1.3, t_power)
+				if right_elbow:
+					right_elbow.rotation.x = lerp(-0.7, -0.5, t_power)
+
+				if left_arm:
+					left_arm.rotation.x = lerp(-1.0, -0.9, t_power)
+					left_arm.rotation.z = lerp(-0.8, 0.6, t_power)
+				if left_elbow:
+					left_elbow.rotation.x = lerp(-0.9, -0.7, t_power)
+
+		1:  # SWEEP LEFT TO RIGHT - two-handed, chest height
+			var windup_end = 0.25
+
+			if progress < windup_end:
+				var t = progress / windup_end
+				var t_ease = t * t * (3.0 - 2.0 * t)
+
+				right_arm.rotation.x = lerp(0.0, -0.9, t_ease)   # Lower
+				right_arm.rotation.z = lerp(0.0, 1.0, t_ease)
+				if right_elbow:
+					right_elbow.rotation.x = lerp(0.0, -0.7, t_ease)
+
+				if left_arm:
+					left_arm.rotation.x = lerp(0.0, -1.0, t_ease)
+					left_arm.rotation.z = lerp(0.0, 1.2, t_ease)
+				if left_elbow:
+					left_elbow.rotation.x = lerp(0.0, -0.6, t_ease)
+
+			else:
+				var t = (progress - windup_end) / (1.0 - windup_end)
+				var t_power = t * t
+
+				right_arm.rotation.x = lerp(-0.9, -1.0, t_power)
+				right_arm.rotation.z = lerp(1.0, -1.6, t_power)
+				if right_elbow:
+					right_elbow.rotation.x = lerp(-0.7, -0.5, t_power)
+
+				if left_arm:
+					left_arm.rotation.x = lerp(-1.0, -0.9, t_power)
+					left_arm.rotation.z = lerp(1.2, -0.8, t_power)
+				if left_elbow:
+					left_elbow.rotation.x = lerp(-0.6, -0.9, t_power)
+
+		2:  # OVERHEAD SLAM - raise up, slam DOWN
 			var windup_end = 0.2
 
 			if progress < windup_end:
-				# Windup - arms go to the LEFT, axe cocked back
+				# Raise axe overhead
 				var t = progress / windup_end
-				right_arm.rotation.x = lerp(0.0, 0.3, t)
-				right_arm.rotation.z = lerp(0.0, 0.8, t)  # Out to left side
-				if left_arm:
-					left_arm.rotation.x = lerp(0.0, 0.2, t)
-					left_arm.rotation.z = lerp(0.0, 1.0, t)
-				if right_elbow:
-					right_elbow.rotation.x = lerp(0.0, -0.3, t)
-				# Rotate axe - head pointing LEFT and UP
-				if weapon:
-					weapon.rotation_degrees.x = lerp(90.0, 45.0, t)
-					weapon.rotation_degrees.z = lerp(0.0, 45.0, t)
-			else:
-				# SWEEP from left to right
-				var t = (progress - windup_end) / (1.0 - windup_end)
-				right_arm.rotation.x = lerp(0.3, -0.5, t)
-				right_arm.rotation.z = lerp(0.8, -1.2, t)  # Sweep left to right
-				if left_arm:
-					left_arm.rotation.x = lerp(0.2, -0.4, t)
-					left_arm.rotation.z = lerp(1.0, -0.8, t)
-				if right_elbow:
-					right_elbow.rotation.x = lerp(-0.3, -0.1, t)
-				# Axe follows arc
-				if weapon:
-					weapon.rotation_degrees.x = lerp(45.0, 120.0, t)
-					weapon.rotation_degrees.z = lerp(45.0, -60.0, t)
+				var t_ease = t * t * (3.0 - 2.0 * t)
 
-		2:  # OVERHEAD SLAM (FINISHER) - Raise high, SMASH down
-			var windup_end = 0.35  # Longer windup for dramatic effect
-
-			if progress < windup_end:
-				# Windup - raise axe HIGH overhead
-				var t = progress / windup_end
-				# Both arms go UP and BACK
-				right_arm.rotation.x = lerp(0.0, 2.8, t)  # Way up and back (over head)
-				right_arm.rotation.z = lerp(0.0, 0.0, t)  # Centered
-				if left_arm:
-					left_arm.rotation.x = lerp(0.0, 2.5, t)
-					left_arm.rotation.z = lerp(0.0, 0.0, t)
-				# Elbows bend to bring axe behind head
+				right_arm.rotation.x = lerp(0.0, -2.0, t_ease)   # Raise up
+				right_arm.rotation.z = lerp(0.0, 0.0, t_ease)
 				if right_elbow:
-					right_elbow.rotation.x = lerp(0.0, -1.5, t)
+					right_elbow.rotation.x = lerp(0.0, -0.5, t_ease)
+
+				if left_arm:
+					left_arm.rotation.x = lerp(0.0, -1.8, t_ease)
+					left_arm.rotation.z = lerp(0.0, 0.0, t_ease)
 				if left_elbow:
-					left_elbow.rotation.x = lerp(0.0, -1.2, t)
-				# Axe goes OVER head - head points backward
-				if weapon:
-					weapon.rotation_degrees.x = lerp(90.0, 180.0, t)  # Flip over head
-					weapon.rotation_degrees.z = lerp(0.0, 0.0, t)
-			else:
-				# SLAM DOWN - explosive downward strike
-				var t = (progress - windup_end) / (1.0 - windup_end)
-				# Use ease-in curve for acceleration feeling
-				var t_eased = t * t  # Accelerating
-				# Arms SLAM forward and down
-				right_arm.rotation.x = lerp(2.8, -1.2, t_eased)  # From overhead to forward/down
-				right_arm.rotation.z = lerp(0.0, 0.0, t)
-				if left_arm:
-					left_arm.rotation.x = lerp(2.5, -1.0, t_eased)
-					left_arm.rotation.z = lerp(0.0, 0.0, t)
-				# Elbows extend for full power
-				if right_elbow:
-					right_elbow.rotation.x = lerp(-1.5, 0.0, t_eased)
-				if left_elbow:
-					left_elbow.rotation.x = lerp(-1.2, 0.0, t_eased)
-				# Axe SLAMS down - head leads
-				if weapon:
-					weapon.rotation_degrees.x = lerp(180.0, 30.0, t_eased)  # Slam down past vertical
-					weapon.rotation_degrees.z = lerp(0.0, 0.0, t)
+					left_elbow.rotation.x = lerp(0.0, -0.5, t_ease)
 
-		_:  # Default - same as first sweep
-			var t = progress
-			right_arm.rotation.x = -sin(t * PI) * 0.5
-			right_arm.rotation.z = lerp(-1.0, 1.0, t)
-			if weapon:
-				weapon.rotation_degrees.x = 90.0 + sin(t * PI) * 30.0
+			else:
+				# SLAM DOWN
+				var t = (progress - windup_end) / (1.0 - windup_end)
+				var t_slam = t * t * t
+
+				# Slam from overhead down
+				right_arm.rotation.x = lerp(-2.0, -0.4, t_slam)   # Down
+				right_arm.rotation.z = lerp(0.0, 0.0, t_slam)
+				if right_elbow:
+					right_elbow.rotation.x = lerp(-0.5, -0.8, t_slam)
+
+				if left_arm:
+					left_arm.rotation.x = lerp(-1.8, -0.3, t_slam)
+					left_arm.rotation.z = lerp(0.0, 0.0, t_slam)
+				if left_elbow:
+					left_elbow.rotation.x = lerp(-0.5, -0.8, t_slam)
+
+		_:  # Fallback
+			right_arm.rotation.x = -0.9
+			right_arm.rotation.z = lerp(-1.5, 1.3, progress)
 
 # ============================================================================
 # STAMINA & HEALTH SYSTEM
@@ -2586,10 +2591,13 @@ func _on_equipment_changed(slot) -> void:  # slot is Equipment.EquipmentSlot
 
 ## Update the main hand weapon visual
 func _update_weapon_visual() -> void:
-	# Remove existing weapon visual
+	# Remove existing weapon visual and wrist pivot
 	if equipped_weapon_visual:
 		equipped_weapon_visual.queue_free()
 		equipped_weapon_visual = null
+	if weapon_wrist_pivot:
+		weapon_wrist_pivot.queue_free()
+		weapon_wrist_pivot = null
 
 	# Get equipped weapon
 	var weapon_id = equipment.get_equipped_item(Equipment.EquipmentSlot.MAIN_HAND)
@@ -2615,27 +2623,41 @@ func _update_weapon_visual() -> void:
 	# Instantiate weapon visual
 	equipped_weapon_visual = weapon_scene.instantiate()
 
+	# Create a wrist pivot node for natural weapon rotation during swings
+	weapon_wrist_pivot = Node3D.new()
+	weapon_wrist_pivot.name = "WristPivot"
+
 	# Find right hand bone attachment point
 	var right_hand_attach = _find_hand_attach_point("RightHand")
 	if right_hand_attach:
-		right_hand_attach.add_child(equipped_weapon_visual)
+		# Attach wrist pivot to hand, then weapon to pivot
+		right_hand_attach.add_child(weapon_wrist_pivot)
+		weapon_wrist_pivot.add_child(equipped_weapon_visual)
+
 		# Rotate weapon 90 degrees forward (X-axis) so it points forward instead of down
 		equipped_weapon_visual.rotation_degrees = Vector3(90, 0, 0)
 
-		# Apply mount point offset if weapon has a MountPoint node
+		# Apply mount point offset - MUST transform by rotation first!
+		# The mount point is defined in unrotated weapon space, but we need
+		# to offset in the rotated space so the grip ends up at the pivot
 		if equipped_weapon_visual.has_node("MountPoint"):
 			var mount_point = equipped_weapon_visual.get_node("MountPoint")
-			equipped_weapon_visual.position = -mount_point.position
+			# Transform mount point position by weapon's rotation basis
+			var rotated_offset = equipped_weapon_visual.basis * mount_point.position
+			equipped_weapon_visual.position = -rotated_offset
 
-		print("[Player] Equipped weapon visual: %s" % weapon_id)
+		print("[Player] Equipped weapon visual: %s (with wrist pivot)" % weapon_id)
 	else:
 		# Fallback: attach to body container
 		if body_container:
-			body_container.add_child(equipped_weapon_visual)
-			equipped_weapon_visual.position = Vector3(0.3, 1.2, 0)  # Approximate hand position
+			body_container.add_child(weapon_wrist_pivot)
+			weapon_wrist_pivot.add_child(equipped_weapon_visual)
+			weapon_wrist_pivot.position = Vector3(0.3, 1.2, 0)  # Approximate hand position
 			equipped_weapon_visual.rotation_degrees = Vector3(90, 0, 0)
 			print("[Player] Equipped weapon visual (fallback): %s" % weapon_id)
 		else:
+			weapon_wrist_pivot.queue_free()
+			weapon_wrist_pivot = null
 			equipped_weapon_visual.queue_free()
 			equipped_weapon_visual = null
 			push_warning("[Player] No attachment point for weapon")
