@@ -1857,9 +1857,15 @@ func handle_quick_deposit(peer_id: int, player_slot: int) -> void:
 # DEBUG CONSOLE HANDLERS
 # ============================================================================
 
-## Debug: Give item to player
+## Debug: Give item to player (spawns as dropped items in front of player)
 func handle_debug_give_item(peer_id: int, item_name: String, amount: int) -> void:
-	print("[Server] DEBUG: Give %d x %s to player %d" % [amount, item_name, peer_id])
+	print("[Server] DEBUG: Give %d x %s to player %d (spawning as drops)" % [amount, item_name, peer_id])
+
+	# Validate item exists
+	var item_data = ItemDatabase.get_item(item_name)
+	if not item_data:
+		push_error("[Server] DEBUG: Invalid item '%s' - item does not exist" % item_name)
+		return
 
 	if not spawned_players.has(peer_id):
 		return
@@ -1868,19 +1874,35 @@ func handle_debug_give_item(peer_id: int, item_name: String, amount: int) -> voi
 	if not player or not is_instance_valid(player):
 		return
 
-	if not player.has_node("Inventory"):
-		return
+	# Clamp amount to reasonable limits
+	amount = clampi(amount, 1, 999)
 
-	var inventory = player.get_node("Inventory")
+	# Get player position for spawning the dropped item - in front of player
+	var player_forward = -player.global_transform.basis.z.normalized()
+	var drop_pos: Vector3 = player.global_position + player_forward * 2.0
+	drop_pos.y = player.global_position.y + 2.0  # Drop above player to avoid spawning into terrain
 
-	# Try to add item
-	if inventory.add_item(item_name, amount):
-		print("[Server] DEBUG: Gave %d x %s to player %d" % [amount, item_name, peer_id])
-		# Sync inventory
-		var inventory_data = inventory.get_inventory_data()
-		NetworkManager.rpc_sync_inventory.rpc_id(peer_id, inventory_data)
-	else:
-		print("[Server] DEBUG: Failed to give %s - inventory full or invalid item" % item_name)
+	print("[Server] DEBUG: Player pos: %s, forward: %s" % [player.global_position, player_forward])
+	print("[Server] DEBUG: Drop pos: %s" % drop_pos)
+
+	# Generate network IDs for the dropped items
+	var network_ids: Array = []
+	for i in amount:
+		var net_id = "debug_%d_%d_%d" % [peer_id, Time.get_ticks_msec(), i]
+		network_ids.append(net_id)
+
+	print("[Server] DEBUG: Generated %d network IDs" % network_ids.size())
+
+	# Create resource drops dictionary
+	var resource_drops: Dictionary = {item_name: amount}
+	var pos_array = [drop_pos.x, drop_pos.y, drop_pos.z]
+
+	print("[Server] DEBUG: Calling rpc_spawn_resource_drops with %s at %s" % [resource_drops, pos_array])
+
+	# Broadcast the dropped items to all clients
+	NetworkManager.rpc_spawn_resource_drops.rpc(resource_drops, pos_array, network_ids)
+
+	print("[Server] DEBUG: Spawned %d x %s in front of player %d" % [amount, item_name, peer_id])
 
 ## Debug: Spawn entity near player
 func handle_debug_spawn_entity(peer_id: int, entity_type: String, count: int) -> void:

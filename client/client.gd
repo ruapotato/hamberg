@@ -93,7 +93,11 @@ var build_controls_hint_ui: Control = null
 var interact_target_chest: Node = null
 const QUICK_SORT_HOLD_TIME: float = 0.5  # Hold E for 0.5s to quick-sort
 var ping_indicator_script = preload("res://client/ping_indicator.gd")
+var ping_screen_indicator_script = preload("res://client/ui/ping_screen_indicator.gd")
+var map_marker_script = preload("res://client/map_marker_indicator.gd")
 var active_ping_indicators: Array = []  # 3D ping indicators in the world
+var active_ping_screen_indicators: Array = []  # Screen-space ping direction indicators
+var active_map_markers: Dictionary = {}  # 3D map markers {pos_key: Node3D}
 
 # Build mode
 var build_mode: Node = null
@@ -1062,6 +1066,10 @@ func _initialize_maps_with_player(player: Node3D) -> void:
 		world_map_ui.initialize(generator, player)
 		if world_map_ui.has_signal("pin_placed"):
 			world_map_ui.pin_placed.connect(_on_pin_placed)
+		if world_map_ui.has_signal("pin_removed"):
+			world_map_ui.pin_removed.connect(_on_pin_removed)
+		if world_map_ui.has_signal("pin_renamed"):
+			world_map_ui.pin_renamed.connect(_on_pin_renamed)
 		print("[Client] World map initialized")
 
 	# Initialize mini-map (uses procedural biome calculation - no texture needed)
@@ -1076,7 +1084,38 @@ func _on_pin_placed(world_pos: Vector2, pin_name: String) -> void:
 	"""Called when a pin is placed on the map"""
 	print("[Client] Pin placed at %s: %s" % [world_pos, pin_name])
 
-	# Sync pins to mini-map
+	# Create 3D marker in world
+	_create_map_marker(world_pos, pin_name)
+
+	# Sync pins to mini-map and server
+	_sync_pins_to_mini_map_and_server()
+
+func _on_pin_removed(world_pos: Vector2) -> void:
+	"""Called when a pin is removed from the map"""
+	print("[Client] Pin removed at %s" % world_pos)
+
+	# Remove 3D marker from world
+	_remove_map_marker(world_pos)
+
+	# Sync pins to mini-map and server
+	_sync_pins_to_mini_map_and_server()
+
+func _on_pin_renamed(world_pos: Vector2, new_name: String) -> void:
+	"""Called when a pin is renamed on the map"""
+	print("[Client] Pin renamed at %s to: %s" % [world_pos, new_name])
+
+	# Update 3D marker name
+	var pos_key = "%d_%d" % [int(world_pos.x), int(world_pos.y)]
+	if active_map_markers.has(pos_key):
+		var marker = active_map_markers[pos_key]
+		if is_instance_valid(marker) and marker.has_method("set_marker_name"):
+			marker.set_marker_name(new_name)
+
+	# Sync pins to mini-map and server
+	_sync_pins_to_mini_map_and_server()
+
+func _sync_pins_to_mini_map_and_server() -> void:
+	"""Sync pins to mini-map and send to server for persistence"""
 	if world_map_ui and mini_map_ui:
 		var pins = world_map_ui.get_pins()
 		mini_map_ui.set_pins(pins)
@@ -1087,6 +1126,42 @@ func _on_pin_placed(world_pos: Vector2, pin_name: String) -> void:
 		pins_data = world_map_ui.get_pins()
 
 	NetworkManager.rpc_update_map_pins.rpc_id(1, pins_data)
+
+func _create_map_marker(world_pos: Vector2, marker_name: String, color: Color = Color.RED) -> void:
+	"""Create a 3D map marker in the world"""
+	var pos_key = "%d_%d" % [int(world_pos.x), int(world_pos.y)]
+
+	# Don't create duplicate markers
+	if active_map_markers.has(pos_key):
+		return
+
+	var indicator := Node3D.new()
+	indicator.set_script(map_marker_script)
+	world.add_child(indicator)
+	indicator.initialize(world_pos, marker_name, color)
+
+	active_map_markers[pos_key] = indicator
+	print("[Client] Created 3D map marker at %s" % world_pos)
+
+func _remove_map_marker(world_pos: Vector2) -> void:
+	"""Remove a 3D map marker from the world"""
+	var pos_key = "%d_%d" % [int(world_pos.x), int(world_pos.y)]
+
+	if active_map_markers.has(pos_key):
+		var marker = active_map_markers[pos_key]
+		if is_instance_valid(marker):
+			marker.queue_free()
+		active_map_markers.erase(pos_key)
+		print("[Client] Removed 3D map marker at %s" % world_pos)
+
+func _sync_map_markers_from_pins() -> void:
+	"""Sync 3D markers with map pins (for loading saved pins)"""
+	if not world_map_ui:
+		return
+
+	var pins = world_map_ui.get_pins()
+	for pin in pins:
+		_create_map_marker(pin.pos, pin.name)
 
 # ============================================================================
 # CHARACTER SELECTION AND PERSISTENCE
@@ -1153,6 +1228,11 @@ func receive_character_data(character_data: Dictionary) -> void:
 
 		if mini_map_ui:
 			mini_map_ui.set_pins(pins)
+
+		# Create 3D markers for loaded pins
+		for pin in pins:
+			if pin.has("pos") and pin.has("name"):
+				_create_map_marker(pin.pos, pin.name)
 
 ## Receive inventory slot update from server
 func receive_inventory_slot_update(slot: int, item: String, amount: int) -> void:
@@ -1613,7 +1693,8 @@ func receive_ping(world_pos: Vector2, from_peer: int) -> void:
 	_create_ping_indicator(world_pos, from_peer)
 
 func _create_ping_indicator(world_pos: Vector2, from_peer: int) -> void:
-	"""Create a 3D ping indicator in the world"""
+	"""Create a 3D ping indicator in the world and screen-space direction indicator"""
+	# Create 3D world indicator (light beam)
 	var indicator = Node3D.new()
 	indicator.set_script(ping_indicator_script)
 	world.add_child(indicator)
@@ -1624,11 +1705,29 @@ func _create_ping_indicator(world_pos: Vector2, from_peer: int) -> void:
 
 	active_ping_indicators.append(indicator)
 
-	# Clean up expired indicators
+	# Create screen-space direction indicator
+	var camera = _get_camera()
+	if camera and local_player:
+		var screen_indicator = Control.new()
+		screen_indicator.set_script(ping_screen_indicator_script)
+		canvas_layer.add_child(screen_indicator)
+
+		if screen_indicator.has_method("initialize"):
+			screen_indicator.initialize(world_pos, from_peer, camera, local_player)
+
+		active_ping_screen_indicators.append(screen_indicator)
+
+	# Clean up expired 3D indicators
 	for i in range(active_ping_indicators.size() - 1, -1, -1):
 		var ping = active_ping_indicators[i]
 		if not is_instance_valid(ping):
 			active_ping_indicators.remove_at(i)
+
+	# Clean up expired screen indicators
+	for i in range(active_ping_screen_indicators.size() - 1, -1, -1):
+		var ping = active_ping_screen_indicators[i]
+		if not is_instance_valid(ping):
+			active_ping_screen_indicators.remove_at(i)
 
 # ============================================================================
 # LOADING SCREEN MANAGEMENT

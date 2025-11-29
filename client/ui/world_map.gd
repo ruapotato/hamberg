@@ -6,6 +6,8 @@ extends Control
 const WorldMapGenerator = preload("res://client/ui/world_map_generator.gd")
 
 signal pin_placed(world_pos: Vector2, pin_name: String)
+signal pin_removed(world_pos: Vector2)
+signal pin_renamed(world_pos: Vector2, new_name: String)
 signal ping_sent(world_pos: Vector2)
 
 # Map state
@@ -17,14 +19,21 @@ var drag_start_pos: Vector2 = Vector2.ZERO
 var drag_start_center: Vector2 = Vector2.ZERO
 var is_toggling: bool = false  # Prevent rapid toggling
 var current_map_texture: ImageTexture = null  # Currently visible map area (generated on demand)
-var world_texture_size: int = 128  # Size of map texture (reduced for performance)
+var world_texture_size: int = 64  # Size of map texture (reduced for performance)
 var world_map_radius: float = 5000.0  # Max view distance
 
 # Map display settings
 const MIN_ZOOM := 0.5       # Max zoom in (500 units visible)
 const MAX_ZOOM := 50.0      # Max zoom out (50000 units visible = entire world)
 const BASE_WORLD_SIZE := 1000.0  # World units visible at zoom level 1.0
-const MAX_TEXTURE_SIZE := 512  # Maximum texture resolution for performance
+const MAX_TEXTURE_SIZE := 128  # Maximum texture resolution for performance
+
+# Debounce for map regeneration (prevents lag on rapid zoom/pan)
+var regenerate_timer: float = 0.0
+const REGENERATE_DELAY: float = 0.15  # Wait 150ms after last input before regenerating
+var needs_regenerate: bool = false
+var last_generated_center: Vector2 = Vector2.ZERO
+var last_generated_zoom: float = 1.0
 
 # References
 var local_player: Node3D = null
@@ -36,6 +45,12 @@ var map_pins: Array = []  # Array of {pos: Vector2, name: String}
 
 # Active pings (ephemeral, 15 seconds)
 var active_pings: Array = []  # Array of {pos: Vector2, time_left: float, from_peer: int}
+
+# Pin editing state
+var selected_pin_index: int = -1
+var is_renaming_pin: bool = false
+var rename_line_edit: LineEdit = null
+var rename_popup: Panel = null
 
 # UI nodes
 @onready var map_texture_rect: TextureRect = $Panel/MapContainer/MapTextureRect
@@ -60,7 +75,62 @@ func _ready() -> void:
 	set_process_unhandled_input(true)
 	print("[WorldMap] Called set_process_input(true) and set_process_unhandled_input(true)")
 
+	# Create rename popup
+	_create_rename_popup()
+
 	print("[WorldMap] Full-screen map initialized - READY")
+
+func _create_rename_popup() -> void:
+	rename_popup = Panel.new()
+	rename_popup.visible = false
+	rename_popup.custom_minimum_size = Vector2(200, 80)
+	rename_popup.z_index = 100
+
+	var vbox := VBoxContainer.new()
+	vbox.set_anchors_preset(Control.PRESET_FULL_RECT)
+	vbox.add_theme_constant_override("separation", 8)
+	rename_popup.add_child(vbox)
+
+	var margin := MarginContainer.new()
+	margin.add_theme_constant_override("margin_left", 8)
+	margin.add_theme_constant_override("margin_right", 8)
+	margin.add_theme_constant_override("margin_top", 8)
+	margin.add_theme_constant_override("margin_bottom", 8)
+	vbox.add_child(margin)
+
+	var inner_vbox := VBoxContainer.new()
+	inner_vbox.add_theme_constant_override("separation", 8)
+	margin.add_child(inner_vbox)
+
+	var label := Label.new()
+	label.text = "Rename Pin:"
+	inner_vbox.add_child(label)
+
+	rename_line_edit = LineEdit.new()
+	rename_line_edit.placeholder_text = "Enter pin name..."
+	rename_line_edit.text_submitted.connect(_on_rename_submitted)
+	inner_vbox.add_child(rename_line_edit)
+
+	var button_hbox := HBoxContainer.new()
+	button_hbox.add_theme_constant_override("separation", 8)
+	inner_vbox.add_child(button_hbox)
+
+	var confirm_btn := Button.new()
+	confirm_btn.text = "Rename"
+	confirm_btn.pressed.connect(_on_rename_confirmed)
+	button_hbox.add_child(confirm_btn)
+
+	var delete_btn := Button.new()
+	delete_btn.text = "Delete"
+	delete_btn.pressed.connect(_on_pin_delete_pressed)
+	button_hbox.add_child(delete_btn)
+
+	var cancel_btn := Button.new()
+	cancel_btn.text = "Cancel"
+	cancel_btn.pressed.connect(_on_rename_cancelled)
+	button_hbox.add_child(cancel_btn)
+
+	add_child(rename_popup)
 
 func _input(event: InputEvent) -> void:
 	if not visible or is_toggling:
@@ -98,6 +168,13 @@ func _process(delta: float) -> void:
 		is_toggling = false
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 		return
+
+	# Handle debounced map regeneration
+	if needs_regenerate:
+		regenerate_timer -= delta
+		if regenerate_timer <= 0:
+			needs_regenerate = false
+			_generate_current_view()
 
 	# Update active pings (count down timers)
 	for i in range(active_pings.size() - 1, -1, -1):
@@ -171,8 +248,10 @@ func _generate_current_view() -> void:
 	map_texture_rect.texture = current_map_texture
 
 func refresh_map() -> void:
-	# When panning/zooming, regenerate the visible area
-	_generate_current_view()
+	# When panning/zooming, schedule a debounced regeneration
+	# This prevents lag from regenerating on every frame during drag/zoom
+	needs_regenerate = true
+	regenerate_timer = REGENERATE_DELAY
 
 func _on_close_pressed() -> void:
 	visible = false
@@ -197,8 +276,14 @@ func _on_map_input(event: InputEvent) -> void:
 				# End dragging
 				is_dragging = false
 		elif mb.button_index == MOUSE_BUTTON_RIGHT and mb.pressed:
-			# Place pin
-			_place_pin_at_mouse(mb.position)
+			# Check if clicking on existing pin first
+			var clicked_pin_index := _get_pin_at_mouse(mb.position)
+			if clicked_pin_index >= 0:
+				# Open rename/delete popup for this pin
+				_show_pin_popup(clicked_pin_index, mb.global_position)
+			else:
+				# Place new pin
+				_place_pin_at_mouse(mb.position)
 		elif mb.button_index == MOUSE_BUTTON_MIDDLE and mb.pressed:
 			# Send ping
 			_send_ping_at_mouse(mb.position)
@@ -229,15 +314,83 @@ func _zoom_out() -> void:
 	current_zoom_level = clamp(current_zoom_level * 1.25, MIN_ZOOM, MAX_ZOOM)
 	refresh_map()
 
+func _get_pin_at_mouse(mouse_pos: Vector2) -> int:
+	"""Check if mouse is over an existing pin, return index or -1"""
+	var click_radius := 15.0  # Pixels radius to detect pin click
+
+	for i in range(map_pins.size()):
+		var pin = map_pins[i]
+		var screen_pos := _world_to_screen_pos(pin.pos)
+		# Convert to local coords relative to map_texture_rect
+		var local_click := mouse_pos + map_texture_rect.global_position
+		var distance := screen_pos.distance_to(local_click)
+		if distance < click_radius:
+			return i
+
+	return -1
+
+func _show_pin_popup(pin_index: int, global_pos: Vector2) -> void:
+	"""Show rename/delete popup for a pin"""
+	selected_pin_index = pin_index
+	is_renaming_pin = true
+
+	# Set current name in the line edit
+	if pin_index >= 0 and pin_index < map_pins.size():
+		rename_line_edit.text = map_pins[pin_index].name
+
+	# Position popup near click
+	rename_popup.global_position = global_pos + Vector2(10, 10)
+	rename_popup.visible = true
+	rename_line_edit.grab_focus()
+	rename_line_edit.select_all()
+
+func _on_rename_submitted(new_text: String) -> void:
+	_on_rename_confirmed()
+
+func _on_rename_confirmed() -> void:
+	if selected_pin_index >= 0 and selected_pin_index < map_pins.size():
+		var new_name := rename_line_edit.text.strip_edges()
+		if new_name.is_empty():
+			new_name = "Pin %d" % (selected_pin_index + 1)
+
+		var old_pin = map_pins[selected_pin_index]
+		old_pin.name = new_name
+		print("[WorldMap] Renamed pin to: %s" % new_name)
+		pin_renamed.emit(old_pin.pos, new_name)
+
+	_hide_rename_popup()
+	queue_redraw()
+
+func _on_pin_delete_pressed() -> void:
+	if selected_pin_index >= 0 and selected_pin_index < map_pins.size():
+		var pin = map_pins[selected_pin_index]
+		print("[WorldMap] Deleting pin: %s" % pin.name)
+		pin_removed.emit(pin.pos)
+		map_pins.remove_at(selected_pin_index)
+
+	_hide_rename_popup()
+	queue_redraw()
+
+func _on_rename_cancelled() -> void:
+	_hide_rename_popup()
+
+func _hide_rename_popup() -> void:
+	rename_popup.visible = false
+	is_renaming_pin = false
+	selected_pin_index = -1
+
 func _place_pin_at_mouse(mouse_pos: Vector2) -> void:
 	var world_pos := _mouse_to_world_pos(mouse_pos)
 	print("[WorldMap] Placing pin at world position: %s" % world_pos)
 
-	# Add pin (TODO: prompt for name)
+	# Add pin with default name
 	var pin_name := "Pin %d" % (map_pins.size() + 1)
 	map_pins.append({"pos": world_pos, "name": pin_name})
 
 	pin_placed.emit(world_pos, pin_name)
+
+	# Show rename popup immediately so user can name it
+	_show_pin_popup(map_pins.size() - 1, get_global_mouse_position())
 	queue_redraw()
 
 func _send_ping_at_mouse(mouse_pos: Vector2) -> void:

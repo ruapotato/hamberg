@@ -135,12 +135,39 @@ func clear() -> void:
 	for i in MAX_SLOTS:
 		slots[i] = {}
 
-## Swap two inventory slots
+## Swap two inventory slots (or merge if same item type)
 func swap_slots(slot_a: int, slot_b: int) -> void:
 	if slot_a < 0 or slot_a >= MAX_SLOTS or slot_b < 0 or slot_b >= MAX_SLOTS:
 		push_error("[Inventory] Invalid slot indices for swap: %d, %d" % [slot_a, slot_b])
 		return
 
+	var data_a = slots[slot_a]
+	var data_b = slots[slot_b]
+
+	# Check if both slots have the same item - merge stacks
+	var item_a = data_a.get("item", "")
+	var item_b = data_b.get("item", "")
+
+	if not item_a.is_empty() and item_a == item_b:
+		# Same item type - merge stacks
+		var amount_a: int = data_a.get("amount", 0)
+		var amount_b: int = data_b.get("amount", 0)
+		var max_stack: int = _get_max_stack_size(item_a)
+
+		var total = amount_a + amount_b
+		if total <= max_stack:
+			# Everything fits in slot_b
+			slots[slot_b] = {"item": item_a, "amount": total}
+			slots[slot_a] = {}
+			print("[Inventory] Merged slots %d and %d: %d x %s" % [slot_a, slot_b, total, item_a])
+		else:
+			# Fill slot_b to max, leave remainder in slot_a
+			slots[slot_b] = {"item": item_a, "amount": max_stack}
+			slots[slot_a] = {"item": item_a, "amount": total - max_stack}
+			print("[Inventory] Partial merge slots %d and %d: %d in target, %d remaining" % [slot_a, slot_b, max_stack, total - max_stack])
+		return
+
+	# Different items or one empty - do a regular swap
 	var temp = slots[slot_a].duplicate(true)
 	slots[slot_a] = slots[slot_b].duplicate(true)
 	slots[slot_b] = temp

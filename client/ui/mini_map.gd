@@ -15,7 +15,7 @@ var cached_map_texture: ImageTexture = null  # Large pre-generated buffer
 var atlas_texture: AtlasTexture = null  # Viewport into the buffer
 var buffer_center: Vector2 = Vector2.ZERO  # World position at center of buffer
 var buffer_world_size: float = 800.0  # World units covered by buffer (4x visible area)
-var buffer_pixel_size: int = 256  # Pixel size of buffer texture
+var buffer_pixel_size: int = 128  # Pixel size of buffer texture (reduced for performance)
 
 # Mini-map settings
 const MINI_MAP_SIZE := 64  # Pixels shown on screen
@@ -286,25 +286,79 @@ func _draw_player_markers() -> void:
 				overlay.draw_circle(remote_screen, 4, Color.WHITE, false, 1.5)
 
 func _draw_pins() -> void:
+	var center := overlay.size * 0.5
+	var edge_radius := (overlay.size.x * 0.5) - 8.0  # Inside edge
+
 	for pin in map_pins:
 		var screen_pos := _world_to_screen_pos(pin.pos)
 
 		if _is_on_screen(screen_pos):
-			# Draw small pin marker
-			overlay.draw_circle(screen_pos, 3, Color.RED)
+			# Draw pin marker (flag icon)
+			var local_pos := screen_pos - map_texture_rect.global_position
+			overlay.draw_circle(local_pos, 4, Color.RED)
+			overlay.draw_line(local_pos, local_pos + Vector2(0, -10), Color.RED, 2.0)
+			# Small flag triangle
+			var flag_points := PackedVector2Array([
+				local_pos + Vector2(1, -10),
+				local_pos + Vector2(8, -7),
+				local_pos + Vector2(1, -4)
+			])
+			overlay.draw_colored_polygon(flag_points, Color.RED)
+		else:
+			# Draw edge indicator pointing to off-screen pin
+			var local_pos := screen_pos - map_texture_rect.global_position
+			var direction := (local_pos - center).normalized()
+			var edge_pos := center + direction * edge_radius
+
+			# Draw arrow pointing outward
+			overlay.draw_circle(edge_pos, 4, Color.RED)
+			var arrow_tip := edge_pos + direction * 6
+			overlay.draw_line(edge_pos, arrow_tip, Color.RED, 2.0)
 
 func _draw_pings() -> void:
+	var center := overlay.size * 0.5
+	var edge_radius := (overlay.size.x * 0.5) - 8.0  # Inside edge
+
 	for ping in active_pings:
 		var screen_pos := _world_to_screen_pos(ping.pos)
+		var alpha: float = ping.time_left / 15.0
+
+		# Get ping color based on peer
+		var ping_color: Color = Color.YELLOW
+		if ping.from_peer != multiplayer.get_unique_id():
+			var colors := [Color.CYAN, Color.MAGENTA, Color.ORANGE, Color.LIME]
+			ping_color = colors[ping.from_peer % colors.size()]
 
 		if _is_on_screen(screen_pos):
-			# Draw pulsing circle
-			var alpha: float = ping.time_left / 15.0
-			var radius: float = lerp(15.0, 3.0, alpha)
-			var color: Color = Color.YELLOW
+			# Draw pulsing circle on map
+			var local_pos := screen_pos - map_texture_rect.global_position
+			var radius: float = lerp(12.0, 4.0, alpha)
+			var color: Color = ping_color
 			color.a = alpha * 0.8
 
-			overlay.draw_circle(screen_pos, radius, color, false, 2.0)
+			overlay.draw_circle(local_pos, radius, color, false, 2.0)
+			overlay.draw_circle(local_pos, radius * 0.5, color)
+		else:
+			# Draw edge indicator pointing to off-screen ping
+			var local_pos := screen_pos - map_texture_rect.global_position
+			var direction := (local_pos - center).normalized()
+			var edge_pos := center + direction * edge_radius
+
+			# Pulsing arrow indicator
+			var pulse := 1.0 + sin(Time.get_ticks_msec() * 0.008) * 0.3
+			var color: Color = ping_color
+			color.a = alpha
+
+			# Draw pulsing circle at edge
+			overlay.draw_circle(edge_pos, 5 * pulse, color)
+
+			# Draw arrow pointing outward
+			var arrow_tip := edge_pos + direction * (8 * pulse)
+			var arrow_left := edge_pos + direction.rotated(2.5) * 4
+			var arrow_right := edge_pos + direction.rotated(-2.5) * 4
+			overlay.draw_line(edge_pos, arrow_tip, color, 2.0)
+			overlay.draw_line(arrow_tip, arrow_left, color, 2.0)
+			overlay.draw_line(arrow_tip, arrow_right, color, 2.0)
 
 func _is_on_screen(screen_pos: Vector2) -> bool:
 	var rect_pos := map_texture_rect.global_position

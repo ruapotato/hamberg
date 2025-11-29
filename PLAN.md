@@ -1,108 +1,155 @@
-# MultiMesh Environmental Objects Overhaul
+# Building System Enhancement Plan
 
-## Problem Analysis
+## Overview
+Comprehensive enhancement to the Valheim-style building system including new pieces, improved controls, better snapping, and UI feedback.
 
-Current mesh counts per object (LOD0):
-- **Glowing Mushroom**: 8 meshes (4 stems + 4 caps with 2 materials)
-- **Spore Cluster**: 10 meshes (5 large + 5 small spores)
-- **Mushroom Tree**: 3 meshes (stem, cap, cap top)
-- **Giant Mushroom**: 4 meshes (stem, cap, dome, ring)
+---
 
-With 81 loaded chunks (9x9 grid), ~15 glowing mushrooms per chunk = ~1200 instances × 8 meshes = **~10,000 draw calls** just for glowing mushrooms.
+## 1. Fix Crosshair Alignment
+**File:** `client/crosshair.tscn`
 
-## Solution: Chunk-Based MultiMesh System
+**Problem:** Crosshair is offset left with `offset_left = -44.0, offset_top = -53.0`
 
-Instead of individual scene instances, use MultiMeshInstance3D per chunk to batch render all instances of the same mesh type in a single draw call.
+**Solution:** Center the 6x6 dot properly:
+- Change offsets to `-3.0` for both left/right and top/bottom (half of 6px size)
 
-### Architecture Overview
+---
 
+## 2. Rotation Controls
+**Files:** `client/build_mode.gd`, `project.godot`
+
+**Changes:**
+- Add Q key as alternative rotation (in addition to R)
+- Add D-pad left/right for controller rotation when in build mode
+- Modify `_handle_input()` to check for:
+  - `build_rotate` (R key - existing)
+  - `open_build_menu` (Q key - repurpose when build menu is closed)
+  - `hotbar_prev`/`hotbar_next` (D-pad) when build mode is active
+
+---
+
+## 3. Second Floor Snapping (Multi-Story Buildings)
+**File:** `client/build_mode.gd`, `shared/buildable/building_piece.gd`
+
+**Problem:** Floors can't snap to top of walls for second stories
+
+**Solution:**
+1. Add `floor_bottom` snap points to floors
+2. Modify `_find_matching_snap_point()` to handle floor-to-wall-top snapping
+3. Floor bottom connects to wall_top snap points
+
+---
+
+## 4. Shift to Disable Smart Snap
+**File:** `client/build_mode.gd`
+
+**Implementation:** Check if sprint (Shift) is pressed, skip snapping logic and allow free placement.
+
+---
+
+## 5. On-Screen Build Controls UI
+**Files:** New `client/ui/build_controls_hint.gd`, `client/ui/build_controls_hint.tscn`
+
+**Design:** Small panel showing contextual controls based on input device
+
+**Keyboard Mode:**
 ```
-ChunkManager
-├── EnvironmentalObjects (Node3D container)
-│   ├── Chunk_0_0 (Node3D)
-│   │   ├── MultimeshCapCyan (MultiMeshInstance3D) - all cyan caps
-│   │   ├── MultimeshCapPurple (MultiMeshInstance3D) - all purple caps
-│   │   ├── MultimeshStem (MultiMeshInstance3D) - all stems
-│   │   ├── CollisionArea (Area3D) - hit detection
-│   │   └── ChunkData (script tracking health/destroyed)
-│   ├── Chunk_0_1 ...
+[LMB] Place  [MMB] Remove  [R/Q] Rotate
+[Shift] Free Place  [RMB] Menu
 ```
 
-### New Files to Create
+**Controller Mode:**
+```
+[RT] Place  [Y] Remove  [D-pad] Rotate
+[LT] Free Place  [X] Menu
+```
 
-1. **`shared/environmental/multimesh_chunk.gd`** - Manages MultiMesh rendering for a chunk
-2. **`shared/environmental/multimesh_spawner.gd`** - Generates MultiMesh transforms instead of instances
-3. **`shared/environmental/multimesh_meshes.gd`** - Preloaded mesh resources
+---
 
-### Implementation Steps
+## 6. New Building Pieces
 
-#### Step 1: Create mesh resource definitions
-- Extract mesh/material resources from .tscn files into a reusable resource script
-- Define mesh configurations for each object type
+### 6a. Roof Pieces (Two Angles - like Valheim)
+- `wooden_roof_26.tscn` - 26° shallow pitch (rename existing)
+- `wooden_roof_45.tscn` - 45° steep pitch (new)
 
-#### Step 2: Create MultimeshChunk class
-- Properties:
-  - Dictionary of MultiMeshInstance3D nodes (one per mesh+material combo)
-  - Array of instance data (position, rotation, scale, health, destroyed)
-  - Area3D for hit detection with compound collision
-- Methods:
-  - `add_instance(type, transform, health)` - Add to MultiMesh
-  - `remove_instance(index)` - Set transform scale to 0
-  - `get_instance_at_position(pos)` - Find which instance was hit
-  - `apply_damage(index, damage)` - Handle damage/destruction
+### 6b. Stairs
+- `wooden_stairs.tscn` - 2x2x2 stairs connecting floors
+- Angled collision for walking, steps mesh
 
-#### Step 3: Modify environmental_spawner.gd
-- Add `spawn_chunk_multimesh()` function for MultiMesh spawning
-- Generate transforms and instance data instead of scene instances
-- Return MultimeshChunk instead of Array of objects
+### 6c. Improved Door
+- Resize to 2.0 x 2.0 x 0.2 (same as wall)
+- Add door frame + swinging door panel
+- Add open/close interaction (E key / X button)
+- Animated door swing
 
-#### Step 4: Modify chunk_manager.gd
-- Use MultimeshChunk for mushroom types (glowing_mushroom, spore_cluster)
-- Keep individual scenes for larger objects (mushroom_tree, giant_mushroom, trees, rocks)
-- Handle hit detection via Area3D body_entered signals
+---
 
-#### Step 5: Handle collision/interaction
-- Each MultimeshChunk has an Area3D with CollisionShape3D per instance
-- On hit, find nearest instance and apply damage
-- When destroyed, set instance scale to 0 (invisible but slot preserved)
+## 7. Sound Effects
+**Generate via Python (numpy/scipy):**
+- `build_place.wav` - Wood placement thunk
+- `build_remove.wav` - Wood breaking sound
 
-#### Step 6: Handle persistence
-- Save destroyed instance indices to chunk database
-- On load, mark those indices as destroyed (scale 0)
+---
 
-### Objects to Convert
+## 8. Building Costs Update
+```gdscript
+const BUILDING_COSTS = {
+    "workbench": {"wood": 10},
+    "chest": {"wood": 10},
+    "wooden_wall": {"wood": 4},
+    "wooden_floor": {"wood": 2},
+    "wooden_door": {"wood": 6},      # Increased (full-size + functional)
+    "wooden_beam": {"wood": 2},
+    "wooden_roof_26": {"wood": 2},
+    "wooden_roof_45": {"wood": 2},
+    "wooden_stairs": {"wood": 6},    # New
+}
+```
 
-**Convert to MultiMesh (high instance count, low poly):**
-- Glowing Mushroom (highest priority - most instances, 8 meshes each)
-- Spore Cluster (10 meshes each)
+---
 
-**Keep as individual scenes (lower count, need full collision):**
-- Mushroom Tree (larger, fewer instances)
-- Giant Mushroom (larger, fewer instances)
-- Trees, Rocks (need full physics collision)
+## Implementation Order
 
-### Performance Expectations
+1. **Quick Fixes:**
+   - Fix crosshair alignment
+   - Add rotation controls (Q + D-pad)
+   - Add shift-to-disable-snap
 
-Before:
-- ~10,000 mesh draw calls for glowing mushrooms alone
-- ~2,000 individual StaticBody3D nodes
+2. **Multi-Story Support:**
+   - Second floor snapping logic
+   - Add floor_bottom snap points
 
-After:
-- ~6 draw calls per chunk for glowing mushrooms (2 cap materials × 3 meshes)
-- ~500 draw calls total (81 chunks × 6)
-- **95% reduction in draw calls**
+3. **New Pieces:**
+   - Rename roof to roof_26, create roof_45
+   - Create wooden_stairs
+   - Improve door (resize + interaction)
 
-### Risks/Considerations
+4. **UI & Sound:**
+   - On-screen build controls hint
+   - Generate and add sound effects
 
-1. **Instance removal gaps**: When destroying instances, we set scale to 0 but the slot remains. Need to track for chunk unload/reload.
+5. **Integration:**
+   - Update build menu
+   - Update crafting costs
+   - Testing
 
-2. **Material variations**: Glowing mushrooms use 2 cap colors - need separate MultiMesh per material.
+---
 
-3. **Non-uniform scale**: Current spawner applies random scale variation - MultiMesh supports per-instance transforms so this works.
+## Files to Create
+- `shared/buildable/wooden_roof_45.tscn`
+- `shared/buildable/wooden_stairs.tscn`
+- `shared/buildable/door.gd`
+- `client/ui/build_controls_hint.gd`
+- `client/ui/build_controls_hint.tscn`
+- `audio/sfx/build_place.wav`
+- `audio/sfx/build_remove.wav`
 
-4. **LOD**: MultiMesh doesn't support per-instance LOD. Options:
-   - Use visibility range on MultiMeshInstance3D (whole batch culls at distance)
-   - Create separate MultiMesh for LOD1 meshes and swap visibility
-   - Accept that all instances use same LOD (simpler)
-
-5. **Collision performance**: Many small CollisionShape3D in Area3D may still have overhead. Alternative: use raycast-based hit detection from player attack.
+## Files to Modify
+- `client/crosshair.tscn` - Fix alignment
+- `client/build_mode.gd` - Rotation, snapping, sounds
+- `shared/buildable/building_piece.gd` - Floor snap points
+- `shared/buildable/wooden_door.tscn` - Resize + add door.gd
+- `shared/buildable/wooden_roof.tscn` - Rename to roof_26
+- `shared/crafting_recipes.gd` - Update costs
+- `client/ui/build_menu.gd` - Add new pieces
+- `client/client.gd` - Show/hide build controls

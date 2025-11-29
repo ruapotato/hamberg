@@ -2,7 +2,7 @@ extends Control
 
 ## Debug Console - Press F5 to toggle
 ## Commands:
-##   /give <item_name> [amount] - Give items to player
+##   /give <item_name> [amount] - Spawn items in front of player (supports /give 10 wood)
 ##   /spawn <enemy_type> [count] - Spawn enemies near player
 ##   /tp <x> <y> <z> - Teleport player
 ##   /heal - Heal to full health
@@ -209,19 +209,39 @@ func _execute_command(text: String) -> void:
 
 func _cmd_give(args: Array) -> void:
 	if args.is_empty():
-		_add_output("[color=yellow]Usage: /give <item_name> [amount][/color]")
+		_add_output("[color=yellow]Usage: /give <item_name> [amount] or /give <amount> <item_name>[/color]")
 		return
 
-	var item_name = args[0]
-	var amount = 1
-	if args.size() > 1:
-		amount = int(args[1])
-		if amount <= 0:
-			amount = 1
+	var item_name: String = ""
+	var amount: int = 1
+
+	# Support both "/give wood 10" and "/give 10 wood" formats
+	if args.size() == 1:
+		item_name = args[0]
+	elif args.size() >= 2:
+		# Check if first arg is a number (amount first format)
+		if args[0].is_valid_int():
+			amount = int(args[0])
+			item_name = args[1]
+		else:
+			# Standard format: item_name first
+			item_name = args[0]
+			amount = int(args[1]) if args[1].is_valid_int() else 1
+
+	if amount <= 0:
+		amount = 1
+
+	# Validate item exists
+	var item_data = ItemDatabase.get_item(item_name)
+	if not item_data:
+		_add_output("[color=red]Unknown item: %s[/color]" % item_name)
+		_add_output("Use /items to see available items")
+		return
 
 	# Send RPC to server
+	print("[DebugConsole] Sending give RPC: %d x %s" % [amount, item_name])
 	NetworkManager.rpc_debug_give_item.rpc_id(1, item_name, amount)
-	_add_output("[color=green]Requested %d x %s[/color]" % [amount, item_name])
+	_add_output("[color=green]Spawning %d x %s in front of you[/color]" % [amount, item_name])
 
 func _cmd_spawn(args: Array) -> void:
 	if args.is_empty():
@@ -293,7 +313,7 @@ func _cmd_list_enemies() -> void:
 
 func _cmd_help() -> void:
 	_add_output("[color=cyan]Commands:[/color]")
-	_add_output("  /give <item> [amount] - Give items")
+	_add_output("  /give <item> [amount] - Spawn items (e.g. /give 10 wood)")
 	_add_output("  /spawn <type> [count] - Spawn enemies/animals")
 	_add_output("  /tp <x> <y> <z> - Teleport")
 	_add_output("  /heal - Heal to full")
