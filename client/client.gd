@@ -18,6 +18,7 @@ var world_map_scene := preload("res://client/ui/world_map.tscn")
 var mini_map_scene := preload("res://client/ui/mini_map.tscn")
 var debug_console_scene := preload("res://client/ui/debug_console.tscn")
 var chest_ui_scene := preload("res://client/ui/chest_ui.tscn")
+var build_controls_hint_scene := preload("res://client/ui/build_controls_hint.tscn")
 
 # Enemy scenes
 var gahnome_scene := preload("res://shared/enemies/gahnome.tscn")
@@ -86,6 +87,9 @@ var debug_console_ui: Control = null
 # Chest UI
 var chest_ui: Control = null
 var interact_held_time: float = 0.0
+
+# Build controls hint UI
+var build_controls_hint_ui: Control = null
 var interact_target_chest: Node = null
 const QUICK_SORT_HOLD_TIME: float = 0.5  # Hold E for 0.5s to quick-sort
 var ping_indicator_script = preload("res://client/ping_indicator.gd")
@@ -197,6 +201,10 @@ func _ready() -> void:
 	# Create chest UI
 	chest_ui = chest_ui_scene.instantiate()
 	canvas_layer.add_child(chest_ui)
+
+	# Create build controls hint UI
+	build_controls_hint_ui = build_controls_hint_scene.instantiate()
+	canvas_layer.add_child(build_controls_hint_ui)
 
 	# Hide HUD initially
 	hud.visible = false
@@ -831,6 +839,9 @@ func _on_equipment_changed(equipment_slot: int) -> void:
 	# Deactivate all modes first
 	if build_mode.is_active:
 		build_mode.deactivate()
+		# Hide build controls hint
+		if build_controls_hint_ui and build_controls_hint_ui.has_method("hide_hint"):
+			build_controls_hint_ui.hide_hint()
 	if placement_mode.is_active:
 		placement_mode.deactivate()
 
@@ -839,6 +850,9 @@ func _on_equipment_changed(equipment_slot: int) -> void:
 		if camera and local_player:
 			build_mode.activate(local_player, camera, world, build_menu_ui, build_status_label)
 			print("[Client] Build mode activated")
+			# Show build controls hint
+			if build_controls_hint_ui and build_controls_hint_ui.has_method("show_hint"):
+				build_controls_hint_ui.show_hint()
 		else:
 			print("[Client] Cannot activate build mode - camera or player missing")
 	elif main_hand_item == "workbench":

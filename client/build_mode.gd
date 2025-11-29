@@ -5,13 +5,21 @@ extends Node
 
 signal build_piece_placed(piece_name: String, position: Vector3, rotation: float)
 
+# Sound effects
+var place_sound: AudioStreamPlayer = null
+var remove_sound: AudioStreamPlayer = null
+var place_sound_stream: AudioStream = preload("res://audio/sfx/build_place.wav")
+var remove_sound_stream: AudioStream = preload("res://audio/sfx/build_remove.wav")
+
 # Building pieces available (populated from resources)
 var available_pieces: Dictionary = {
 	"wooden_wall": preload("res://shared/buildable/wooden_wall.tscn"),
 	"wooden_floor": preload("res://shared/buildable/wooden_floor.tscn"),
 	"wooden_door": preload("res://shared/buildable/wooden_door.tscn"),
 	"wooden_beam": preload("res://shared/buildable/wooden_beam.tscn"),
-	"wooden_roof": preload("res://shared/buildable/wooden_roof.tscn"),
+	"wooden_roof_26": preload("res://shared/buildable/wooden_roof_26.tscn"),
+	"wooden_roof_45": preload("res://shared/buildable/wooden_roof_45.tscn"),
+	"wooden_stairs": preload("res://shared/buildable/wooden_stairs.tscn"),
 	"workbench": preload("res://shared/buildable/workbench.tscn"),
 	"chest": preload("res://shared/buildable/chest.tscn"),
 }
@@ -51,6 +59,27 @@ var is_near_workbench: bool = false  # Cached result of workbench check
 func _ready() -> void:
 	piece_names = available_pieces.keys()
 	piece_names.sort()
+	_setup_audio()
+
+func _setup_audio() -> void:
+	# Create audio players for build sounds
+	place_sound = AudioStreamPlayer.new()
+	place_sound.stream = place_sound_stream
+	place_sound.volume_db = -3.0
+	add_child(place_sound)
+
+	remove_sound = AudioStreamPlayer.new()
+	remove_sound.stream = remove_sound_stream
+	remove_sound.volume_db = -3.0
+	add_child(remove_sound)
+
+func _play_place_sound() -> void:
+	if place_sound and not place_sound.playing:
+		place_sound.play()
+
+func _play_remove_sound() -> void:
+	if remove_sound and not remove_sound.playing:
+		remove_sound.play()
 
 func activate(p_player: Node3D, p_camera: Camera3D, p_world: Node3D, p_build_menu: Control = null, p_status_label: Label = null) -> void:
 	if is_active:
@@ -118,6 +147,9 @@ func _update_ghost_position() -> void:
 	if not camera or not ghost_preview:
 		return
 
+	# Check if shift is held to disable snapping
+	var disable_snap = Input.is_action_pressed("sprint")
+
 	# Raycast from camera forward
 	var from = camera.global_position
 	var to = from + (-camera.global_transform.basis.z * placement_distance)
@@ -141,8 +173,10 @@ func _update_ghost_position() -> void:
 		if debug_snap:
 			print("[BuildMode] Raycast hit: pos=%s, normal=%s, object=%s" % [hit_point, hit_normal, hit_object])
 
-		# Try to snap to nearby floors first (uses grid-aligned snapping for floors)
-		var snap_result = _find_nearest_snap_point(hit_point)
+		# Try to snap to nearby pieces (unless shift held for free placement)
+		var snap_result: Dictionary = {}
+		if not disable_snap:
+			snap_result = _find_nearest_snap_point(hit_point)
 
 		if snap_result.has("position"):
 			# Found a valid snap position near an existing floor!
@@ -212,8 +246,17 @@ func _find_nearest_snap_point(cursor_position: Vector3) -> Dictionary:
 	if not world or not ghost_preview:
 		return {}
 
-	# For floors, use aggressive grid-based snapping
+	# For floors: try corner snapping first, then wall-top, then grid
 	if current_piece_name == "wooden_floor":
+		# First try floor-to-floor corner snapping (works for any level)
+		var floor_corner_result = _find_floor_corner_snap(cursor_position)
+		if not floor_corner_result.is_empty():
+			return floor_corner_result
+		# Then try wall-top snapping (for starting second floors)
+		var wall_top_result = _find_floor_on_wall_top_snap(cursor_position)
+		if not wall_top_result.is_empty():
+			return wall_top_result
+		# Finally fall back to grid snapping
 		return _find_floor_grid_snap(cursor_position)
 
 	# For walls trying to stack on walls, use special detection
@@ -265,6 +308,209 @@ func _find_nearest_snap_point(cursor_position: Vector3) -> Dictionary:
 					nearest_snap = our_snap_result
 
 	return nearest_snap
+
+## Floor-to-floor corner snapping - snap to existing floor corners
+## This allows expanding floors at ANY level by pointing at floor corners
+func _find_floor_corner_snap(cursor_position: Vector3) -> Dictionary:
+	if not world or not ghost_preview or not camera:
+		return {}
+
+	var camera_pos = camera.global_position
+	var camera_forward = -camera.global_transform.basis.z
+
+	var best_snap: Dictionary = {}
+	var best_distance_from_ray: float = INF
+	var best_distance_along_ray: float = INF
+
+	const MAX_PERPENDICULAR_DISTANCE: float = 1.5  # Tighter snap for corners
+
+	var floor_half_x = ghost_preview.grid_size.x / 2.0
+	var floor_half_z = ghost_preview.grid_size.z / 2.0
+	var floor_half_height = ghost_preview.grid_size.y / 2.0
+
+	# Search for nearby floors
+	for child in world.get_children():
+		if child == ghost_preview:
+			continue
+
+		if not ("piece_name" in child) or child.piece_name != "wooden_floor":
+			continue
+
+		# Skip if piece is too far
+		var to_piece = child.global_position - camera_pos
+		var distance_along_camera = to_piece.dot(camera_forward)
+		if distance_along_camera < 0 or distance_along_camera > placement_distance + 5.0:
+			continue
+
+		# Check floor_corner snap points
+		if not ("snap_points" in child):
+			continue
+
+		for snap_point in child.snap_points:
+			var snap_type: String = snap_point.get("type", "")
+			if snap_type != "floor_corner":
+				continue
+
+			var snap_pos_local: Vector3 = snap_point.position
+			var snap_pos_global: Vector3 = child.global_transform * snap_pos_local
+
+			# Calculate closest point on camera ray to this corner
+			var to_corner = snap_pos_global - camera_pos
+			var distance_along_ray = to_corner.dot(camera_forward)
+
+			if distance_along_ray < 0 or distance_along_ray > placement_distance + 5.0:
+				continue
+
+			var closest_point_on_ray = camera_pos + camera_forward * distance_along_ray
+			var perpendicular_distance = snap_pos_global.distance_to(closest_point_on_ray)
+
+			if perpendicular_distance > MAX_PERPENDICULAR_DISTANCE:
+				continue
+
+			# Check if this is a better snap point
+			var is_better = false
+			if perpendicular_distance < best_distance_from_ray - 0.1:
+				is_better = true
+			elif abs(perpendicular_distance - best_distance_from_ray) < 0.1:
+				if distance_along_ray < best_distance_along_ray:
+					is_better = true
+
+			if is_better:
+				# Calculate floor position using corner snapping logic
+				# Determine which direction from the corner to place the floor
+				var direction = (cursor_position - snap_pos_global).normalized()
+				direction.y = 0  # Keep on same plane
+
+				# Choose which floor corner should connect to target corner
+				var our_corner_offset: Vector3
+				if direction.x >= 0 and direction.z >= 0:  # NE quadrant
+					our_corner_offset = Vector3(-floor_half_x, 0, -floor_half_z)  # Our SW corner
+				elif direction.x < 0 and direction.z >= 0:  # NW quadrant
+					our_corner_offset = Vector3(floor_half_x, 0, -floor_half_z)  # Our SE corner
+				elif direction.x < 0 and direction.z < 0:  # SW quadrant
+					our_corner_offset = Vector3(floor_half_x, 0, floor_half_z)  # Our NE corner
+				else:  # SE quadrant
+					our_corner_offset = Vector3(-floor_half_x, 0, floor_half_z)  # Our NW corner
+
+				# Calculate floor center so our corner aligns with target corner
+				var floor_pos = Vector3(
+					snap_pos_global.x - our_corner_offset.x,
+					snap_pos_global.y,  # Same Y level as the floor we're snapping to
+					snap_pos_global.z - our_corner_offset.z
+				)
+
+				best_snap = {
+					"position": floor_pos,
+					"rotation": 0.0  # Floors stay grid-aligned
+				}
+				best_distance_from_ray = perpendicular_distance
+				best_distance_along_ray = distance_along_ray
+
+	return best_snap
+
+## Special snapping for floors on top of walls (for second floors)
+## Floors snap to wall top CORNERS, just like floor-to-floor corner snapping
+func _find_floor_on_wall_top_snap(cursor_position: Vector3) -> Dictionary:
+	if not world or not ghost_preview or not camera:
+		return {}
+
+	var camera_pos = camera.global_position
+	var camera_forward = -camera.global_transform.basis.z
+
+	var best_snap: Dictionary = {}
+	var best_distance_from_ray: float = INF
+	var best_distance_along_ray: float = INF
+
+	const MAX_PERPENDICULAR_DISTANCE: float = 3.0
+
+	var floor_half_x = ghost_preview.grid_size.x / 2.0
+	var floor_half_z = ghost_preview.grid_size.z / 2.0
+	var floor_half_height = ghost_preview.grid_size.y / 2.0
+
+	# Search for nearby walls to snap floor on top of
+	for child in world.get_children():
+		if child == ghost_preview:
+			continue
+
+		if not ("piece_name" in child):
+			continue
+
+		# Only snap to walls
+		if child.piece_name != "wooden_wall":
+			continue
+
+		# Skip if piece is too far
+		var to_piece = child.global_position - camera_pos
+		var distance_along_camera = to_piece.dot(camera_forward)
+		if distance_along_camera < 0 or distance_along_camera > placement_distance + 5.0:
+			continue
+
+		# Wall top corners in local space (wall is 2m wide, 2m tall)
+		# Left and right corners at top of wall
+		var wall_half_width = 1.0  # Wall is 2m wide
+		var wall_half_height = 1.0  # Wall is 2m tall
+		var wall_top_corners_local = [
+			Vector3(-wall_half_width, wall_half_height, 0),  # Left corner
+			Vector3(wall_half_width, wall_half_height, 0),   # Right corner
+		]
+
+		# Check each wall top corner
+		for corner_local in wall_top_corners_local:
+			var corner_global = child.global_transform * corner_local
+
+			# Calculate closest point on camera ray to this corner
+			var to_corner = corner_global - camera_pos
+			var distance_along_ray = to_corner.dot(camera_forward)
+
+			if distance_along_ray < 0 or distance_along_ray > placement_distance + 5.0:
+				continue
+
+			var closest_point_on_ray = camera_pos + camera_forward * distance_along_ray
+			var perpendicular_distance = corner_global.distance_to(closest_point_on_ray)
+
+			if perpendicular_distance > MAX_PERPENDICULAR_DISTANCE:
+				continue
+
+			# Check if this is a better snap point
+			var is_better = false
+			if perpendicular_distance < best_distance_from_ray - 0.1:
+				is_better = true
+			elif abs(perpendicular_distance - best_distance_from_ray) < 0.1:
+				if distance_along_ray < best_distance_along_ray:
+					is_better = true
+
+			if is_better:
+				# Calculate floor position using corner snapping logic (like floor-to-floor)
+				# Determine which direction from the corner to place the floor based on cursor
+				var direction = (cursor_position - corner_global).normalized()
+				direction.y = 0  # Keep on same plane
+
+				# Choose which floor corner should connect to wall corner
+				var our_corner_offset: Vector3
+				if direction.x >= 0 and direction.z >= 0:  # NE quadrant
+					our_corner_offset = Vector3(-floor_half_x, 0, -floor_half_z)  # Our SW corner
+				elif direction.x < 0 and direction.z >= 0:  # NW quadrant
+					our_corner_offset = Vector3(floor_half_x, 0, -floor_half_z)  # Our SE corner
+				elif direction.x < 0 and direction.z < 0:  # SW quadrant
+					our_corner_offset = Vector3(floor_half_x, 0, floor_half_z)  # Our NE corner
+				else:  # SE quadrant
+					our_corner_offset = Vector3(-floor_half_x, 0, floor_half_z)  # Our NW corner
+
+				# Calculate floor center so our corner aligns with wall corner
+				var floor_pos = Vector3(
+					corner_global.x - our_corner_offset.x,
+					corner_global.y + floor_half_height,
+					corner_global.z - our_corner_offset.z
+				)
+
+				best_snap = {
+					"position": floor_pos,
+					"rotation": 0.0  # Floors stay grid-aligned
+				}
+				best_distance_from_ray = perpendicular_distance
+				best_distance_along_ray = distance_along_ray
+
+	return best_snap
 
 ## Special snapping for walls - uses raycast proximity for both floors and walls
 func _find_wall_stack_snap(cursor_position: Vector3) -> Dictionary:
@@ -349,7 +595,7 @@ func _find_wall_stack_snap(cursor_position: Vector3) -> Dictionary:
 
 ## Floor grid snapping - snap to grid coordinates aligned with nearby floors
 func _find_floor_grid_snap(cursor_position: Vector3) -> Dictionary:
-	if not world or not ghost_preview:
+	if not world or not ghost_preview or not camera:
 		return {}
 
 	# Safety check - ensure ghost_preview has grid_size
@@ -359,9 +605,18 @@ func _find_floor_grid_snap(cursor_position: Vector3) -> Dictionary:
 	var grid_size_x = ghost_preview.grid_size.x
 	var grid_size_z = ghost_preview.grid_size.z
 
+	# Use CAMERA Y position to determine which floor level we're building on
+	# This is important because when looking at empty space from the 2nd floor,
+	# the raycast hits the 1st floor, but we want to build on the 2nd floor
+	var reference_y = camera.global_position.y - 1.5  # Camera is ~1.5m above floor level
+
 	# Find the nearest floor piece to use as grid reference
+	# PRIORITIZE floors at similar Y level to where the PLAYER is standing
 	var nearest_floor: Node3D = null
-	var nearest_distance: float = snap_search_radius
+	var nearest_score: float = INF  # Lower is better
+
+	const Y_LEVEL_TOLERANCE: float = 1.0  # Floors within 1m Y are "same level"
+	const Y_LEVEL_PENALTY: float = 100.0  # Penalty for floors at different Y levels
 
 	for child in world.get_children():
 		if child == ghost_preview:
@@ -370,9 +625,23 @@ func _find_floor_grid_snap(cursor_position: Vector3) -> Dictionary:
 		if not ("piece_name" in child) or child.piece_name != "wooden_floor":
 			continue
 
-		var distance = child.global_position.distance_to(cursor_position)
-		if distance < nearest_distance:
-			nearest_distance = distance
+		# Calculate XZ distance (horizontal)
+		var xz_distance = Vector2(child.global_position.x, child.global_position.z).distance_to(
+			Vector2(cursor_position.x, cursor_position.z))
+
+		if xz_distance > snap_search_radius:
+			continue
+
+		# Calculate Y difference from CAMERA level (not cursor hit point)
+		var y_diff = abs(child.global_position.y - reference_y)
+
+		# Score: XZ distance + penalty if at different Y level than player
+		var score = xz_distance
+		if y_diff > Y_LEVEL_TOLERANCE:
+			score += Y_LEVEL_PENALTY  # Heavily penalize floors at different heights
+
+		if score < nearest_score:
+			nearest_score = score
 			nearest_floor = child
 
 	# If no nearby floor found, no grid snapping
@@ -610,9 +879,20 @@ func _validate_placement(_position: Vector3) -> bool:
 	return true
 
 func _handle_input() -> void:
-	# Rotate with R key
-	if Input.is_action_just_pressed("build_rotate") and ghost_preview:
-		rotate_preview()
+	# Rotation controls
+	if ghost_preview:
+		# Keyboard: R to rotate clockwise
+		if Input.is_action_just_pressed("build_rotate"):
+			rotate_preview()
+		# Keyboard: Q to rotate (when build menu is not open)
+		elif Input.is_action_just_pressed("open_build_menu") and build_menu and not build_menu.is_open:
+			rotate_preview()
+
+		# Controller: D-pad left/right to rotate
+		if Input.is_action_just_pressed("hotbar_prev"):
+			rotate_preview_reverse()  # Counter-clockwise
+		elif Input.is_action_just_pressed("hotbar_next"):
+			rotate_preview()  # Clockwise
 
 	# Destroy buildable with middle mouse
 	if Input.is_action_just_pressed("destroy_object"):
@@ -670,6 +950,10 @@ func rotate_preview() -> void:
 	if ghost_preview:
 		ghost_preview.rotation.y += deg_to_rad(45.0)
 
+func rotate_preview_reverse() -> void:
+	if ghost_preview:
+		ghost_preview.rotation.y -= deg_to_rad(45.0)
+
 func place_current_piece() -> void:
 	if not can_place_current or not ghost_preview:
 		return
@@ -691,6 +975,9 @@ func place_current_piece() -> void:
 	var rotation = ghost_preview.rotation.y
 
 	print("[BuildMode] Placing %s at %s" % [current_piece_name, position])
+
+	# Play place sound
+	_play_place_sound()
 
 	# Emit signal for server to handle actual placement and resource consumption
 	build_piece_placed.emit(current_piece_name, position, rotation)
@@ -719,6 +1006,9 @@ func _try_destroy_buildable() -> void:
 			var piece_name = hit_object.piece_name if "piece_name" in hit_object else "unknown"
 
 			print("[BuildMode] Requesting to destroy %s (ID: %s)" % [piece_name, network_id])
+
+			# Play remove sound
+			_play_remove_sound()
 
 			# Send destroy request to server via NetworkManager
 			NetworkManager.rpc_destroy_buildable.rpc_id(1, network_id)

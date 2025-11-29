@@ -1,0 +1,54 @@
+[gd_scene load_steps=6 format=3 uid="uid://wooden_stairs_001"]
+
+[ext_resource type="Script" path="res://shared/buildable/building_piece.gd" id="1"]
+
+[sub_resource type="BoxMesh" id="step1_mesh"]
+size = Vector3(2.0, 0.4, 0.5)
+
+[sub_resource type="BoxMesh" id="step2_mesh"]
+size = Vector3(2.0, 0.4, 0.5)
+
+[sub_resource type="BoxMesh" id="step3_mesh"]
+size = Vector3(2.0, 0.4, 0.5)
+
+[sub_resource type="BoxMesh" id="step4_mesh"]
+size = Vector3(2.0, 0.4, 0.5)
+
+[sub_resource type="StandardMaterial3D" id="wood_mat"]
+albedo_color = Color(0.5, 0.35, 0.2, 1)
+
+[sub_resource type="BoxShape3D" id="stairs_collision"]
+size = Vector3(2.0, 2.0, 2.0)
+
+[node name="WoodenStairs" type="StaticBody3D"]
+collision_layer = 1
+collision_mask = 0
+script = ExtResource("1")
+piece_name = "wooden_stairs"
+grid_size = Vector3(2.0, 2.0, 2.0)
+snap_to_grid = true
+can_rotate = true
+
+[node name="Step1" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.8, 0.75)
+mesh = SubResource("step1_mesh")
+surface_material_override/0 = SubResource("wood_mat")
+
+[node name="Step2" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.4, 0.25)
+mesh = SubResource("step2_mesh")
+surface_material_override/0 = SubResource("wood_mat")
+
+[node name="Step3" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.25)
+mesh = SubResource("step3_mesh")
+surface_material_override/0 = SubResource("wood_mat")
+
+[node name="Step4" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.4, -0.75)
+mesh = SubResource("step4_mesh")
+surface_material_override/0 = SubResource("wood_mat")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0.7071, 0.7071, 0, -0.7071, 0.7071, 0, 0, 0)
+shape = SubResource("stairs_collision")

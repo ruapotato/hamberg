@@ -24,7 +24,9 @@ const BUILDING_COSTS: Dictionary = {
 	"wooden_floor": {"wood": 2},
 	"wooden_door": {"wood": 4},
 	"wooden_beam": {"wood": 2},
-	"wooden_roof": {"wood": 2},
+	"wooden_roof_26": {"wood": 2},
+	"wooden_roof_45": {"wood": 2},
+	"wooden_stairs": {"wood": 4},
 }
 
 func _initialize_recipes() -> void:

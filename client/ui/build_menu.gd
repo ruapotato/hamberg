@@ -13,7 +13,9 @@ var available_pieces: Array = [
 	"wooden_floor",
 	"wooden_door",
 	"wooden_beam",
-	"wooden_roof"
+	"wooden_roof_26",
+	"wooden_roof_45",
+	"wooden_stairs"
 ]
 
 var is_open: bool = false
