@@ -484,21 +484,32 @@ func _interact_with_object_under_cursor() -> void:
 	if not camera:
 		return
 
-	# Raycast from camera forward
-	var from = camera.global_position
-	var to = from + (-camera.global_transform.basis.z * 5.0)  # 5m interaction range
+	# Raycast from crosshair position (offset from center - see crosshair.tscn)
+	# Crosshair is at center + (-41, -50) pixels offset
+	var viewport_size = get_viewport().get_visible_rect().size
+	var crosshair_screen_pos = viewport_size / 2.0 + Vector2(-41, -50)
+
+	var from = camera.project_ray_origin(crosshair_screen_pos)
+	var ray_dir = camera.project_ray_normal(crosshair_screen_pos)
+	var to = from + ray_dir * 5.0  # 5m interaction range
 
 	var space_state = world.get_world_3d().direct_space_state
 	var query = PhysicsRayQueryParameters3D.create(from, to)
 	query.collision_mask = 1  # World layer
+	query.collide_with_areas = true  # Detect Area3D for door interaction zones
 
 	var result = space_state.intersect_ray(query)
 
 	if result and result.collider:
 		var hit_object = result.collider
-		# Check if it's a buildable object (workbench, etc.)
+		# Check if it's a buildable object (workbench, door, etc.)
 		var buildable = hit_object
 		while buildable:
+			# Check if it's a door
+			if buildable.has_method("interact") and buildable.get("is_interactable"):
+				print("[Client] Interacting with door")
+				buildable.interact()
+				return
 			# Check if it's a crafting station (workbench)
 			if buildable.has_method("is_position_in_range") and buildable.get("is_crafting_station"):
 				var station_type = buildable.get("station_type")
@@ -535,9 +546,13 @@ func _get_chest_under_cursor() -> Node:
 	if not camera:
 		return null
 
-	# Raycast from camera forward
-	var from = camera.global_position
-	var to = from + (-camera.global_transform.basis.z * 5.0)  # 5m interaction range
+	# Raycast from crosshair position (offset from center - see crosshair.tscn)
+	var viewport_size = get_viewport().get_visible_rect().size
+	var crosshair_screen_pos = viewport_size / 2.0 + Vector2(-41, -50)
+
+	var from = camera.project_ray_origin(crosshair_screen_pos)
+	var ray_dir = camera.project_ray_normal(crosshair_screen_pos)
+	var to = from + ray_dir * 5.0  # 5m interaction range
 
 	var space_state = world.get_world_3d().direct_space_state
 	var query = PhysicsRayQueryParameters3D.create(from, to)
