@@ -86,7 +86,7 @@ var current_special_attack_animation_time: float = 0.5  # Actual special animati
 # Axe spin attack state
 var is_spinning: bool = false
 var spin_rotation: float = 0.0  # Current spin rotation for body
-var spin_hit_enemies: Array = []  # Enemies already hit during spin
+var spin_hit_times: Dictionary = {}  # enemy_id -> last_hit_time for multi-hit with cooldown
 var is_lunging: bool = false  # Track if player is performing a lunge attack
 var lunge_direction: Vector3 = Vector3.ZERO  # Direction of lunge for maintaining momentum
 const LUNGE_FORWARD_FORCE: float = 15.0  # Continuous forward force during lunge
@@ -1024,7 +1024,7 @@ func _special_attack_axe_spin(weapon_data: WeaponData, camera: Camera3D) -> void
 	is_special_attacking = true
 	is_spinning = true
 	spin_rotation = 0.0
-	spin_hit_enemies.clear()
+	spin_hit_times.clear()
 	special_attack_timer = 0.0
 	current_special_attack_animation_time = AXE_SPECIAL_ANIMATION_TIME
 
@@ -1768,7 +1768,7 @@ func _update_body_animations(delta: float) -> void:
 			# Reset spin state
 			if is_spinning:
 				is_spinning = false
-				spin_hit_enemies.clear()
+				spin_hit_times.clear()
 				# Reset wrist pivot after spin (but NOT weapon - stay at 90 degrees)
 				if weapon_wrist_pivot:
 					weapon_wrist_pivot.rotation_degrees = Vector3.ZERO
@@ -2169,37 +2169,89 @@ func _animate_knife_attack(progress: float, right_arm: Node3D, right_elbow: Node
 				right_elbow.rotation.x = -sin(progress * PI) * 0.9
 
 ## Check for enemy hits during axe spin attack
+## Hits enemies and environmental objects multiple times with a cooldown
 func _check_spin_hits() -> void:
 	if not is_local_player:
 		return
 
 	var spin_radius = 3.5  # Attack radius
+	var hit_cooldown = 0.15  # Time between hits on same target
+	var spin_damage = lunge_damage * 0.6  # Reduced damage per hit since multi-hit
+	var current_time = Time.get_ticks_msec() / 1000.0
 
-	# Use the same approach as lunge - get enemies from group
+	# Get weapon data for tool type check
+	var weapon_data = null
+	if equipment:
+		weapon_data = equipment.get_equipped_weapon()
+	if not weapon_data:
+		weapon_data = ItemDatabase.get_item("fists")
+	var tool_type: String = weapon_data.tool_type if weapon_data and "tool_type" in weapon_data else ""
+
+	# Check enemies
 	var enemies = get_tree().get_nodes_in_group("enemies")
 	for enemy in enemies:
 		if not is_instance_valid(enemy):
 			continue
 
-		# Check if already hit this enemy during this spin
-		var enemy_id = enemy.get_instance_id()
-		if enemy_id in spin_hit_enemies:
-			continue
-
-		# Check if enemy is within spin radius
 		var distance = enemy.global_position.distance_to(global_position)
 		if distance <= spin_radius:
-			# HIT! Add to hit list and deal damage
-			spin_hit_enemies.append(enemy_id)
-
 			var hit_direction = (enemy.global_position - global_position).normalized()
+			var enemy_id = enemy.get_instance_id()
 			var enemy_network_id = enemy.network_id if "network_id" in enemy else 0
-			if enemy_network_id > 0:
-				print("[Player] SPIN HIT %s (net_id=%d) at distance %.1fm!" % [enemy.name, enemy_network_id, distance])
-				_send_enemy_damage_request(enemy_network_id, lunge_damage, lunge_knockback, hit_direction)
 
-				# Play hit sound
-				SoundManager.play_sound_varied("sword_swing", global_position)
+			var last_hit_time = spin_hit_times.get(enemy_id, 0.0)
+			if current_time - last_hit_time >= hit_cooldown:
+				spin_hit_times[enemy_id] = current_time
+				if enemy_network_id > 0:
+					print("[Player] SPIN HIT enemy %s at distance %.1fm!" % [enemy.name, distance])
+					_send_enemy_damage_request(enemy_network_id, spin_damage, lunge_knockback, hit_direction)
+					SoundManager.play_sound_varied("sword_swing", global_position)
+
+	# Check environmental objects using sphere query
+	var space_state = get_world_3d().direct_space_state
+	var shape = SphereShape3D.new()
+	shape.radius = spin_radius
+	var query = PhysicsShapeQueryParameters3D.new()
+	query.shape = shape
+	query.transform = Transform3D(Basis.IDENTITY, global_position + Vector3(0, 1, 0))
+	query.collision_mask = 1  # World layer
+
+	var results = space_state.intersect_shape(query, 32)
+	for result in results:
+		var hit_object = result.collider
+		if not is_instance_valid(hit_object):
+			continue
+
+		# Check if it's an environmental object
+		if hit_object.has_method("get_object_type"):
+			var obj_id = hit_object.get_instance_id()
+			var last_hit_time = spin_hit_times.get(obj_id, 0.0)
+			if current_time - last_hit_time < hit_cooldown:
+				continue
+
+			# Check tool requirement
+			if hit_object.has_method("can_be_damaged_by"):
+				if not hit_object.can_be_damaged_by(tool_type):
+					continue  # Wrong tool, skip
+
+			spin_hit_times[obj_id] = current_time
+			var object_type: String = hit_object.get_object_type()
+
+			# Check if dynamic object (fallen log, split log)
+			var hit_node := hit_object as Node3D
+			var object_name: String = hit_node.name if hit_node else ""
+			var is_dynamic := object_name.begins_with("FallenLog_") or object_name.begins_with("SplitLog_")
+
+			if is_dynamic:
+				print("[Player] SPIN HIT dynamic %s!" % object_name)
+				_send_dynamic_damage_request(object_name, spin_damage, hit_node.global_position)
+			elif hit_object.has_method("get_object_id"):
+				var object_id: int = hit_object.get_object_id()
+				var chunk_pos: Vector2i = hit_object.chunk_position if "chunk_position" in hit_object else Vector2i.ZERO
+				print("[Player] SPIN HIT %s (ID: %d)!" % [object_type, object_id])
+				_send_damage_request(chunk_pos, object_id, spin_damage, hit_node.global_position)
+
+			SoundManager.play_sound_varied("wood_hit", global_position)
 
 ## Animate axe combo attacks - SIMPLE wide sweeping arcs
 ## The ARM does the work - axe head sweeps IN FRONT of the player
