@@ -91,6 +91,7 @@ func _register_weapon_fists() -> void:
 	weapon.durability = 999999  # Infinite durability
 	weapon.stamina_cost = 5.0  # Low stamina cost
 	weapon.parry_window = 0.15  # Short parry window for fists (skilled timing required)
+	weapon.tool_type = "blunt"  # Can break small things, but not chop trees
 	weapon.weight = 0.0
 	# No weapon scene - fists are always visible (viewmodel arms)
 	items["fists"] = weapon
@@ -108,6 +109,7 @@ func _register_weapon_club() -> void:
 	weapon.knockback = 8.0  # Good knockback
 	weapon.durability = 80
 	weapon.stamina_cost = 8.0
+	weapon.tool_type = "blunt"  # Good for breaking things, can split logs
 	weapon.weight = 2.5
 	# Uses fists animation/no scene for now - simple club
 	items["club"] = weapon
@@ -133,7 +135,7 @@ func _register_weapon_stone_axe() -> void:
 	var weapon = WeaponData.new()
 	weapon.item_id = "stone_axe"
 	weapon.display_name = "Stone Axe (Head Smasher)"
-	weapon.description = "A heavy two-handed axe. Slow but devastating."
+	weapon.description = "A heavy two-handed axe. Slow but devastating. Required for chopping trees."
 	weapon.weapon_type = WeaponData.WeaponType.MELEE_TWO_HAND
 	weapon.damage = 30.0  # 2x sword damage
 	weapon.damage_type = WeaponData.DamageType.SLASH
@@ -141,6 +143,7 @@ func _register_weapon_stone_axe() -> void:
 	weapon.knockback = 15.0  # High knockback
 	weapon.durability = 120
 	weapon.stamina_cost = 20.0  # 2x stamina cost
+	weapon.tool_type = "axe"  # Can chop trees!
 	weapon.weight = 6.0
 	weapon.weapon_scene = load("res://shared/weapons/stone_axe.tscn")
 	items["stone_axe"] = weapon

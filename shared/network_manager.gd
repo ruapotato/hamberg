@@ -285,6 +285,17 @@ func rpc_damage_environmental_object(chunk_pos: Array, object_id: int, damage: f
 		var chunk_pos_v2i := Vector2i(chunk_pos[0], chunk_pos[1])
 		server_node.handle_environmental_damage(peer_id, chunk_pos_v2i, object_id, damage, hit_position)
 
+## CLIENT -> SERVER: Damage a dynamic spawned object (fallen logs, split logs, etc.)
+@rpc("any_peer", "call_remote", "reliable")
+func rpc_damage_dynamic_object(object_name: String, damage: float, hit_position: Vector3) -> void:
+	if not is_server:
+		return
+
+	var peer_id := multiplayer.get_remote_sender_id()
+	var server_node := get_node_or_null("/root/Main/Server")
+	if server_node and server_node.has_method("handle_dynamic_object_damage"):
+		server_node.handle_dynamic_object_damage(peer_id, object_name, damage, hit_position)
+
 ## CLIENT -> SERVER: Damage enemy (client-authoritative hits using network_id)
 @rpc("any_peer", "call_remote", "reliable")
 func rpc_damage_enemy(enemy_network_id: int, damage: float, knockback: float, direction: Array) -> void:
@@ -491,6 +502,41 @@ func rpc_spawn_resource_drops(resources: Dictionary, position: Array, network_id
 	if client_node and client_node.has_method("spawn_resource_drops"):
 		var pos_v3 := Vector3(position[0], position[1], position[2])
 		client_node.spawn_resource_drops(resources, pos_v3, network_ids)
+
+## SERVER → CLIENTS: Spawn a fallen log (from chopped truffula tree)
+@rpc("authority", "call_remote", "reliable")
+func rpc_spawn_fallen_log(position: Array, rotation_y: float, network_id: String) -> void:
+	var client_node := get_node_or_null("/root/Main/Client")
+	if client_node and client_node.has_method("spawn_fallen_log"):
+		var pos_v3 := Vector3(position[0], position[1], position[2])
+		client_node.spawn_fallen_log(pos_v3, rotation_y, network_id)
+	else:
+		print("[NetworkManager] WARNING: Cannot spawn fallen log - no Client node or method")
+
+## SERVER → CLIENTS: Spawn split logs (from chopped fallen log)
+@rpc("authority", "call_remote", "reliable")
+func rpc_spawn_split_logs(positions: Array, network_ids: Array, rotation_y: float = 0.0) -> void:
+	var client_node := get_node_or_null("/root/Main/Client")
+	if client_node and client_node.has_method("spawn_split_logs"):
+		client_node.spawn_split_logs(positions, network_ids, rotation_y)
+	else:
+		print("[NetworkManager] WARNING: Cannot spawn split logs - no Client node or method")
+
+## SERVER → CLIENTS: Destroy a dynamic object (fallen log, split log, etc.)
+@rpc("authority", "call_remote", "reliable")
+func rpc_destroy_dynamic_object(object_name: String) -> void:
+	var client_node := get_node_or_null("/root/Main/Client")
+	if client_node and client_node.has_method("destroy_dynamic_object"):
+		client_node.destroy_dynamic_object(object_name)
+	else:
+		print("[NetworkManager] WARNING: Cannot destroy dynamic object - no Client node or method")
+
+## SERVER → CLIENTS: Dynamic object took damage (update health bar and play effects)
+@rpc("authority", "call_remote", "reliable")
+func rpc_dynamic_object_damaged(object_name: String, damage: float, current_health: float, max_health: float) -> void:
+	var client_node := get_node_or_null("/root/Main/Client")
+	if client_node and client_node.has_method("on_dynamic_object_damaged"):
+		client_node.on_dynamic_object_damaged(object_name, damage, current_health, max_health)
 
 ## SERVER → CLIENTS: Resource item picked up (broadcast to all clients)
 @rpc("authority", "call_remote", "reliable")

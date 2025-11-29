@@ -59,6 +59,13 @@ var sounds := {
 	"wind_ambient": "res://audio/generated/wind_ambient.wav",
 	"wind_gust": "res://audio/generated/wind_gust.wav",
 	"tree_chop": "res://audio/generated/tree_chop.wav",
+	"tree_fall": "res://audio/generated/tree_chop.wav",  # Reuse tree_chop for now
+	"tree_impact": "res://audio/generated/rock_break.wav",  # Reuse rock_break for impact
+	"wood_hit": "res://audio/generated/tree_chop.wav",  # Reuse for hitting logs
+	"wood_split": "res://audio/generated/rock_break.wav",  # Reuse for splitting
+	"wood_break": "res://audio/generated/rock_break.wav",  # Reuse for breaking
+	"bush_hit": "res://audio/generated/tree_chop.wav",  # Reuse for hitting sprouts
+	"wrong_tool": "res://audio/generated/ui_error.wav",  # Use UI error for wrong tool
 	"rock_break": "res://audio/generated/rock_break.wav",
 	"place_block": "res://audio/generated/place_block.wav",
 	"dig_dirt": "res://audio/generated/dig_dirt.wav",

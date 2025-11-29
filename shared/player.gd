@@ -811,12 +811,34 @@ func _handle_attack() -> void:
 			var result := space_state.intersect_ray(ray_query)
 			if result:
 				var hit_object: Object = result.collider
-				if hit_object.has_method("get_object_type") and hit_object.has_method("get_object_id"):
+				if hit_object.has_method("get_object_type"):
 					var object_type: String = hit_object.get_object_type()
-					var object_id: int = hit_object.get_object_id()
-					var chunk_pos: Vector2i = hit_object.chunk_position if "chunk_position" in hit_object else Vector2i.ZERO
-					print("[Player] Attacking %s (ID: %d in chunk %s)" % [object_type, object_id, chunk_pos])
-					_send_damage_request(chunk_pos, object_id, damage, result.position)
+
+					# Check tool requirement before sending damage
+					var tool_type: String = weapon_data.tool_type if "tool_type" in weapon_data else ""
+					if hit_object.has_method("can_be_damaged_by"):
+						if not hit_object.can_be_damaged_by(tool_type):
+							# Wrong tool - show feedback
+							var required_tool: String = hit_object.get_required_tool_type() if hit_object.has_method("get_required_tool_type") else "unknown"
+							print("[Player] Cannot damage %s with %s - requires %s!" % [object_type, tool_type if tool_type else "fists", required_tool])
+							_show_wrong_tool_feedback(required_tool)
+							return
+
+					# Check if this is a dynamic object (fallen log, split log, etc.)
+					var hit_node := hit_object as Node3D
+					var object_name: String = hit_node.name if hit_node else ""
+					var is_dynamic_object := object_name.begins_with("FallenLog_") or object_name.begins_with("SplitLog_")
+
+					if is_dynamic_object:
+						# Send damage to dynamic object using its name
+						print("[Player] Attacking dynamic object %s (%s)" % [object_name, object_type])
+						_send_dynamic_damage_request(object_name, damage, result.position)
+					elif hit_object.has_method("get_object_id"):
+						# Standard chunk-based environmental object
+						var object_id: int = hit_object.get_object_id()
+						var chunk_pos: Vector2i = hit_object.chunk_position if "chunk_position" in hit_object else Vector2i.ZERO
+						print("[Player] Attacking %s (ID: %d in chunk %s)" % [object_type, object_id, chunk_pos])
+						_send_damage_request(chunk_pos, object_id, damage, result.position)
 
 ## Handle special attack input (CLIENT-SIDE) - Middle mouse button attacks
 func _handle_special_attack() -> void:
@@ -1172,12 +1194,26 @@ func _send_damage_request(chunk_pos: Vector2i, object_id: int, damage: float, hi
 	# Send RPC to server via NetworkManager
 	NetworkManager.rpc_damage_environmental_object.rpc_id(1, [chunk_pos.x, chunk_pos.y], object_id, damage, hit_position)
 
+## Send damage request for dynamic objects (fallen logs, split logs, etc.)
+func _send_dynamic_damage_request(object_name: String, damage: float, hit_position: Vector3) -> void:
+	# Send RPC to server via NetworkManager
+	NetworkManager.rpc_damage_dynamic_object.rpc_id(1, object_name, damage, hit_position)
+
 ## Send enemy damage request to server (client-authoritative hit using network_id)
 func _send_enemy_damage_request(enemy_network_id: int, damage: float, knockback: float, direction: Vector3) -> void:
 	# Send RPC to server via NetworkManager
 	var dir_array = [direction.x, direction.y, direction.z]
 	print("[Player] Sending rpc_damage_enemy to server: net_id=%d, damage=%.1f" % [enemy_network_id, damage])
 	NetworkManager.rpc_damage_enemy.rpc_id(1, enemy_network_id, damage, knockback, dir_array)
+
+## Show feedback when player tries to damage something with the wrong tool
+func _show_wrong_tool_feedback(required_tool: String) -> void:
+	# Play a "bonk" or denial sound
+	SoundManager.play_sound_varied("wrong_tool", global_position)
+
+	# Emit signal for UI to show message (if connected)
+	# For now, the print statement in the caller is sufficient
+	# TODO: Add floating text like "Requires Axe" above the object
 
 # ============================================================================
 # TERRAIN MODIFICATION (PICKAXE, HOE)

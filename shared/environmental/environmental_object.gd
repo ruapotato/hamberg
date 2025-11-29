@@ -12,6 +12,7 @@ extends Node3D
 @export var max_health: float = 100.0  ## Health points (trees ~100, rocks ~150, grass ~10)
 @export var resource_drops: Dictionary = {}  ## Resources dropped when destroyed {"wood": 3, "stone": 0}
 @export var rare_drops: Dictionary = {}  ## Rare drops with chance {"resin": 0.2} means 20% chance
+@export var required_tool_type: String = ""  ## Required tool to damage ("" = any, "axe" = needs axe)
 
 var chunk_position: Vector2i  ## Which chunk this object belongs to
 var object_type: String = ""  ## Type identifier (tree, rock, grass, etc.)
@@ -198,3 +199,15 @@ func get_resource_drops() -> Dictionary:
 			print("[EnvironmentalObject] Rare drop! %s" % rare_item)
 
 	return drops
+
+## Check if a tool type can damage this object
+func can_be_damaged_by(tool_type: String) -> bool:
+	# If no tool required, any tool works
+	if required_tool_type.is_empty() or required_tool_type == "any":
+		return true
+	# Check if tool type matches
+	return tool_type == required_tool_type
+
+## Get the required tool type for UI feedback
+func get_required_tool_type() -> String:
+	return required_tool_type

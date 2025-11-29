@@ -1,0 +1,41 @@
+[gd_scene load_steps=6 format=3 uid="uid://fallen_log_001"]
+
+[ext_resource type="Script" path="res://shared/environmental/fallen_log.gd" id="1"]
+
+[sub_resource type="CylinderMesh" id="log_mesh"]
+top_radius = 0.25
+bottom_radius = 0.3
+height = 5.0
+radial_segments = 12
+
+[sub_resource type="StandardMaterial3D" id="log_mat"]
+albedo_color = Color(0.5, 0.32, 0.18, 1)
+roughness = 0.95
+
+[sub_resource type="PhysicsMaterial" id="log_physics_mat"]
+friction = 0.9
+rough = true
+bounce = 0.05
+
+[sub_resource type="CylinderShape3D" id="collision_shape"]
+radius = 0.3
+height = 5.0
+
+[node name="FallenLog" type="RigidBody3D"]
+collision_layer = 1
+collision_mask = 1
+mass = 15.0
+physics_material_override = SubResource("log_physics_mat")
+linear_damp = 1.0
+angular_damp = 2.0
+script = ExtResource("1")
+max_health = 60.0
+
+[node name="LogMesh" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.5, 0)
+mesh = SubResource("log_mesh")
+surface_material_override/0 = SubResource("log_mat")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.5, 0)
+shape = SubResource("collision_shape")

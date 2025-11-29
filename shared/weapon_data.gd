@@ -48,6 +48,10 @@ enum WeaponType {
 @export var stamina_cost: float = 10.0
 @export var parry_window: float = 0.15  # Time window (seconds) to successfully parry after starting block
 
+# Tool type for environmental object requirements (axe, pickaxe, blunt, etc.)
+# Empty string means no special tool type (e.g., fists, generic weapons)
+@export var tool_type: String = ""
+
 # For ranged weapons
 @export var projectile_scene: PackedScene = null
 @export var projectile_speed: float = 30.0
@@ -77,5 +81,6 @@ func to_dict() -> Dictionary:
 	base["durability"] = durability
 	base["stamina_cost"] = stamina_cost
 	base["parry_window"] = parry_window
+	base["tool_type"] = tool_type
 	base["projectile_speed"] = projectile_speed
 	return base

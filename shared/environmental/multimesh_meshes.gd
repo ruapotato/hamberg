@@ -39,6 +39,8 @@ func _setup_meshes() -> void:
 	_setup_mushroom_tree()
 	_setup_giant_mushroom()
 	_setup_tree()
+	_setup_truffula_tree()
+	_setup_tree_sprout()
 	_setup_rock()
 	_setup_grass()
 
@@ -283,6 +285,102 @@ func _setup_tree() -> void:
 	obj_def.resource_drops = {"wood": 3}
 
 	object_defs["tree"] = obj_def
+
+func _setup_truffula_tree() -> void:
+	var obj_def := ObjectDef.new()
+
+	# Tall thin trunk (Dr. Seuss style)
+	var trunk_mesh := CylinderMesh.new()
+	trunk_mesh.top_radius = 0.08
+	trunk_mesh.bottom_radius = 0.15
+	trunk_mesh.height = 6.0
+	trunk_mesh.radial_segments = 8
+
+	# Fluffy tuft (main sphere)
+	var tuft_mesh := SphereMesh.new()
+	tuft_mesh.radius = 1.2
+	tuft_mesh.height = 2.4
+	tuft_mesh.radial_segments = 12
+	tuft_mesh.rings = 6
+
+	# Smaller tuft bumps for fluffiness
+	var tuft_bump := SphereMesh.new()
+	tuft_bump.radius = 0.6
+	tuft_bump.height = 1.2
+	tuft_bump.radial_segments = 8
+	tuft_bump.rings = 4
+
+	# Materials
+	var trunk_mat := StandardMaterial3D.new()
+	trunk_mat.albedo_color = Color(0.55, 0.35, 0.2, 1)
+	trunk_mat.roughness = 0.9
+
+	# Default pink tuft - color will vary per instance via spawner
+	var tuft_mat := StandardMaterial3D.new()
+	tuft_mat.albedo_color = Color(1.0, 0.4, 0.6, 1)
+	tuft_mat.roughness = 0.8
+
+	obj_def.mesh_defs.append(MeshDef.new(trunk_mesh, trunk_mat, Transform3D(Basis(), Vector3(0, 3.0, 0))))
+	obj_def.mesh_defs.append(MeshDef.new(tuft_mesh, tuft_mat, Transform3D(Basis(), Vector3(0, 7.0, 0))))
+	obj_def.mesh_defs.append(MeshDef.new(tuft_bump, tuft_mat, Transform3D(Basis(), Vector3(0.8, 7.3, 0.3))))
+	obj_def.mesh_defs.append(MeshDef.new(tuft_bump, tuft_mat, Transform3D(Basis(), Vector3(-0.6, 7.5, -0.4))))
+	obj_def.mesh_defs.append(MeshDef.new(tuft_bump, tuft_mat, Transform3D(Basis(), Vector3(0.2, 7.8, 0.7))))
+	obj_def.mesh_defs.append(MeshDef.new(tuft_bump, tuft_mat, Transform3D(Basis(), Vector3(-0.3, 6.5, 0.5))))
+
+	obj_def.collision_radius = 0.15
+	obj_def.collision_height = 6.0
+	obj_def.cull_distance = 150.0
+	obj_def.max_health = 100.0
+	obj_def.resource_drops = {}  # Trees don't drop directly - they spawn logs!
+
+	object_defs["truffula_tree"] = obj_def
+
+func _setup_tree_sprout() -> void:
+	var obj_def := ObjectDef.new()
+
+	# Small stem
+	var stem_mesh := CylinderMesh.new()
+	stem_mesh.top_radius = 0.03
+	stem_mesh.bottom_radius = 0.05
+	stem_mesh.height = 0.8
+	stem_mesh.radial_segments = 6
+
+	# Small leafy top
+	var leaves_mesh := SphereMesh.new()
+	leaves_mesh.radius = 0.35
+	leaves_mesh.height = 0.5
+	leaves_mesh.radial_segments = 8
+	leaves_mesh.rings = 4
+
+	# Leaf bumps
+	var leaf_bump := SphereMesh.new()
+	leaf_bump.radius = 0.15
+	leaf_bump.height = 0.2
+	leaf_bump.radial_segments = 6
+	leaf_bump.rings = 3
+
+	# Materials
+	var stem_mat := StandardMaterial3D.new()
+	stem_mat.albedo_color = Color(0.45, 0.32, 0.18, 1)
+	stem_mat.roughness = 0.9
+
+	var leaves_mat := StandardMaterial3D.new()
+	leaves_mat.albedo_color = Color(0.35, 0.65, 0.25, 1)
+	leaves_mat.roughness = 0.85
+
+	obj_def.mesh_defs.append(MeshDef.new(stem_mesh, stem_mat, Transform3D(Basis(), Vector3(0, 0.4, 0))))
+	obj_def.mesh_defs.append(MeshDef.new(leaves_mesh, leaves_mat, Transform3D(Basis(), Vector3(0, 1.0, 0))))
+	obj_def.mesh_defs.append(MeshDef.new(leaf_bump, leaves_mat, Transform3D(Basis(), Vector3(0.2, 1.1, 0.1))))
+	obj_def.mesh_defs.append(MeshDef.new(leaf_bump, leaves_mat, Transform3D(Basis(), Vector3(-0.15, 1.15, -0.12))))
+	obj_def.mesh_defs.append(MeshDef.new(leaf_bump, leaves_mat, Transform3D(Basis(), Vector3(0.05, 0.85, 0.18))))
+
+	obj_def.collision_radius = 0.4
+	obj_def.collision_height = 1.2
+	obj_def.cull_distance = 80.0
+	obj_def.max_health = 20.0
+	obj_def.resource_drops = {"wood": 2}  # Sprouts drop wood directly
+
+	object_defs["tree_sprout"] = obj_def
 
 func _setup_rock() -> void:
 	var obj_def := ObjectDef.new()

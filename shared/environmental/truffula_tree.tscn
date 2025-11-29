@@ -1,0 +1,102 @@
+[gd_scene load_steps=10 format=3 uid="uid://truffula_tree_001"]
+
+[ext_resource type="Script" path="res://shared/environmental/truffula_tree.gd" id="1"]
+
+[sub_resource type="CylinderMesh" id="trunk_mesh"]
+top_radius = 0.08
+bottom_radius = 0.15
+height = 6.0
+radial_segments = 8
+
+[sub_resource type="SphereMesh" id="tuft_mesh"]
+radius = 1.2
+height = 2.4
+radial_segments = 16
+rings = 8
+
+[sub_resource type="SphereMesh" id="tuft_bump_mesh"]
+radius = 0.6
+height = 1.2
+
+[sub_resource type="StandardMaterial3D" id="trunk_mat"]
+albedo_color = Color(0.55, 0.35, 0.2, 1)
+roughness = 0.9
+
+[sub_resource type="StandardMaterial3D" id="tuft_mat"]
+albedo_color = Color(1.0, 0.4, 0.6, 1)
+roughness = 0.8
+emission_enabled = false
+
+[sub_resource type="CylinderShape3D" id="collision_trunk"]
+radius = 0.15
+height = 6.0
+
+[sub_resource type="SphereShape3D" id="collision_tuft"]
+radius = 1.5
+
+[sub_resource type="SphereMesh" id="lod1_tuft_mesh"]
+radius = 1.4
+height = 2.8
+radial_segments = 8
+rings = 4
+
+[node name="TruffulaTree" type="StaticBody3D"]
+collision_layer = 1
+collision_mask = 0
+script = ExtResource("1")
+cull_distance = 150.0
+lod_distances = [60.0, 100.0]
+max_health = 100.0
+
+[node name="TrunkCollision" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3.0, 0)
+shape = SubResource("collision_trunk")
+
+[node name="TuftCollision" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 7.0, 0)
+shape = SubResource("collision_tuft")
+
+[node name="LOD0" type="Node3D" parent="."]
+
+[node name="Trunk" type="MeshInstance3D" parent="LOD0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3.0, 0)
+mesh = SubResource("trunk_mesh")
+surface_material_override/0 = SubResource("trunk_mat")
+
+[node name="Tuft" type="MeshInstance3D" parent="LOD0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 7.0, 0)
+mesh = SubResource("tuft_mesh")
+surface_material_override/0 = SubResource("tuft_mat")
+
+[node name="TuftBump1" type="MeshInstance3D" parent="LOD0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.8, 7.3, 0.3)
+mesh = SubResource("tuft_bump_mesh")
+surface_material_override/0 = SubResource("tuft_mat")
+
+[node name="TuftBump2" type="MeshInstance3D" parent="LOD0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.6, 7.5, -0.4)
+mesh = SubResource("tuft_bump_mesh")
+surface_material_override/0 = SubResource("tuft_mat")
+
+[node name="TuftBump3" type="MeshInstance3D" parent="LOD0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.2, 7.8, 0.7)
+mesh = SubResource("tuft_bump_mesh")
+surface_material_override/0 = SubResource("tuft_mat")
+
+[node name="TuftBump4" type="MeshInstance3D" parent="LOD0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.3, 6.5, 0.5)
+mesh = SubResource("tuft_bump_mesh")
+surface_material_override/0 = SubResource("tuft_mat")
+
+[node name="LOD1" type="Node3D" parent="."]
+visible = false
+
+[node name="SimpleTrunk" type="MeshInstance3D" parent="LOD1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3.0, 0)
+mesh = SubResource("trunk_mesh")
+surface_material_override/0 = SubResource("trunk_mat")
+
+[node name="SimpleTuft" type="MeshInstance3D" parent="LOD1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 7.0, 0)
+mesh = SubResource("lod1_tuft_mesh")
+surface_material_override/0 = SubResource("tuft_mat")

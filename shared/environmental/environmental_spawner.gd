@@ -16,13 +16,26 @@ class SpawnConfig:
 	var rotation_variation: bool = true
 
 # Preloaded scenes
-var tree_scene: PackedScene
+var tree_scene: PackedScene  # Legacy - kept for compatibility
+var truffula_tree_scene: PackedScene
+var tree_sprout_scene: PackedScene
 var rock_scene: PackedScene
 var grass_scene: PackedScene
 var mushroom_tree_scene: PackedScene
 var giant_mushroom_scene: PackedScene
 var glowing_mushroom_scene: PackedScene
 var spore_cluster_scene: PackedScene
+
+# Truffula tree color palette (Dr. Seuss style!)
+const TRUFFULA_COLORS: Array[Color] = [
+	Color(1.0, 0.4, 0.6),    # Pink
+	Color(1.0, 0.6, 0.2),    # Orange
+	Color(0.9, 0.9, 0.3),    # Yellow
+	Color(0.4, 0.8, 1.0),    # Sky blue
+	Color(0.7, 0.4, 0.9),    # Purple
+	Color(0.3, 0.9, 0.5),    # Mint green
+	Color(1.0, 0.3, 0.3),    # Red
+]
 
 # Spawn configurations
 var spawn_configs: Dictionary = {}
@@ -33,7 +46,9 @@ var chunk_size: float = 32.0  # Chunk size in world units
 
 func _ready() -> void:
 	# Load scenes
-	tree_scene = load("res://shared/environmental/tree.tscn")
+	tree_scene = load("res://shared/environmental/tree.tscn")  # Legacy
+	truffula_tree_scene = load("res://shared/environmental/truffula_tree.tscn")
+	tree_sprout_scene = load("res://shared/environmental/tree_sprout.tscn")
 	rock_scene = load("res://shared/environmental/rock.tscn")
 	grass_scene = load("res://shared/environmental/grass_clump.tscn")
 	mushroom_tree_scene = load("res://shared/environmental/mushroom_tree.tscn")
@@ -45,15 +60,28 @@ func _ready() -> void:
 	_setup_spawn_configs()
 
 func _setup_spawn_configs() -> void:
-	# Trees - spawn in valleys only (dark_forest uses dark_pine instead)
-	var tree_config := SpawnConfig.new()
-	tree_config.scene = tree_scene
-	tree_config.density = 0.15
-	tree_config.min_height = -5.0
-	tree_config.max_height = 30.0
-	tree_config.max_slope = 35.0
-	tree_config.allowed_biomes = ["valley"]
-	spawn_configs["tree"] = tree_config
+	# Truffula Trees - whimsical Dr. Seuss style trees in valleys
+	# These require an axe to chop and go through multi-stage harvesting
+	var truffula_config := SpawnConfig.new()
+	truffula_config.scene = truffula_tree_scene
+	truffula_config.density = 0.12  # Slightly less dense than old trees
+	truffula_config.min_height = -5.0
+	truffula_config.max_height = 30.0
+	truffula_config.max_slope = 30.0
+	truffula_config.allowed_biomes = ["valley"]
+	truffula_config.scale_variation = Vector2(0.7, 1.3)
+	spawn_configs["truffula_tree"] = truffula_config
+
+	# Tree Sprouts - small saplings that can be punched for early-game wood
+	var sprout_config := SpawnConfig.new()
+	sprout_config.scene = tree_sprout_scene
+	sprout_config.density = 0.25  # More common than full trees for early game
+	sprout_config.min_height = -5.0
+	sprout_config.max_height = 30.0
+	sprout_config.max_slope = 40.0
+	sprout_config.allowed_biomes = ["valley"]
+	sprout_config.scale_variation = Vector2(0.6, 1.2)
+	spawn_configs["tree_sprout"] = sprout_config
 
 	# Rocks - spawn everywhere
 	var rock_config := SpawnConfig.new()
@@ -264,8 +292,8 @@ func _spawn_object(config: SpawnConfig, xz_pos: Vector2, voxel_world: Node3D, pa
 
 	# Apply random scale with variation for trees
 	var scale_factor := rng.randf_range(config.scale_variation.x, config.scale_variation.y)
-	if object_type == "mushroom_tree" or object_type == "giant_mushroom" or object_type == "tree":
-		# Non-uniform scale for mushroom trees: vary width and height independently
+	if object_type == "mushroom_tree" or object_type == "giant_mushroom" or object_type == "tree" or object_type == "truffula_tree":
+		# Non-uniform scale for trees: vary width and height independently
 		var width_factor := scale_factor * rng.randf_range(0.8, 1.2)
 		var height_factor := scale_factor * rng.randf_range(0.85, 1.4)
 		obj.scale = Vector3(width_factor, height_factor, width_factor)
@@ -276,26 +304,56 @@ func _spawn_object(config: SpawnConfig, xz_pos: Vector2, voxel_world: Node3D, pa
 	if obj.has_method("set_object_type"):
 		obj.set_object_type(object_type)
 
+	# Apply random color to truffula trees
+	if object_type == "truffula_tree" and obj.has_method("set_tuft_color"):
+		var color_index := rng.randi() % TRUFFULA_COLORS.size()
+		obj.set_tuft_color(TRUFFULA_COLORS[color_index])
+
 	# Configure health and resource drops based on type
-	_configure_object_properties(obj, object_type)
+	_configure_object_properties(obj, object_type, rng)
 
 	return obj
 
-## Configure object-specific properties (health, resource drops)
-func _configure_object_properties(obj: Node3D, object_type: String) -> void:
+## Configure object-specific properties (health, resource drops, tool requirements)
+func _configure_object_properties(obj: Node3D, object_type: String, rng: RandomNumberGenerator = null) -> void:
 	match object_type:
 		"tree":
+			# Legacy tree type - requires axe
 			if "max_health" in obj:
 				obj.max_health = 100.0
 				obj.current_health = 100.0
 			if "resource_drops" in obj:
 				obj.resource_drops = {"wood": 3}
+			if "required_tool_type" in obj:
+				obj.required_tool_type = "axe"
+		"truffula_tree":
+			# Truffula trees have variable health based on size
+			# Tool requirement is set in truffula_tree.gd
+			if "max_health" in obj:
+				var health_var := 1.0
+				if rng:
+					health_var = rng.randf_range(0.8, 1.2)
+				obj.max_health = 100.0 * health_var
+				obj.current_health = obj.max_health
+			# Truffula trees don't drop resources - they spawn fallen logs
+		"tree_sprout":
+			# Small sprouts - easy to destroy, drop small amounts of wood
+			# No tool requirement - can punch these!
+			if "max_health" in obj:
+				obj.max_health = 20.0
+				obj.current_health = 20.0
+			if "resource_drops" in obj:
+				var wood_count := 2
+				if rng:
+					wood_count = rng.randi_range(1, 3)
+				obj.resource_drops = {"wood": wood_count}
 		"rock":
 			if "max_health" in obj:
 				obj.max_health = 150.0
 				obj.current_health = 150.0
 			if "resource_drops" in obj:
 				obj.resource_drops = {"stone": 5}
+			# Rocks can be punched for now (no pickaxe yet)
 		"grass":
 			if "max_health" in obj:
 				obj.max_health = 10.0
@@ -308,6 +366,8 @@ func _configure_object_properties(obj: Node3D, object_type: String) -> void:
 				obj.current_health = 100.0
 			if "resource_drops" in obj:
 				obj.resource_drops = {"fungal_wood": 4}
+			if "required_tool_type" in obj:
+				obj.required_tool_type = "axe"
 		"glowing_mushroom":
 			if "max_health" in obj:
 				obj.max_health = 30.0
@@ -320,6 +380,8 @@ func _configure_object_properties(obj: Node3D, object_type: String) -> void:
 				obj.current_health = 180.0
 			if "resource_drops" in obj:
 				obj.resource_drops = {"fungal_wood": 8}
+			if "required_tool_type" in obj:
+				obj.required_tool_type = "axe"
 		"spore_cluster":
 			if "max_health" in obj:
 				obj.max_health = 25.0
@@ -442,7 +504,7 @@ func _generate_transform(config: SpawnConfig, xz_pos: Vector2, voxel_world: Node
 	var scale_factor := rng.randf_range(config.scale_variation.x, config.scale_variation.y)
 	var scale_vec: Vector3
 
-	if object_type == "mushroom_tree" or object_type == "giant_mushroom" or object_type == "tree":
+	if object_type == "mushroom_tree" or object_type == "giant_mushroom" or object_type == "tree" or object_type == "truffula_tree":
 		# Non-uniform scale for trees: vary width and height independently
 		var width_factor := scale_factor * rng.randf_range(0.8, 1.2)
 		var height_factor := scale_factor * rng.randf_range(0.85, 1.4)

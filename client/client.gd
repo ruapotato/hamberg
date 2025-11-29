@@ -31,7 +31,9 @@ var sheep_scene := preload("res://shared/animals/sheep.tscn")
 
 # Environmental object scenes (preloaded to avoid blocking main thread)
 var environmental_scenes: Dictionary = {
-	"tree": preload("res://shared/environmental/tree.tscn"),
+	"tree": preload("res://shared/environmental/tree.tscn"),  # Legacy tree
+	"truffula_tree": preload("res://shared/environmental/truffula_tree.tscn"),  # New Valheim-style tree
+	"tree_sprout": preload("res://shared/environmental/tree_sprout.tscn"),  # Punchable sapling
 	"rock": preload("res://shared/environmental/rock.tscn"),
 	"grass": preload("res://shared/environmental/grass_clump.tscn"),
 	"mushroom_tree": preload("res://shared/environmental/mushroom_tree.tscn"),
@@ -1513,6 +1515,75 @@ func remove_resource_item(net_id: String) -> void:
 		item.queue_free()
 	else:
 		print("[Client] WARNING: Could not find item %s to remove (world children: %d)" % [item_name, world.get_child_count()])
+
+## Spawn a fallen log at the given position (from a chopped truffula tree)
+func spawn_fallen_log(position: Vector3, rotation_y: float, network_id: String) -> void:
+	print("[Client] Spawning fallen log at %s (ID: %s)" % [position, network_id])
+
+	var fallen_log_scene = preload("res://shared/environmental/fallen_log.tscn")
+	var log_instance = fallen_log_scene.instantiate()
+	log_instance.name = "FallenLog_%s" % network_id
+
+	# Set fall direction from the rotation angle (before adding to tree)
+	# This tells the log which way to tip over
+	var fall_dir := Vector3(sin(rotation_y), 0, cos(rotation_y))
+	if log_instance.has_method("set_fall_direction"):
+		log_instance.set_fall_direction(fall_dir)
+
+	# IMPORTANT: Set position BEFORE adding to tree so _ready() has correct position
+	log_instance.position = position
+
+	# Add to world - log will start vertical and animate falling
+	world.add_child(log_instance)
+
+	print("[Client] Fallen log spawned at %s" % log_instance.global_position)
+
+## Spawn split logs at multiple positions (from a chopped fallen log)
+func spawn_split_logs(positions: Array, network_ids: Array, rotation_y: float = 0.0) -> void:
+	print("[Client] Spawning %d split logs" % positions.size())
+
+	var split_log_scene = preload("res://shared/environmental/split_log.tscn")
+
+	for i in positions.size():
+		var pos_data = positions[i]
+		var pos = Vector3(pos_data[0], pos_data[1], pos_data[2])
+		var net_id = network_ids[i] if i < network_ids.size() else "split_%d" % i
+
+		var log_instance = split_log_scene.instantiate()
+		log_instance.name = "SplitLog_%s" % net_id
+
+		world.add_child(log_instance)
+		log_instance.global_position = pos
+		# Align with parent log and lie down
+		log_instance.rotation.y = rotation_y
+		log_instance.rotation.z = PI / 2  # Lying on side like the big log was
+
+	print("[Client] Split logs spawned successfully")
+
+## Destroy a dynamic object (fallen log, split log, etc.)
+func destroy_dynamic_object(object_name: String) -> void:
+	print("[Client] Destroying dynamic object: %s" % object_name)
+
+	var target = world.get_node_or_null(object_name)
+	if target and is_instance_valid(target):
+		target.queue_free()
+		print("[Client] Dynamic object %s destroyed" % object_name)
+	else:
+		print("[Client] WARNING: Dynamic object %s not found" % object_name)
+
+## Handle damage to a dynamic object (from server)
+func on_dynamic_object_damaged(object_name: String, damage: float, current_health: float, max_health: float) -> void:
+	var target = world.get_node_or_null(object_name)
+	if target and is_instance_valid(target):
+		# Update health and play effects via the object's method
+		if target.has_method("apply_server_damage"):
+			target.apply_server_damage(damage, current_health, max_health)
+		else:
+			# Fallback: directly update health bar if it exists
+			if "current_health" in target:
+				target.current_health = current_health
+			if "health_bar" in target and target.health_bar:
+				target.health_bar.update_health(current_health, max_health)
 
 ## Spawn a buildable object (called by server)
 func spawn_buildable(piece_name: String, position: Vector3, rotation_y: float, network_id: String) -> void:

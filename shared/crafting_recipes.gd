@@ -37,6 +37,7 @@ func _initialize_recipes() -> void:
 	add_recipe("torch", 1, {"wood": 1, "resin": 1})
 	add_recipe("club", 1, {"wood": 6})
 	add_recipe("fireplace", 1, {"stone": 5, "wood": 2})
+	add_recipe("stone_axe", 1, {"wood": 4, "stone": 4})  # Basic axe for chopping trees - no workbench!
 
 	# Tools (workbench required)
 	add_recipe("stone_pickaxe", 1, {"wood": 5, "stone": 10}, "workbench")
@@ -44,7 +45,7 @@ func _initialize_recipes() -> void:
 
 	# Tier 1 Weapons - Wood & Stone (workbench required)
 	add_recipe("stone_sword", 1, {"wood": 10, "stone": 5}, "workbench")
-	add_recipe("stone_axe", 1, {"wood": 20, "stone": 10}, "workbench")
+	# Note: stone_axe is now a basic recipe (no workbench) for early game bootstrapping
 	add_recipe("stone_knife", 1, {"wood": 5, "stone": 2}, "workbench")
 	add_recipe("fire_wand", 1, {"wood": 3, "resin": 7}, "workbench")
 	add_recipe("bow", 1, {"wood": 10, "resin": 1}, "workbench")

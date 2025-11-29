@@ -20,6 +20,9 @@ var player_spawn_area_center: Vector2 = Vector2(0, 0) # Center of spawn area
 # Buildable management
 var placed_buildables: Dictionary = {} # network_id -> {piece_name, position, rotation_y}
 
+# Dynamic object tracking (fallen logs, split logs - objects spawned at runtime)
+var dynamic_objects: Dictionary = {} # network_id -> {type, position, health, max_health, ...}
+
 # Resource item pickup tracking (prevents duplicate pickups)
 var picked_up_items: Dictionary = {} # network_id -> true (items that have already been picked up)
 
@@ -590,36 +593,128 @@ func handle_environmental_damage(peer_id: int, chunk_pos: Vector2i, object_id: i
 	if was_destroyed:
 		print("[Server] Instance %s #%d in chunk %s destroyed!" % [object_type, instance_index, chunk_pos])
 
-		# Get resource drops from the mesh library
-		var mesh_library = mm_chunk.mesh_library
-		var obj_def = mesh_library.get_object_def(object_type) if mesh_library else null
-		var resource_drops: Dictionary = obj_def.resource_drops.duplicate() if obj_def else {}
-
 		# Broadcast destruction to all clients (use object_id from client for compatibility)
 		NetworkManager.rpc_destroy_environmental_object.rpc([chunk_pos.x, chunk_pos.y], object_id)
 
-		# Broadcast resource drops to all clients (including position)
-		if not resource_drops.is_empty():
-			var pos_array = [hit_position.x, hit_position.y, hit_position.z]
+		# Special handling for truffula trees - spawn fallen log instead of dropping resources
+		if object_type == "truffula_tree":
+			# Spawn a fallen log at this position
+			# Spawn 5 units above hit so the log mesh (center at Y+2.5) doesn't clip ground
+			var log_net_id = "fallen_log_%d_%d_%d" % [chunk_pos.x, chunk_pos.y, Time.get_ticks_msec()]
+			var pos_array = [hit_position.x, hit_position.y + 5.0, hit_position.z]
+			var fall_angle = randf() * TAU  # Random fall direction
+			NetworkManager.rpc_spawn_fallen_log.rpc(pos_array, fall_angle, log_net_id)
 
-			# Generate network IDs for each item on the server
+			# Track this dynamic object on the server
+			var full_id = "FallenLog_" + log_net_id
+			dynamic_objects[full_id] = {
+				"type": "fallen_log",
+				"position": Vector3(pos_array[0], pos_array[1], pos_array[2]),
+				"health": 60.0,
+				"max_health": 60.0,
+				"rotation_y": fall_angle
+			}
+			print("[Server] Spawned fallen log at %s (Y+5), tracking as %s" % [hit_position, full_id])
+		else:
+			# Standard resource drops for other objects
+			var mesh_library = mm_chunk.mesh_library
+			var obj_def = mesh_library.get_object_def(object_type) if mesh_library else null
+			var resource_drops: Dictionary = obj_def.resource_drops.duplicate() if obj_def else {}
+
+			# Broadcast resource drops to all clients (including position)
+			if not resource_drops.is_empty():
+				var pos_array = [hit_position.x, hit_position.y, hit_position.z]
+
+				# Generate network IDs for each item on the server
+				var network_ids: Array = []
+				for resource_type in resource_drops:
+					var amount: int = resource_drops[resource_type]
+					for i in amount:
+						# Use server time and chunk/object info for unique IDs
+						var net_id = "%s_%d_%d_%d" % [chunk_pos, instance_index, Time.get_ticks_msec(), i]
+						network_ids.append(net_id)
+
+				NetworkManager.rpc_spawn_resource_drops.rpc(resource_drops, pos_array, network_ids)
+
+		# Mark chunk as modified
+		chunk_manager.modified_chunks[chunk_pos] = true
+	# If not destroyed, the object just took damage - no action needed
+
+## Handle damage to dynamically spawned objects (fallen logs, split logs)
+func handle_dynamic_object_damage(peer_id: int, object_name: String, damage: float, hit_position: Vector3) -> void:
+	print("[Server] Player %d damaged dynamic object %s (damage: %.1f)" % [peer_id, object_name, damage])
+
+	# Look up the object in our tracking dictionary
+	if not dynamic_objects.has(object_name):
+		print("[Server] Dynamic object %s not found in tracking" % object_name)
+		return
+
+	var obj_data: Dictionary = dynamic_objects[object_name]
+
+	# Apply damage
+	obj_data["health"] -= damage
+	print("[Server] %s took %.1f damage (%.1f/%.1f HP)" % [object_name, damage, obj_data["health"], obj_data["max_health"]])
+
+	# Broadcast damage to clients so they can show effects
+	NetworkManager.rpc_dynamic_object_damaged.rpc(object_name, damage, obj_data["health"], obj_data["max_health"])
+
+	# Check if destroyed
+	if obj_data["health"] <= 0:
+		print("[Server] Dynamic object %s destroyed!" % object_name)
+		var object_type: String = obj_data["type"]
+
+		# Handle different object types
+		if object_type == "fallen_log":
+			# Spawn split logs at positions along the log's length
+			var split_positions: Array = []
+			var split_ids: Array = []
+			var log_rot_y: float = obj_data.get("rotation_y", 0.0)
+			var log_pos: Vector3 = obj_data.get("position", hit_position)
+
+			# Calculate split positions along the log's axis
+			var log_direction := Vector3(sin(log_rot_y), 0, cos(log_rot_y))
+			for i in 2:
+				var offset := (float(i) - 0.5) * 2.0  # -1.0 and +1.0
+				var pos := hit_position + log_direction * offset + Vector3(0, 0.6, 0)
+				split_positions.append([pos.x, pos.y, pos.z])
+
+			# Generate network IDs and track split logs
+			for i in split_positions.size():
+				var split_id = "split_%d_%d" % [Time.get_ticks_msec(), i]
+				split_ids.append(split_id)
+
+				# Track the split log
+				var full_split_id = "SplitLog_" + split_id
+				dynamic_objects[full_split_id] = {
+					"type": "split_log",
+					"position": Vector3(split_positions[i][0], split_positions[i][1], split_positions[i][2]),
+					"health": 30.0,
+					"max_health": 30.0,
+					"wood_count": randi_range(1, 3)
+				}
+
+			NetworkManager.rpc_spawn_split_logs.rpc(split_positions, split_ids, log_rot_y)
+
+			# Broadcast destruction
+			NetworkManager.rpc_destroy_dynamic_object.rpc(object_name)
+
+		elif object_type == "split_log":
+			# Split log drops wood
+			var wood_count: int = obj_data.get("wood_count", 2)
+			var resource_drops: Dictionary = {"wood": wood_count}
+
+			var pos_array = [hit_position.x, hit_position.y, hit_position.z]
 			var network_ids: Array = []
-			for resource_type in resource_drops:
-				var amount: int = resource_drops[resource_type]
-				for i in amount:
-					# Use server time and chunk/object info for unique IDs
-					var net_id = "%s_%d_%d_%d" % [chunk_pos, instance_index, Time.get_ticks_msec(), i]
-					network_ids.append(net_id)
+			for i in wood_count:
+				network_ids.append("wood_%d_%d" % [Time.get_ticks_msec(), i])
 
 			NetworkManager.rpc_spawn_resource_drops.rpc(resource_drops, pos_array, network_ids)
 
-			# Mark chunk as modified
-			chunk_manager.modified_chunks[chunk_pos] = true
-		else:
-			# Object took damage but not destroyed
-			# TODO: Could broadcast damage effect to clients
-			pass
-	# If not destroyed, the object just took damage - no action needed
+			# Broadcast destruction
+			NetworkManager.rpc_destroy_dynamic_object.rpc(object_name)
+
+		# Remove from tracking
+		dynamic_objects.erase(object_name)
 
 ## Handle buildable placement request from NetworkManager
 func handle_place_buildable(peer_id: int, piece_name: String, position: Vector3, rotation_y: float) -> void:
