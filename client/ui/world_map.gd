@@ -164,6 +164,12 @@ func initialize(generator, player: Node3D) -> void:
 	print("[WorldMap] Initialized with BiomeGenerator and player")
 
 func _process(delta: float) -> void:
+	# Always update ping timers even when map is closed
+	for i in range(active_pings.size() - 1, -1, -1):
+		active_pings[i].time_left -= delta
+		if active_pings[i].time_left <= 0:
+			active_pings.remove_at(i)
+
 	if not visible or is_toggling:
 		return
 
@@ -180,12 +186,6 @@ func _process(delta: float) -> void:
 		if regenerate_timer <= 0:
 			needs_regenerate = false
 			_generate_current_view()
-
-	# Update active pings (count down timers)
-	for i in range(active_pings.size() - 1, -1, -1):
-		active_pings[i].time_left -= delta
-		if active_pings[i].time_left <= 0:
-			active_pings.remove_at(i)
 
 	# Update UI labels
 	_update_ui_labels()
