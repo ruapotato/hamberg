@@ -35,7 +35,9 @@ func get_item_count(item_name: String) -> int:
 ## Remove items from combined inventory (chests first, then player inventory)
 ## Returns true if successful, false if not enough items
 func remove_item(item_name: String, amount: int) -> bool:
+	print("[CombinedInventory] remove_item: %s x%d (has %d chests)" % [item_name, amount, nearby_chests.size()])
 	if not has_item(item_name, amount):
+		print("[CombinedInventory] Not enough items!")
 		return false
 
 	var remaining = amount
@@ -46,18 +48,27 @@ func remove_item(item_name: String, amount: int) -> bool:
 			break
 		if chest and is_instance_valid(chest) and chest.has_method("remove_item"):
 			var chest_count = chest.get_item_count(item_name)
+			print("[CombinedInventory] Chest has %d of %s" % [chest_count, item_name])
 			if chest_count > 0:
 				var to_remove = min(chest_count, remaining)
+				print("[CombinedInventory] Removing %d from chest" % to_remove)
 				var removed = chest.remove_item(item_name, to_remove)
+				print("[CombinedInventory] Chest removed: %d" % removed)
 				remaining -= removed
+		else:
+			print("[CombinedInventory] Chest validation failed: chest=%s, valid=%s, has_method=%s" % [chest != null, is_instance_valid(chest) if chest else false, chest.has_method("remove_item") if chest else false])
+
+	print("[CombinedInventory] After chest removal, remaining: %d" % remaining)
 
 	# Remove remainder from player inventory
 	if remaining > 0 and player_inventory and player_inventory.has_method("remove_item"):
+		print("[CombinedInventory] Removing %d from player inventory" % remaining)
 		if not player_inventory.remove_item(item_name, remaining):
 			# This shouldn't happen if has_item returned true
 			push_error("[CombinedInventory] Failed to remove remaining %d x %s from player" % [remaining, item_name])
 			return false
 
+	print("[CombinedInventory] remove_item complete")
 	return true
 
 ## Add items to player inventory (crafted items always go to player)

@@ -1170,9 +1170,25 @@ func handle_craft_request(peer_id: int, recipe_name: String) -> void:
 	# For now, allow all crafting (no station restrictions)
 	var stations = ["workbench"]
 
+	print("[Server] Craft attempt: %s with %d nearby chests" % [recipe_name, nearby_chests.size()])
+
 	# Attempt to craft using combined inventory
 	if CraftingRecipes.craft_item(recipe, combined_inventory, stations):
 		print("[Server] Player %d crafted %s (using %d nearby chests)" % [peer_id, recipe_name, nearby_chests.size()])
+		# Debug: Show chest inventory state after crafting (from wrapper AND placed_buildables)
+		for i in nearby_chests.size():
+			var wrapper = nearby_chests[i]
+			print("[Server] Chest %d (%s) inventory after craft (wrapper):" % [i, wrapper.network_id])
+			for slot in wrapper.inventory:
+				if slot.item_name != "":
+					print("  - %s x%d" % [slot.item_name, slot.quantity])
+			# Also check placed_buildables directly to verify modification persisted
+			if placed_buildables.has(wrapper.network_id):
+				var pb_inv = placed_buildables[wrapper.network_id].get("inventory", [])
+				print("[Server] Chest %d (%s) inventory after craft (placed_buildables):" % [i, wrapper.network_id])
+				for slot in pb_inv:
+					if slot.item_name != "":
+						print("  - %s x%d" % [slot.item_name, slot.quantity])
 
 		# Sync player inventory to client
 		var inventory_data = player_inventory.get_inventory_data()
@@ -1484,15 +1500,18 @@ class ServerChestWrapper extends RefCounted:
 
 	func remove_item(item_name: String, quantity: int) -> int:
 		var removed = 0
+		print("[ServerChestWrapper] remove_item called: %s x%d from chest %s" % [item_name, quantity, network_id])
 		for i in inventory.size():
 			if removed >= quantity:
 				break
 			if inventory[i].item_name == item_name:
 				var to_remove = min(inventory[i].quantity, quantity - removed)
+				print("[ServerChestWrapper] Removing %d from slot %d (had %d)" % [to_remove, i, inventory[i].quantity])
 				inventory[i].quantity -= to_remove
 				removed += to_remove
 				if inventory[i].quantity <= 0:
 					inventory[i] = {"item_name": "", "quantity": 0}
+		print("[ServerChestWrapper] Total removed: %d" % removed)
 		return removed
 
 	func get_inventory_data() -> Array:
@@ -1565,8 +1584,9 @@ func _get_nearby_chests(position: Vector3, radius: float) -> Array:
 	for buildable_id in placed_buildables:
 		var buildable_data = placed_buildables[buildable_id]
 		if buildable_data.piece_name == "chest":
-			# Check distance
-			var chest_pos = buildable_data.position
+			# Check distance - position is stored as array [x, y, z]
+			var pos_arr = buildable_data.position
+			var chest_pos = Vector3(pos_arr[0], pos_arr[1], pos_arr[2])
 			var distance = position.distance_to(chest_pos)
 			if distance <= radius:
 				# Create wrapper with reference to actual inventory data
@@ -1591,6 +1611,11 @@ func handle_open_chest(peer_id: int, chest_network_id: String) -> void:
 	# Find and sync chest inventory to player
 	var inventory_data = _get_chest_inventory(chest_network_id)
 	if not inventory_data.is_empty():
+		# Debug: Show what we're sending to client
+		print("[Server] Chest %s contents:" % chest_network_id)
+		for slot in inventory_data:
+			if slot.item_name != "":
+				print("  - %s x%d" % [slot.item_name, slot.quantity])
 		NetworkManager.rpc_sync_chest_inventory.rpc_id(peer_id, chest_network_id, inventory_data)
 	else:
 		print("[Server] WARNING: Could not find chest inventory for %s" % chest_network_id)

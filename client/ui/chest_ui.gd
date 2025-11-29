@@ -60,8 +60,8 @@ func _process(_delta: float) -> void:
 	if not is_open:
 		return
 
-	# Close with ESC or Tab
-	if Input.is_action_just_pressed("ui_cancel") or Input.is_action_just_pressed("toggle_inventory"):
+	# Close with Tab (ESC is handled by client.gd to coordinate with pause menu)
+	if Input.is_action_just_pressed("toggle_inventory"):
 		hide_ui()
 
 ## Open chest UI with a specific chest

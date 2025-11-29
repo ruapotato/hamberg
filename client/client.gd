@@ -247,6 +247,9 @@ func _process(_delta: float) -> void:
 		# Check if inventory is open - if so, close it and don't toggle pause
 		elif inventory_panel_ui and inventory_panel_ui.is_inventory_open():
 			inventory_panel_ui.hide_inventory()
+		# Check if chest UI is open - if so, close it and don't toggle pause
+		elif chest_ui and chest_ui.is_ui_open():
+			chest_ui.hide_ui()
 		else:
 			_toggle_pause_menu()
 

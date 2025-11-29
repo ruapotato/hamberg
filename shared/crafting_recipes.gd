@@ -73,7 +73,8 @@ func get_recipe_by_name(item_name: String) -> Dictionary:
 	return {}
 
 ## Get all craftable recipes (that the player has resources for)
-func get_craftable_recipes(inventory: Node) -> Array[Dictionary]:
+## inventory can be Node (Inventory) or RefCounted (CombinedInventory)
+func get_craftable_recipes(inventory) -> Array[Dictionary]:
 	var craftable: Array[Dictionary] = []
 
 	for recipe in recipes:
@@ -96,8 +97,9 @@ func get_basic_recipes() -> Array[Dictionary]:
 	return basic
 
 ## Check if a recipe can be crafted with current inventory
+## inventory can be Node (Inventory) or RefCounted (CombinedInventory)
 ## nearby_stations: Array of crafting station names the player is near (e.g., ["workbench"])
-func can_craft(recipe: Dictionary, inventory: Node, nearby_stations: Array = []) -> bool:
+func can_craft(recipe: Dictionary, inventory, nearby_stations: Array = []) -> bool:
 	if not inventory or not inventory.has_method("has_item"):
 		return false
 
@@ -117,8 +119,9 @@ func can_craft(recipe: Dictionary, inventory: Node, nearby_stations: Array = [])
 	return true
 
 ## Attempt to craft an item
+## inventory can be Node (Inventory) or RefCounted (CombinedInventory)
 ## Returns true if successful, false if not enough resources or missing crafting station
-func craft_item(recipe: Dictionary, inventory: Node, nearby_stations: Array = []) -> bool:
+func craft_item(recipe: Dictionary, inventory, nearby_stations: Array = []) -> bool:
 	if not can_craft(recipe, inventory, nearby_stations):
 		return false
 
