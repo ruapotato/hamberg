@@ -30,7 +30,7 @@ var active_pings: Array = []
 # UI nodes
 @onready var map_texture_rect: TextureRect = $Panel/MapTextureRect
 @onready var refresh_timer: Timer = $RefreshTimer
-@onready var overlay: Control = $Panel/Overlay
+@onready var overlay: Control = $Panel/MapTextureRect/Overlay
 @onready var biome_label: Label = $BiomeLabel
 
 # Biome tracking
