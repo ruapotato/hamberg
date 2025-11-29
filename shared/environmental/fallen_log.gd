@@ -4,14 +4,14 @@ extends RigidBody3D
 ## Physics-based - falls naturally and can be pushed by player
 ## Can be hit with axe or blunt weapons to split
 
-@export var max_health: float = 60.0
+@export var max_health: float = 80.0  # Takes ~1 spin attack to split
 @export var required_tool_type: String = "axe"
 
 var chunk_position: Vector2i
 var object_type: String = "fallen_log"
 var object_id: int = -1
 
-var current_health: float = 60.0
+var current_health: float = 80.0
 var is_destroyed: bool = false
 var has_settled: bool = false
 var settle_timer: float = 0.0

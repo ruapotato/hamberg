@@ -29,7 +29,7 @@ physics_material_override = SubResource("log_physics_mat")
 linear_damp = 1.0
 angular_damp = 2.0
 script = ExtResource("1")
-max_health = 60.0
+max_health = 80.0
 
 [node name="LogMesh" type="MeshInstance3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.5, 0)

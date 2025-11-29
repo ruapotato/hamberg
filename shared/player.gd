@@ -2188,7 +2188,7 @@ func _check_spin_hits() -> void:
 
 	var spin_radius = 3.5  # Attack radius
 	var hit_cooldown = 0.15  # Time between hits on same target
-	var spin_damage = lunge_damage * 0.6  # Reduced damage per hit since multi-hit
+	var spin_damage = lunge_damage * 0.4  # Reduced damage for wood harvesting balance
 	var current_time = Time.get_ticks_msec() / 1000.0
 
 	# Get weapon data for tool type check

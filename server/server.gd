@@ -612,8 +612,8 @@ func handle_environmental_damage(peer_id: int, chunk_pos: Vector2i, object_id: i
 			dynamic_objects[full_id] = {
 				"type": "fallen_log",
 				"position": Vector3(pos_array[0], pos_array[1], pos_array[2]),
-				"health": 60.0,
-				"max_health": 60.0,
+				"health": 80.0,
+				"max_health": 80.0,
 				"fall_angle": fall_angle
 			}
 			print("[Server] Spawned fallen log at %s, tracking as %s" % [hit_position, full_id])
@@ -692,8 +692,8 @@ func handle_dynamic_object_damage(peer_id: int, object_name: String, damage: flo
 				dynamic_objects[full_split_id] = {
 					"type": "split_log",
 					"position": Vector3(split_positions[i][0], split_positions[i][1], split_positions[i][2]),
-					"health": 30.0,
-					"max_health": 30.0,
+					"health": 45.0,
+					"max_health": 45.0,
 					"wood_count": randi_range(10, 15)
 				}
 

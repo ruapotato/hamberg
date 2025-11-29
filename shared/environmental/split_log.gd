@@ -4,14 +4,14 @@ extends RigidBody3D
 ## Physics-based - can be pushed and rolled by player
 ## Can be hit with any weapon (axe, blunt, even fists work but slowly)
 
-@export var max_health: float = 30.0
+@export var max_health: float = 45.0  # Takes ~1 spin attack to break (2 logs total)
 @export var required_tool_type: String = ""  # Empty = any tool works
 
 var chunk_position: Vector2i
 var object_type: String = "split_log"
 var object_id: int = -1
 
-var current_health: float = 30.0
+var current_health: float = 45.0
 var is_destroyed: bool = false
 
 # Resource drops (10-15 wood per split log)

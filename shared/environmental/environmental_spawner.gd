@@ -333,7 +333,7 @@ func _configure_object_properties(obj: Node3D, object_type: String, rng: RandomN
 				var health_var := 1.0
 				if rng:
 					health_var = rng.randf_range(0.8, 1.2)
-				obj.max_health = 100.0 * health_var
+				obj.max_health = 220.0 * health_var  # Takes ~2 spin attacks to fell
 				obj.current_health = obj.max_health
 			# Truffula trees don't drop resources - they spawn fallen logs
 		"tree_sprout":
