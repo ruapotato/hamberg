@@ -4,6 +4,13 @@ extends "res://shared/enemies/enemy.gd"
 ## Larger, more patient, uses spore cloud attacks
 ## Different AI: stalks longer, has area-of-effect damage
 
+# Spore cloud attack
+const SPORE_CLOUD_SCENE = preload("res://shared/effects/spore_cloud.tscn")
+var spore_attack_cooldown: float = 0.0
+const SPORE_ATTACK_COOLDOWN_TIME: float = 8.0  # 8 seconds between spore attacks
+const SPORE_ATTACK_RANGE: float = 5.0  # Use spore attack at medium range
+const SPORE_ATTACK_CHANCE: float = 0.4  # 40% chance to use spore attack when in range
+
 func _ready() -> void:
 	# Override stats for Sporeling
 	enemy_name = "Sporeling"
@@ -254,3 +261,50 @@ func _play_attack_swing() -> void:
 	windup_tween.tween_property(right_arm, "rotation:x", 0.0, 0.35)
 
 	_set_body_tint(Color(1.0, 1.0, 1.0, 1.0))
+
+## Override physics process to handle spore attack cooldown
+func _physics_process(delta: float) -> void:
+	super._physics_process(delta)
+
+	# Update spore attack cooldown
+	if spore_attack_cooldown > 0:
+		spore_attack_cooldown -= delta
+
+## Override combat decision to potentially use spore attack
+func _make_combat_decision(distance: float) -> void:
+	# Only host client makes combat decisions
+	if not is_host:
+		return
+
+	# Check if we should use spore attack at medium range
+	if spore_attack_cooldown <= 0 and distance <= SPORE_ATTACK_RANGE and distance > attack_range:
+		if randf() < SPORE_ATTACK_CHANCE:
+			_do_spore_attack()
+			return
+
+	# Otherwise use normal combat behavior
+	super._make_combat_decision(distance)
+
+## Spawn a spore cloud at current position
+func _do_spore_attack() -> void:
+	# Set cooldown
+	spore_attack_cooldown = SPORE_ATTACK_COOLDOWN_TIME
+
+	# Visual telegraph - pulse green
+	_set_body_tint(Color(0.4, 1.0, 0.4, 1.0))
+
+	# Wait a moment for the telegraph
+	await get_tree().create_timer(0.5).timeout
+
+	# Reset tint
+	_set_body_tint(Color(1.0, 1.0, 1.0, 1.0))
+
+	# Spawn the spore cloud at our position
+	if SPORE_CLOUD_SCENE:
+		var spore_cloud = SPORE_CLOUD_SCENE.instantiate()
+		# Add to the world, not to us (so it stays when we move)
+		get_parent().add_child(spore_cloud)
+		spore_cloud.global_position = global_position
+		spore_cloud.global_position.y += 0.5  # Slightly above ground
+
+		print("[Sporeling] Spawned spore cloud at %s" % global_position)
