@@ -702,16 +702,16 @@ func _handle_attack() -> void:
 
 	elif is_axe:
 		# Store current combo animation BEFORE incrementing
-		current_combo_animation = combo_count  # 0=overhead, 1=sweep, 2=uppercut
+		current_combo_animation = combo_count  # 0=right sweep, 1=left sweep, 2=overhead slam
 
-		# Axe has a 3-hit combo: overhead slam, horizontal sweep, powerful uppercut
+		# Axe 3-hit combo: right sweep, left sweep, OVERHEAD SLAM finisher
 		if combo_count == 0:
-			print("[Player] Axe combo hit 1 - OVERHEAD SLAM!")
+			print("[Player] Axe combo hit 1 - RIGHT SWEEP!")
 		elif combo_count == 1:
-			print("[Player] Axe combo hit 2 - HORIZONTAL SWEEP!")
+			print("[Player] Axe combo hit 2 - LEFT SWEEP!")
 		else:  # combo_count == 2
-			combo_multiplier = 1.75  # 75% more damage on finisher
-			print("[Player] Axe combo FINISHER - RISING CLEAVE! (Hit %d)" % (combo_count + 1))
+			combo_multiplier = 2.0  # 2x damage on overhead slam finisher
+			print("[Player] Axe combo FINISHER - OVERHEAD SLAM! (Hit %d)" % (combo_count + 1))
 
 		# Advance combo
 		combo_count = (combo_count + 1) % MAX_COMBO
@@ -2162,142 +2162,159 @@ func _check_spin_hits() -> void:
 	if not is_local_player:
 		return
 
-	var space_state = get_world_3d().direct_space_state
-	var attack_center = global_position + Vector3.UP * 1.0  # Chest height
 	var spin_radius = 3.5  # Attack radius
 
-	# Use shape query to find all enemies in radius
-	var shape = SphereShape3D.new()
-	shape.radius = spin_radius
+	# Use the same approach as lunge - get enemies from group
+	var enemies = get_tree().get_nodes_in_group("enemies")
+	for enemy in enemies:
+		if not is_instance_valid(enemy):
+			continue
 
-	var query = PhysicsShapeQueryParameters3D.new()
-	query.shape = shape
-	query.transform = Transform3D(Basis.IDENTITY, attack_center)
-	query.collision_mask = 4  # Enemy layer
+		# Check if already hit this enemy during this spin
+		var enemy_id = enemy.get_instance_id()
+		if enemy_id in spin_hit_enemies:
+			continue
 
-	var results = space_state.intersect_shape(query, 10)
+		# Check if enemy is within spin radius
+		var distance = enemy.global_position.distance_to(global_position)
+		if distance <= spin_radius:
+			# HIT! Add to hit list and deal damage
+			spin_hit_enemies.append(enemy_id)
 
-	for result in results:
-		var collider = result.collider
-		if collider and collider.has_method("take_damage"):
-			# Check if already hit this enemy during this spin
-			if collider in spin_hit_enemies:
-				continue
-
-			# Mark as hit
-			spin_hit_enemies.append(collider)
-
-			# Get enemy network ID and send damage
-			var enemy_network_id = collider.network_id if "network_id" in collider else 0
+			var hit_direction = (enemy.global_position - global_position).normalized()
+			var enemy_network_id = enemy.network_id if "network_id" in enemy else 0
 			if enemy_network_id > 0:
-				var hit_direction = (collider.global_position - global_position).normalized()
-				print("[Player] Spin attack hit enemy %s!" % collider.name)
+				print("[Player] SPIN HIT %s (net_id=%d) at distance %.1fm!" % [enemy.name, enemy_network_id, distance])
 				_send_enemy_damage_request(enemy_network_id, lunge_damage, lunge_knockback, hit_direction)
 
 				# Play hit sound
 				SoundManager.play_sound_varied("sword_swing", global_position)
 
-## Animate axe combo attacks - big, heavy two-handed swings
+## Animate axe combo attacks - big arcing swings with weapon rotation
+## Attack 1: Horizontal RIGHT to LEFT sweep
+## Attack 2: Horizontal LEFT to RIGHT sweep
+## Attack 3 (Finisher): Overhead SLAM
 func _animate_axe_attack(progress: float, right_arm: Node3D, left_arm: Node3D, right_elbow: Node3D, left_elbow: Node3D) -> void:
+	# Get the weapon visual for rotation during swings
+	var weapon = equipped_weapon_visual
+
 	match current_combo_animation:
-		0:  # OVERHEAD SLAM - Raise axe high, bring it crashing down
-			# Wind up: arms go UP and BACK (first 30% of animation)
-			# Strike: arms slam DOWN and FORWARD (remaining 70%)
-			var windup_end = 0.3
+		0:  # BIG HORIZONTAL SWEEP: RIGHT to LEFT
+			var windup_end = 0.2  # Quick windup
 
 			if progress < windup_end:
-				# Windup phase - raise arms overhead
-				var windup_progress = progress / windup_end
-				# Arms go up and back
-				right_arm.rotation.x = lerp(0.0, 2.5, windup_progress)  # Way up and back
-				right_arm.rotation.z = lerp(0.0, -0.3, windup_progress)
+				# Windup - arms go to the RIGHT, axe cocked back
+				var t = progress / windup_end
+				# Right arm goes out to side and back
+				right_arm.rotation.x = lerp(0.0, 0.3, t)  # Slightly back
+				right_arm.rotation.z = lerp(0.0, -1.2, t)  # Out to right side
 				if left_arm:
-					left_arm.rotation.x = lerp(0.0, 2.2, windup_progress)  # Left arm follows
-					left_arm.rotation.z = lerp(0.0, 0.3, windup_progress)
-				# Elbows bent during windup
+					left_arm.rotation.x = lerp(0.0, 0.2, t)
+					left_arm.rotation.z = lerp(0.0, -0.8, t)  # Follows right arm
+				# Elbows stay relatively straight for power
 				if right_elbow:
-					right_elbow.rotation.x = lerp(0.0, -1.2, windup_progress)
-				if left_elbow:
-					left_elbow.rotation.x = lerp(0.0, -1.0, windup_progress)
+					right_elbow.rotation.x = lerp(0.0, -0.3, t)
+				# Rotate axe - head pointing RIGHT and UP ready to swing
+				if weapon:
+					weapon.rotation_degrees.x = lerp(90.0, 45.0, t)  # Tilt head up
+					weapon.rotation_degrees.z = lerp(0.0, -45.0, t)  # Angle for sweep
 			else:
-				# Strike phase - SLAM down hard
-				var strike_progress = (progress - windup_end) / (1.0 - windup_end)
-				# Arms slam down with massive arc
-				right_arm.rotation.x = lerp(2.5, -1.8, strike_progress)  # From overhead to forward/down
-				right_arm.rotation.z = lerp(-0.3, 0.0, strike_progress)
+				# SWEEP - powerful horizontal arc from right to left
+				var t = (progress - windup_end) / (1.0 - windup_end)
+				# Arms sweep across body
+				right_arm.rotation.x = lerp(0.3, -0.5, t)  # Forward during swing
+				right_arm.rotation.z = lerp(-1.2, 1.0, t)  # Sweep from right to left
 				if left_arm:
-					left_arm.rotation.x = lerp(2.2, -1.5, strike_progress)
-					left_arm.rotation.z = lerp(0.3, 0.0, strike_progress)
-				# Elbows extend during strike
+					left_arm.rotation.x = lerp(0.2, -0.4, t)
+					left_arm.rotation.z = lerp(-0.8, 0.6, t)
+				# Arms extend for reach
 				if right_elbow:
-					right_elbow.rotation.x = lerp(-1.2, -0.2, strike_progress)
-				if left_elbow:
-					left_elbow.rotation.x = lerp(-1.0, -0.2, strike_progress)
+					right_elbow.rotation.x = lerp(-0.3, -0.1, t)
+				# Axe follows the arc - head leads the swing
+				if weapon:
+					weapon.rotation_degrees.x = lerp(45.0, 120.0, t)  # Head swings through
+					weapon.rotation_degrees.z = lerp(-45.0, 60.0, t)  # Follow-through
 
-		1:  # HORIZONTAL SWEEP - Wide swing from right to left
-			# Big horizontal arc across the body
-			var windup_end = 0.25
+		1:  # BIG HORIZONTAL SWEEP: LEFT to RIGHT (reverse)
+			var windup_end = 0.2
 
 			if progress < windup_end:
-				# Windup - pull back to right side
-				var windup_progress = progress / windup_end
-				right_arm.rotation.z = lerp(0.0, -1.8, windup_progress)  # Far right
-				right_arm.rotation.x = lerp(0.0, -0.5, windup_progress)  # Slightly forward
+				# Windup - arms go to the LEFT, axe cocked back
+				var t = progress / windup_end
+				right_arm.rotation.x = lerp(0.0, 0.3, t)
+				right_arm.rotation.z = lerp(0.0, 0.8, t)  # Out to left side
 				if left_arm:
-					left_arm.rotation.z = lerp(0.0, -1.0, windup_progress)
-					left_arm.rotation.x = lerp(0.0, -0.3, windup_progress)
+					left_arm.rotation.x = lerp(0.0, 0.2, t)
+					left_arm.rotation.z = lerp(0.0, 1.0, t)
 				if right_elbow:
-					right_elbow.rotation.x = lerp(0.0, -0.8, windup_progress)
+					right_elbow.rotation.x = lerp(0.0, -0.3, t)
+				# Rotate axe - head pointing LEFT and UP
+				if weapon:
+					weapon.rotation_degrees.x = lerp(90.0, 45.0, t)
+					weapon.rotation_degrees.z = lerp(0.0, 45.0, t)
 			else:
-				# Sweep across - powerful horizontal slash
-				var sweep_progress = (progress - windup_end) / (1.0 - windup_end)
-				right_arm.rotation.z = lerp(-1.8, 1.2, sweep_progress)  # From far right to left
-				right_arm.rotation.x = lerp(-0.5, -0.8, sweep_progress)  # Stay forward
+				# SWEEP from left to right
+				var t = (progress - windup_end) / (1.0 - windup_end)
+				right_arm.rotation.x = lerp(0.3, -0.5, t)
+				right_arm.rotation.z = lerp(0.8, -1.2, t)  # Sweep left to right
 				if left_arm:
-					left_arm.rotation.z = lerp(-1.0, 0.8, sweep_progress)
-					left_arm.rotation.x = lerp(-0.3, -0.6, sweep_progress)
-				# Arms extend during sweep
+					left_arm.rotation.x = lerp(0.2, -0.4, t)
+					left_arm.rotation.z = lerp(1.0, -0.8, t)
 				if right_elbow:
-					right_elbow.rotation.x = lerp(-0.8, -0.1, sweep_progress)
-				if left_elbow:
-					left_elbow.rotation.x = lerp(-0.6, -0.1, sweep_progress)
+					right_elbow.rotation.x = lerp(-0.3, -0.1, t)
+				# Axe follows arc
+				if weapon:
+					weapon.rotation_degrees.x = lerp(45.0, 120.0, t)
+					weapon.rotation_degrees.z = lerp(45.0, -60.0, t)
 
-		2:  # RISING CLEAVE (FINISHER) - Diagonal upward slash with full body commitment
-			# Start low, slash diagonally upward with maximum power
-			var windup_end = 0.35
+		2:  # OVERHEAD SLAM (FINISHER) - Raise high, SMASH down
+			var windup_end = 0.35  # Longer windup for dramatic effect
 
 			if progress < windup_end:
-				# Wind down and to the right - preparing for upward cleave
-				var windup_progress = progress / windup_end
-				right_arm.rotation.x = lerp(0.0, -1.5, windup_progress)  # Down and forward
-				right_arm.rotation.z = lerp(0.0, -1.5, windup_progress)  # To the right/low
+				# Windup - raise axe HIGH overhead
+				var t = progress / windup_end
+				# Both arms go UP and BACK
+				right_arm.rotation.x = lerp(0.0, 2.8, t)  # Way up and back (over head)
+				right_arm.rotation.z = lerp(0.0, 0.0, t)  # Centered
 				if left_arm:
-					left_arm.rotation.x = lerp(0.0, -1.2, windup_progress)
-					left_arm.rotation.z = lerp(0.0, -1.0, windup_progress)
+					left_arm.rotation.x = lerp(0.0, 2.5, t)
+					left_arm.rotation.z = lerp(0.0, 0.0, t)
+				# Elbows bend to bring axe behind head
 				if right_elbow:
-					right_elbow.rotation.x = lerp(0.0, -1.0, windup_progress)
-			else:
-				# RISING CLEAVE - diagonal upward with explosive power
-				var cleave_progress = (progress - windup_end) / (1.0 - windup_end)
-				# Dramatic upward diagonal arc
-				right_arm.rotation.x = lerp(-1.5, 2.0, cleave_progress)  # From low to high
-				right_arm.rotation.z = lerp(-1.5, 0.8, cleave_progress)  # From right to slightly left
-				if left_arm:
-					left_arm.rotation.x = lerp(-1.2, 1.8, cleave_progress)
-					left_arm.rotation.z = lerp(-1.0, 0.5, cleave_progress)
-				# Arms fully extend on the upswing
-				if right_elbow:
-					right_elbow.rotation.x = lerp(-1.0, 0.0, cleave_progress)
+					right_elbow.rotation.x = lerp(0.0, -1.5, t)
 				if left_elbow:
-					left_elbow.rotation.x = lerp(-0.8, 0.0, cleave_progress)
+					left_elbow.rotation.x = lerp(0.0, -1.2, t)
+				# Axe goes OVER head - head points backward
+				if weapon:
+					weapon.rotation_degrees.x = lerp(90.0, 180.0, t)  # Flip over head
+					weapon.rotation_degrees.z = lerp(0.0, 0.0, t)
+			else:
+				# SLAM DOWN - explosive downward strike
+				var t = (progress - windup_end) / (1.0 - windup_end)
+				# Use ease-in curve for acceleration feeling
+				var t_eased = t * t  # Accelerating
+				# Arms SLAM forward and down
+				right_arm.rotation.x = lerp(2.8, -1.2, t_eased)  # From overhead to forward/down
+				right_arm.rotation.z = lerp(0.0, 0.0, t)
+				if left_arm:
+					left_arm.rotation.x = lerp(2.5, -1.0, t_eased)
+					left_arm.rotation.z = lerp(0.0, 0.0, t)
+				# Elbows extend for full power
+				if right_elbow:
+					right_elbow.rotation.x = lerp(-1.5, 0.0, t_eased)
+				if left_elbow:
+					left_elbow.rotation.x = lerp(-1.2, 0.0, t_eased)
+				# Axe SLAMS down - head leads
+				if weapon:
+					weapon.rotation_degrees.x = lerp(180.0, 30.0, t_eased)  # Slam down past vertical
+					weapon.rotation_degrees.z = lerp(0.0, 0.0, t)
 
-		_:  # Default - same as overhead slam
-			var swing = -sin(progress * PI) * 2.0
-			right_arm.rotation.x = swing
-			if left_arm:
-				left_arm.rotation.x = swing * 0.8
-			if right_elbow:
-				right_elbow.rotation.x = -sin(progress * PI) * 0.8
+		_:  # Default - same as first sweep
+			var t = progress
+			right_arm.rotation.x = -sin(t * PI) * 0.5
+			right_arm.rotation.z = lerp(-1.0, 1.0, t)
+			if weapon:
+				weapon.rotation_degrees.x = 90.0 + sin(t * PI) * 30.0
 
 # ============================================================================
 # STAMINA & HEALTH SYSTEM
