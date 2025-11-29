@@ -178,7 +178,7 @@ func _on_refresh_timeout() -> void:
 	refresh_map()
 
 func _world_to_screen_pos(world_pos: Vector2) -> Vector2:
-	if not local_player:
+	if not local_player or not overlay:
 		return Vector2.ZERO
 
 	# Center is always player position
@@ -187,15 +187,16 @@ func _world_to_screen_pos(world_pos: Vector2) -> Vector2:
 	# Offset from center
 	var offset := world_pos - player_xz
 
-	# Normalize to -0.5 to 0.5
+	# Normalize to -0.5 to 0.5 based on visible world size
 	var norm_x := offset.x / MINI_MAP_WORLD_SIZE
 	var norm_y := offset.y / MINI_MAP_WORLD_SIZE
 
-	# Convert to screen coordinates
-	var screen_x := (norm_x + 0.5) * MINI_MAP_SIZE
-	var screen_y := (norm_y + 0.5) * MINI_MAP_SIZE
+	# Convert to overlay local coordinates (use actual overlay size, not constant)
+	var overlay_size := overlay.size
+	var screen_x := (norm_x + 0.5) * overlay_size.x
+	var screen_y := (norm_y + 0.5) * overlay_size.y
 
-	return Vector2(screen_x, screen_y) + map_texture_rect.global_position
+	return Vector2(screen_x, screen_y) + overlay.global_position
 
 func _draw_compass_directions() -> void:
 	"""Draw N, E, S, W labels inside the mini-map edge"""
@@ -282,7 +283,7 @@ func _draw_player_markers() -> void:
 			var remote_screen := _world_to_screen_pos(remote_xz)
 
 			if _is_on_screen(remote_screen):
-				var local_pos := remote_screen - map_texture_rect.global_position
+				var local_pos := remote_screen - overlay.global_position
 				overlay.draw_circle(local_pos, 4, Color.BLUE)
 				overlay.draw_circle(local_pos, 4, Color.WHITE, false, 1.5)
 
@@ -295,7 +296,7 @@ func _draw_pins() -> void:
 
 		if _is_on_screen(screen_pos):
 			# Draw pin marker (flag icon)
-			var local_pos := screen_pos - map_texture_rect.global_position
+			var local_pos := screen_pos - overlay.global_position
 			overlay.draw_circle(local_pos, 4, Color.RED)
 			overlay.draw_line(local_pos, local_pos + Vector2(0, -10), Color.RED, 2.0)
 			# Small flag triangle
@@ -307,7 +308,7 @@ func _draw_pins() -> void:
 			overlay.draw_colored_polygon(flag_points, Color.RED)
 		else:
 			# Draw edge indicator pointing to off-screen pin
-			var local_pos := screen_pos - map_texture_rect.global_position
+			var local_pos := screen_pos - overlay.global_position
 			var direction := (local_pos - center).normalized()
 			var edge_pos := center + direction * edge_radius
 
@@ -332,7 +333,7 @@ func _draw_pings() -> void:
 
 		if _is_on_screen(screen_pos):
 			# Draw pulsing circle on map
-			var local_pos := screen_pos - map_texture_rect.global_position
+			var local_pos := screen_pos - overlay.global_position
 			var radius: float = lerp(12.0, 4.0, alpha)
 			var color: Color = ping_color
 			color.a = alpha * 0.8
@@ -341,7 +342,7 @@ func _draw_pings() -> void:
 			overlay.draw_circle(local_pos, radius * 0.5, color)
 		else:
 			# Draw edge indicator pointing to off-screen ping
-			var local_pos := screen_pos - map_texture_rect.global_position
+			var local_pos := screen_pos - overlay.global_position
 			var direction := (local_pos - center).normalized()
 			var edge_pos := center + direction * edge_radius
 
@@ -362,8 +363,10 @@ func _draw_pings() -> void:
 			overlay.draw_line(arrow_tip, arrow_right, color, 2.0)
 
 func _is_on_screen(screen_pos: Vector2) -> bool:
-	var rect_pos := map_texture_rect.global_position
-	var rect_size := map_texture_rect.size
+	if not overlay:
+		return false
+	var rect_pos := overlay.global_position
+	var rect_size := overlay.size
 
 	return screen_pos.x >= rect_pos.x and screen_pos.x <= rect_pos.x + rect_size.x and \
 		   screen_pos.y >= rect_pos.y and screen_pos.y <= rect_pos.y + rect_size.y
