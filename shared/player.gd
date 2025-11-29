@@ -2187,7 +2187,7 @@ func _check_spin_hits() -> void:
 		return
 
 	var spin_radius = 3.5  # Attack radius
-	var hit_cooldown = 0.15  # Time between hits on same target
+	var hit_cooldown = 0.25  # Time between hits - limits to ~4 hits per spin (0.8s duration)
 	var spin_damage = lunge_damage * 0.4  # Reduced damage for wood harvesting balance
 	var current_time = Time.get_ticks_msec() / 1000.0
 
