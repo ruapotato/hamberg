@@ -9,12 +9,18 @@ extends Node
 ## - Server relays host position to all other clients
 ## - Server handles health/damage (authoritative)
 
-# Spawn parameters
+# Spawn parameters (default/valley)
 const SPAWN_CHECK_INTERVAL: float = 10.0  # Check for spawns every 10 seconds
 const MIN_SPAWN_DISTANCE: float = 40.0    # Minimum distance from player (far away)
 const MAX_SPAWN_DISTANCE: float = 60.0    # Maximum distance from player (far away)
 const MAX_ENEMIES_PER_PLAYER: int = 3     # Max enemies per player in the area
 const BEHIND_PLAYER_BIAS: float = 0.7     # 70% chance to spawn behind player
+
+# Dark forest spawn parameters (closer and more frequent!)
+const DARK_FOREST_SPAWN_CHECK_INTERVAL: float = 5.0  # Faster spawns in the dark forest
+const DARK_FOREST_MIN_SPAWN_DISTANCE: float = 15.0   # Much closer (dense forest)
+const DARK_FOREST_MAX_SPAWN_DISTANCE: float = 30.0   # Still relatively close
+const DARK_FOREST_MAX_ENEMIES_PER_PLAYER: int = 6    # More enemies in the creepy forest
 
 # State sync parameters
 const STATE_SYNC_INTERVAL: float = 0.1   # 10Hz position relay
@@ -35,12 +41,13 @@ const DARK_FOREST_BIOMES = ["dark_forest"]
 const ANIMAL_BIOMES = ["meadow", "valley", "dark_forest"]
 
 # Animal spawn parameters (separate from enemies)
-const ANIMAL_SPAWN_CHECK_INTERVAL: float = 15.0  # Check less frequently
-const MAX_ANIMALS_PER_PLAYER: int = 2  # Fewer animals than enemies
+const ANIMAL_SPAWN_CHECK_INTERVAL: float = 8.0  # Check every 8 seconds
+const MAX_ANIMALS_PER_PLAYER: int = 3  # More animals for fun
 var animal_spawn_timer: float = 0.0
 
 # Tracking
 var spawn_timer: float = 0.0
+var dark_forest_spawn_timer: float = 0.0  # Separate faster timer for dark forest
 var state_sync_timer: float = 0.0
 var spawned_enemies: Array[Node] = []
 var enemy_paths: Dictionary = {}  # Node -> NodePath (cached for performance)
@@ -69,12 +76,19 @@ func _process(delta: float) -> void:
 	if not multiplayer.is_server():
 		return
 
-	# Update spawn timer
+	# Update spawn timer (normal biomes)
 	spawn_timer += delta
 
 	if spawn_timer >= SPAWN_CHECK_INTERVAL:
 		spawn_timer = 0.0
-		_check_spawns()
+		_check_spawns(false)  # Normal biome spawns
+
+	# Update dark forest spawn timer (faster!)
+	dark_forest_spawn_timer += delta
+
+	if dark_forest_spawn_timer >= DARK_FOREST_SPAWN_CHECK_INTERVAL:
+		dark_forest_spawn_timer = 0.0
+		_check_spawns(true)  # Dark forest spawns only
 
 	# Update animal spawn timer
 	animal_spawn_timer += delta
@@ -94,9 +108,15 @@ func _process(delta: float) -> void:
 	_cleanup_dead_enemies()
 
 ## Check if we should spawn enemies
-func _check_spawns() -> void:
+## dark_forest_only: if true, only spawn for players in dark_forest biome
+func _check_spawns(dark_forest_only: bool = false) -> void:
 	if not server_node or not "spawned_players" in server_node:
 		return
+
+	# Get terrain world for biome detection
+	var terrain_world = null
+	if server_node and server_node.has_node("World/TerrainWorld"):
+		terrain_world = server_node.get_node("World/TerrainWorld")
 
 	var players = server_node.spawned_players
 
@@ -106,28 +126,46 @@ func _check_spawns() -> void:
 		if not player or not is_instance_valid(player):
 			continue
 
-		# Count enemies near this player
-		var nearby_enemies = _count_nearby_enemies(player.global_position)
+		# Check biome at player position
+		var player_biome = "valley"
+		if terrain_world and terrain_world.has_method("get_biome_at"):
+			player_biome = terrain_world.get_biome_at(Vector2(player.global_position.x, player.global_position.z))
+
+		var is_in_dark_forest = player_biome in DARK_FOREST_BIOMES
+
+		# Skip if this check doesn't match the biome requirement
+		if dark_forest_only and not is_in_dark_forest:
+			continue  # Dark forest timer, but player not in dark forest
+		if not dark_forest_only and is_in_dark_forest:
+			continue  # Normal timer, but player in dark forest (handled by dark forest timer)
+
+		# Use different max enemies based on biome
+		var max_enemies = DARK_FOREST_MAX_ENEMIES_PER_PLAYER if is_in_dark_forest else MAX_ENEMIES_PER_PLAYER
+		var count_distance = DARK_FOREST_MAX_SPAWN_DISTANCE if is_in_dark_forest else MAX_SPAWN_DISTANCE
+
+		# Count enemies near this player (using biome-appropriate distance)
+		var nearby_enemies = _count_nearby_enemies(player.global_position, count_distance)
 
 		# Spawn enemies if below threshold
-		if nearby_enemies < MAX_ENEMIES_PER_PLAYER:
-			var enemies_to_spawn = MAX_ENEMIES_PER_PLAYER - nearby_enemies
+		if nearby_enemies < max_enemies:
+			var enemies_to_spawn = max_enemies - nearby_enemies
 			for i in range(enemies_to_spawn):
 				# The player that triggered the spawn becomes the host
-				_spawn_enemy_near_player(player, peer_id)
+				_spawn_enemy_near_player(player, peer_id, is_in_dark_forest)
 
-## Count enemies near a position
-func _count_nearby_enemies(position: Vector3) -> int:
+## Count enemies near a position (within max_distance)
+func _count_nearby_enemies(position: Vector3, max_distance: float = MAX_SPAWN_DISTANCE) -> int:
 	var count = 0
 	for enemy in spawned_enemies:
 		if enemy and is_instance_valid(enemy):
 			var distance = enemy.global_position.distance_to(position)
-			if distance <= MAX_SPAWN_DISTANCE:
+			if distance <= max_distance:
 				count += 1
 	return count
 
 ## Spawn an enemy near a player (player becomes the host for this enemy)
-func _spawn_enemy_near_player(player: Node, peer_id: int = 0) -> void:
+## is_dark_forest: if true, use closer spawn distances
+func _spawn_enemy_near_player(player: Node, peer_id: int = 0, is_dark_forest: bool = false) -> void:
 	# Validate and fix spawn position
 	# Don't spawn if player Y is invalid (fell through world or died)
 	if player.global_position.y < -50 or player.global_position.y > 500:
@@ -135,11 +173,15 @@ func _spawn_enemy_near_player(player: Node, peer_id: int = 0) -> void:
 
 	# Get terrain world to check for collision
 	var terrain_world = null
-	if server_node and server_node.has_node("TerrainWorld"):
-		terrain_world = server_node.get_node("TerrainWorld")
+	if server_node and server_node.has_node("World/TerrainWorld"):
+		terrain_world = server_node.get_node("World/TerrainWorld")
 
 	# Get player's backward direction angle (opposite of where they're looking)
 	var player_backward_angle = player.rotation.y  # Behind player (+Z direction in local space)
+
+	# Use biome-specific spawn distances
+	var min_dist = DARK_FOREST_MIN_SPAWN_DISTANCE if is_dark_forest else MIN_SPAWN_DISTANCE
+	var max_dist = DARK_FOREST_MAX_SPAWN_DISTANCE if is_dark_forest else MAX_SPAWN_DISTANCE
 
 	# Try multiple times to find a valid spawn position with terrain collision
 	for attempt in range(5):
@@ -153,8 +195,8 @@ func _spawn_enemy_near_player(player: Node, peer_id: int = 0) -> void:
 			var side = 1 if randf() > 0.5 else -1
 			angle = player_backward_angle + side * randf_range(PI/2, PI * 0.8)
 
-		# Use full distance range
-		var distance = randf_range(MIN_SPAWN_DISTANCE, MAX_SPAWN_DISTANCE)
+		# Use biome-appropriate distance range
+		var distance = randf_range(min_dist, max_dist)
 
 		var spawn_offset = Vector3(
 			cos(angle) * distance,
@@ -179,8 +221,11 @@ func _spawn_enemy_near_player(player: Node, peer_id: int = 0) -> void:
 
 		# Choose enemy scene based on biome
 		var enemy_scene = GAHNOME_SCENE
+		var enemy_type_name = "Gahnome"
 		if biome in DARK_FOREST_BIOMES:
 			enemy_scene = SPORELING_SCENE
+			enemy_type_name = "Sporeling"
+		print("[EnemySpawner] Spawning %s in biome '%s' at %s" % [enemy_type_name, biome, spawn_position])
 
 		# Check if terrain collision exists at this position
 		if terrain_world and terrain_world.has_method("has_collision_at_position"):
@@ -412,6 +457,7 @@ func _check_animal_spawns() -> void:
 		return
 
 	var players = server_node.spawned_players
+	print("[EnemySpawner] Checking animal spawns for %d players" % players.size())
 
 	# For each player, check if we need to spawn animals
 	for peer_id in players:
@@ -421,6 +467,7 @@ func _check_animal_spawns() -> void:
 
 		# Count animals near this player
 		var nearby_animals = _count_nearby_animals(player.global_position)
+		print("[EnemySpawner] Player %d has %d/%d nearby animals" % [peer_id, nearby_animals, MAX_ANIMALS_PER_PLAYER])
 
 		# Spawn animals if below threshold
 		if nearby_animals < MAX_ANIMALS_PER_PLAYER:
@@ -444,12 +491,13 @@ func _count_nearby_animals(position: Vector3) -> int:
 func _spawn_animal_near_player(player: Node, peer_id: int = 0) -> void:
 	# Validate player position
 	if player.global_position.y < -50 or player.global_position.y > 500:
+		print("[EnemySpawner] Animal spawn skipped - invalid player Y: %.1f" % player.global_position.y)
 		return
 
 	# Get terrain world
 	var terrain_world = null
-	if server_node and server_node.has_node("TerrainWorld"):
-		terrain_world = server_node.get_node("TerrainWorld")
+	if server_node and server_node.has_node("World/TerrainWorld"):
+		terrain_world = server_node.get_node("World/TerrainWorld")
 
 	# Get player's backward direction angle (opposite of where they're looking)
 	var player_backward_angle = player.rotation.y  # Behind player (+Z direction in local space)
@@ -491,33 +539,41 @@ func _spawn_animal_near_player(player: Node, peer_id: int = 0) -> void:
 
 		# Only spawn animals in appropriate biomes
 		if biome not in ANIMAL_BIOMES:
+			print("[EnemySpawner] Animal spawn attempt %d: biome '%s' not in ANIMAL_BIOMES" % [attempt, biome])
 			continue
 
 		# Choose random animal type
 		var animal_scene = _get_random_animal_scene(biome)
+		var scene_name = "Unknown"
+		if animal_scene == DEER_SCENE:
+			scene_name = "Deer"
+		elif animal_scene == PIG_SCENE:
+			scene_name = "Flying Pig"
+		elif animal_scene == SHEEP_SCENE:
+			scene_name = "Unicorn Sheep"
 
 		# Check terrain collision
 		if terrain_world and terrain_world.has_method("has_collision_at_position"):
 			if terrain_world.has_collision_at_position(spawn_position):
+				print("[EnemySpawner] Spawning %s in biome '%s' at %s" % [scene_name, biome, spawn_position])
 				_spawn_enemy(animal_scene, spawn_position, peer_id)
 				return
+			else:
+				print("[EnemySpawner] Animal spawn attempt %d: no terrain collision at %s" % [attempt, spawn_position])
 		else:
+			print("[EnemySpawner] Spawning %s (no collision check) at %s" % [scene_name, spawn_position])
 			_spawn_enemy(animal_scene, spawn_position, peer_id)
 			return
+
+	print("[EnemySpawner] Animal spawn failed after 5 attempts")
 
 ## Get a random animal scene based on biome
 func _get_random_animal_scene(biome: String) -> PackedScene:
 	var animal_scenes: Array[PackedScene] = []
 
-	# All biomes can have deer
+	# All animal biomes can have all animals (deer, pigs, sheep)
 	animal_scenes.append(DEER_SCENE)
-
-	# Meadow and valley have more variety
-	if biome in ["meadow", "valley"]:
-		animal_scenes.append(PIG_SCENE)
-		animal_scenes.append(SHEEP_SCENE)
-	elif biome == "dark_forest":
-		# Dark forest mainly has deer (less variety)
-		animal_scenes.append(DEER_SCENE)  # Higher chance for deer
+	animal_scenes.append(PIG_SCENE)
+	animal_scenes.append(SHEEP_SCENE)
 
 	return animal_scenes[randi() % animal_scenes.size()]
