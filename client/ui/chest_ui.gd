@@ -17,6 +17,14 @@ var player_inventory: Node = null
 var current_chest: Node = null  # Reference to the chest being accessed
 var is_open: bool = false
 
+# Controller navigation
+var focused_slot: int = 0  # Current focused slot index
+var in_player_grid: bool = false  # True if focus is in player grid, false for chest grid
+var picked_up_slot: int = -1  # Slot being moved (-1 = none)
+var picked_up_from_player: bool = false  # Was the picked up item from player grid?
+const CHEST_COLUMNS: int = 5
+const PLAYER_COLUMNS: int = 5
+
 @onready var panel: Panel = $Panel
 @onready var chest_grid: GridContainer = $Panel/HBoxContainer/ChestPanel/ChestGrid
 @onready var player_grid: GridContainer = $Panel/HBoxContainer/PlayerPanel/PlayerGrid
@@ -63,6 +71,24 @@ func _process(_delta: float) -> void:
 	# Close with Tab (ESC is handled by client.gd to coordinate with pause menu)
 	if Input.is_action_just_pressed("toggle_inventory"):
 		hide_ui()
+		return
+
+	# Controller D-pad navigation
+	# D-pad left/right navigates horizontally
+	if Input.is_action_just_pressed("hotbar_next"):
+		_move_focus(1, 0)  # Right
+	elif Input.is_action_just_pressed("hotbar_prev"):
+		_move_focus(-1, 0)  # Left
+
+	# D-pad up/down navigates vertically
+	if Input.is_action_just_pressed("hotbar_equip"):
+		_move_focus(0, -1)  # Up
+	elif Input.is_action_just_pressed("hotbar_unequip"):
+		_move_focus(0, 1)  # Down
+
+	# A button: Pick up/drop item (for moving items between grids)
+	if Input.is_action_just_pressed("interact"):
+		_handle_item_pickup_drop()
 
 ## Open chest UI with a specific chest
 func show_ui(chest: Node, quick_sort: bool = false) -> void:
@@ -77,6 +103,13 @@ func show_ui(chest: Node, quick_sort: bool = false) -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
 	refresh_display()
+
+	# Initialize controller navigation
+	focused_slot = 0
+	in_player_grid = false
+	picked_up_slot = -1
+	picked_up_from_player = false
+	_update_focus_visual()
 
 	# Quick-sort: auto-deposit matching items
 	if quick_sort:
@@ -306,3 +339,142 @@ func _perform_quick_sort() -> void:
 ## Check if UI is currently open
 func is_ui_open() -> bool:
 	return is_open
+
+## Move focus in grid (for controller D-pad navigation)
+## Chest is on the LEFT, Player inventory is on the RIGHT
+## So horizontal navigation (left/right) switches between grids
+func _move_focus(dx: int, dy: int) -> void:
+	var columns = PLAYER_COLUMNS if in_player_grid else CHEST_COLUMNS
+	var max_slots = PLAYER_SLOTS if in_player_grid else CHEST_SLOTS
+
+	# Calculate current row and column
+	var current_row = focused_slot / columns
+	var current_col = focused_slot % columns
+
+	# Calculate new position
+	var new_row = current_row + dy
+	var new_col = current_col + dx
+
+	# Calculate max rows for current grid
+	var max_rows = (max_slots + columns - 1) / columns
+
+	# Handle HORIZONTAL navigation between grids (chest left, player right)
+	if new_col < 0:
+		# Going left
+		if in_player_grid:
+			# Switch to chest grid (go to rightmost column, same row if possible)
+			in_player_grid = false
+			var chest_max_rows = (CHEST_SLOTS + CHEST_COLUMNS - 1) / CHEST_COLUMNS
+			new_row = clamp(current_row, 0, chest_max_rows - 1)
+			new_col = CHEST_COLUMNS - 1  # Rightmost column of chest
+			focused_slot = new_row * CHEST_COLUMNS + new_col
+			focused_slot = clamp(focused_slot, 0, CHEST_SLOTS - 1)
+			_update_focus_visual()
+			return
+		else:
+			# Already at left edge of chest grid, clamp
+			new_col = 0
+	elif new_col >= columns:
+		# Going right
+		if not in_player_grid:
+			# Switch to player grid (go to leftmost column, same row if possible)
+			in_player_grid = true
+			var player_max_rows = (PLAYER_SLOTS + PLAYER_COLUMNS - 1) / PLAYER_COLUMNS
+			new_row = clamp(current_row, 0, player_max_rows - 1)
+			new_col = 0  # Leftmost column of player
+			focused_slot = new_row * PLAYER_COLUMNS + new_col
+			focused_slot = clamp(focused_slot, 0, PLAYER_SLOTS - 1)
+			_update_focus_visual()
+			return
+		else:
+			# Already at right edge of player grid, clamp
+			new_col = columns - 1
+
+	# Handle vertical navigation (clamp to current grid bounds)
+	new_row = clamp(new_row, 0, max_rows - 1)
+
+	# Calculate new focused slot
+	var new_focus = new_row * columns + new_col
+
+	# Clamp to valid slot range
+	new_focus = clamp(new_focus, 0, max_slots - 1)
+
+	if new_focus != focused_slot:
+		focused_slot = new_focus
+		_update_focus_visual()
+
+## Update visual highlight for focused slot
+func _update_focus_visual() -> void:
+	# Clear all highlights
+	for i in chest_slots.size():
+		if chest_slots[i].has_method("set_selected"):
+			var is_highlighted = (not in_player_grid and i == focused_slot) or (picked_up_slot == i and not picked_up_from_player)
+			chest_slots[i].set_selected(is_highlighted)
+
+	for i in player_slots.size():
+		if player_slots[i].has_method("set_selected"):
+			var is_highlighted = (in_player_grid and i == focused_slot) or (picked_up_slot == i and picked_up_from_player)
+			player_slots[i].set_selected(is_highlighted)
+
+## Handle picking up and dropping items with A button
+func _handle_item_pickup_drop() -> void:
+	if picked_up_slot == -1:
+		# No item picked up - try to pick up focused item
+		if in_player_grid:
+			if not player_inventory:
+				return
+			var inventory_data = player_inventory.get_inventory_data()
+			if focused_slot >= inventory_data.size():
+				return
+			var slot_data = inventory_data[focused_slot]
+			if slot_data.is_empty():
+				return
+			# Pick up from player grid
+			picked_up_slot = focused_slot
+			picked_up_from_player = true
+			print("[ChestUI] Picked up item from player slot %d" % picked_up_slot)
+		else:
+			if not current_chest:
+				return
+			var chest_inventory = current_chest.get_inventory_data()
+			if focused_slot >= chest_inventory.size():
+				return
+			var chest_data = chest_inventory[focused_slot]
+			if chest_data.item_name.is_empty() or chest_data.quantity <= 0:
+				return
+			# Pick up from chest grid
+			picked_up_slot = focused_slot
+			picked_up_from_player = false
+			print("[ChestUI] Picked up item from chest slot %d" % picked_up_slot)
+		_update_focus_visual()
+	else:
+		# Item already picked up - drop it at focused slot
+		if picked_up_slot == focused_slot and picked_up_from_player == in_player_grid:
+			# Dropping on same slot in same grid - just cancel
+			print("[ChestUI] Cancelled move")
+			picked_up_slot = -1
+			picked_up_from_player = false
+			_update_focus_visual()
+			return
+
+		# Determine transfer type
+		if picked_up_from_player and in_player_grid:
+			# Swap within player inventory
+			print("[ChestUI] Swapping player slots %d and %d" % [picked_up_slot, focused_slot])
+			NetworkManager.rpc_request_swap_slots.rpc_id(1, picked_up_slot, focused_slot)
+		elif not picked_up_from_player and not in_player_grid:
+			# Swap within chest
+			print("[ChestUI] Swapping chest slots %d and %d" % [picked_up_slot, focused_slot])
+			NetworkManager.rpc_request_chest_swap.rpc_id(1, picked_up_slot, focused_slot)
+		elif picked_up_from_player and not in_player_grid:
+			# Transfer from player to chest
+			print("[ChestUI] Transferring player[%d] to chest[%d]" % [picked_up_slot, focused_slot])
+			_transfer_player_to_chest(picked_up_slot, focused_slot)
+		else:
+			# Transfer from chest to player
+			print("[ChestUI] Transferring chest[%d] to player[%d]" % [picked_up_slot, focused_slot])
+			_transfer_chest_to_player(picked_up_slot, focused_slot)
+
+		picked_up_slot = -1
+		picked_up_from_player = false
+		_update_focus_visual()
