@@ -4,12 +4,11 @@ extends "res://shared/enemies/enemy.gd"
 ## Larger, more patient, uses spore cloud attacks
 ## Different AI: stalks longer, has area-of-effect damage
 
-# Spore cloud attack
+# Spore cloud attack - defensive reaction when hit
 const SPORE_CLOUD_SCENE = preload("res://shared/effects/spore_cloud.tscn")
 var spore_attack_cooldown: float = 0.0
-const SPORE_ATTACK_COOLDOWN_TIME: float = 8.0  # 8 seconds between spore attacks
-const SPORE_ATTACK_RANGE: float = 5.0  # Use spore attack at medium range
-const SPORE_ATTACK_CHANCE: float = 0.4  # 40% chance to use spore attack when in range
+const SPORE_ATTACK_COOLDOWN_TIME: float = 6.0  # 6 seconds between spore attacks
+const SPORE_ATTACK_CHANCE: float = 0.5  # 50% chance to release spores when hit
 
 func _ready() -> void:
 	# Override stats for Sporeling
@@ -270,36 +269,25 @@ func _physics_process(delta: float) -> void:
 	if spore_attack_cooldown > 0:
 		spore_attack_cooldown -= delta
 
-## Override combat decision to potentially use spore attack
-func _make_combat_decision(distance: float) -> void:
-	# Only host client makes combat decisions
-	if not is_host:
-		return
+## Override take_damage to potentially release spore cloud as defense
+func take_damage(damage: float, knockback: float = 0.0, direction: Vector3 = Vector3.ZERO) -> void:
+	# Call parent damage handling first
+	super.take_damage(damage, knockback, direction)
 
-	# Check if we should use spore attack at medium range
-	if spore_attack_cooldown <= 0 and distance <= SPORE_ATTACK_RANGE and distance > attack_range:
-		if randf() < SPORE_ATTACK_CHANCE:
-			_do_spore_attack()
-			return
+	# Check if we should release a defensive spore cloud
+	if not is_dead and spore_attack_cooldown <= 0 and randf() < SPORE_ATTACK_CHANCE:
+		_do_spore_attack()
 
-	# Otherwise use normal combat behavior
-	super._make_combat_decision(distance)
-
-## Spawn a spore cloud at current position
+## Spawn a spore cloud at current position as defensive reaction
 func _do_spore_attack() -> void:
 	# Set cooldown
 	spore_attack_cooldown = SPORE_ATTACK_COOLDOWN_TIME
 
-	# Visual telegraph - pulse green
+	# Brief green flash when releasing spores
 	_set_body_tint(Color(0.4, 1.0, 0.4, 1.0))
+	get_tree().create_timer(0.3).timeout.connect(func(): _set_body_tint(Color(1.0, 1.0, 1.0, 1.0)))
 
-	# Wait a moment for the telegraph
-	await get_tree().create_timer(0.5).timeout
-
-	# Reset tint
-	_set_body_tint(Color(1.0, 1.0, 1.0, 1.0))
-
-	# Spawn the spore cloud at our position
+	# Spawn the spore cloud immediately at our position
 	if SPORE_CLOUD_SCENE:
 		var spore_cloud = SPORE_CLOUD_SCENE.instantiate()
 		# Add to the world, not to us (so it stays when we move)
@@ -307,4 +295,4 @@ func _do_spore_attack() -> void:
 		spore_cloud.global_position = global_position
 		spore_cloud.global_position.y += 0.5  # Slightly above ground
 
-		print("[Sporeling] Spawned spore cloud at %s" % global_position)
+		print("[Sporeling] Released defensive spore cloud at %s" % global_position)
