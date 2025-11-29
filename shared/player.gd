@@ -462,6 +462,10 @@ func _apply_movement(input_data: Dictionary, delta: float) -> void:
 	if is_blocking:
 		target_speed *= BLOCK_SPEED_MULTIPLIER
 
+	# Reduce speed during spin attack - can slowly adjust position but not run
+	if is_spinning:
+		target_speed *= 0.3
+
 	var control_factor := 1.0 if is_on_floor() else AIR_CONTROL
 
 	# Horizontal movement (skip if lunging - lunge controls movement)
@@ -511,8 +515,8 @@ func _apply_movement(input_data: Dictionary, delta: float) -> void:
 			weapon_wrist_pivot.rotation_degrees = Vector3.ZERO
 
 	# Rotate VISUAL body to face movement direction (not the CharacterBody3D!)
-	# UNLESS blocking or lunging - then stay facing shield/lunge direction
-	if direction and body_container and not is_blocking and not is_lunging:
+	# UNLESS blocking, lunging, or spinning - those animations control body rotation
+	if direction and body_container and not is_blocking and not is_lunging and not is_spinning:
 		var horizontal_speed_check = Vector2(velocity.x, velocity.z).length()
 		if horizontal_speed_check > 0.1:
 			var target_rotation = atan2(direction.x, direction.z)
@@ -1996,14 +2000,22 @@ func _update_body_animations(delta: float) -> void:
 
 		# Play footstep sound when leg hits ground (phase crosses PI boundaries)
 		# Each PI of phase = one footstep (left or right foot)
-		if is_on_floor() and is_local_player:
+		if is_on_floor() and is_local_player and not is_spinning:
 			var current_step = int(animation_phase / PI)
 			var last_step = int(_last_footstep_phase / PI)
 			if current_step != last_step:
 				SoundManager.play_sound_varied("footstep_grass", global_position, -8.0, 0.15)
 		_last_footstep_phase = animation_phase
 
-		if is_blocking:
+		# Skip walk animation during spin - legs stay neutral, body spins
+		if is_spinning:
+			left_leg.rotation.x = lerp(left_leg.rotation.x, 0.0, delta * 10.0)
+			right_leg.rotation.x = lerp(right_leg.rotation.x, 0.0, delta * 10.0)
+			if left_knee:
+				left_knee.rotation.x = lerp(left_knee.rotation.x, 0.0, delta * 10.0)
+			if right_knee:
+				right_knee.rotation.x = lerp(right_knee.rotation.x, 0.0, delta * 10.0)
+		elif is_blocking:
 			# Defensive shuffle - small leg movements, LEFT arm stays raised (shield)
 			var leg_angle = sin(animation_phase) * 0.15  # Half the normal swing
 			left_leg.rotation.x = leg_angle
