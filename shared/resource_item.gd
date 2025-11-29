@@ -11,6 +11,7 @@ var spawn_time: float = 0.0
 var bob_offset: float = 0.0  # Random bob phase
 var network_id: String = ""  # Unique ID for network sync
 var pickup_requested: bool = false  # Prevents duplicate pickup requests
+var overlap_check_done: bool = false  # Whether we've checked for overlapping bodies
 
 # Visual
 var mesh_instance: MeshInstance3D
@@ -31,11 +32,20 @@ func _ready() -> void:
 
 	print("[ResourceItem] Spawned %d x %s" % [amount, item_name])
 
-	# Check for already-overlapping bodies after a brief delay
-	# (body_entered doesn't fire for bodies already overlapping at spawn)
-	get_tree().create_timer(0.1).timeout.connect(_check_overlapping_bodies)
-
 func _process(delta: float) -> void:
+	# Skip all processing if pickup already requested
+	if pickup_requested:
+		return
+
+	# Check for overlapping bodies once after spawn (body_entered doesn't fire for already-overlapping)
+	if not overlap_check_done:
+		var time_since_spawn = (Time.get_ticks_msec() / 1000.0) - spawn_time
+		if time_since_spawn >= 0.1:
+			overlap_check_done = true
+			_check_overlapping_bodies()
+			if pickup_requested:
+				return
+
 	# Bob up and down
 	var time = Time.get_ticks_msec() / 1000.0 + bob_offset
 	var bob = sin(time * 2.0) * 0.05  # Reduced bob amount
