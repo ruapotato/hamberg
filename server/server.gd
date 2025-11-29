@@ -26,6 +26,9 @@ var dynamic_objects: Dictionary = {} # network_id -> {type, position, health, ma
 # Resource item pickup tracking (prevents duplicate pickups)
 var picked_up_items: Dictionary = {} # network_id -> true (items that have already been picked up)
 
+# Counter for generating unique resource item IDs (prevents duplicates when items spawn same frame)
+var resource_item_counter: int = 0
+
 # Terrain chunks are now saved directly to disk via ChunkManager
 # No need for in-memory modified_terrain_chunks dictionary
 
@@ -629,9 +632,9 @@ func handle_environmental_damage(peer_id: int, chunk_pos: Vector2i, object_id: i
 				for resource_type in resource_drops:
 					var amount: int = resource_drops[resource_type]
 					for i in amount:
-						# Use server time and chunk/object info for unique IDs
-						var net_id = "%s_%d_%d_%d" % [chunk_pos, instance_index, Time.get_ticks_msec(), i]
-						network_ids.append(net_id)
+						# Use counter for unique IDs
+						network_ids.append("%s_%d" % [resource_type, resource_item_counter])
+						resource_item_counter += 1
 
 				NetworkManager.rpc_spawn_resource_drops.rpc(resource_drops, pos_array, network_ids)
 
@@ -708,7 +711,9 @@ func handle_dynamic_object_damage(peer_id: int, object_name: String, damage: flo
 			var pos_array = [hit_position.x, hit_position.y, hit_position.z]
 			var network_ids: Array = []
 			for i in wood_count:
-				network_ids.append("wood_%d_%d" % [Time.get_ticks_msec(), i])
+				# Use counter instead of just time to ensure unique IDs even when items spawn same frame
+				network_ids.append("wood_%d" % resource_item_counter)
+				resource_item_counter += 1
 
 			NetworkManager.rpc_spawn_resource_drops.rpc(resource_drops, pos_array, network_ids)
 
@@ -1441,8 +1446,9 @@ func handle_drop_item_request(peer_id: int, slot: int, amount: int) -> void:
 	# Generate network IDs for the dropped items
 	var network_ids: Array = []
 	for i in slot_amount:
-		var net_id = "drop_%d_%d_%d" % [peer_id, Time.get_ticks_msec(), i]
-		network_ids.append(net_id)
+		# Use counter for unique IDs
+		network_ids.append("%s_%d" % [item_id, resource_item_counter])
+		resource_item_counter += 1
 
 	# Create resource drops dictionary
 	var resource_drops: Dictionary = {item_id: slot_amount}
@@ -1989,8 +1995,9 @@ func handle_debug_give_item(peer_id: int, item_name: String, amount: int) -> voi
 	# Generate network IDs for the dropped items
 	var network_ids: Array = []
 	for i in amount:
-		var net_id = "debug_%d_%d_%d" % [peer_id, Time.get_ticks_msec(), i]
-		network_ids.append(net_id)
+		# Use counter for unique IDs
+		network_ids.append("%s_%d" % [item_type, resource_item_counter])
+		resource_item_counter += 1
 
 	print("[Server] DEBUG: Generated %d network IDs" % network_ids.size())
 
