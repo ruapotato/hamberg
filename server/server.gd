@@ -599,9 +599,9 @@ func handle_environmental_damage(peer_id: int, chunk_pos: Vector2i, object_id: i
 		# Special handling for truffula trees - spawn fallen log instead of dropping resources
 		if object_type == "truffula_tree":
 			# Spawn a fallen log at this position
-			# Spawn 5 units above hit so the log mesh (center at Y+2.5) doesn't clip ground
+			# Spawn 2.5 units above hit (log mesh center is at Y+2.5 in local space)
 			var log_net_id = "fallen_log_%d_%d_%d" % [chunk_pos.x, chunk_pos.y, Time.get_ticks_msec()]
-			var pos_array = [hit_position.x, hit_position.y + 5.0, hit_position.z]
+			var pos_array = [hit_position.x, hit_position.y + 2.5, hit_position.z]
 			var fall_angle = randf() * TAU  # Random fall direction
 			NetworkManager.rpc_spawn_fallen_log.rpc(pos_array, fall_angle, log_net_id)
 
@@ -614,7 +614,7 @@ func handle_environmental_damage(peer_id: int, chunk_pos: Vector2i, object_id: i
 				"max_health": 60.0,
 				"rotation_y": fall_angle
 			}
-			print("[Server] Spawned fallen log at %s (Y+5), tracking as %s" % [hit_position, full_id])
+			print("[Server] Spawned fallen log at %s, tracking as %s" % [hit_position, full_id])
 		else:
 			# Standard resource drops for other objects
 			var mesh_library = mm_chunk.mesh_library
@@ -666,16 +666,20 @@ func handle_dynamic_object_damage(peer_id: int, object_name: String, damage: flo
 		# Handle different object types
 		if object_type == "fallen_log":
 			# Spawn split logs at positions along the log's length
+			# The fallen log is 5 units long and lies on its side after falling
 			var split_positions: Array = []
 			var split_ids: Array = []
 			var log_rot_y: float = obj_data.get("rotation_y", 0.0)
-			var log_pos: Vector3 = obj_data.get("position", hit_position)
 
-			# Calculate split positions along the log's axis
-			var log_direction := Vector3(sin(log_rot_y), 0, cos(log_rot_y))
+			# The log falls in the direction of log_rot_y, so its length axis
+			# ends up perpendicular to the fall direction (cross with UP)
+			# After tipping, the log's cylinder axis points roughly in the fall direction
+			var log_axis := Vector3(sin(log_rot_y), 0, cos(log_rot_y))
+
+			# Spawn 2 split logs along the fallen log's length (log is ~5 units long)
 			for i in 2:
-				var offset := (float(i) - 0.5) * 2.0  # -1.0 and +1.0
-				var pos := hit_position + log_direction * offset + Vector3(0, 0.6, 0)
+				var offset := (float(i) - 0.5) * 1.8  # -0.9 and +0.9 (close together near hit point)
+				var pos := hit_position + log_axis * offset + Vector3(0, 0.8, 0)
 				split_positions.append([pos.x, pos.y, pos.z])
 
 			# Generate network IDs and track split logs
@@ -683,14 +687,14 @@ func handle_dynamic_object_damage(peer_id: int, object_name: String, damage: flo
 				var split_id = "split_%d_%d" % [Time.get_ticks_msec(), i]
 				split_ids.append(split_id)
 
-				# Track the split log
+				# Track the split log - each gives 10-15 wood
 				var full_split_id = "SplitLog_" + split_id
 				dynamic_objects[full_split_id] = {
 					"type": "split_log",
 					"position": Vector3(split_positions[i][0], split_positions[i][1], split_positions[i][2]),
 					"health": 30.0,
 					"max_health": 30.0,
-					"wood_count": randi_range(1, 3)
+					"wood_count": randi_range(10, 15)
 				}
 
 			NetworkManager.rpc_spawn_split_logs.rpc(split_positions, split_ids, log_rot_y)

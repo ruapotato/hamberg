@@ -14,8 +14,8 @@ var object_id: int = -1
 var current_health: float = 30.0
 var is_destroyed: bool = false
 
-# Resource drops
-var wood_drop_count: int = 2
+# Resource drops (10-15 wood per split log)
+var wood_drop_count: int = 12
 
 # Health bar
 var health_bar: Node3D = null
@@ -23,8 +23,8 @@ const HEALTH_BAR_SCENE = preload("res://shared/health_bar_3d.tscn")
 
 func _ready() -> void:
 	current_health = max_health
-	# Random wood count based on size
-	wood_drop_count = randi_range(1, 3)
+	# Random wood count (10-15 per split log)
+	wood_drop_count = randi_range(10, 15)
 
 	# Apply tiny random impulse so logs scatter slightly when spawned
 	var scatter_dir := Vector3(randf_range(-1, 1), 0.2, randf_range(-1, 1)).normalized()
