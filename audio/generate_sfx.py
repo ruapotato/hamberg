@@ -923,6 +923,38 @@ def gen_fireball_flight():
     save_wav(audio, "fireball_flight")
 
 
+def gen_fire_cast():
+    """Fire wand cast sound - breathy FFFF fire burst."""
+    duration = 0.3
+    t = np.linspace(0, duration, int(SAMPLE_RATE * duration))
+
+    # Main fire burst - breathy high-frequency noise (the "FFFF" sound)
+    fire_noise = noise(duration, 'white')
+    fire_noise = bandpass(fire_noise, 800, 8000)  # High freq for that breathy F sound
+
+    # Secondary mid-range fire
+    mid_fire = noise(duration, 'pink')
+    mid_fire = bandpass(mid_fire, 400, 3000)
+
+    # Quick burst envelope - fast attack, quick decay
+    env = np.exp(-t * 12)  # Simple exponential decay
+    env *= (1 - np.exp(-t * 80))  # Very fast attack
+
+    fire_noise *= env
+    mid_fire *= env
+
+    # Low rumble for body
+    rumble = noise(duration, 'brown')
+    rumble = bandpass(rumble, 80, 400)
+    rumble *= np.exp(-t * 20)  # Faster decay for punch
+
+    # Combine - emphasize the high breathy noise
+    audio = fire_noise * 0.5 + mid_fire * 0.3 + rumble * 0.2
+
+    audio = fade(normalize(audio, 1.0), fade_in_ms=2, fade_out_ms=30)
+    save_wav(audio, "fire_cast")
+
+
 def gen_punch_hit():
     """Meaty fist punch/hit sound - solid thump with flesh impact."""
     duration = 0.25
@@ -1453,6 +1485,7 @@ SOUND_GENERATORS = {
     'fire_crackle': gen_fire_crackle,
     'fire_burn_loop': gen_fire_burn_loop,
     'fireball_flight': gen_fireball_flight,
+    'fire_cast': gen_fire_cast,
     'wind_ambient': gen_wind_ambient,
     'wind_gust': gen_wind_gust,
     'tree_chop': gen_tree_chop,

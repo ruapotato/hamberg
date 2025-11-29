@@ -8,6 +8,7 @@ signal menu_closed()
 
 var available_pieces: Array = [
 	"workbench",
+	"chest",
 	"wooden_wall",
 	"wooden_floor",
 	"wooden_door",

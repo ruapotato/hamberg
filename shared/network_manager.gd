@@ -687,6 +687,82 @@ func rpc_request_drop_item(slot: int, amount: int) -> void:
 	if server_node and server_node.has_method("handle_drop_item_request"):
 		server_node.handle_drop_item_request(peer_id, slot, amount)
 
+## CLIENT -> SERVER: Request to transfer item from chest to player inventory
+@rpc("any_peer", "call_remote", "reliable")
+func rpc_request_chest_to_player(chest_slot: int, player_slot: int) -> void:
+	if not is_server:
+		return
+
+	var peer_id := multiplayer.get_remote_sender_id()
+	var server_node := get_node_or_null("/root/Main/Server")
+	if server_node and server_node.has_method("handle_chest_to_player"):
+		server_node.handle_chest_to_player(peer_id, chest_slot, player_slot)
+
+## CLIENT -> SERVER: Request to transfer item from player inventory to chest
+@rpc("any_peer", "call_remote", "reliable")
+func rpc_request_player_to_chest(player_slot: int, chest_slot: int) -> void:
+	if not is_server:
+		return
+
+	var peer_id := multiplayer.get_remote_sender_id()
+	var server_node := get_node_or_null("/root/Main/Server")
+	if server_node and server_node.has_method("handle_player_to_chest"):
+		server_node.handle_player_to_chest(peer_id, player_slot, chest_slot)
+
+## CLIENT -> SERVER: Request to swap two slots within chest
+@rpc("any_peer", "call_remote", "reliable")
+func rpc_request_chest_swap(slot_a: int, slot_b: int) -> void:
+	if not is_server:
+		return
+
+	var peer_id := multiplayer.get_remote_sender_id()
+	var server_node := get_node_or_null("/root/Main/Server")
+	if server_node and server_node.has_method("handle_chest_swap"):
+		server_node.handle_chest_swap(peer_id, slot_a, slot_b)
+
+## CLIENT -> SERVER: Request quick-deposit (auto-deposit matching items)
+@rpc("any_peer", "call_remote", "reliable")
+func rpc_request_quick_deposit(player_slot: int) -> void:
+	if not is_server:
+		return
+
+	var peer_id := multiplayer.get_remote_sender_id()
+	var server_node := get_node_or_null("/root/Main/Server")
+	if server_node and server_node.has_method("handle_quick_deposit"):
+		server_node.handle_quick_deposit(peer_id, player_slot)
+
+## CLIENT -> SERVER: Open chest (track which chest player is using)
+@rpc("any_peer", "call_remote", "reliable")
+func rpc_open_chest(chest_network_id: String) -> void:
+	if not is_server:
+		return
+
+	var peer_id := multiplayer.get_remote_sender_id()
+	var server_node := get_node_or_null("/root/Main/Server")
+	if server_node and server_node.has_method("handle_open_chest"):
+		server_node.handle_open_chest(peer_id, chest_network_id)
+
+## CLIENT -> SERVER: Close chest
+@rpc("any_peer", "call_remote", "reliable")
+func rpc_close_chest() -> void:
+	if not is_server:
+		return
+
+	var peer_id := multiplayer.get_remote_sender_id()
+	var server_node := get_node_or_null("/root/Main/Server")
+	if server_node and server_node.has_method("handle_close_chest"):
+		server_node.handle_close_chest(peer_id)
+
+## SERVER -> CLIENT: Sync chest inventory
+@rpc("authority", "call_remote", "reliable")
+func rpc_sync_chest_inventory(chest_network_id: String, inventory_data: Array) -> void:
+	if is_server:
+		return
+
+	var client_node := get_node_or_null("/root/Main/Client")
+	if client_node and client_node.has_method("handle_chest_sync"):
+		client_node.handle_chest_sync(chest_network_id, inventory_data)
+
 ## CLIENT -> SERVER: Player died
 @rpc("any_peer", "call_remote", "reliable")
 func rpc_player_died() -> void:
@@ -906,3 +982,77 @@ func rpc_apply_enemy_damage(enemy_network_id: int, damage: float, knockback: flo
 		if direction.size() >= 3:
 			dir_v3 = Vector3(direction[0], direction[1], direction[2])
 		client_node.apply_enemy_damage(enemy_network_id, damage, knockback, dir_v3)
+
+# ============================================================================
+# DEBUG CONSOLE RPCs
+# ============================================================================
+
+## CLIENT -> SERVER: Debug give item
+@rpc("any_peer", "call_remote", "reliable")
+func rpc_debug_give_item(item_name: String, amount: int) -> void:
+	if not is_server:
+		return
+	var peer_id := multiplayer.get_remote_sender_id()
+	var server_node := get_node_or_null("/root/Main/Server")
+	if server_node and server_node.has_method("handle_debug_give_item"):
+		server_node.handle_debug_give_item(peer_id, item_name, amount)
+
+## CLIENT -> SERVER: Debug spawn entity
+@rpc("any_peer", "call_remote", "reliable")
+func rpc_debug_spawn_entity(entity_type: String, count: int) -> void:
+	if not is_server:
+		return
+	var peer_id := multiplayer.get_remote_sender_id()
+	var server_node := get_node_or_null("/root/Main/Server")
+	if server_node and server_node.has_method("handle_debug_spawn_entity"):
+		server_node.handle_debug_spawn_entity(peer_id, entity_type, count)
+
+## CLIENT -> SERVER: Debug teleport
+@rpc("any_peer", "call_remote", "reliable")
+func rpc_debug_teleport(position: Vector3) -> void:
+	if not is_server:
+		return
+	var peer_id := multiplayer.get_remote_sender_id()
+	var server_node := get_node_or_null("/root/Main/Server")
+	if server_node and server_node.has_method("handle_debug_teleport"):
+		server_node.handle_debug_teleport(peer_id, position)
+
+## CLIENT -> SERVER: Debug heal
+@rpc("any_peer", "call_remote", "reliable")
+func rpc_debug_heal() -> void:
+	if not is_server:
+		return
+	var peer_id := multiplayer.get_remote_sender_id()
+	var server_node := get_node_or_null("/root/Main/Server")
+	if server_node and server_node.has_method("handle_debug_heal"):
+		server_node.handle_debug_heal(peer_id)
+
+## CLIENT -> SERVER: Debug god mode
+@rpc("any_peer", "call_remote", "reliable")
+func rpc_debug_god_mode(enabled: bool) -> void:
+	if not is_server:
+		return
+	var peer_id := multiplayer.get_remote_sender_id()
+	var server_node := get_node_or_null("/root/Main/Server")
+	if server_node and server_node.has_method("handle_debug_god_mode"):
+		server_node.handle_debug_god_mode(peer_id, enabled)
+
+## CLIENT -> SERVER: Debug clear inventory
+@rpc("any_peer", "call_remote", "reliable")
+func rpc_debug_clear_inventory() -> void:
+	if not is_server:
+		return
+	var peer_id := multiplayer.get_remote_sender_id()
+	var server_node := get_node_or_null("/root/Main/Server")
+	if server_node and server_node.has_method("handle_debug_clear_inventory"):
+		server_node.handle_debug_clear_inventory(peer_id)
+
+## CLIENT -> SERVER: Debug kill nearby enemies
+@rpc("any_peer", "call_remote", "reliable")
+func rpc_debug_kill_nearby() -> void:
+	if not is_server:
+		return
+	var peer_id := multiplayer.get_remote_sender_id()
+	var server_node := get_node_or_null("/root/Main/Server")
+	if server_node and server_node.has_method("handle_debug_kill_nearby"):
+		server_node.handle_debug_kill_nearby(peer_id)

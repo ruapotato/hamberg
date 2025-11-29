@@ -5,8 +5,8 @@ extends Node
 
 @onready var audio_player: AudioStreamPlayer = AudioStreamPlayer.new()
 
-# Music volume (-6 dB = approximately half perceived loudness)
-var music_volume_db: float = -6.0
+# Music volume (-24 dB = very quiet background music)
+var music_volume_db: float = -24.0
 
 # Current biome being played
 var current_biome: String = ""

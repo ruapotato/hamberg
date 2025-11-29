@@ -16,9 +16,12 @@ var pause_menu_scene := preload("res://client/ui/pause_menu.tscn")
 var loading_screen_scene := preload("res://client/ui/loading_screen.tscn")
 var world_map_scene := preload("res://client/ui/world_map.tscn")
 var mini_map_scene := preload("res://client/ui/mini_map.tscn")
+var debug_console_scene := preload("res://client/ui/debug_console.tscn")
+var chest_ui_scene := preload("res://client/ui/chest_ui.tscn")
 
 # Enemy scenes
 var gahnome_scene := preload("res://shared/enemies/gahnome.tscn")
+var sporeling_scene := preload("res://shared/enemies/sporeling.tscn")
 
 # Animal scenes
 var deer_scene := preload("res://shared/animals/deer.tscn")
@@ -76,6 +79,15 @@ var player_hud_ui: Control = null
 # Map UI
 var world_map_ui: Control = null
 var mini_map_ui: Control = null
+
+# Debug console
+var debug_console_ui: Control = null
+
+# Chest UI
+var chest_ui: Control = null
+var interact_held_time: float = 0.0
+var interact_target_chest: Node = null
+const QUICK_SORT_HOLD_TIME: float = 0.5  # Hold E for 0.5s to quick-sort
 var ping_indicator_script = preload("res://client/ping_indicator.gd")
 var active_ping_indicators: Array = []  # 3D ping indicators in the world
 
@@ -178,6 +190,14 @@ func _ready() -> void:
 	mini_map_ui = mini_map_scene.instantiate()
 	canvas_layer.add_child(mini_map_ui)
 
+	# Create debug console (F5 to toggle)
+	debug_console_ui = debug_console_scene.instantiate()
+	canvas_layer.add_child(debug_console_ui)
+
+	# Create chest UI
+	chest_ui = chest_ui_scene.instantiate()
+	canvas_layer.add_child(chest_ui)
+
 	# Hide HUD initially
 	hud.visible = false
 
@@ -203,8 +223,10 @@ func _process(_delta: float) -> void:
 
 	if is_in_game:
 		_update_hud()
-		_handle_build_input()
-		_handle_interaction_input()
+		# Block gameplay input while debug console is open
+		if not (debug_console_ui and debug_console_ui.visible):
+			_handle_build_input()
+			_handle_interaction_input()
 		_update_biome_music(_delta)
 
 		# Check queued terrain modifications periodically
@@ -217,10 +239,13 @@ func _process(_delta: float) -> void:
 	_process_environmental_queue()
 
 	# Handle pause menu (Escape or Button 6)
-	# But first check if inventory is open - ESC should close it without opening pause menu
+	# But first check if UI panels are open - ESC should close them without opening pause menu
 	if (Input.is_action_just_pressed("ui_cancel") or Input.is_action_just_pressed("toggle_pause")) and is_in_game:
+		# Check if debug console is open - if so, close it and don't toggle pause
+		if debug_console_ui and debug_console_ui.visible:
+			debug_console_ui.hide_console()
 		# Check if inventory is open - if so, close it and don't toggle pause
-		if inventory_panel_ui and inventory_panel_ui.is_inventory_open():
+		elif inventory_panel_ui and inventory_panel_ui.is_inventory_open():
 			inventory_panel_ui.hide_inventory()
 		else:
 			_toggle_pause_menu()
@@ -232,6 +257,14 @@ func _process(_delta: float) -> void:
 	# Handle map toggle
 	if Input.is_action_just_pressed("toggle_map") and is_in_game:
 		_toggle_world_map()
+
+	# Handle debug console toggle (F5)
+	if Input.is_action_just_pressed("toggle_debug_console"):
+		if debug_console_ui:
+			if debug_console_ui.visible:
+				debug_console_ui.hide_console()
+			else:
+				debug_console_ui.show_console()
 
 func auto_connect_to_localhost() -> void:
 	"""Auto-connect to localhost for singleplayer mode"""
@@ -403,10 +436,28 @@ func _handle_interaction_input() -> void:
 		return
 	if crafting_menu_ui and crafting_menu_ui.is_open:
 		return
+	if chest_ui and chest_ui.is_ui_open():
+		return
 
-	# Check for E key press to interact with objects
+	# Track E key hold for quick-sort chest interaction
 	if Input.is_action_just_pressed("interact"):
-		_interact_with_object_under_cursor()
+		interact_held_time = 0.0
+		interact_target_chest = _get_chest_under_cursor()
+
+	if Input.is_action_pressed("interact"):
+		interact_held_time += get_process_delta_time()
+		# Visual feedback could be added here
+
+	if Input.is_action_just_released("interact"):
+		if interact_target_chest:
+			# Check if held long enough for quick-sort
+			var quick_sort = interact_held_time >= QUICK_SORT_HOLD_TIME
+			_open_chest_ui(interact_target_chest, quick_sort)
+			interact_target_chest = null
+		else:
+			# Normal interaction (workbench, etc.)
+			_interact_with_object_under_cursor()
+		interact_held_time = 0.0
 
 func _interact_with_object_under_cursor() -> void:
 	var camera = _get_camera()
@@ -446,6 +497,9 @@ func _open_crafting_menu() -> void:
 		push_error("[Client] No local player!")
 		return
 
+	# Set local player reference (for finding nearby chests)
+	crafting_menu_ui.set_local_player(local_player)
+
 	# Set player inventory reference
 	if local_player.has_node("Inventory"):
 		var inventory = local_player.get_node("Inventory")
@@ -454,6 +508,93 @@ func _open_crafting_menu() -> void:
 	# Open the menu
 	crafting_menu_ui.show_menu()
 	print("[Client] Opened crafting menu")
+
+## Get chest under cursor for interaction (returns null if no chest)
+func _get_chest_under_cursor() -> Node:
+	var camera = _get_camera()
+	if not camera:
+		return null
+
+	# Raycast from camera forward
+	var from = camera.global_position
+	var to = from + (-camera.global_transform.basis.z * 5.0)  # 5m interaction range
+
+	var space_state = world.get_world_3d().direct_space_state
+	var query = PhysicsRayQueryParameters3D.create(from, to)
+	query.collision_mask = 1  # World layer
+
+	var result = space_state.intersect_ray(query)
+
+	if result and result.collider:
+		var hit_object = result.collider
+		# Walk up the tree to find a storage buildable
+		var buildable = hit_object
+		while buildable:
+			if buildable.get("is_storage"):
+				return buildable
+			buildable = buildable.get_parent()
+
+	return null
+
+## Open chest UI
+func _open_chest_ui(chest: Node, quick_sort: bool = false) -> void:
+	if not chest_ui:
+		push_error("[Client] Chest UI not found!")
+		return
+
+	if not local_player:
+		push_error("[Client] No local player!")
+		return
+
+	# Get the network_id from the parent buildable's name (format: "Buildable_<network_id>")
+	var chest_network_id := ""
+	var parent = chest.get_parent()
+	if parent and parent.name.begins_with("Buildable_"):
+		chest_network_id = parent.name.substr(10)  # Remove "Buildable_" prefix
+	elif chest.name.begins_with("Buildable_"):
+		chest_network_id = chest.name.substr(10)
+
+	if chest_network_id.is_empty():
+		push_error("[Client] Could not find chest network_id!")
+		return
+
+	# Notify server that we're opening this chest
+	NetworkManager.rpc_open_chest.rpc_id(1, chest_network_id)
+	print("[Client] Sent rpc_open_chest for chest %s" % chest_network_id)
+
+	# Set player inventory reference
+	if local_player.has_node("Inventory"):
+		var inventory = local_player.get_node("Inventory")
+		chest_ui.set_player_inventory(inventory)
+
+	# Connect to chest_ui.closed signal to notify server when closing
+	if not chest_ui.closed.is_connected(_on_chest_ui_closed):
+		chest_ui.closed.connect(_on_chest_ui_closed)
+
+	# Open the chest UI
+	chest_ui.show_ui(chest, quick_sort)
+	if quick_sort:
+		print("[Client] Opened chest with quick-sort")
+	else:
+		print("[Client] Opened chest")
+
+## Called when chest UI is closed
+func _on_chest_ui_closed() -> void:
+	NetworkManager.rpc_close_chest.rpc_id(1)
+	print("[Client] Sent rpc_close_chest")
+
+## Handle chest inventory sync from server
+func handle_chest_sync(chest_network_id: String, inventory_data: Array) -> void:
+	print("[Client] Received chest sync for %s: %d items" % [chest_network_id, inventory_data.size()])
+
+	# Update the chest's inventory data and refresh the UI
+	if chest_ui and chest_ui.is_ui_open() and chest_ui.current_chest:
+		# Update the chest node's inventory
+		var chest = chest_ui.current_chest
+		if chest.has_method("set_inventory_data"):
+			chest.set_inventory_data(inventory_data)
+		# Refresh the chest UI display
+		chest_ui.refresh_display()
 
 # ============================================================================
 # PLAYER MANAGEMENT (CLIENT-SIDE)
@@ -976,6 +1117,10 @@ func receive_inventory_sync(inventory_data: Array) -> void:
 		if hotbar_ui:
 			hotbar_ui.refresh_display()
 
+		# Also refresh chest UI if open (for player-to-player slot swaps)
+		if chest_ui and chest_ui.is_ui_open():
+			chest_ui.refresh_display()
+
 ## Receive character data including map pins
 func receive_character_data(character_data: Dictionary) -> void:
 	"""Called when character is fully loaded from server"""
@@ -1298,11 +1443,13 @@ func spawn_enemy(enemy_path: NodePath, enemy_type: String, position: Vector3, en
 	match enemy_type:
 		"Gahnome":
 			enemy_scene = gahnome_scene
+		"Sporeling":
+			enemy_scene = sporeling_scene
 		"Deer":
 			enemy_scene = deer_scene
-		"Pig":
+		"Pig", "Flying Pig":
 			enemy_scene = pig_scene
-		"Sheep":
+		"Sheep", "Unicorn Sheep":
 			enemy_scene = sheep_scene
 		_:
 			print("[Client] Unknown enemy type: %s" % enemy_type)

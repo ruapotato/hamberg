@@ -263,3 +263,7 @@ func get_items_by_type(type) -> Array:  # type is ItemData.ItemType, returns Arr
 func get_max_stack_size(item_id: String) -> int:
 	var item = get_item(item_id)
 	return item.max_stack_size if item else 1
+
+## Get all items as an array
+func get_all_items() -> Array:
+	return items.values()

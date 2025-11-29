@@ -19,6 +19,7 @@ func _ready() -> void:
 # Building piece costs (separate from crafting recipes)
 const BUILDING_COSTS: Dictionary = {
 	"workbench": {"wood": 10},
+	"chest": {"wood": 10},
 	"wooden_wall": {"wood": 4},
 	"wooden_floor": {"wood": 2},
 	"wooden_door": {"wood": 4},

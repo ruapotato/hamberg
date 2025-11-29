@@ -13,6 +13,7 @@ var available_pieces: Dictionary = {
 	"wooden_beam": preload("res://shared/buildable/wooden_beam.tscn"),
 	"wooden_roof": preload("res://shared/buildable/wooden_roof.tscn"),
 	"workbench": preload("res://shared/buildable/workbench.tscn"),
+	"chest": preload("res://shared/buildable/chest.tscn"),
 }
 
 var is_active: bool = false

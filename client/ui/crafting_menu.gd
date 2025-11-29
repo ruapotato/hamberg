@@ -7,9 +7,13 @@ extends Control
 signal recipe_crafted(recipe: Dictionary)
 signal menu_closed()
 
+const CombinedInventory = preload("res://shared/combined_inventory.gd")
+const CHEST_SEARCH_RADIUS: float = 15.0
+
 var is_open: bool = false
 var player_inventory: Node = null  # Reference to player's inventory
 var item_discovery_tracker: Node = null  # Reference to discovery tracker
+var local_player: Node = null  # Reference to local player (for finding nearby chests)
 var selected_index: int = 0  # For controller D-pad navigation
 var just_opened_frames: int = 0  # Delay before accepting craft input to prevent E key from auto-crafting
 
@@ -27,6 +31,37 @@ func set_player_inventory(inventory: Node) -> void:
 ## Set the item discovery tracker reference
 func set_discovery_tracker(tracker: Node) -> void:
 	item_discovery_tracker = tracker
+
+## Set the local player reference (for finding nearby chests)
+func set_local_player(player: Node) -> void:
+	local_player = player
+
+## Get all chests within radius of the player (for combined inventory)
+func _get_nearby_chests() -> Array:
+	if not local_player or not is_instance_valid(local_player):
+		return []
+
+	var nearby_chests: Array = []
+	var player_pos = local_player.global_position
+
+	# Search for chest nodes in the world
+	var world = local_player.get_parent()
+	if not world:
+		return []
+
+	for child in world.get_children():
+		if child.is_in_group("chest") or child.name.begins_with("Chest"):
+			if child.has_method("get_item_count"):
+				var distance = player_pos.distance_to(child.global_position)
+				if distance <= CHEST_SEARCH_RADIUS:
+					nearby_chests.append(child)
+
+	return nearby_chests
+
+## Get a combined inventory (player + nearby chests) for crafting display
+func _get_combined_inventory():
+	var nearby_chests = _get_nearby_chests()
+	return CombinedInventory.new(player_inventory, nearby_chests)
 
 ## Populate the recipe list with discovered recipes
 func _populate_recipe_list() -> void:
@@ -93,9 +128,12 @@ func _create_recipe_button(recipe: Dictionary) -> Control:
 
 	button.text = button_text
 
-	# Check if player can craft this
+	# Get combined inventory (player + nearby chests) for crafting check
+	var combined_inventory = _get_combined_inventory()
+
+	# Check if player can craft this (using combined inventory)
 	var can_craft = false
-	if player_inventory and CraftingRecipes.can_craft(recipe, player_inventory, ["workbench"]):
+	if combined_inventory and CraftingRecipes.can_craft(recipe, combined_inventory, ["workbench"]):
 		can_craft = true
 		button.disabled = false
 	else:
@@ -120,9 +158,10 @@ func _create_recipe_button(recipe: Dictionary) -> Control:
 		var amount = requirements[item_name]
 		var item_display = ItemDatabase.get_item(item_name)
 		var item_name_display = item_display.display_name if item_display else CraftingRecipes.get_item_display_name(item_name)
+		# Use combined inventory count (player + nearby chests)
 		var current_amount = 0
-		if player_inventory and player_inventory.has_method("get_item_count"):
-			current_amount = player_inventory.get_item_count(item_name)
+		if combined_inventory and combined_inventory.has_method("get_item_count"):
+			current_amount = combined_inventory.get_item_count(item_name)
 
 		var color = "[color=green]" if current_amount >= amount else "[color=red]"
 		req_parts.append("%s%s x%d[/color] (%d)" % [color, item_name_display, amount, current_amount])

@@ -146,3 +146,14 @@ func swap_slots(slot_a: int, slot_b: int) -> void:
 	slots[slot_b] = temp
 
 	print("[Inventory] Swapped slots %d and %d" % [slot_a, slot_b])
+
+## Set a specific slot to an item and amount (for chest transfers)
+func set_slot(slot_index: int, item_name: String, amount: int) -> void:
+	if slot_index < 0 or slot_index >= MAX_SLOTS:
+		push_error("[Inventory] Invalid slot index: %d" % slot_index)
+		return
+
+	if item_name.is_empty() or amount <= 0:
+		slots[slot_index] = {}
+	else:
+		slots[slot_index] = {"item": item_name, "amount": amount}

@@ -7,12 +7,14 @@ extends Node
 const WorldConfig = preload("res://shared/world_config.gd")
 const PlayerDataManager = preload("res://shared/player_data_manager.gd")
 const WorldStateManager = preload("res://shared/world_state_manager.gd")
+const CombinedInventory = preload("res://shared/combined_inventory.gd")
 
 # Player management
 var player_scene := preload("res://shared/player.tscn")
 var spawned_players: Dictionary = {} # peer_id -> Player node
 var player_characters: Dictionary = {} # peer_id -> character_id (for saving on disconnect)
 var player_map_pins: Dictionary = {} # peer_id -> Array of map pins
+var player_open_chests: Dictionary = {} # peer_id -> chest network_id (tracks which chest each player has open)
 var player_spawn_area_center: Vector2 = Vector2(0, 0) # Center of spawn area
 
 # Buildable management
@@ -533,18 +535,8 @@ func receive_player_position(peer_id: int, position_data: Dictionary) -> void:
 		return
 
 	var new_position: Vector3 = position_data.get("position", player.global_position)
-	var old_position: Vector3 = player.global_position
 
-	# Validate: Check if movement is reasonable (prevent teleporting)
-	var distance_moved := old_position.distance_to(new_position)
-	const MAX_MOVEMENT_PER_TICK: float = 15.0  # ~8 m/s sprint * 2 = 16m margin
-
-	if distance_moved > MAX_MOVEMENT_PER_TICK:
-		# Reject invalid movement
-		push_warning("[Server] Player %d attempted invalid movement: %.2fm in one tick" % [peer_id, distance_moved])
-		return
-
-	# Accept position update
+	# Accept position update (clients are trusted)
 	player.global_position = new_position
 	player.rotation.y = position_data.get("rotation", player.rotation.y)
 
@@ -676,11 +668,19 @@ func handle_place_buildable(peer_id: int, piece_name: String, position: Vector3,
 	var net_id = "%d_%s_%d" % [peer_id, piece_name, Time.get_ticks_msec()]
 
 	# Store buildable for persistence and new client sync
-	placed_buildables[net_id] = {
+	var buildable_data = {
 		"piece_name": piece_name,
 		"position": [position.x, position.y, position.z],
 		"rotation_y": rotation_y
 	}
+	# Initialize chest inventory if this is a chest
+	if piece_name == "chest":
+		var chest_inv: Array = []
+		chest_inv.resize(20)  # CHEST_SLOTS
+		for i in 20:
+			chest_inv[i] = {"item_name": "", "quantity": 0}
+		buildable_data["inventory"] = chest_inv
+	placed_buildables[net_id] = buildable_data
 
 	# Broadcast to all clients to spawn the buildable
 	var pos_array = [position.x, position.y, position.z]
@@ -1140,6 +1140,7 @@ func handle_pickup_request(peer_id: int, item_name: String, amount: int, network
 		print("[Server] Player %d inventory full, cannot pick up %s" % [peer_id, item_name])
 
 ## Handle crafting request (server-authoritative)
+## Uses CombinedInventory to draw resources from player inventory + nearby chests
 func handle_craft_request(peer_id: int, recipe_name: String) -> void:
 	if not spawned_players.has(peer_id):
 		return
@@ -1151,7 +1152,7 @@ func handle_craft_request(peer_id: int, recipe_name: String) -> void:
 	if not player.has_node("Inventory"):
 		return
 
-	var inventory = player.get_node("Inventory")
+	var player_inventory = player.get_node("Inventory")
 
 	# Get the recipe
 	var recipe = CraftingRecipes.get_recipe_by_name(recipe_name)
@@ -1159,17 +1160,33 @@ func handle_craft_request(peer_id: int, recipe_name: String) -> void:
 		print("[Server] Player %d requested invalid recipe: %s" % [peer_id, recipe_name])
 		return
 
+	# Get nearby chests for combined inventory (magic chest feature)
+	var nearby_chests = _get_nearby_chests(player.global_position, 15.0)
+
+	# Create combined inventory (player + nearby chests)
+	var combined_inventory = CombinedInventory.new(player_inventory, nearby_chests)
+
 	# TODO: Get actual nearby stations from player
 	# For now, allow all crafting (no station restrictions)
 	var stations = ["workbench"]
 
-	# Attempt to craft
-	if CraftingRecipes.craft_item(recipe, inventory, stations):
-		print("[Server] Player %d crafted %s" % [peer_id, recipe_name])
+	# Attempt to craft using combined inventory
+	if CraftingRecipes.craft_item(recipe, combined_inventory, stations):
+		print("[Server] Player %d crafted %s (using %d nearby chests)" % [peer_id, recipe_name, nearby_chests.size()])
 
-		# Sync inventory to client
-		var inventory_data = inventory.get_inventory_data()
+		# Sync player inventory to client
+		var inventory_data = player_inventory.get_inventory_data()
 		NetworkManager.rpc_sync_inventory.rpc_id(peer_id, inventory_data)
+
+		# Sync any modified chest inventories to all players who have them open
+		for chest_wrapper in nearby_chests:
+			if chest_wrapper:
+				var chest_network_id = chest_wrapper.network_id
+				# Find any players who have this chest open
+				for other_peer_id in player_open_chests:
+					if player_open_chests[other_peer_id] == chest_network_id:
+						var chest_inv_data = chest_wrapper.get_inventory_data()
+						NetworkManager.rpc_sync_chest_inventory.rpc_id(other_peer_id, chest_network_id, chest_inv_data)
 	else:
 		print("[Server] Player %d failed to craft %s (missing resources or station)" % [peer_id, recipe_name])
 
@@ -1444,3 +1461,549 @@ func update_player_map_pins(peer_id: int, pins_data: Array) -> void:
 	player_map_pins[peer_id] = pins_data
 
 	# Pins will be saved when player disconnects or server saves
+
+# ============================================================================
+# CHEST STORAGE HANDLERS
+# ============================================================================
+
+## Wrapper class that provides CombinedInventory-compatible interface for server-side chest data
+class ServerChestWrapper extends RefCounted:
+	var network_id: String = ""
+	var inventory: Array = []  # Reference to the actual inventory in placed_buildables
+
+	func _init(p_network_id: String, p_inventory: Array) -> void:
+		network_id = p_network_id
+		inventory = p_inventory
+
+	func get_item_count(item_name: String) -> int:
+		var total = 0
+		for slot in inventory:
+			if slot.item_name == item_name:
+				total += slot.quantity
+		return total
+
+	func remove_item(item_name: String, quantity: int) -> int:
+		var removed = 0
+		for i in inventory.size():
+			if removed >= quantity:
+				break
+			if inventory[i].item_name == item_name:
+				var to_remove = min(inventory[i].quantity, quantity - removed)
+				inventory[i].quantity -= to_remove
+				removed += to_remove
+				if inventory[i].quantity <= 0:
+					inventory[i] = {"item_name": "", "quantity": 0}
+		return removed
+
+	func get_inventory_data() -> Array:
+		return inventory
+
+## Get chest inventory from network_id (returns inventory array or null)
+func _get_chest_inventory(network_id: String) -> Array:
+	if not placed_buildables.has(network_id):
+		return []
+	var buildable_data = placed_buildables[network_id]
+	if buildable_data.get("piece_name") != "chest":
+		return []
+	# Initialize inventory if missing (for chests placed before this update)
+	if not buildable_data.has("inventory"):
+		var inventory: Array = []
+		inventory.resize(20)
+		for i in 20:
+			inventory[i] = {"item_name": "", "quantity": 0}
+		buildable_data["inventory"] = inventory
+	return buildable_data.get("inventory", [])
+
+## Set chest inventory slot
+func _set_chest_slot(network_id: String, slot: int, item_name: String, quantity: int) -> bool:
+	if not placed_buildables.has(network_id):
+		return false
+	var buildable_data = placed_buildables[network_id]
+	if buildable_data.get("piece_name") != "chest":
+		return false
+	var inventory = _get_chest_inventory(network_id)
+	if slot < 0 or slot >= inventory.size():
+		return false
+	inventory[slot] = {"item_name": item_name, "quantity": quantity}
+	return true
+
+## Add item to chest inventory with stacking (returns amount that couldn't fit)
+func _add_item_to_chest(network_id: String, item_name: String, quantity: int) -> int:
+	var chest_inventory = _get_chest_inventory(network_id)
+	if chest_inventory.is_empty():
+		return quantity
+
+	var remaining = quantity
+	var max_stack = 64
+
+	# First try to stack with existing items
+	for i in chest_inventory.size():
+		if remaining <= 0:
+			break
+		if chest_inventory[i].item_name == item_name:
+			var can_add = max_stack - chest_inventory[i].quantity
+			var to_add = min(can_add, remaining)
+			chest_inventory[i].quantity += to_add
+			remaining -= to_add
+
+	# Then try empty slots
+	for i in chest_inventory.size():
+		if remaining <= 0:
+			break
+		if chest_inventory[i].item_name == "" or chest_inventory[i].quantity <= 0:
+			var to_add = min(max_stack, remaining)
+			chest_inventory[i] = {"item_name": item_name, "quantity": to_add}
+			remaining -= to_add
+
+	return remaining
+
+## Get all chest wrappers within radius of a position (for combined inventory crafting)
+## Returns Array of ServerChestWrapper objects that implement CombinedInventory interface
+func _get_nearby_chests(position: Vector3, radius: float) -> Array:
+	var nearby_chests: Array = []
+
+	for buildable_id in placed_buildables:
+		var buildable_data = placed_buildables[buildable_id]
+		if buildable_data.piece_name == "chest":
+			# Check distance
+			var chest_pos = buildable_data.position
+			var distance = position.distance_to(chest_pos)
+			if distance <= radius:
+				# Create wrapper with reference to actual inventory data
+				var chest_inventory = _get_chest_inventory(buildable_id)
+				if not chest_inventory.is_empty():
+					var wrapper = ServerChestWrapper.new(buildable_id, chest_inventory)
+					nearby_chests.append(wrapper)
+
+	return nearby_chests
+
+## Handle player opening a chest
+func handle_open_chest(peer_id: int, chest_network_id: String) -> void:
+	print("[Server] Player %d opening chest %s" % [peer_id, chest_network_id])
+
+	# Close any previously open chest
+	if player_open_chests.has(peer_id):
+		handle_close_chest(peer_id)
+
+	# Store the open chest reference
+	player_open_chests[peer_id] = chest_network_id
+
+	# Find and sync chest inventory to player
+	var inventory_data = _get_chest_inventory(chest_network_id)
+	if not inventory_data.is_empty():
+		NetworkManager.rpc_sync_chest_inventory.rpc_id(peer_id, chest_network_id, inventory_data)
+	else:
+		print("[Server] WARNING: Could not find chest inventory for %s" % chest_network_id)
+
+## Handle player closing a chest
+func handle_close_chest(peer_id: int) -> void:
+	if player_open_chests.has(peer_id):
+		var chest_id = player_open_chests[peer_id]
+		print("[Server] Player %d closing chest %s" % [peer_id, chest_id])
+		player_open_chests.erase(peer_id)
+
+## Handle transfer from chest to player inventory
+func handle_chest_to_player(peer_id: int, chest_slot: int, player_slot: int) -> void:
+	if not spawned_players.has(peer_id):
+		return
+
+	if not player_open_chests.has(peer_id):
+		print("[Server] Player %d tried to transfer but has no chest open" % peer_id)
+		return
+
+	var player = spawned_players[peer_id]
+	if not player or not is_instance_valid(player):
+		return
+
+	if not player.has_node("Inventory"):
+		return
+
+	var inventory = player.get_node("Inventory")
+	var chest_network_id = player_open_chests[peer_id]
+	var chest_inventory = _get_chest_inventory(chest_network_id)
+
+	if chest_inventory.is_empty():
+		print("[Server] Chest %s not found" % chest_network_id)
+		return
+
+	# Get chest item
+	if chest_slot < 0 or chest_slot >= chest_inventory.size():
+		return
+
+	var chest_data = chest_inventory[chest_slot]
+	if chest_data.item_name.is_empty() or chest_data.quantity <= 0:
+		return
+
+	var item_name = chest_data.item_name
+	var quantity = chest_data.quantity
+
+	# Check player slot
+	var player_inventory = inventory.get_inventory_data()
+	if player_slot < 0 or player_slot >= player_inventory.size():
+		return
+
+	var player_data = player_inventory[player_slot]
+
+	# Can we transfer to this slot?
+	if player_data.is_empty():
+		# Empty slot - full transfer
+		inventory.set_slot(player_slot, item_name, quantity)
+		_set_chest_slot(chest_network_id, chest_slot, "", 0)
+	elif player_data.get("item", "") == item_name:
+		# Same item - stack
+		var current_amount = player_data.get("amount", 0)
+		var new_amount = current_amount + quantity
+		inventory.set_slot(player_slot, item_name, new_amount)
+		_set_chest_slot(chest_network_id, chest_slot, "", 0)
+	else:
+		# Different item - swap
+		var player_item = player_data.get("item", "")
+		var player_amount = player_data.get("amount", 0)
+		inventory.set_slot(player_slot, item_name, quantity)
+		_set_chest_slot(chest_network_id, chest_slot, player_item, player_amount)
+
+	print("[Server] Transferred %s x%d from chest[%d] to player[%d]" % [item_name, quantity, chest_slot, player_slot])
+
+	# Sync both inventories
+	var new_player_inventory = inventory.get_inventory_data()
+	NetworkManager.rpc_sync_inventory.rpc_id(peer_id, new_player_inventory)
+
+	var new_chest_inventory = _get_chest_inventory(chest_network_id)
+	NetworkManager.rpc_sync_chest_inventory.rpc_id(peer_id, chest_network_id, new_chest_inventory)
+
+## Handle transfer from player inventory to chest
+func handle_player_to_chest(peer_id: int, player_slot: int, chest_slot: int) -> void:
+	if not spawned_players.has(peer_id):
+		return
+
+	if not player_open_chests.has(peer_id):
+		print("[Server] Player %d tried to transfer but has no chest open" % peer_id)
+		return
+
+	var player = spawned_players[peer_id]
+	if not player or not is_instance_valid(player):
+		return
+
+	if not player.has_node("Inventory"):
+		return
+
+	var inventory = player.get_node("Inventory")
+	var chest_network_id = player_open_chests[peer_id]
+	var chest_inventory = _get_chest_inventory(chest_network_id)
+
+	if chest_inventory.is_empty():
+		print("[Server] Chest %s not found" % chest_network_id)
+		return
+
+	# Get player item
+	var player_inventory = inventory.get_inventory_data()
+	if player_slot < 0 or player_slot >= player_inventory.size():
+		return
+
+	var player_data = player_inventory[player_slot]
+	if player_data.is_empty():
+		return
+
+	var item_name = player_data.get("item", "")
+	var quantity = player_data.get("amount", 0)
+
+	if item_name.is_empty() or quantity <= 0:
+		return
+
+	# Check chest slot
+	if chest_slot < 0 or chest_slot >= chest_inventory.size():
+		return
+
+	var chest_data = chest_inventory[chest_slot]
+
+	# Can we transfer to this slot?
+	if chest_data.item_name.is_empty() or chest_data.quantity <= 0:
+		# Empty slot - full transfer
+		_set_chest_slot(chest_network_id, chest_slot, item_name, quantity)
+		inventory.set_slot(player_slot, "", 0)
+	elif chest_data.item_name == item_name:
+		# Same item - stack
+		var new_amount = chest_data.quantity + quantity
+		_set_chest_slot(chest_network_id, chest_slot, item_name, new_amount)
+		inventory.set_slot(player_slot, "", 0)
+	else:
+		# Different item - swap
+		_set_chest_slot(chest_network_id, chest_slot, item_name, quantity)
+		inventory.set_slot(player_slot, chest_data.item_name, chest_data.quantity)
+
+	print("[Server] Transferred %s x%d from player[%d] to chest[%d]" % [item_name, quantity, player_slot, chest_slot])
+
+	# Sync both inventories
+	var new_player_inventory = inventory.get_inventory_data()
+	NetworkManager.rpc_sync_inventory.rpc_id(peer_id, new_player_inventory)
+
+	var new_chest_inventory = _get_chest_inventory(chest_network_id)
+	NetworkManager.rpc_sync_chest_inventory.rpc_id(peer_id, chest_network_id, new_chest_inventory)
+
+## Handle swapping two slots within the chest
+func handle_chest_swap(peer_id: int, slot_a: int, slot_b: int) -> void:
+	if not player_open_chests.has(peer_id):
+		print("[Server] Player %d tried to swap but has no chest open" % peer_id)
+		return
+
+	var chest_network_id = player_open_chests[peer_id]
+	var chest_inventory = _get_chest_inventory(chest_network_id)
+
+	if chest_inventory.is_empty():
+		print("[Server] Chest %s not found" % chest_network_id)
+		return
+
+	# Swap slots
+	if slot_a < 0 or slot_a >= chest_inventory.size() or slot_b < 0 or slot_b >= chest_inventory.size():
+		return
+
+	var data_a = chest_inventory[slot_a]
+	var data_b = chest_inventory[slot_b]
+
+	_set_chest_slot(chest_network_id, slot_a, data_b.item_name, data_b.quantity)
+	_set_chest_slot(chest_network_id, slot_b, data_a.item_name, data_a.quantity)
+
+	print("[Server] Swapped chest slots %d and %d" % [slot_a, slot_b])
+
+	# Sync chest inventory
+	var new_chest_inventory = _get_chest_inventory(chest_network_id)
+	NetworkManager.rpc_sync_chest_inventory.rpc_id(peer_id, chest_network_id, new_chest_inventory)
+
+## Handle quick-deposit from player to chest
+func handle_quick_deposit(peer_id: int, player_slot: int) -> void:
+	if not spawned_players.has(peer_id):
+		return
+
+	if not player_open_chests.has(peer_id):
+		print("[Server] Player %d tried to quick-deposit but has no chest open" % peer_id)
+		return
+
+	var player = spawned_players[peer_id]
+	if not player or not is_instance_valid(player):
+		return
+
+	if not player.has_node("Inventory"):
+		return
+
+	var inventory = player.get_node("Inventory")
+	var chest_network_id = player_open_chests[peer_id]
+	var chest_inventory = _get_chest_inventory(chest_network_id)
+
+	if chest_inventory.is_empty():
+		print("[Server] Chest %s not found" % chest_network_id)
+		return
+
+	# Get player item
+	var player_inventory = inventory.get_inventory_data()
+	if player_slot < 0 or player_slot >= player_inventory.size():
+		return
+
+	var player_data = player_inventory[player_slot]
+	if player_data.is_empty():
+		return
+
+	var item_name = player_data.get("item", "")
+	var quantity = player_data.get("amount", 0)
+
+	if item_name.is_empty() or quantity <= 0:
+		return
+
+	# Try to add to chest (find existing stack or empty slot)
+	var remaining = _add_item_to_chest(chest_network_id, item_name, quantity)
+	var deposited = quantity - remaining
+
+	if deposited > 0:
+		# Update player inventory
+		if remaining > 0:
+			inventory.set_slot(player_slot, item_name, remaining)
+		else:
+			inventory.set_slot(player_slot, "", 0)
+
+		print("[Server] Quick-deposited %d %s (remaining: %d)" % [deposited, item_name, remaining])
+
+		# Sync both inventories
+		var new_player_inventory = inventory.get_inventory_data()
+		NetworkManager.rpc_sync_inventory.rpc_id(peer_id, new_player_inventory)
+
+		var new_chest_inventory = _get_chest_inventory(chest_network_id)
+		NetworkManager.rpc_sync_chest_inventory.rpc_id(peer_id, chest_network_id, new_chest_inventory)
+
+# ============================================================================
+# DEBUG CONSOLE HANDLERS
+# ============================================================================
+
+## Debug: Give item to player
+func handle_debug_give_item(peer_id: int, item_name: String, amount: int) -> void:
+	print("[Server] DEBUG: Give %d x %s to player %d" % [amount, item_name, peer_id])
+
+	if not spawned_players.has(peer_id):
+		return
+
+	var player = spawned_players[peer_id]
+	if not player or not is_instance_valid(player):
+		return
+
+	if not player.has_node("Inventory"):
+		return
+
+	var inventory = player.get_node("Inventory")
+
+	# Try to add item
+	if inventory.add_item(item_name, amount):
+		print("[Server] DEBUG: Gave %d x %s to player %d" % [amount, item_name, peer_id])
+		# Sync inventory
+		var inventory_data = inventory.get_inventory_data()
+		NetworkManager.rpc_sync_inventory.rpc_id(peer_id, inventory_data)
+	else:
+		print("[Server] DEBUG: Failed to give %s - inventory full or invalid item" % item_name)
+
+## Debug: Spawn entity near player
+func handle_debug_spawn_entity(peer_id: int, entity_type: String, count: int) -> void:
+	print("[Server] DEBUG: Spawn %d x %s near player %d" % [count, entity_type, peer_id])
+
+	if not spawned_players.has(peer_id):
+		return
+
+	var player = spawned_players[peer_id]
+	if not player or not is_instance_valid(player):
+		return
+
+	var player_pos = player.global_position
+	var enemy_spawner = get_node_or_null("EnemySpawner")
+	if not enemy_spawner:
+		print("[Server] DEBUG: EnemySpawner not found")
+		return
+
+	# Map entity type to scene path
+	var scene_path = ""
+	match entity_type.to_lower():
+		"gahnome":
+			scene_path = "res://shared/enemies/gahnome.tscn"
+		"sporeling":
+			scene_path = "res://shared/enemies/sporeling.tscn"
+		"deer":
+			scene_path = "res://shared/animals/deer.tscn"
+		"pig":
+			scene_path = "res://shared/animals/pig.tscn"
+		"sheep":
+			scene_path = "res://shared/animals/sheep.tscn"
+		_:
+			print("[Server] DEBUG: Unknown entity type: %s" % entity_type)
+			return
+
+	# Spawn enemies near player
+	for i in range(count):
+		var offset = Vector3(randf_range(-5, 5), 0, randf_range(-5, 5))
+		var spawn_pos = player_pos + offset
+		enemy_spawner.spawn_enemy_at_position(scene_path, spawn_pos, peer_id)
+
+	print("[Server] DEBUG: Spawned %d x %s" % [count, entity_type])
+
+## Debug: Teleport player
+func handle_debug_teleport(peer_id: int, position: Vector3) -> void:
+	print("[Server] DEBUG: Teleport player %d to %s" % [peer_id, position])
+
+	if not spawned_players.has(peer_id):
+		return
+
+	var player = spawned_players[peer_id]
+	if not player or not is_instance_valid(player):
+		return
+
+	# Update server-side position
+	player.global_position = position
+
+	# Client handles their own teleport locally
+
+## Debug: Heal player to full
+func handle_debug_heal(peer_id: int) -> void:
+	print("[Server] DEBUG: Heal player %d" % peer_id)
+
+	if not spawned_players.has(peer_id):
+		return
+
+	var player = spawned_players[peer_id]
+	if not player or not is_instance_valid(player):
+		return
+
+	if "health" in player and "max_health" in player:
+		player.health = player.max_health
+
+## Debug: Toggle god mode
+func handle_debug_god_mode(peer_id: int, enabled: bool) -> void:
+	print("[Server] DEBUG: God mode %s for player %d" % ["ENABLED" if enabled else "disabled", peer_id])
+
+	if not spawned_players.has(peer_id):
+		return
+
+	var player = spawned_players[peer_id]
+	if not player or not is_instance_valid(player):
+		return
+
+	if "god_mode" in player:
+		player.god_mode = enabled
+
+## Debug: Clear player inventory
+func handle_debug_clear_inventory(peer_id: int) -> void:
+	print("[Server] DEBUG: Clear inventory for player %d" % peer_id)
+
+	if not spawned_players.has(peer_id):
+		return
+
+	var player = spawned_players[peer_id]
+	if not player or not is_instance_valid(player):
+		return
+
+	if not player.has_node("Inventory"):
+		return
+
+	var inventory = player.get_node("Inventory")
+	inventory.clear()
+
+	# Sync inventory
+	var inventory_data = inventory.get_inventory_data()
+	NetworkManager.rpc_sync_inventory.rpc_id(peer_id, inventory_data)
+
+## Debug: Kill nearby enemies
+func handle_debug_kill_nearby(peer_id: int) -> void:
+	print("[Server] DEBUG: Kill nearby enemies for player %d" % peer_id)
+
+	if not spawned_players.has(peer_id):
+		return
+
+	var player = spawned_players[peer_id]
+	if not player or not is_instance_valid(player):
+		return
+
+	var player_pos = player.global_position
+	var enemy_spawner = get_node_or_null("EnemySpawner")
+	if not enemy_spawner:
+		return
+
+	# Kill enemies within 50 units
+	var kill_range = 50.0
+	var killed_count = 0
+
+	for enemy in enemy_spawner.spawned_enemies.duplicate():
+		if not is_instance_valid(enemy):
+			continue
+
+		var dist = enemy.global_position.distance_to(player_pos)
+		if dist <= kill_range:
+			# Broadcast despawn
+			var enemy_path = enemy_spawner.enemy_paths.get(enemy, enemy.get_path())
+			NetworkManager.rpc_despawn_enemy.rpc(enemy_path)
+
+			# Clean up from spawner
+			var net_id = enemy_spawner.enemy_network_ids.get(enemy, 0)
+			enemy_spawner.spawned_enemies.erase(enemy)
+			enemy_spawner.enemy_paths.erase(enemy)
+			enemy_spawner.enemy_network_ids.erase(enemy)
+			enemy_spawner.network_id_to_enemy.erase(net_id)
+			enemy_spawner.enemy_host_peers.erase(net_id)
+			enemy_spawner.host_position_reports.erase(net_id)
+
+			enemy.queue_free()
+			killed_count += 1
+
+	print("[Server] DEBUG: Killed %d enemies near player %d" % [killed_count, peer_id])

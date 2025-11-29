@@ -15,6 +15,7 @@ var sounds := {
 	"enemy_death": "res://audio/generated/enemy_death.wav",
 	"player_hurt": "res://audio/generated/player_hurt.wav",
 	"magic_cast": "res://audio/generated/magic_cast.wav",
+	"fire_cast": "res://audio/generated/fire_cast.wav",
 	"magic_hit": "res://audio/generated/magic_hit.wav",
 	"punch_hit": "res://audio/generated/punch_hit.wav",
 	"punch_swing": "res://audio/generated/punch_swing.wav",

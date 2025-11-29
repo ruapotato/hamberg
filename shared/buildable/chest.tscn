@@ -1,0 +1,37 @@
+[gd_scene load_steps=6 format=3 uid="uid://chest_storage_001"]
+
+[ext_resource type="Script" path="res://shared/buildable/chest.gd" id="1_chest"]
+
+[sub_resource type="BoxMesh" id="chest_body_mesh"]
+size = Vector3(1.0, 0.6, 0.6)
+
+[sub_resource type="BoxMesh" id="chest_lid_mesh"]
+size = Vector3(1.0, 0.15, 0.6)
+
+[sub_resource type="StandardMaterial3D" id="chest_wood_mat"]
+albedo_color = Color(0.5, 0.35, 0.2, 1)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_chest"]
+size = Vector3(1.0, 0.75, 0.6)
+
+[node name="Chest" type="StaticBody3D"]
+collision_layer = 1
+collision_mask = 0
+script = ExtResource("1_chest")
+object_name = "chest"
+is_storage = true
+storage_slots = 20
+
+[node name="ChestBody" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.3, 0)
+mesh = SubResource("chest_body_mesh")
+surface_material_override/0 = SubResource("chest_wood_mat")
+
+[node name="ChestLid" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.675, 0)
+mesh = SubResource("chest_lid_mesh")
+surface_material_override/0 = SubResource("chest_wood_mat")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.375, 0)
+shape = SubResource("BoxShape3D_chest")

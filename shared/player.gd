@@ -304,6 +304,21 @@ func _process(delta: float) -> void:
 
 func _gather_input() -> Dictionary:
 	"""Gather input from the player"""
+	# Don't process movement input if a text input has focus (e.g., debug console)
+	var focused_control = get_viewport().gui_get_focus_owner()
+	if focused_control and (focused_control is LineEdit or focused_control is TextEdit):
+		return {
+			"move_x": 0.0,
+			"move_z": 0.0,
+			"sprint": false,
+			"jump": false,
+			"attack": false,
+			"secondary_action": false,
+			"special_attack": false,
+			"middle_mouse": false,
+			"camera_basis": _get_camera_basis()
+		}
+
 	var input_dir := Input.get_vector("move_left", "move_right", "move_forward", "move_backward")
 	var is_sprinting := Input.is_action_pressed("sprint")
 
@@ -692,9 +707,12 @@ func _handle_attack() -> void:
 	is_attacking = true
 	attack_timer = 0.0
 
-	# Play attack sound based on weapon (punch swing for unarmed, sword swing for weapons)
+	# Play attack sound based on weapon type
 	if equipped_weapon_visual:
-		SoundManager.play_sound_varied("sword_swing", global_position)
+		if weapon_data.weapon_type == WeaponData.WeaponType.MAGIC:
+			SoundManager.play_sound_varied("fire_cast", global_position)
+		else:
+			SoundManager.play_sound_varied("sword_swing", global_position)
 	else:
 		SoundManager.play_sound_varied("punch_swing", global_position)
 
@@ -724,7 +742,7 @@ func _handle_attack() -> void:
 
 		# Get attack direction from camera
 		var viewport_size := get_viewport().get_visible_rect().size
-		var crosshair_offset := Vector2(-21.0, -50.0)
+		var crosshair_offset := Vector2(-41.0, -50.0)
 		var crosshair_pos := viewport_size / 2 + crosshair_offset
 		var ray_origin := camera.project_ray_origin(crosshair_pos)
 		var ray_direction := camera.project_ray_normal(crosshair_pos)
@@ -965,6 +983,10 @@ func _special_attack_default(weapon_data: WeaponData, camera: Camera3D) -> void:
 
 	print("[Player] Special attack!")
 
+	# Play sound effect for magic weapons
+	if is_magic_weapon:
+		SoundManager.play_sound_varied("fire_cast", global_position)
+
 	# Trigger special attack animation
 	is_special_attacking = true
 	special_attack_timer = 0.0
@@ -986,7 +1008,7 @@ func _special_attack_default(weapon_data: WeaponData, camera: Camera3D) -> void:
 ## Helper: Perform melee raycast attack (extracted from _handle_attack)
 func _perform_melee_attack(camera: Camera3D, attack_range: float, damage: float, knockback: float) -> void:
 	var viewport_size := get_viewport().get_visible_rect().size
-	var crosshair_offset := Vector2(-21.0, -50.0)
+	var crosshair_offset := Vector2(-41.0, -50.0)
 	var crosshair_pos := viewport_size / 2 + crosshair_offset
 	var ray_origin := camera.project_ray_origin(crosshair_pos)
 	var ray_direction := camera.project_ray_normal(crosshair_pos)
@@ -1064,7 +1086,7 @@ func _spawn_projectile(weapon_data: WeaponData, camera: Camera3D) -> void:
 
 	# Calculate target position from crosshair
 	var viewport_size := get_viewport().get_visible_rect().size
-	var crosshair_offset := Vector2(-21.0, -50.0)
+	var crosshair_offset := Vector2(-41.0, -50.0)
 	var crosshair_pos := viewport_size / 2 + crosshair_offset
 	var ray_origin := camera.project_ray_origin(crosshair_pos)
 	var ray_direction := camera.project_ray_normal(crosshair_pos)
