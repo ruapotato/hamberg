@@ -83,6 +83,10 @@ var is_lunging: bool = false  # Track if player is performing a lunge attack
 var lunge_direction: Vector3 = Vector3.ZERO  # Direction of lunge for maintaining momentum
 const LUNGE_FORWARD_FORCE: float = 15.0  # Continuous forward force during lunge
 var was_in_air_lunging: bool = false  # Track if we were in air during lunge (for landing detection)
+var lunge_damage: float = 0.0  # Stored damage for continuous lunge hits
+var lunge_knockback: float = 0.0  # Stored knockback for continuous lunge hits
+var lunge_hit_enemies: Array = []  # Enemies already hit during this lunge (prevents double damage)
+const LUNGE_HIT_RADIUS: float = 1.5  # Radius around player to detect enemy collisions during lunge
 
 # Block/Parry system
 var is_blocking: bool = false
@@ -423,6 +427,7 @@ func _apply_movement(input_data: Dictionary, delta: float) -> void:
 			is_lunging = false
 			was_in_air_lunging = false
 			lunge_direction = Vector3.ZERO
+			lunge_hit_enemies.clear()  # Reset hit tracking
 			velocity.x = 0.0
 			velocity.z = 0.0
 			# Reset weapon rotation
@@ -470,6 +475,10 @@ func _apply_movement(input_data: Dictionary, delta: float) -> void:
 			print("[Player] Lunge entered air! was_in_air_lunging now TRUE")
 		was_in_air_lunging = true
 
+	# CONTINUOUS LUNGE DAMAGE - Check for enemies near player during lunge arc
+	if is_lunging and is_local_player:
+		_check_lunge_collision()
+
 	# Detect landing: were in air lunging, now on floor
 	if is_lunging and was_in_air_lunging and is_on_floor():
 		# LANDED! End lunge immediately
@@ -478,6 +487,7 @@ func _apply_movement(input_data: Dictionary, delta: float) -> void:
 		is_lunging = false
 		was_in_air_lunging = false
 		lunge_direction = Vector3.ZERO
+		lunge_hit_enemies.clear()  # Reset hit tracking
 
 		# STOP all momentum immediately to prevent sliding
 		velocity.x = 0.0
@@ -868,6 +878,11 @@ func _special_attack_knife_lunge(weapon_data: WeaponData, camera: Camera3D) -> v
 	# Store lunge direction for continuous momentum
 	lunge_direction = horizontal_direction
 
+	# Store damage values for continuous hit detection during lunge
+	lunge_damage = damage
+	lunge_knockback = knockback
+	lunge_hit_enemies.clear()  # Reset hit tracking for new lunge
+
 	# Moderate forward leap with upward component (arcs down harder)
 	velocity = horizontal_direction * 5.0  # Reduced forward momentum for tighter control
 	velocity.y = 9.0  # Reduced upward component for shorter, tighter arc
@@ -895,8 +910,7 @@ func _special_attack_knife_lunge(weapon_data: WeaponData, camera: Camera3D) -> v
 	if equipped_weapon_visual:
 		equipped_weapon_visual.rotation_degrees = Vector3(0, 0, 0)  # Straight angle for lunge
 
-	# Perform melee raycast attack
-	_perform_melee_attack(camera, attack_range, damage, knockback)
+	# NOTE: No initial _perform_melee_attack call - continuous detection handles damage throughout the arc
 
 ## Sword special: Stab forward (piercing jab attack - longer and slower than third swipe)
 func _special_attack_sword_stab(weapon_data: WeaponData, camera: Camera3D) -> void:
@@ -1062,6 +1076,36 @@ func _deal_area_damage(center: Vector3, radius: float, damage: float) -> void:
 				_send_enemy_damage_request(enemy_network_id, damage, 2.0, direction)
 			else:
 				print("[Player] Area damage hit enemy %s but it has no network_id!" % enemy.name)
+
+## Helper: Check for enemy collisions during lunge (called every physics frame while lunging)
+func _check_lunge_collision() -> void:
+	if lunge_damage <= 0:
+		return  # No damage set, skip
+
+	# Get all enemies in the scene
+	var enemies = get_tree().get_nodes_in_group("enemies")
+	for enemy in enemies:
+		if not is_instance_valid(enemy):
+			continue
+
+		# Skip if we already hit this enemy during this lunge
+		var enemy_id = enemy.get_instance_id()
+		if enemy_id in lunge_hit_enemies:
+			continue
+
+		# Check if enemy is within lunge hit radius of player
+		var distance = enemy.global_position.distance_to(global_position)
+		if distance <= LUNGE_HIT_RADIUS:
+			# HIT! Add to hit list and deal damage
+			lunge_hit_enemies.append(enemy_id)
+
+			var direction = lunge_direction if lunge_direction != Vector3.ZERO else (enemy.global_position - global_position).normalized()
+			var enemy_network_id = enemy.network_id if "network_id" in enemy else 0
+			if enemy_network_id > 0:
+				print("[Player] LUNGE HIT %s (net_id=%d) at distance %.1fm! (%.1f damage)" % [enemy.name, enemy_network_id, distance, lunge_damage])
+				_send_enemy_damage_request(enemy_network_id, lunge_damage, lunge_knockback, direction)
+			else:
+				print("[Player] Lunge hit enemy %s but it has no network_id!" % enemy.name)
 
 ## Spawn a projectile for ranged weapons
 func _spawn_projectile(weapon_data: WeaponData, camera: Camera3D) -> void:
@@ -1677,8 +1721,8 @@ func _update_body_animations(delta: float) -> void:
 		if body_container:
 			body_container.rotation.x = lerp(body_container.rotation.x, 0.0, delta * 10.0)
 
-		# Don't process other movement animations while in air
-		return
+		# NOTE: Don't return here - allow attack animations to process below
+		# The right_arm is already skipped above if attacking, so attack animations will handle it
 
 	# Lunge crouch animation overrides everything (ball shape for dramatic leap)
 	if is_lunging and body_container:
@@ -1707,8 +1751,10 @@ func _update_body_animations(delta: float) -> void:
 				right_knee.rotation.x = lerp(right_knee.rotation.x, 1.2, delta * 20.0)  # Bend knee tightly
 		return  # Skip other animations while lunging
 
-	# Reset body container scale and rotation when not lunging
-	if body_container and not is_lunging and not is_stunned:
+	# Reset body container scale and rotation when not lunging, not in air
+	# Don't reset when jumping/falling - preserve the falling pose
+	var in_air = (is_jumping or is_falling) and not is_on_floor()
+	if body_container and not is_lunging and not is_stunned and not in_air:
 		body_container.rotation.x = lerp(body_container.rotation.x, 0.0, delta * 10.0)
 		body_container.scale.y = lerp(body_container.scale.y, 1.0, delta * 10.0)
 
