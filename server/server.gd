@@ -2162,3 +2162,17 @@ func handle_debug_kill_nearby(peer_id: int) -> void:
 			killed_count += 1
 
 	print("[Server] DEBUG: Killed %d enemies near player %d" % [killed_count, peer_id])
+
+# ============================================================================
+# GRAPHICS SETTINGS
+# ============================================================================
+
+## Handle client setting their object render distance
+func handle_set_object_distance(peer_id: int, distance: int) -> void:
+	# Clamp distance to valid range (2-10)
+	distance = clampi(distance, 2, 10)
+	print("[Server] Player %d set object distance to %d" % [peer_id, distance])
+
+	# Pass to chunk manager
+	if terrain_world and terrain_world.chunk_manager:
+		terrain_world.chunk_manager.set_player_load_radius(peer_id, distance)

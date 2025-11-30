@@ -1102,3 +1102,18 @@ func rpc_debug_kill_nearby() -> void:
 	var server_node := get_node_or_null("/root/Main/Server")
 	if server_node and server_node.has_method("handle_debug_kill_nearby"):
 		server_node.handle_debug_kill_nearby(peer_id)
+
+# ============================================================================
+# GRAPHICS SETTINGS
+# ============================================================================
+
+## CLIENT -> SERVER: Set player's preferred object render distance
+## Server uses this to determine which chunks to load/send for this player
+@rpc("any_peer", "call_remote", "reliable")
+func rpc_set_object_distance(distance: int) -> void:
+	if not is_server:
+		return
+	var peer_id := multiplayer.get_remote_sender_id()
+	var server_node := get_node_or_null("/root/Main/Server")
+	if server_node and server_node.has_method("handle_set_object_distance"):
+		server_node.handle_set_object_distance(peer_id, distance)

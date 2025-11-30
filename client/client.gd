@@ -1056,8 +1056,25 @@ func receive_world_config(world_data: Dictionary) -> void:
 	else:
 		push_error("[Client] TerrainWorld not found!")
 
+	# Send our preferred object render distance to the server
+	_send_graphics_settings_to_server()
+
 	# Mark loading step complete
 	_mark_loading_step_complete("world_config")
+
+## Send graphics settings to server so it uses our preferred render distances
+func _send_graphics_settings_to_server() -> void:
+	# Load settings from config
+	var config = ConfigFile.new()
+	var err = config.load("user://graphics_settings.cfg")
+	if err != OK:
+		# No saved settings, use default
+		print("[Client] No graphics settings saved, using default object distance")
+		return
+
+	var objects_dist = config.get_value("graphics", "objects_distance", 4)
+	print("[Client] Sending object distance preference to server: %d" % objects_dist)
+	NetworkManager.rpc_set_object_distance.rpc_id(1, objects_dist)
 
 func _initialize_map_system() -> void:
 	"""Initialize map and mini-map with BiomeGenerator"""

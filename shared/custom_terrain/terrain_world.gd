@@ -85,7 +85,25 @@ func _ready() -> void:
 			break
 		parent = parent.get_parent()
 
-	print("[TerrainWorld] Running as %s" % ("SERVER" if is_server else "CLIENT"))
+	# Load graphics settings from user config
+	_load_graphics_settings()
+
+	print("[TerrainWorld] Running as %s (view_distance=%d)" % ["SERVER" if is_server else "CLIENT", view_distance])
+
+## Load graphics settings from user config file
+func _load_graphics_settings() -> void:
+	var config = ConfigFile.new()
+	var err = config.load("user://graphics_settings.cfg")
+	if err != OK:
+		return  # No saved settings, use defaults
+
+	var terrain_dist = config.get_value("graphics", "terrain_distance", 12)
+	var objects_dist = config.get_value("graphics", "objects_distance", 4)
+
+	view_distance = terrain_dist
+	# Object distance will be applied in _setup_chunk_manager
+	set_meta("objects_distance", objects_dist)
+	print("[TerrainWorld] Loaded graphics settings: terrain=%d, objects=%d" % [terrain_dist, objects_dist])
 
 ## Initialize world with seed and name
 func initialize_world(config_seed: int, config_world_name: String) -> void:
@@ -229,9 +247,12 @@ func _setup_chunk_manager() -> void:
 	chunk_manager = ChunkManagerScript.new()
 	chunk_manager.name = "ChunkManager"
 	chunk_manager.chunk_size = 32.0
-	chunk_manager.load_radius = 8
+	# Use saved object distance or default to 4
+	var objects_dist = get_meta("objects_distance", 4) if has_meta("objects_distance") else 4
+	chunk_manager.load_radius = objects_dist
 	chunk_manager.update_interval = 2.0
 	add_child(chunk_manager)
+	print("[TerrainWorld] ChunkManager load_radius set to: %d" % objects_dist)
 
 	# Pass self as the terrain provider
 	chunk_manager.initialize(self)

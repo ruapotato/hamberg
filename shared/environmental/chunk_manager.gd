@@ -7,7 +7,7 @@ signal chunk_loaded(chunk_pos: Vector2i)
 signal chunk_unloaded(chunk_pos: Vector2i)
 
 @export var chunk_size: float = 32.0  ## Size of each chunk in world units
-@export var load_radius: int = 4  ## How many chunks to load around players
+@export var load_radius: int = 4  ## Default chunks to load around players (used if player hasn't set preference)
 @export var update_interval: float = 1.0  ## How often to update chunks (seconds)
 
 # Component references
@@ -18,6 +18,7 @@ var voxel_world: Node3D
 # Chunk tracking - now stores MultimeshChunk instead of Array
 var loaded_chunks: Dictionary = {}  # Vector2i -> MultimeshChunk
 var player_chunk_positions: Dictionary = {}  # int (peer_id) -> Vector2i
+var player_load_radii: Dictionary = {}  # int (peer_id) -> int (per-player render distance)
 var modified_chunks: Dictionary = {}  # Vector2i -> bool (tracks which chunks have been edited)
 
 # Update timer
@@ -85,7 +86,17 @@ func register_player(peer_id: int, player_node: Node3D) -> void:
 ## Unregister a player (when they disconnect)
 func unregister_player(peer_id: int) -> void:
 	player_chunk_positions.erase(peer_id)
+	player_load_radii.erase(peer_id)
 	print("[ChunkManager] Unregistered player %d" % peer_id)
+
+## Set a player's preferred object render distance
+func set_player_load_radius(peer_id: int, radius: int) -> void:
+	player_load_radii[peer_id] = radius
+	print("[ChunkManager] Set player %d load radius to %d" % [peer_id, radius])
+
+## Get a player's load radius (or default if not set)
+func get_player_load_radius(peer_id: int) -> int:
+	return player_load_radii.get(peer_id, load_radius)
 
 ## Update player position
 func update_player_position(peer_id: int, position: Vector3) -> void:
@@ -102,10 +113,11 @@ func _update_chunks() -> void:
 
 	for peer_id in player_chunk_positions:
 		var player_chunk: Vector2i = player_chunk_positions[peer_id]
+		var player_radius: int = get_player_load_radius(peer_id)
 
-		# Load chunks in radius around player
-		for x in range(-load_radius, load_radius + 1):
-			for z in range(-load_radius, load_radius + 1):
+		# Load chunks in radius around player (using their personal setting)
+		for x in range(-player_radius, player_radius + 1):
+			for z in range(-player_radius, player_radius + 1):
 				var chunk_pos := Vector2i(player_chunk.x + x, player_chunk.y + z)
 				required_chunks[chunk_pos] = true
 
