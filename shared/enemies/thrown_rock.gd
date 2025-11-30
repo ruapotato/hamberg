@@ -20,7 +20,7 @@ var rock_mesh: MeshInstance3D = null
 func _ready() -> void:
 	# Set up collision
 	collision_layer = 0  # Doesn't block anything
-	collision_mask = 2  # Only detect players (layer 2)
+	collision_mask = 1 | 2  # Detect world (buildings/terrain) AND players
 
 	# Create visual rock mesh
 	_create_rock_mesh()
@@ -88,6 +88,12 @@ func _on_body_entered(body: Node3D) -> void:
 
 	# Don't hit other enemies
 	if body.is_in_group("enemies"):
+		return
+
+	# Hit a wall/building/terrain - just destroy the rock
+	if body.collision_layer & 1:  # World layer
+		print("[ThrownRock] Hit wall/building")
+		queue_free()
 		return
 
 	# Hit a player!

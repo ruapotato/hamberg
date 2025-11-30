@@ -634,6 +634,11 @@ func _do_melee_attack() -> void:
 	if dist > attack_range * 1.5:
 		return  # Too far
 
+	# Check if there's a wall between us and the player
+	if _is_wall_blocking(local_player):
+		print("[Enemy] Attack blocked by wall!")
+		return
+
 	# Apply damage to local player
 	var knockback_dir = (local_player.global_position - global_position).normalized()
 	var damage = weapon_data.damage
@@ -655,6 +660,11 @@ func _check_local_melee_damage() -> void:
 	var dist = global_position.distance_to(local_player.global_position)
 	if dist > attack_range * 1.5:
 		return  # Too far
+
+	# Check if there's a wall between us and the player
+	if _is_wall_blocking(local_player):
+		print("[Enemy] (non-host) Attack blocked by wall!")
+		return
 
 	# Apply damage to local player
 	var knockback_dir = (local_player.global_position - global_position).normalized()
@@ -697,6 +707,27 @@ func _get_local_player() -> CharacterBody3D:
 	if world:
 		return world.get_node_or_null(player_name)
 	return null
+
+## Check if there's a wall/building blocking line of sight to target
+func _is_wall_blocking(target: Node3D) -> bool:
+	var space_state = get_world_3d().direct_space_state
+	if not space_state:
+		return false
+
+	# Raycast from enemy chest height to player chest height
+	var from = global_position + Vector3(0, 0.8, 0)
+	var to = target.global_position + Vector3(0, 1.0, 0)
+
+	var query = PhysicsRayQueryParameters3D.create(from, to)
+	query.collision_mask = 1  # World layer only (buildings/terrain)
+	query.exclude = [self]  # Don't hit ourselves
+
+	var result = space_state.intersect_ray(query)
+	if result and result.collider != target:
+		# Hit something that's not the target - it's a wall!
+		return true
+
+	return false
 
 # ============================================================================
 # DAMAGE AND DEATH
