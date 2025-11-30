@@ -1648,7 +1648,8 @@ func handle_drop_item_request(peer_id: int, slot: int, amount: int) -> void:
 	NetworkManager.rpc_sync_inventory.rpc_id(peer_id, inventory_data)
 
 ## Handle enemy damage request (client-authoritative hits using network_id)
-func handle_enemy_damage(peer_id: int, enemy_network_id: int, damage: float, knockback: float, direction: Vector3) -> void:
+## damage_type: WeaponData.DamageType enum (-1 = unspecified)
+func handle_enemy_damage(peer_id: int, enemy_network_id: int, damage: float, knockback: float, direction: Vector3, damage_type: int = -1) -> void:
 	# Look up enemy by network_id using EnemySpawner's lookup table
 	var enemy_spawner = get_node_or_null("EnemySpawner")
 	if not enemy_spawner:
@@ -1671,16 +1672,16 @@ func handle_enemy_damage(peer_id: int, enemy_network_id: int, damage: float, kno
 			enemy.host_peer_id = peer_id
 		enemy_spawner.enemy_host_peers[enemy_network_id] = peer_id
 
-	print("[Server] Player %d hit enemy %d for %.1f damage (forwarding to host %d)" % [peer_id, enemy_network_id, damage, host_peer_id])
+	print("[Server] Player %d hit enemy %d for %.1f damage type=%d (forwarding to host %d)" % [peer_id, enemy_network_id, damage, damage_type, host_peer_id])
 
-	# Apply damage on server copy (for tracking)
+	# Apply damage on server copy (for tracking) - include damage_type
 	if enemy.has_method("take_damage"):
-		enemy.take_damage(damage, knockback, direction)
+		enemy.take_damage(damage, knockback, direction, damage_type)
 
 	# Forward damage to the HOST client so they can apply it to their authoritative copy
 	if host_peer_id > 0 and spawned_players.has(host_peer_id):
 		var dir_array = [direction.x, direction.y, direction.z]
-		NetworkManager.rpc_apply_enemy_damage.rpc_id(host_peer_id, enemy_network_id, damage, knockback, dir_array)
+		NetworkManager.rpc_apply_enemy_damage.rpc_id(host_peer_id, enemy_network_id, damage, knockback, dir_array, damage_type)
 
 ## Handle enemy death notification from host client (host has already dropped loot)
 func handle_enemy_died(peer_id: int, enemy_network_id: int) -> void:

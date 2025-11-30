@@ -2566,13 +2566,23 @@ func consume_brain_power(amount: float) -> bool:
 		return true
 	return false
 
-## Take damage (with blocking/parry support)
+## Take damage (with blocking/parry support and armor reduction)
 func take_damage(damage: float, attacker_id: int = -1, knockback_dir: Vector3 = Vector3.ZERO) -> void:
 	if is_dead:
 		return
 
 	var final_damage = damage
 	var was_parried = false
+
+	# Apply armor damage reduction FIRST (before blocking)
+	# Each point of armor provides 2.5% damage reduction, capped at 75%
+	if equipment:
+		var total_armor = equipment.get_total_armor()
+		if total_armor > 0:
+			var armor_reduction = min(0.75, total_armor * 0.025)  # 2.5% per armor point, max 75%
+			var reduced_damage = final_damage * (1.0 - armor_reduction)
+			print("[Player] Armor (%.0f) reduced damage: %.1f -> %.1f (%.0f%% reduction)" % [total_armor, final_damage, reduced_damage, armor_reduction * 100])
+			final_damage = reduced_damage
 
 	# Apply stun damage multiplier if stunned
 	if is_stunned:

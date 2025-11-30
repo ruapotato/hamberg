@@ -52,7 +52,7 @@ func _physics_process(delta: float) -> void:
 		if position.distance_to(look_target) > 0.01:
 			look_at(look_target, Vector3.UP)
 
-func setup(start_pos: Vector3, direction: Vector3, speed: float, dmg: float, shooter_id: int) -> void:
+func setup(start_pos: Vector3, direction: Vector3, speed: float, dmg: float, shooter_id: int, dmg_type: int = -1) -> void:
 	"""Initialize the fireball - shoots exactly where player is aiming, gravity pulls it down"""
 	position = start_pos
 
@@ -62,6 +62,7 @@ func setup(start_pos: Vector3, direction: Vector3, speed: float, dmg: float, sho
 	velocity = direction.normalized() * speed * speed_multiplier
 	initial_direction = direction.normalized()
 	damage = dmg
+	damage_type = dmg_type
 	owner_id = shooter_id
 
 	# Initial rotation

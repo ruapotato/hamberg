@@ -6,6 +6,7 @@ class_name Projectile
 
 var velocity: Vector3 = Vector3.ZERO
 var damage: float = 10.0
+var damage_type: int = -1  # WeaponData.DamageType enum, -1 = unspecified
 var owner_id: int = -1  # ID of the player who fired this
 var has_hit: bool = false
 
@@ -25,11 +26,12 @@ func _physics_process(delta: float) -> void:
 	# Move projectile
 	position += velocity * delta
 
-func setup(start_pos: Vector3, direction: Vector3, speed: float, dmg: float, shooter_id: int) -> void:
+func setup(start_pos: Vector3, direction: Vector3, speed: float, dmg: float, shooter_id: int, dmg_type: int = -1) -> void:
 	"""Initialize the projectile with starting parameters"""
 	position = start_pos
 	velocity = direction.normalized() * speed
 	damage = dmg
+	damage_type = dmg_type
 	owner_id = shooter_id
 
 	# Rotate to face direction of travel
@@ -57,9 +59,9 @@ func _on_body_entered(body: Node) -> void:
 		if body.collision_layer & 4:
 			var enemy_network_id = body.network_id if "network_id" in body else 0
 			if enemy_network_id > 0:
-				print("[Projectile] Hit enemy %s (net_id=%d) for %.1f damage" % [body.name, enemy_network_id, damage])
+				print("[Projectile] Hit enemy %s (net_id=%d) for %.1f damage (type=%d)" % [body.name, enemy_network_id, damage, damage_type])
 				var dir_array = [knockback_dir.x, knockback_dir.y, knockback_dir.z]
-				NetworkManager.rpc_damage_enemy.rpc_id(1, enemy_network_id, damage, 5.0, dir_array)
+				NetworkManager.rpc_damage_enemy.rpc_id(1, enemy_network_id, damage, 5.0, dir_array, damage_type)
 			else:
 				print("[Projectile] Hit enemy %s but it has no network_id!" % body.name)
 

@@ -78,6 +78,30 @@ const REPORT_INTERVAL: float = 0.1
 var weapon_data = null
 
 # ============================================================================
+# DAMAGE RESISTANCES/WEAKNESSES
+# Values: < 1.0 = resistance, > 1.0 = weakness, 1.0 = neutral
+# Example: 0.5 = 50% damage, 1.5 = 150% damage
+# ============================================================================
+const WeaponData = preload("res://shared/weapon_data.gd")
+
+# Gahnome resistances - earthy gnome creature
+# Slightly resistant to blunt (tough body), weak to fire (dry/wooden gear)
+@export var damage_resistances: Dictionary = {
+	WeaponData.DamageType.SLASH: 1.0,    # Neutral to slash
+	WeaponData.DamageType.BLUNT: 0.8,    # 20% resistant to blunt (sturdy)
+	WeaponData.DamageType.PIERCE: 1.1,   # 10% weak to pierce
+	WeaponData.DamageType.FIRE: 1.25,    # 25% weak to fire (dry/burnable)
+	WeaponData.DamageType.ICE: 0.9,      # 10% resistant to ice
+	WeaponData.DamageType.POISON: 1.0,   # Neutral to poison
+}
+
+## Get damage multiplier for a damage type
+func get_damage_multiplier(damage_type: int) -> float:
+	if damage_resistances.has(damage_type):
+		return damage_resistances[damage_type]
+	return 1.0  # Neutral if not specified
+
+# ============================================================================
 # AI STATE (only used by host)
 # ============================================================================
 var ai_state: AIState = AIState.IDLE
@@ -675,16 +699,28 @@ func _get_local_player() -> CharacterBody3D:
 # ============================================================================
 # DAMAGE AND DEATH
 # ============================================================================
-func take_damage(damage: float, knockback: float = 0.0, direction: Vector3 = Vector3.ZERO) -> void:
+func take_damage(damage: float, knockback: float = 0.0, direction: Vector3 = Vector3.ZERO, damage_type: int = -1) -> void:
 	if is_dead:
 		return
 
-	var final_damage = damage
+	# Apply damage type resistance/weakness modifier
+	var type_multiplier := 1.0
+	if damage_type >= 0:
+		type_multiplier = get_damage_multiplier(damage_type)
+
+	var final_damage = damage * type_multiplier
 	if is_stunned:
 		final_damage *= STUN_DAMAGE_MULTIPLIER
 
 	health -= final_damage
-	print("[Enemy] %s took %.1f damage, health: %.1f" % [enemy_name, final_damage, health])
+
+	# Log with damage type info
+	var type_name := _get_damage_type_name(damage_type)
+	if type_multiplier != 1.0:
+		var effect := "WEAK" if type_multiplier > 1.0 else "RESIST"
+		print("[Enemy] %s took %.1f %s damage (x%.1f %s), health: %.1f" % [enemy_name, final_damage, type_name, type_multiplier, effect, health])
+	else:
+		print("[Enemy] %s took %.1f %s damage, health: %.1f" % [enemy_name, final_damage, type_name, health])
 
 	# Play enemy hurt sound
 	SoundManager.play_sound_varied("enemy_hurt", global_position)
@@ -711,6 +747,17 @@ func take_damage(damage: float, knockback: float = 0.0, direction: Vector3 = Vec
 		# Server and non-host clients just track health = 0
 		if is_host:
 			_die()
+
+## Get human-readable damage type name
+func _get_damage_type_name(damage_type: int) -> String:
+	match damage_type:
+		WeaponData.DamageType.SLASH: return "slash"
+		WeaponData.DamageType.BLUNT: return "blunt"
+		WeaponData.DamageType.PIERCE: return "pierce"
+		WeaponData.DamageType.FIRE: return "fire"
+		WeaponData.DamageType.ICE: return "ice"
+		WeaponData.DamageType.POISON: return "poison"
+		_: return "physical"
 
 func _die() -> void:
 	if is_dead:

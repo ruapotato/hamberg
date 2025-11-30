@@ -213,7 +213,7 @@ func _special_attack_sword_stab(weapon_data, camera: Camera3D) -> void:
 	if player.equipped_weapon_visual:
 		player.equipped_weapon_visual.rotation_degrees = Vector3(0, 0, 0)
 
-	perform_melee_attack(camera, attack_range, damage, knockback)
+	perform_melee_attack(camera, attack_range, damage, knockback, weapon_data)
 
 ## Axe special: Spinning whirlwind attack
 func _special_attack_axe_spin(weapon_data, _camera: Camera3D) -> void:
@@ -283,7 +283,7 @@ func _special_attack_default(weapon_data, camera: Camera3D) -> void:
 	if is_ranged:
 		spawn_projectile(weapon_data, camera)
 	else:
-		perform_melee_attack(camera, attack_range, damage, knockback)
+		perform_melee_attack(camera, attack_range, damage, knockback, weapon_data)
 
 # =============================================================================
 # MELEE ATTACKS
@@ -329,14 +329,15 @@ func _perform_melee_area_attack(camera: Camera3D, attack_range: float, damage: f
 	if closest_enemy:
 		var enemy_network_id = closest_enemy.network_id if "network_id" in closest_enemy else 0
 		if enemy_network_id > 0:
-			send_enemy_damage_request(enemy_network_id, damage, knockback, ray_direction)
+			var damage_type: int = weapon_data.damage_type if weapon_data and "damage_type" in weapon_data else -1
+			send_enemy_damage_request(enemy_network_id, damage, knockback, ray_direction, damage_type)
 		return
 
 	# No enemy hit, check environmental objects
 	_check_environmental_hit(ray_origin, ray_direction, attack_range, damage, weapon_data)
 
 ## Perform raycast melee attack
-func perform_melee_attack(camera: Camera3D, attack_range: float, damage: float, knockback: float) -> void:
+func perform_melee_attack(camera: Camera3D, attack_range: float, damage: float, knockback: float, weapon_data = null) -> void:
 	var viewport_size := player.get_viewport().get_visible_rect().size
 	var crosshair_offset := Vector2(-41.0, -50.0)
 	var crosshair_pos := viewport_size / 2 + crosshair_offset
@@ -356,7 +357,8 @@ func perform_melee_attack(camera: Camera3D, attack_range: float, damage: float, 
 		if hit_object.has_method("take_damage") and hit_object.collision_layer & 4:
 			var enemy_network_id = hit_object.network_id if "network_id" in hit_object else 0
 			if enemy_network_id > 0:
-				send_enemy_damage_request(enemy_network_id, damage, knockback, ray_direction)
+				var damage_type: int = weapon_data.damage_type if weapon_data and "damage_type" in weapon_data else -1
+				send_enemy_damage_request(enemy_network_id, damage, knockback, ray_direction, damage_type)
 
 		elif hit_object.has_method("get_object_type") and hit_object.has_method("get_object_id"):
 			var object_id: int = hit_object.get_object_id()
@@ -411,6 +413,9 @@ func check_lunge_collision() -> void:
 	if player.lunge_damage <= 0:
 		return
 
+	var weapon_data = _get_equipped_weapon()
+	var damage_type: int = weapon_data.damage_type if weapon_data and "damage_type" in weapon_data else -1
+
 	var enemies = player.get_tree().get_nodes_in_group("enemies")
 	for enemy in enemies:
 		if not is_instance_valid(enemy):
@@ -428,7 +433,7 @@ func check_lunge_collision() -> void:
 			var enemy_network_id = enemy.network_id if "network_id" in enemy else 0
 			if enemy_network_id > 0:
 				print("[Player] LUNGE HIT %s! (%.1f damage)" % [enemy.name, player.lunge_damage])
-				send_enemy_damage_request(enemy_network_id, player.lunge_damage, player.lunge_knockback, direction)
+				send_enemy_damage_request(enemy_network_id, player.lunge_damage, player.lunge_knockback, direction, damage_type)
 
 ## Check for hits during axe spin attack
 func check_spin_hits() -> void:
@@ -442,6 +447,7 @@ func check_spin_hits() -> void:
 
 	var weapon_data = _get_equipped_weapon()
 	var tool_type: String = weapon_data.tool_type if weapon_data and "tool_type" in weapon_data else ""
+	var damage_type: int = weapon_data.damage_type if weapon_data and "damage_type" in weapon_data else -1
 
 	# Check enemies
 	var enemies = player.get_tree().get_nodes_in_group("enemies")
@@ -459,7 +465,7 @@ func check_spin_hits() -> void:
 				player.spin_hit_times[enemy_id] = current_time
 				if enemy_network_id > 0:
 					var hit_direction = (enemy.global_position - player.global_position).normalized()
-					send_enemy_damage_request(enemy_network_id, spin_damage, player.lunge_knockback, hit_direction)
+					send_enemy_damage_request(enemy_network_id, spin_damage, player.lunge_knockback, hit_direction, damage_type)
 					SoundManager.play_sound_varied("sword_swing", player.global_position)
 
 	# Check environmental objects
@@ -547,7 +553,8 @@ func spawn_projectile(weapon_data, camera: Camera3D) -> void:
 	player.get_tree().root.add_child(projectile)
 
 	var speed := weapon_data.projectile_speed if weapon_data.projectile_speed > 0 else 30.0
-	projectile.setup(spawn_pos, direction, speed, weapon_data.damage, player.get_instance_id())
+	var damage_type: int = weapon_data.damage_type if "damage_type" in weapon_data else -1
+	projectile.setup(spawn_pos, direction, speed, weapon_data.damage, player.get_instance_id(), damage_type)
 
 # =============================================================================
 # NETWORK DAMAGE
@@ -561,10 +568,10 @@ func send_damage_request(chunk_pos: Vector2i, object_id: int, damage: float, hit
 func send_dynamic_damage_request(object_name: String, damage: float, hit_position: Vector3) -> void:
 	NetworkManager.rpc_damage_dynamic_object.rpc_id(1, object_name, damage, hit_position)
 
-## Send enemy damage request to server
-func send_enemy_damage_request(enemy_network_id: int, damage: float, knockback: float, direction: Vector3) -> void:
+## Send enemy damage request to server (includes damage type for resistance calculations)
+func send_enemy_damage_request(enemy_network_id: int, damage: float, knockback: float, direction: Vector3, damage_type: int = -1) -> void:
 	var dir_array = [direction.x, direction.y, direction.z]
-	NetworkManager.rpc_damage_enemy.rpc_id(1, enemy_network_id, damage, knockback, dir_array)
+	NetworkManager.rpc_damage_enemy.rpc_id(1, enemy_network_id, damage, knockback, dir_array, damage_type)
 
 # =============================================================================
 # HELPERS

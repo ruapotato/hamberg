@@ -297,9 +297,10 @@ func rpc_damage_dynamic_object(object_name: String, damage: float, hit_position:
 		server_node.handle_dynamic_object_damage(peer_id, object_name, damage, hit_position)
 
 ## CLIENT -> SERVER: Damage enemy (client-authoritative hits using network_id)
+## damage_type: WeaponData.DamageType enum (-1 = unspecified, uses base damage)
 @rpc("any_peer", "call_remote", "reliable")
-func rpc_damage_enemy(enemy_network_id: int, damage: float, knockback: float, direction: Array) -> void:
-	print("[NetworkManager] rpc_damage_enemy received: net_id=%d, damage=%.1f, is_server=%s" % [enemy_network_id, damage, is_server])
+func rpc_damage_enemy(enemy_network_id: int, damage: float, knockback: float, direction: Array, damage_type: int = -1) -> void:
+	print("[NetworkManager] rpc_damage_enemy received: net_id=%d, damage=%.1f, type=%d, is_server=%s" % [enemy_network_id, damage, damage_type, is_server])
 	if not is_server:
 		return
 
@@ -312,7 +313,7 @@ func rpc_damage_enemy(enemy_network_id: int, damage: float, knockback: float, di
 			dir_v3 = Vector3(direction[0], direction[1], direction[2])
 		else:
 			print("[NetworkManager] WARNING: direction array invalid size: %d" % direction.size())
-		server_node.handle_enemy_damage(peer_id, enemy_network_id, damage, knockback, dir_v3)
+		server_node.handle_enemy_damage(peer_id, enemy_network_id, damage, knockback, dir_v3, damage_type)
 	else:
 		print("[NetworkManager] ERROR: Server node not found or missing handle_enemy_damage")
 
@@ -1059,19 +1060,20 @@ func rpc_broadcast_enemy_consensus(states: Dictionary) -> void:
 
 ## SERVER -> HOST CLIENT: Apply damage to enemy (forwarded from attacking player)
 ## This is called by server to tell the HOST client to damage their authoritative enemy copy
+## damage_type: WeaponData.DamageType enum (-1 = unspecified)
 @rpc("authority", "call_remote", "reliable")
-func rpc_apply_enemy_damage(enemy_network_id: int, damage: float, knockback: float, direction: Array) -> void:
+func rpc_apply_enemy_damage(enemy_network_id: int, damage: float, knockback: float, direction: Array, damage_type: int = -1) -> void:
 	if is_server:
 		return
 
-	print("[NetworkManager] rpc_apply_enemy_damage received: net_id=%d, damage=%.1f" % [enemy_network_id, damage])
+	print("[NetworkManager] rpc_apply_enemy_damage received: net_id=%d, damage=%.1f, type=%d" % [enemy_network_id, damage, damage_type])
 
 	var client_node := get_node_or_null("/root/Main/Client")
 	if client_node and client_node.has_method("apply_enemy_damage"):
 		var dir_v3 := Vector3.FORWARD
 		if direction.size() >= 3:
 			dir_v3 = Vector3(direction[0], direction[1], direction[2])
-		client_node.apply_enemy_damage(enemy_network_id, damage, knockback, dir_v3)
+		client_node.apply_enemy_damage(enemy_network_id, damage, knockback, dir_v3, damage_type)
 
 ## SERVER -> ALL CLIENTS: Update enemy host (when original host disconnects)
 @rpc("authority", "call_remote", "reliable")

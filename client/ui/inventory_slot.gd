@@ -9,8 +9,11 @@ signal drag_started(slot_index: int)
 signal drag_ended(from_slot: int, to_slot: int)
 signal drag_dropped_outside(slot_index: int)
 
+const ItemTooltip = preload("res://client/ui/item_tooltip.gd")
+
 @export var slot_index: int = 0
 @export var is_hotbar_slot: bool = false
+@export var show_tooltip: bool = true  # Can disable for certain UIs
 
 var item_name: String = ""
 var item_amount: int = 0
@@ -18,6 +21,11 @@ var is_selected: bool = false
 var is_equipped: bool = false  # Is this item equipped?
 var is_dragging: bool = false
 var drag_preview: Control = null
+var is_hovered: bool = false
+
+# Shared tooltip instance (created once, reused)
+static var _tooltip_instance: Control = null
+static var _tooltip_layer: CanvasLayer = null
 
 @onready var item_icon: TextureRect = $ItemIcon
 @onready var item_icon_bg: TextureRect = $ItemIconBg
@@ -29,6 +37,8 @@ var drag_preview: Control = null
 func _ready() -> void:
 	# Set up click detection
 	gui_input.connect(_on_gui_input)
+	mouse_entered.connect(_on_mouse_entered)
+	mouse_exited.connect(_on_mouse_exited)
 	update_display()
 
 func _on_gui_input(event: InputEvent) -> void:
@@ -39,6 +49,7 @@ func _on_gui_input(event: InputEvent) -> void:
 				# Start potential drag
 				if not item_name.is_empty():
 					is_dragging = true
+					_hide_tooltip()  # Hide tooltip when dragging
 					drag_started.emit(slot_index)
 					_create_drag_preview()
 					print("[InventorySlot] Started dragging slot %d" % slot_index)
@@ -257,3 +268,68 @@ func _update_drag_preview_position() -> void:
 func _process(_delta: float) -> void:
 	if is_dragging and drag_preview:
 		_update_drag_preview_position()
+
+	# Update tooltip position while hovering
+	if is_hovered and _tooltip_instance and _tooltip_instance.visible:
+		_update_tooltip_position()
+
+## Called when mouse enters the slot
+func _on_mouse_entered() -> void:
+	is_hovered = true
+	if show_tooltip and not item_name.is_empty() and not is_dragging:
+		_show_tooltip()
+
+## Called when mouse exits the slot
+func _on_mouse_exited() -> void:
+	is_hovered = false
+	_hide_tooltip()
+
+## Show tooltip for current item
+func _show_tooltip() -> void:
+	if item_name.is_empty():
+		return
+
+	# Create shared tooltip instance if needed
+	if not _tooltip_instance:
+		_create_tooltip_instance()
+
+	if _tooltip_instance:
+		_tooltip_instance.show_for_item(item_name, get_viewport().get_mouse_position())
+
+## Hide the tooltip
+func _hide_tooltip() -> void:
+	if _tooltip_instance:
+		_tooltip_instance.visible = false
+
+## Create the shared tooltip instance
+func _create_tooltip_instance() -> void:
+	# Create canvas layer for tooltip (above everything)
+	_tooltip_layer = CanvasLayer.new()
+	_tooltip_layer.layer = 101  # Above drag preview
+	_tooltip_layer.name = "TooltipLayer"
+	get_tree().root.add_child(_tooltip_layer)
+
+	# Create tooltip using the ItemTooltip script
+	_tooltip_instance = PanelContainer.new()
+	_tooltip_instance.set_script(ItemTooltip)
+	_tooltip_layer.add_child(_tooltip_instance)
+	_tooltip_instance._ready()  # Call ready manually since we're adding dynamically
+
+## Update tooltip position to follow mouse
+func _update_tooltip_position() -> void:
+	if not _tooltip_instance or not _tooltip_instance.visible:
+		return
+
+	var mouse_pos = get_viewport().get_mouse_position()
+	var viewport_size = get_viewport().get_visible_rect().size
+	var tooltip_size = _tooltip_instance.size
+
+	var pos = mouse_pos + Vector2(15, 15)
+
+	# Keep on screen
+	if pos.x + tooltip_size.x > viewport_size.x:
+		pos.x = mouse_pos.x - tooltip_size.x - 10
+	if pos.y + tooltip_size.y > viewport_size.y:
+		pos.y = viewport_size.y - tooltip_size.y - 10
+
+	_tooltip_instance.global_position = pos

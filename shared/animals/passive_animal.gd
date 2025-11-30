@@ -43,6 +43,17 @@ func _ready() -> void:
 	throw_range = 0.0  # No throwing
 	weapon_id = "fists"  # Needed for base class
 
+	# Animal resistances - flesh and bone creatures
+	# Slightly weak to pierce (arrows), neutral to most else
+	damage_resistances = {
+		WeaponData.DamageType.SLASH: 1.0,    # Neutral to slash
+		WeaponData.DamageType.BLUNT: 0.9,    # 10% resistant (tough hide)
+		WeaponData.DamageType.PIERCE: 1.15,  # 15% weak to pierce (arrows)
+		WeaponData.DamageType.FIRE: 1.1,     # 10% weak to fire
+		WeaponData.DamageType.ICE: 1.0,      # Neutral to ice
+		WeaponData.DamageType.POISON: 1.2,   # 20% weak to poison
+	}
+
 	# Call parent ready
 	super._ready()
 
@@ -177,9 +188,9 @@ func _update_flee_direction() -> void:
 			flee_target = Vector3(cos(angle), 0, sin(angle))
 
 ## Override take_damage to trigger fleeing
-func take_damage(damage: float, knockback: float = 0.0, direction: Vector3 = Vector3.ZERO) -> void:
+func take_damage(damage: float, knockback: float = 0.0, direction: Vector3 = Vector3.ZERO, damage_type: int = -1) -> void:
 	# Call parent damage handling
-	super.take_damage(damage, knockback, direction)
+	super.take_damage(damage, knockback, direction, damage_type)
 
 	# Start fleeing (run away from damage direction)
 	flee_timer = FLEE_DURATION

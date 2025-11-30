@@ -3,10 +3,15 @@ extends Node3D
 ## FireArea - Area of effect fire damage zone
 ## Deals damage over time to enemies in radius
 
+const WeaponData = preload("res://shared/weapon_data.gd")
+
 @export var radius: float = 5.0
 @export var damage: float = 12.0
 @export var tick_rate: float = 0.5  # Damage every 0.5 seconds
 @export var duration: float = 3.0  # How long the fire lasts
+
+# Fire area always deals FIRE damage
+const DAMAGE_TYPE: int = WeaponData.DamageType.FIRE
 
 var tick_timer: float = 0.0
 var enemies_in_area: Array = []
@@ -123,7 +128,8 @@ func _deal_damage_to_enemies() -> void:
 			var enemy_network_id = enemy.network_id if "network_id" in enemy else 0
 			if enemy_network_id > 0:
 				var dir_array = [direction.x, direction.y, direction.z]
-				NetworkManager.rpc_damage_enemy.rpc_id(1, enemy_network_id, damage, 0.5, dir_array)
+				# Fire area deals FIRE damage type
+				NetworkManager.rpc_damage_enemy.rpc_id(1, enemy_network_id, damage, 0.5, dir_array, DAMAGE_TYPE)
 			else:
 				print("[FireArea] Enemy %s has no network_id!" % enemy.name)
 

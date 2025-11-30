@@ -1960,8 +1960,9 @@ func update_enemy_states(states: Dictionary) -> void:
 
 ## Apply enemy damage forwarded from server (for HOST client)
 ## Called when another player hits an enemy that this client hosts
-func apply_enemy_damage(enemy_network_id: int, damage: float, knockback: float, direction: Vector3) -> void:
-	print("[Client] apply_enemy_damage: net_id=%d, damage=%.1f" % [enemy_network_id, damage])
+## damage_type: WeaponData.DamageType enum (-1 = unspecified)
+func apply_enemy_damage(enemy_network_id: int, damage: float, knockback: float, direction: Vector3, damage_type: int = -1) -> void:
+	print("[Client] apply_enemy_damage: net_id=%d, damage=%.1f, type=%d" % [enemy_network_id, damage, damage_type])
 
 	# Find enemy by network_id
 	var enemy: Node = null
@@ -1980,10 +1981,10 @@ func apply_enemy_damage(enemy_network_id: int, damage: float, knockback: float, 
 		print("[Client] WARNING: Received damage for enemy %d but we are not the host" % enemy_network_id)
 		return
 
-	# Apply damage to the enemy
+	# Apply damage to the enemy (with damage type for resistance calculations)
 	if enemy.has_method("take_damage"):
-		print("[Client] Applying %.1f damage to hosted enemy %d" % [damage, enemy_network_id])
-		enemy.take_damage(damage, knockback, direction)
+		print("[Client] Applying %.1f damage (type=%d) to hosted enemy %d" % [damage, damage_type, enemy_network_id])
+		enemy.take_damage(damage, knockback, direction, damage_type)
 	else:
 		print("[Client] ERROR: Enemy %d has no take_damage method!" % enemy_network_id)
 

@@ -27,6 +27,17 @@ func _ready() -> void:
 	loot_table = {"glowing_spore": 3, "fungal_essence": 1}
 	weapon_id = "fists"
 
+	# Sporeling resistances - fungal creature
+	# Very resistant to poison (fungi are natural), very weak to fire (burns easily)
+	damage_resistances = {
+		WeaponData.DamageType.SLASH: 0.9,    # 10% resistant (spongy body)
+		WeaponData.DamageType.BLUNT: 1.2,    # 20% weak to blunt (squishy)
+		WeaponData.DamageType.PIERCE: 0.8,   # 20% resistant (holes don't hurt fungi)
+		WeaponData.DamageType.FIRE: 1.5,     # 50% WEAK to fire (very burnable!)
+		WeaponData.DamageType.ICE: 1.0,      # Neutral to ice
+		WeaponData.DamageType.POISON: 0.5,   # 50% resistant to poison (fungi immunity)
+	}
+
 	# Call parent ready
 	super._ready()
 
@@ -270,9 +281,9 @@ func _physics_process(delta: float) -> void:
 		spore_attack_cooldown -= delta
 
 ## Override take_damage to potentially release spore cloud as defense
-func take_damage(damage: float, knockback: float = 0.0, direction: Vector3 = Vector3.ZERO) -> void:
+func take_damage(damage: float, knockback: float = 0.0, direction: Vector3 = Vector3.ZERO, damage_type: int = -1) -> void:
 	# Call parent damage handling first
-	super.take_damage(damage, knockback, direction)
+	super.take_damage(damage, knockback, direction, damage_type)
 
 	# Check if we should release a defensive spore cloud
 	if not is_dead and spore_attack_cooldown <= 0 and randf() < SPORE_ATTACK_CHANCE:

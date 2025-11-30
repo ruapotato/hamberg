@@ -8,9 +8,13 @@ signal recipe_crafted(recipe: Dictionary)
 signal menu_closed()
 
 const CombinedInventory = preload("res://shared/combined_inventory.gd")
+const ItemTooltip = preload("res://client/ui/item_tooltip.gd")
 const CHEST_SEARCH_RADIUS: float = 15.0
 
 var is_open: bool = false
+var _tooltip_instance: Control = null
+var _tooltip_layer: CanvasLayer = null
+var _hovered_item: String = ""
 var player_inventory: Node = null  # Reference to player's inventory
 var item_discovery_tracker: Node = null  # Reference to discovery tracker
 var local_player: Node = null  # Reference to local player (for finding nearby chests)
@@ -141,6 +145,8 @@ func _create_recipe_button(recipe: Dictionary) -> Control:
 
 	# Connect button
 	button.pressed.connect(_on_recipe_button_pressed.bind(recipe))
+	button.mouse_entered.connect(_on_recipe_mouse_entered.bind(recipe_name))
+	button.mouse_exited.connect(_on_recipe_mouse_exited)
 
 	container.add_child(button)
 
@@ -208,6 +214,8 @@ func hide_menu() -> void:
 
 	is_open = false
 	visible = false
+	_hide_tooltip()
+	_hovered_item = ""
 
 	# Recapture mouse for FPS controls
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
@@ -224,6 +232,10 @@ func toggle_menu() -> void:
 func _process(_delta: float) -> void:
 	if not is_open:
 		return
+
+	# Update tooltip position
+	if _hovered_item != "" and _tooltip_instance and _tooltip_instance.visible:
+		_update_tooltip_position()
 
 	# Decrement the frame delay counter
 	if just_opened_frames > 0:
@@ -311,3 +323,60 @@ func _craft_selected_recipe() -> void:
 		if child is Button and not child.disabled:
 			child.pressed.emit()
 			break
+
+## Called when mouse enters a recipe button
+func _on_recipe_mouse_entered(item_id: String) -> void:
+	_hovered_item = item_id
+	_show_tooltip(item_id)
+
+## Called when mouse exits a recipe button
+func _on_recipe_mouse_exited() -> void:
+	_hovered_item = ""
+	_hide_tooltip()
+
+## Show tooltip for an item
+func _show_tooltip(item_id: String) -> void:
+	if item_id.is_empty():
+		return
+
+	# Create tooltip if needed
+	if not _tooltip_instance:
+		_create_tooltip_instance()
+
+	if _tooltip_instance:
+		_tooltip_instance.show_for_item(item_id, get_viewport().get_mouse_position())
+
+## Hide the tooltip
+func _hide_tooltip() -> void:
+	if _tooltip_instance:
+		_tooltip_instance.visible = false
+
+## Create the tooltip instance
+func _create_tooltip_instance() -> void:
+	_tooltip_layer = CanvasLayer.new()
+	_tooltip_layer.layer = 101
+	_tooltip_layer.name = "CraftingTooltipLayer"
+	get_tree().root.add_child(_tooltip_layer)
+
+	_tooltip_instance = PanelContainer.new()
+	_tooltip_instance.set_script(ItemTooltip)
+	_tooltip_layer.add_child(_tooltip_instance)
+	_tooltip_instance._ready()
+
+## Update tooltip position (called from _process when tooltip visible)
+func _update_tooltip_position() -> void:
+	if not _tooltip_instance or not _tooltip_instance.visible:
+		return
+
+	var mouse_pos = get_viewport().get_mouse_position()
+	var viewport_size = get_viewport().get_visible_rect().size
+	var tooltip_size = _tooltip_instance.size
+
+	var pos = mouse_pos + Vector2(15, 15)
+
+	if pos.x + tooltip_size.x > viewport_size.x:
+		pos.x = mouse_pos.x - tooltip_size.x - 10
+	if pos.y + tooltip_size.y > viewport_size.y:
+		pos.y = viewport_size.y - tooltip_size.y - 10
+
+	_tooltip_instance.global_position = pos
