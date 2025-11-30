@@ -103,6 +103,64 @@ text = "BP: 100 / 100"
 horizontal_alignment = 1
 vertical_alignment = 1
 
+[node name="FoodSlotsContainer" type="VBoxContainer" parent="MarginContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_constants/separation = 2
+
+[node name="FoodSlot1" type="HBoxContainer" parent="MarginContainer/VBoxContainer/FoodSlotsContainer"]
+layout_mode = 2
+
+[node name="Icon" type="ColorRect" parent="MarginContainer/VBoxContainer/FoodSlotsContainer/FoodSlot1"]
+custom_minimum_size = Vector2(20, 20)
+layout_mode = 2
+color = Color(0.6, 0.3, 0.2, 1)
+
+[node name="Label" type="Label" parent="MarginContainer/VBoxContainer/FoodSlotsContainer/FoodSlot1"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = ""
+
+[node name="Timer" type="Label" parent="MarginContainer/VBoxContainer/FoodSlotsContainer/FoodSlot1"]
+layout_mode = 2
+text = ""
+horizontal_alignment = 2
+
+[node name="FoodSlot2" type="HBoxContainer" parent="MarginContainer/VBoxContainer/FoodSlotsContainer"]
+layout_mode = 2
+
+[node name="Icon" type="ColorRect" parent="MarginContainer/VBoxContainer/FoodSlotsContainer/FoodSlot2"]
+custom_minimum_size = Vector2(20, 20)
+layout_mode = 2
+color = Color(0.6, 0.3, 0.2, 1)
+
+[node name="Label" type="Label" parent="MarginContainer/VBoxContainer/FoodSlotsContainer/FoodSlot2"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = ""
+
+[node name="Timer" type="Label" parent="MarginContainer/VBoxContainer/FoodSlotsContainer/FoodSlot2"]
+layout_mode = 2
+text = ""
+horizontal_alignment = 2
+
+[node name="FoodSlot3" type="HBoxContainer" parent="MarginContainer/VBoxContainer/FoodSlotsContainer"]
+layout_mode = 2
+
+[node name="Icon" type="ColorRect" parent="MarginContainer/VBoxContainer/FoodSlotsContainer/FoodSlot3"]
+custom_minimum_size = Vector2(20, 20)
+layout_mode = 2
+color = Color(0.6, 0.3, 0.2, 1)
+
+[node name="Label" type="Label" parent="MarginContainer/VBoxContainer/FoodSlotsContainer/FoodSlot3"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = ""
+
+[node name="Timer" type="Label" parent="MarginContainer/VBoxContainer/FoodSlotsContainer/FoodSlot3"]
+layout_mode = 2
+text = ""
+horizontal_alignment = 2
+
 [node name="FPSLabel" type="Label" parent="."]
 layout_mode = 1
 anchors_preset = 1

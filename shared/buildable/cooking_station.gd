@@ -164,7 +164,7 @@ func _setup_audio() -> void:
 	burn_player.unit_size = 4.0
 	add_child(burn_player)
 
-## Called when player presses E on this station
+## Called when player presses E on this station (auto-select item)
 func interact(player: Node) -> void:
 	if not player:
 		return
@@ -193,6 +193,35 @@ func interact(player: Node) -> void:
 				return
 
 	print("[CookingStation] No raw meat in inventory to cook")
+
+## Called when player presses a number key to cook a specific item
+func interact_with_item(player: Node, item_name: String) -> bool:
+	if not player:
+		return false
+
+	var inventory = player.get_node_or_null("Inventory")
+	if not inventory:
+		return false
+
+	# Check if this item can be cooked
+	if not COOKING_RECIPES.has(item_name):
+		print("[CookingStation] %s cannot be cooked" % item_name)
+		return false
+
+	# Check if player has the item
+	if not inventory.has_item(item_name, 1):
+		print("[CookingStation] Player doesn't have %s" % item_name)
+		return false
+
+	# Try to add it to a cooking slot
+	var slot_idx = add_item_to_cook(item_name)
+	if slot_idx >= 0:
+		inventory.remove_item(item_name, 1)
+		print("[CookingStation] Player added %s to slot %d (manual)" % [item_name, slot_idx])
+		return true
+
+	print("[CookingStation] No empty cooking slots")
+	return false
 
 ## Get interaction prompt for UI
 func get_interact_prompt() -> String:

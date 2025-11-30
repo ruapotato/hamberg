@@ -60,14 +60,11 @@ func eat_food(food_id: String) -> bool:
 		print("[PlayerFood] %s is not a valid food item" % food_id)
 		return false
 
-	# Check if we already have this food active
+	# Check if we already have this food active - block eating same food
 	for i in active_foods.size():
 		if active_foods[i].food_id == food_id:
-			# Refresh the timer instead of stacking
-			active_foods[i].remaining_time = food_data.duration
-			print("[PlayerFood] Refreshed %s buff (%.0fs)" % [food_id, food_data.duration])
-			food_changed.emit()
-			return true
+			print("[PlayerFood] Cannot eat %s - already active (%.0fs remaining)" % [food_id, active_foods[i].remaining_time])
+			return false
 
 	# Check if we have room for new food
 	if active_foods.size() >= PC.MAX_FOOD_SLOTS:

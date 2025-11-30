@@ -472,6 +472,9 @@ func _handle_interaction_input() -> void:
 	if chest_ui and chest_ui.is_ui_open():
 		return
 
+	# Check for number keys 1-9 when looking at cooking station
+	_handle_cooking_station_hotbar_input()
+
 	# Track E key hold for quick-sort chest interaction
 	if Input.is_action_just_pressed("interact"):
 		interact_held_time = 0.0
@@ -614,6 +617,79 @@ func _update_interact_prompt() -> void:
 			buildable = buildable.get_parent()
 
 	interact_prompt_label.text = ""
+
+## Handle number key input when looking at a cooking station
+func _handle_cooking_station_hotbar_input() -> void:
+	if not local_player:
+		return
+
+	# Check if any hotbar key was just pressed
+	var pressed_slot = -1
+	for i in range(1, 10):
+		if Input.is_action_just_pressed("hotbar_" + str(i)):
+			pressed_slot = i - 1  # Convert to 0-indexed
+			break
+
+	if pressed_slot < 0:
+		return
+
+	# Check if looking at a cooking station
+	var cooking_station = _get_cooking_station_under_cursor()
+	if not cooking_station:
+		return
+
+	# Get the item in the pressed hotbar slot
+	var inventory = local_player.get_node_or_null("Inventory")
+	if not inventory:
+		return
+
+	var inventory_data = inventory.get_inventory_data()
+	if pressed_slot >= inventory_data.size():
+		return
+
+	var slot_data = inventory_data[pressed_slot]
+	if slot_data.is_empty():
+		return
+
+	var item_id = slot_data.get("item", "")
+	if item_id.is_empty():
+		return
+
+	# Try to cook this specific item
+	if cooking_station.has_method("interact_with_item"):
+		if cooking_station.interact_with_item(local_player, item_id):
+			print("[Client] Cooked %s from hotbar slot %d" % [item_id, pressed_slot + 1])
+			# Refresh hotbar display
+			if hotbar_ui:
+				hotbar_ui.refresh_display()
+
+## Get cooking station under cursor (returns null if not looking at one)
+func _get_cooking_station_under_cursor() -> Node:
+	var camera = _get_camera()
+	if not camera:
+		return null
+
+	var viewport_size = get_viewport().get_visible_rect().size
+	var crosshair_screen_pos = viewport_size / 2.0 + Vector2(-41, -50)
+
+	var from = camera.project_ray_origin(crosshair_screen_pos)
+	var ray_dir = camera.project_ray_normal(crosshair_screen_pos)
+	var to = from + ray_dir * 5.0
+
+	var space_state = world.get_world_3d().direct_space_state
+	var query = PhysicsRayQueryParameters3D.create(from, to)
+	query.collision_mask = 1
+
+	var result = space_state.intersect_ray(query)
+
+	if result and result.collider:
+		var buildable = result.collider
+		while buildable:
+			if buildable.is_in_group("cooking_station"):
+				return buildable
+			buildable = buildable.get_parent()
+
+	return null
 
 ## Get chest under cursor for interaction (returns null if no chest)
 func _get_chest_under_cursor() -> Node:
