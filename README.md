@@ -331,22 +331,25 @@ hamberg/
 #### 🖥️ **Server/** - Server-Authoritative Systems
 Server-only code that never runs on clients. Authority over world state, validation, persistence.
 
-- **server/server.gd** - Main server controller
-  - Player management (spawn, despawn, position validation)
-  - Chunk streaming and environmental object authority
-  - Inventory validation and synchronization
-  - Building placement validation and persistence
-  - Combat damage validation
+- **server/server.gd** - Main server controller (orchestrator)
+- **server/modules/** - Modular server systems
+  - **server_player_manager.gd** - Player connections, spawning, character selection
+  - **server_chest_storage.gd** - Chest inventory and item transfers
+  - **server_debug.gd** - Debug console commands (give, spawn, teleport, god mode)
+  - **server_inventory.gd** - Inventory operations, crafting, equipment validation
 
 #### 💻 **Client/** - Client-Only UI and Rendering
 Client-only code for rendering, UI, and local player control. Never runs on dedicated servers.
 
-- **client/client.gd** - Main client controller
-  - UI management (hotbar, inventory, build menu)
-  - Local player spawning and camera control
-  - Environmental object rendering (client-side chunk streaming)
-  - Build mode and placement mode activation
-  - Item pickup and interaction
+- **client/client.gd** - Main client controller (orchestrator)
+- **client/modules/** - Modular client systems
+  - **client_player_manager.gd** - Player spawning, despawning, state synchronization
+  - **client_loading_manager.gd** - Loading screen and initial data sync
+  - **client_environmental_manager.gd** - Trees, rocks, dynamic objects, resources
+  - **client_enemy_manager.gd** - Enemy spawning, state sync, damage handling
+  - **client_map_system.gd** - World map, mini-map, markers, pings
+  - **build_mode_snapping.gd** - Snap point logic for building placement
+  - **build_mode_preview.gd** - Ghost preview management for build mode
 
 - **client/ui/** - User Interface Components
   - **hotbar.gd** - Quick access bar (slots 1-9, auto-equip on press)
@@ -416,10 +419,15 @@ Code that runs on both client and server. Contains core game systems and network
   - Attached to local player only
 
 - **shared/custom_terrain/** - Custom Marching Cubes Terrain System
-  - **terrain_world.gd** - Main terrain manager with chunk streaming
+  - **terrain_world.gd** - Main terrain manager (orchestrator)
   - **chunk_data.gd** - Heightmap + sparse voxel modification storage
   - **chunk_mesh_generator.gd** - Marching Cubes mesh generation
   - **terrain_biome_generator.gd** - Biome-based height and color generation
+  - **modules/** - Modular terrain systems
+    - **terrain_biome_texture.gd** - Dynamic biome texture for shader rendering
+    - **terrain_chunk_loader.gd** - Chunk loading, unloading, and persistence
+    - **terrain_mesh_manager.gd** - Threaded mesh generation and LOD management
+    - **terrain_modification.gd** - Dig, place, flatten terrain operations
   - Built for true multiplayer support (Voxel Tools doesn't support multiplayer with LOD terrain)
 
 - **shared/biome_generator.gd**
@@ -554,15 +562,28 @@ NetworkManager.rpc_place_buildable.rpc_id(1, piece_name, pos, rot)
 | Weapons & shields | `shared/weapon_data.gd`, `shared/shield_data.gd`, `shared/item_database.gd` |
 | Projectiles | `shared/projectiles/projectile.gd`, `shared/projectiles/fireball.tscn` |
 | Inventory | `shared/inventory.gd`, `client/ui/inventory_panel.gd`, `client/ui/hotbar.gd` |
+| Server inventory | `server/modules/server_inventory.gd`, `server/modules/server_chest_storage.gd` |
 | Item discovery | `client/item_discovery_tracker.gd` |
 | Crafting menu | `client/ui/crafting_menu.gd` |
-| Building | `client/build_mode.gd`, `shared/buildable/building_piece.gd` |
-| Terrain system | `shared/custom_terrain/terrain_world.gd`, `chunk_data.gd`, `chunk_mesh_generator.gd` |
+| Building | `client/build_mode.gd`, `client/modules/build_mode_*.gd` |
+| Building snapping | `client/modules/build_mode_snapping.gd` |
+| Building preview | `client/modules/build_mode_preview.gd` |
+| Terrain system | `shared/custom_terrain/terrain_world.gd`, `modules/terrain_*.gd` |
+| Terrain mesh/LOD | `shared/custom_terrain/modules/terrain_mesh_manager.gd` |
+| Terrain chunks | `shared/custom_terrain/modules/terrain_chunk_loader.gd` |
+| Terrain digging | `shared/custom_terrain/modules/terrain_modification.gd` |
 | World generation | `shared/custom_terrain/terrain_biome_generator.gd`, `shared/biome_generator.gd` |
 | Chunk streaming | `shared/environmental/chunk_manager.gd` |
 | Resource gathering | `shared/environmental/environmental_object.gd` |
 | Networking | `shared/network_manager.gd`, `server/server.gd`, `client/client.gd` |
-| Enemy AI | `shared/enemies/enemy.gd`, `server/enemy_spawner.gd` |
+| Player management | `server/modules/server_player_manager.gd`, `client/modules/client_player_manager.gd` |
+| Enemy AI | `shared/enemies/enemy.gd`, `shared/enemies/modules/enemy_ai.gd` |
+| Enemy combat | `shared/enemies/modules/enemy_combat.gd` |
+| Enemy health/loot | `shared/enemies/modules/enemy_health.gd` |
+| Enemy spawner | `server/enemy_spawner.gd`, `client/modules/client_enemy_manager.gd` |
+| Debug commands | `server/modules/server_debug.gd` |
+| Map system | `client/modules/client_map_system.gd` |
+| Loading screen | `client/modules/client_loading_manager.gd` |
 
 ---
 
