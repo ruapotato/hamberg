@@ -22,6 +22,8 @@ var available_pieces: Dictionary = {
 	"wooden_stairs": preload("res://shared/buildable/wooden_stairs.tscn"),
 	"workbench": preload("res://shared/buildable/workbench.tscn"),
 	"chest": preload("res://shared/buildable/chest.tscn"),
+	"fireplace": preload("res://shared/buildable/fireplace.tscn"),
+	"cooking_station": preload("res://shared/buildable/cooking_station.tscn"),
 }
 
 var is_active: bool = false
@@ -192,8 +194,7 @@ func _update_ghost_position() -> void:
 				if "grid_size" in ghost_preview:
 					var offset_y = ghost_preview.grid_size.y / 2.0
 					hit_point.y += offset_y
-				else:
-					hit_point.y += 0.1  # Default small offset for non-building pieces
+				# Non-building pieces (fireplace, etc.) sit directly on ground - no offset needed
 
 			target_position = hit_point
 			is_snapped_to_piece = false
@@ -225,11 +226,10 @@ func _update_ghost_position() -> void:
 		# Use player's Y position as reference (player should be standing on ground)
 		if player:
 			forward_pos.y = player.global_position.y
-			# Add offset for piece height
+			# Add offset for piece height (only for building pieces with grid_size)
 			if "grid_size" in ghost_preview:
 				forward_pos.y += ghost_preview.grid_size.y / 2.0
-			else:
-				forward_pos.y += 0.1
+			# Non-building pieces sit directly at player ground level
 		else:
 			# Fallback: use camera Y minus some height
 			forward_pos.y = from.y - 1.0

@@ -17,11 +17,19 @@ func _init(p: CharacterBody3D) -> void:
 # STAMINA
 # =============================================================================
 
+## Get current max stamina (from food system or base)
+func get_max_stamina() -> float:
+	if player.has_node("PlayerFood"):
+		return player.get_node("PlayerFood").get_max_stamina()
+	return PC.BASE_STAMINA
+
 ## Update stamina regeneration each frame
 func update_stamina(delta: float) -> void:
+	var max_stam = get_max_stamina()
+
 	# God mode: unlimited stamina, never exhausted
 	if player.god_mode:
-		player.stamina = PC.MAX_STAMINA
+		player.stamina = max_stam
 		player.is_exhausted = false
 		return
 
@@ -29,10 +37,10 @@ func update_stamina(delta: float) -> void:
 	player.stamina_regen_timer += delta
 
 	if player.stamina_regen_timer >= PC.STAMINA_REGEN_DELAY:
-		player.stamina = min(player.stamina + PC.STAMINA_REGEN_RATE * delta, PC.MAX_STAMINA)
+		player.stamina = min(player.stamina + PC.STAMINA_REGEN_RATE * delta, max_stam)
 
 	# Check for exhaustion recovery (need 10% stamina to recover)
-	if player.is_exhausted and player.stamina >= PC.MAX_STAMINA * PC.EXHAUSTED_RECOVERY_THRESHOLD:
+	if player.is_exhausted and player.stamina >= max_stam * PC.EXHAUSTED_RECOVERY_THRESHOLD:
 		player.is_exhausted = false
 		print("[Player] Recovered from exhaustion")
 
@@ -62,18 +70,26 @@ func consume_stamina(amount: float) -> bool:
 # BRAIN POWER (MAGIC)
 # =============================================================================
 
+## Get current max brain power (from food system or base)
+func get_max_brain_power() -> float:
+	if player.has_node("PlayerFood"):
+		return player.get_node("PlayerFood").get_max_brain_power()
+	return PC.BASE_BRAIN_POWER
+
 ## Update brain power regeneration each frame
 func update_brain_power(delta: float) -> void:
+	var max_bp = get_max_brain_power()
+
 	# God mode: unlimited brain power
 	if player.god_mode:
-		player.brain_power = PC.MAX_BRAIN_POWER
+		player.brain_power = max_bp
 		return
 
 	# Regenerate brain power after delay
 	player.brain_power_regen_timer += delta
 
 	if player.brain_power_regen_timer >= PC.BRAIN_POWER_REGEN_DELAY:
-		player.brain_power = min(player.brain_power + PC.BRAIN_POWER_REGEN_RATE * delta, PC.MAX_BRAIN_POWER)
+		player.brain_power = min(player.brain_power + PC.BRAIN_POWER_REGEN_RATE * delta, max_bp)
 
 ## Consume brain power (returns true if enough brain power available)
 func consume_brain_power(amount: float) -> bool:
@@ -262,14 +278,24 @@ func request_respawn() -> void:
 	if NetworkManager.is_client:
 		NetworkManager.rpc_request_respawn.rpc_id(1)
 
+## Get current max health (from food system or base)
+func get_max_health() -> float:
+	if player.has_node("PlayerFood"):
+		return player.get_node("PlayerFood").get_max_health()
+	return PC.BASE_HEALTH
+
 ## Respawn player (called by server via RPC)
 func respawn_at(spawn_position: Vector3) -> void:
 	player.is_dead = false
-	player.health = PC.MAX_HEALTH
-	player.stamina = PC.MAX_STAMINA
-	player.brain_power = PC.MAX_BRAIN_POWER
+	player.health = get_max_health()
+	player.stamina = get_max_stamina()
+	player.brain_power = get_max_brain_power()
 	player.global_position = spawn_position
 	player.velocity = Vector3.ZERO
+
+	# Clear food buffs on death
+	if player.has_node("PlayerFood"):
+		player.get_node("PlayerFood").clear_all_foods()
 
 	print("[Player] Player respawned at %s!" % spawn_position)
 

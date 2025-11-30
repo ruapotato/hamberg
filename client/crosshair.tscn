@@ -24,3 +24,20 @@ offset_bottom = -47.0
 grow_horizontal = 2
 grow_vertical = 2
 color = Color(1, 1, 1, 0.9)
+
+[node name="InteractPrompt" type="Label" parent="."]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -100.0
+offset_top = -20.0
+offset_right = 100.0
+offset_bottom = 10.0
+grow_horizontal = 2
+grow_vertical = 2
+text = ""
+horizontal_alignment = 1
+vertical_alignment = 1

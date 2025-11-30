@@ -7,6 +7,7 @@ extends Node
 const ItemData = preload("res://shared/item_data.gd")
 const WeaponData = preload("res://shared/weapon_data.gd")
 const ShieldData = preload("res://shared/shield_data.gd")
+const FoodData = preload("res://shared/food_data.gd")
 
 var items: Dictionary = {}  # item_id -> ItemData
 
@@ -28,10 +29,17 @@ func _initialize_items() -> void:
 	_register_resource("raw_pork", "Raw Pork", "Raw pig meat. Cook it to eat safely.", 20, 2.0)
 	_register_resource("raw_mutton", "Raw Mutton", "Raw sheep meat. Cook it to eat safely.", 20, 1.8)
 
+	# Cooking byproducts
+	_register_resource("charcoal", "Charcoal", "Burned remains of food. Can be used as fuel.", 50, 0.3)
+
+	# Cooked food (consumable)
+	_register_food("cooked_venison", "Cooked Venison", "Hearty deer meat. Increases max health.", 20, 1.5, 25.0, 15.0, 10.0, 600.0)
+	_register_food("cooked_pork", "Cooked Pork", "Savory pig meat. Increases max stamina.", 20, 2.0, 15.0, 25.0, 10.0, 600.0)
+	_register_food("cooked_mutton", "Cooked Mutton", "Tender sheep meat. Balanced nutrition.", 20, 1.8, 20.0, 20.0, 15.0, 600.0)
+
 	# Basic tools (no workbench required)
 	_register_tool("hammer", "Hammer", "Used for building structures.", 1)
 	_register_tool("torch", "Torch", "Provides light in dark places.", 20)
-	_register_tool("fireplace", "Fireplace", "A simple stone fireplace. Place to create a warm campfire.", 1)
 
 	# Advanced tools (workbench required)
 	_register_tool("stone_pickaxe", "Stone Pickaxe", "Used for terrain modification. Left click: dig square, Middle click: place earth square (consumes earth from inventory).", 1)
@@ -76,6 +84,20 @@ func _register_tool(id: String, name: String, desc: String, stack: int) -> void:
 	item.max_stack_size = stack
 	item.weight = 2.0
 	items[id] = item
+
+## Helper: Register a food item (consumable with stat bonuses)
+func _register_food(id: String, name: String, desc: String, stack: int, w: float, health: float, stamina: float, bp: float, duration: float) -> void:
+	var food = FoodData.new()
+	food.item_id = id
+	food.display_name = name
+	food.description = desc
+	food.max_stack_size = stack
+	food.weight = w
+	food.health_bonus = health
+	food.stamina_bonus = stamina
+	food.bp_bonus = bp
+	food.duration = duration
+	items[id] = food
 
 ## Tier 0: Unarmed
 func _register_weapon_fists() -> void:

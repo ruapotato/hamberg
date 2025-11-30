@@ -52,6 +52,10 @@ func _create_ghost_preview() -> void:
 	match item_to_place:
 		"workbench":
 			scene_path = "res://shared/buildable/workbench.tscn"
+		"fireplace":
+			scene_path = "res://shared/buildable/fireplace.tscn"
+		"cooking_station":
+			scene_path = "res://shared/buildable/cooking_station.tscn"
 		_:
 			push_error("[PlacementMode] Unknown item: %s" % item_to_place)
 			return
@@ -79,8 +83,10 @@ func _setup_preview_manual(preview: Node3D) -> void:
 			var mat = child.get_surface_override_material(0)
 			if mat:
 				mat = mat.duplicate()
-				mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-				mat.albedo_color.a = 0.5
+				if mat is StandardMaterial3D:
+					mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+					mat.albedo_color.a = 0.5
+				# ShaderMaterials are left as-is (can't easily make transparent)
 				child.set_surface_override_material(0, mat)
 
 	# Disable collision for preview
@@ -94,51 +100,56 @@ func _destroy_ghost_preview() -> void:
 		ghost_preview = null
 
 func _update_ghost_position() -> void:
-	if not camera or not ghost_preview:
+	if not camera or not ghost_preview or not player:
 		return
 
-	# Raycast from camera forward
-	var from = camera.global_position
-	var to = from + (-camera.global_transform.basis.z * placement_distance)
+	# Get a point in front of the player at placement distance
+	var forward_dir = -camera.global_transform.basis.z
+	forward_dir.y = 0  # Keep horizontal
+	forward_dir = forward_dir.normalized()
+
+	var target_xz = player.global_position + forward_dir * placement_distance
+
+	# Snap X/Z to 1m grid
+	target_xz.x = round(target_xz.x)
+	target_xz.z = round(target_xz.z)
+
+	# Raycast straight down from above to find ground
+	var ray_start = Vector3(target_xz.x, player.global_position.y + 10.0, target_xz.z)
+	var ray_end = Vector3(target_xz.x, player.global_position.y - 20.0, target_xz.z)
 
 	var space_state = world.get_world_3d().direct_space_state
-	var query = PhysicsRayQueryParameters3D.create(from, to)
+	var query = PhysicsRayQueryParameters3D.create(ray_start, ray_end)
 	query.collision_mask = 1  # World layer
 
 	var result = space_state.intersect_ray(query)
 
 	if result:
-		var hit_point = result.position
-		var hit_normal = result.normal
-
-		# Snap to grid (1m grid for workbench)
-		hit_point.x = round(hit_point.x)
-		hit_point.y = round(hit_point.y)
-		hit_point.z = round(hit_point.z)
-
-		# Place on surface
-		ghost_preview.global_position = hit_point
-
-		# Validate placement
-		can_place_current = _validate_placement(hit_point)
-		_update_preview_color(can_place_current)
+		# Place directly on the ground
+		ghost_preview.global_position = result.position
+		can_place_current = true
+		_update_preview_color(true)
 	else:
-		# No hit - place in front of player
-		ghost_preview.global_position = from + (-camera.global_transform.basis.z * placement_distance)
+		# No ground found - place at player height
+		ghost_preview.global_position = Vector3(target_xz.x, player.global_position.y, target_xz.z)
 		can_place_current = false
 		_update_preview_color(false)
 
 func _update_preview_color(valid: bool) -> void:
 	var color_tint = Color.GREEN if valid else Color.RED
+	color_tint.a = 0.5
 
 	for child in ghost_preview.get_children():
 		if child is MeshInstance3D:
 			var mat = child.get_surface_override_material(0)
-			if mat:
-				var base_color = mat.albedo_color
-				base_color = color_tint
-				base_color.a = 0.5
-				mat.albedo_color = base_color
+			if mat and mat is StandardMaterial3D:
+				mat.albedo_color = color_tint
+			elif mat and mat is ShaderMaterial:
+				# For shader materials, try to set a color parameter if it exists
+				if mat.get_shader_parameter("albedo") != null:
+					mat.set_shader_parameter("albedo", color_tint)
+				elif mat.get_shader_parameter("color") != null:
+					mat.set_shader_parameter("color", color_tint)
 
 func _validate_placement(_position: Vector3) -> bool:
 	# TODO: Check for overlaps, terrain validity, etc.

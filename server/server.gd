@@ -790,26 +790,43 @@ func handle_place_buildable(peer_id: int, piece_name: String, position: Vector3,
 
 	var inventory = player.get_node("Inventory")
 
-	# Get resource costs
-	var costs = CraftingRecipes.BUILDING_COSTS.get(piece_name, {})
+	# Check if this is a placeable item (already in inventory) vs a building piece (costs resources)
+	# Note: workbench is the only item that can be crafted into inventory and placed
+	var placeable_items = ["workbench"]
+	var is_placeable_item = piece_name in placeable_items
 
-	# Check if player has required resources
-	for resource in costs:
-		var required = costs[resource]
-		if not inventory.has_item(resource, required):
-			print("[Server] Player %d doesn't have enough %s to place %s" % [peer_id, resource, piece_name])
-			# TODO: Send error message to client
+	if is_placeable_item:
+		# For placeable items, consume the item itself from inventory
+		if not inventory.has_item(piece_name, 1):
+			print("[Server] Player %d doesn't have %s in inventory" % [peer_id, piece_name])
 			return
 
-	# Remove resources from inventory
-	for resource in costs:
-		var required = costs[resource]
-		if not inventory.remove_item(resource, required):
-			push_error("[Server] Failed to remove %d %s from player %d inventory!" % [required, resource, peer_id])
-			# This shouldn't happen since we already checked
+		if not inventory.remove_item(piece_name, 1):
+			push_error("[Server] Failed to remove %s from player %d inventory!" % [piece_name, peer_id])
 			return
 
-	print("[Server] Consumed %s from player %d inventory" % [costs, peer_id])
+		print("[Server] Consumed %s from player %d inventory" % [piece_name, peer_id])
+	else:
+		# For building pieces, consume resources
+		var costs = CraftingRecipes.BUILDING_COSTS.get(piece_name, {})
+
+		# Check if player has required resources
+		for resource in costs:
+			var required = costs[resource]
+			if not inventory.has_item(resource, required):
+				print("[Server] Player %d doesn't have enough %s to place %s" % [peer_id, resource, piece_name])
+				# TODO: Send error message to client
+				return
+
+		# Remove resources from inventory
+		for resource in costs:
+			var required = costs[resource]
+			if not inventory.remove_item(resource, required):
+				push_error("[Server] Failed to remove %d %s from player %d inventory!" % [required, resource, peer_id])
+				# This shouldn't happen since we already checked
+				return
+
+		print("[Server] Consumed %s from player %d inventory" % [costs, peer_id])
 
 	# Sync inventory back to client (to fix any client-side prediction errors)
 	var inventory_data = inventory.get_inventory_data()

@@ -58,8 +58,9 @@ const STUN_DAMAGE_MULTIPLIER: float = 1.5  # Extra damage when stunned
 # =============================================================================
 # STAMINA
 # =============================================================================
-const MAX_STAMINA: float = 100.0
-const STAMINA_REGEN_RATE: float = 15.0  # Per second
+const BASE_STAMINA: float = 50.0  # Base stamina without food
+const MAX_STAMINA: float = 200.0  # Maximum possible with best food
+const STAMINA_REGEN_RATE: float = 6.0  # Per second (reduced from 15)
 const STAMINA_REGEN_DELAY: float = 1.0  # Delay after use
 const SPRINT_STAMINA_DRAIN: float = 10.0  # Per second
 const JUMP_STAMINA_COST: float = 10.0
@@ -69,15 +70,23 @@ const EXHAUSTED_SPEED_MULTIPLIER: float = 0.6  # 60% speed when exhausted
 # =============================================================================
 # BRAIN POWER (MAGIC)
 # =============================================================================
-const MAX_BRAIN_POWER: float = 100.0
-const BRAIN_POWER_REGEN_RATE: float = 10.0  # Per second (slower than stamina)
+const BASE_BRAIN_POWER: float = 25.0  # Base BP without food
+const MAX_BRAIN_POWER: float = 150.0  # Maximum possible with best food
+const BRAIN_POWER_REGEN_RATE: float = 5.0  # Per second (reduced from 10)
 const BRAIN_POWER_REGEN_DELAY: float = 2.0  # Delay after use
 
 # =============================================================================
 # HEALTH
 # =============================================================================
-const MAX_HEALTH: float = 100.0
+const BASE_HEALTH: float = 25.0  # Base health without food (fragile!)
+const MAX_HEALTH: float = 200.0  # Maximum possible with best food
 const FALL_DEATH_TIME: float = 15.0  # Seconds below ground before death
+
+# =============================================================================
+# FOOD SYSTEM (Valheim-style)
+# =============================================================================
+const MAX_FOOD_SLOTS: int = 3  # Can eat up to 3 different foods
+const FOOD_DECAY_WARNING: float = 120.0  # Warn when food has 2 min left
 
 # =============================================================================
 # NETWORKING

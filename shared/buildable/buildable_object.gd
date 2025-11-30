@@ -55,11 +55,16 @@ func _setup_preview_mode() -> void:
 			var mat = child.get_surface_override_material(0)
 			if mat:
 				mat = mat.duplicate()
+				if mat is StandardMaterial3D:
+					mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+					mat.albedo_color.a = 0.5
+				child.set_surface_override_material(0, mat)
 			else:
+				# No material - create a new transparent one
 				mat = StandardMaterial3D.new()
-			mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-			mat.albedo_color.a = 0.5
-			child.set_surface_override_material(0, mat)
+				mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+				mat.albedo_color.a = 0.5
+				child.set_surface_override_material(0, mat)
 
 	# Disable collision during preview
 	collision_layer = 0
@@ -76,10 +81,10 @@ func set_preview_valid(valid: bool, is_snapped: bool = false) -> void:
 		color_tint = Color(0.3, 1.0, 0.3)  # Bright green when snapped
 	else:
 		color_tint = Color(0.6, 0.8, 0.6)  # Dimmer green for ground placement
+	color_tint.a = 0.6 if is_snapped else 0.5
 
 	for child in get_children():
 		if child is MeshInstance3D:
 			var mat = child.get_surface_override_material(0)
-			if mat:
+			if mat and mat is StandardMaterial3D:
 				mat.albedo_color = color_tint
-				mat.albedo_color.a = 0.6 if is_snapped else 0.5  # Slightly more visible when snapped

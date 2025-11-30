@@ -1,0 +1,94 @@
+[gd_scene load_steps=6 format=3 uid="uid://cooking_station_001"]
+
+[ext_resource type="Script" path="res://shared/buildable/cooking_station.gd" id="1"]
+[ext_resource type="Material" path="res://shared/buildable/wood_material.tres" id="2"]
+
+[sub_resource type="StandardMaterial3D" id="metal_material"]
+albedo_color = Color(0.25, 0.25, 0.25, 1.0)
+metallic = 0.8
+roughness = 0.4
+
+[sub_resource type="CylinderMesh" id="leg_mesh"]
+top_radius = 0.03
+bottom_radius = 0.03
+height = 0.5
+
+[sub_resource type="CylinderMesh" id="grill_bar_mesh"]
+top_radius = 0.02
+bottom_radius = 0.02
+height = 0.8
+
+[sub_resource type="BoxShape3D" id="cooking_collision"]
+size = Vector3(0.9, 0.1, 0.9)
+
+[node name="CookingStation" type="StaticBody3D"]
+collision_layer = 1
+collision_mask = 0
+script = ExtResource("1")
+object_name = "cooking_station"
+
+[node name="Leg1" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.35, 0.25, -0.35)
+mesh = SubResource("leg_mesh")
+surface_material_override/0 = SubResource("metal_material")
+
+[node name="Leg2" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.35, 0.25, -0.35)
+mesh = SubResource("leg_mesh")
+surface_material_override/0 = SubResource("metal_material")
+
+[node name="Leg3" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.35, 0.25, 0.35)
+mesh = SubResource("leg_mesh")
+surface_material_override/0 = SubResource("metal_material")
+
+[node name="Leg4" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.35, 0.25, 0.35)
+mesh = SubResource("leg_mesh")
+surface_material_override/0 = SubResource("metal_material")
+
+[node name="GrillBar1" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0.5, -0.3)
+mesh = SubResource("grill_bar_mesh")
+surface_material_override/0 = SubResource("metal_material")
+
+[node name="GrillBar2" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0.5, -0.1)
+mesh = SubResource("grill_bar_mesh")
+surface_material_override/0 = SubResource("metal_material")
+
+[node name="GrillBar3" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0.5, 0.1)
+mesh = SubResource("grill_bar_mesh")
+surface_material_override/0 = SubResource("metal_material")
+
+[node name="GrillBar4" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0.5, 0.3)
+mesh = SubResource("grill_bar_mesh")
+surface_material_override/0 = SubResource("metal_material")
+
+[node name="CrossBar1" type="MeshInstance3D" parent="."]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -0.35, 0.5, 0)
+mesh = SubResource("grill_bar_mesh")
+surface_material_override/0 = SubResource("metal_material")
+
+[node name="CrossBar2" type="MeshInstance3D" parent="."]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 0.35, 0.5, 0)
+mesh = SubResource("grill_bar_mesh")
+surface_material_override/0 = SubResource("metal_material")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, 0)
+shape = SubResource("cooking_collision")
+
+[node name="InteractionArea" type="Area3D" parent="."]
+
+[node name="InteractionCollision" type="CollisionShape3D" parent="InteractionArea"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, 0)
+shape = SubResource("cooking_collision")
+
+[node name="CookingSlot1" type="Marker3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.2, 0.55, 0)
+
+[node name="CookingSlot2" type="Marker3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.2, 0.55, 0)

@@ -78,6 +78,17 @@ func _on_slot_right_clicked(slot_index: int) -> void:
 	if not item_data:
 		return
 
+	# Handle consumable items (food) - eat on right-click
+	if item_data.item_type == ItemData.ItemType.CONSUMABLE:
+		var player = player_inventory.get_parent()
+		if player and player.has_method("eat_food"):
+			if player.eat_food(item_id):
+				print("[Hotbar] Ate %s" % item_id)
+				refresh_display()
+			else:
+				print("[Hotbar] Could not eat %s (full or invalid)" % item_id)
+		return
+
 	# Determine which equipment slot to equip to based on item type
 	var equip_slot = -1
 	match item_data.item_type:

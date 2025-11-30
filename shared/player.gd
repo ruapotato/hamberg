@@ -141,36 +141,28 @@ var inventory: Node = null
 # Equipment (server-authoritative)
 var equipment = null  # Equipment instance
 
-# Stamina system
-const MAX_STAMINA: float = 100.0
-const STAMINA_REGEN_RATE: float = 15.0  # Per second
-const STAMINA_REGEN_DELAY: float = 1.0  # Delay after using stamina
-const SPRINT_STAMINA_DRAIN: float = 10.0  # Per second
-const JUMP_STAMINA_COST: float = 10.0
-const EXHAUSTED_RECOVERY_THRESHOLD: float = 0.10  # 10% stamina to recover from exhaustion
-const EXHAUSTED_SPEED_MULTIPLIER: float = 0.6  # 60% speed when exhausted
+# Player Constants reference
+const PC = preload("res://shared/player/player_constants.gd")
 
-var stamina: float = MAX_STAMINA
+# Stamina system (base values - modified by food)
+var stamina: float = PC.BASE_STAMINA
 var stamina_regen_timer: float = 0.0  # Time since last stamina use
 var is_exhausted: bool = false  # True when stamina fully depleted, until 10% recovered
 
-# Brain Power system (for magic)
-const MAX_BRAIN_POWER: float = 100.0
-const BRAIN_POWER_REGEN_RATE: float = 10.0  # Per second (slower than stamina)
-const BRAIN_POWER_REGEN_DELAY: float = 2.0  # Delay after using brain power (longer than stamina)
-
-var brain_power: float = MAX_BRAIN_POWER
+# Brain Power system (for magic, base values - modified by food)
+var brain_power: float = PC.BASE_BRAIN_POWER
 var brain_power_regen_timer: float = 0.0  # Time since last brain power use
 
-# Health system
-const MAX_HEALTH: float = 100.0
-var health: float = MAX_HEALTH
+# Health system (base values - modified by food)
+var health: float = PC.BASE_HEALTH
 var is_dead: bool = false
 var god_mode: bool = false  # Debug god mode - unlimited stamina/brain power
 
+# Food system node (added in _ready)
+var player_food: Node = null
+
 # Fall death system (for falling out of world)
 var fall_time_below_ground: float = 0.0
-const FALL_DEATH_TIME: float = 15.0  # 15 seconds of falling below ground = death
 
 # Blocking start time (for shield parry timing)
 var block_start_time: float = 0.0
@@ -187,6 +179,13 @@ func _ready() -> void:
 	equipment.name = "Equipment"
 	add_child(equipment)
 	equipment.equipment_changed.connect(_on_equipment_changed)
+
+	# Create food system
+	var PlayerFoodScript = preload("res://shared/player/player_food.gd")
+	player_food = PlayerFoodScript.new()
+	player_food.name = "PlayerFood"
+	add_child(player_food)
+
 	# Determine if this is the local player
 	is_local_player = is_multiplayer_authority()
 
@@ -423,7 +422,7 @@ func _apply_movement(input_data: Dictionary, delta: float) -> void:
 			# Player is below ground and falling
 			fall_time_below_ground += delta
 
-			if fall_time_below_ground >= FALL_DEATH_TIME:
+			if fall_time_below_ground >= PC.FALL_DEATH_TIME:
 				print("[Player] Fall death! Fell below ground for %.1f seconds" % fall_time_below_ground)
 				# Kill the player
 				health = 0
@@ -457,8 +456,8 @@ func _apply_movement(input_data: Dictionary, delta: float) -> void:
 
 	# Jumping (with stamina cost)
 	if jump_pressed and is_on_floor():
-		if consume_stamina(JUMP_STAMINA_COST):
-			velocity.y = JUMP_VELOCITY
+		if consume_stamina(PC.JUMP_STAMINA_COST):
+			velocity.y = PC.JUMP_VELOCITY
 			if is_local_player:
 				SoundManager.play_sound_varied("jump", global_position, -3.0, 0.1)
 
@@ -467,16 +466,16 @@ func _apply_movement(input_data: Dictionary, delta: float) -> void:
 	var can_sprint = is_sprinting and not is_blocking and not is_exhausted
 	if can_sprint:
 		# Only sprint if we have enough stamina (consume_stamina returns false if not enough)
-		can_sprint = consume_stamina(SPRINT_STAMINA_DRAIN * delta)
-	var target_speed := SPRINT_SPEED if can_sprint else WALK_SPEED
+		can_sprint = consume_stamina(PC.SPRINT_STAMINA_DRAIN * delta)
+	var target_speed := PC.SPRINT_SPEED if can_sprint else PC.WALK_SPEED
 
 	# Apply exhausted speed reduction (slower walking)
 	if is_exhausted:
-		target_speed *= EXHAUSTED_SPEED_MULTIPLIER
+		target_speed *= PC.EXHAUSTED_SPEED_MULTIPLIER
 
 	# Apply blocking speed reduction
 	if is_blocking:
-		target_speed *= BLOCK_SPEED_MULTIPLIER
+		target_speed *= PC.BLOCK_SPEED_MULTIPLIER
 
 	# Reduce speed during spin attack - can slowly adjust position but not run
 	if is_spinning:
@@ -2467,20 +2466,22 @@ func _animate_axe_attack(progress: float, right_arm: Node3D, left_arm: Node3D, r
 
 ## Update stamina regeneration
 func _update_stamina(delta: float) -> void:
+	var max_stam = player_food.get_max_stamina() if player_food else PC.BASE_STAMINA
+
 	# God mode: unlimited stamina, never exhausted
 	if god_mode:
-		stamina = MAX_STAMINA
+		stamina = max_stam
 		is_exhausted = false
 		return
 
 	# Regenerate stamina after delay
 	stamina_regen_timer += delta
 
-	if stamina_regen_timer >= STAMINA_REGEN_DELAY:
-		stamina = min(stamina + STAMINA_REGEN_RATE * delta, MAX_STAMINA)
+	if stamina_regen_timer >= PC.STAMINA_REGEN_DELAY:
+		stamina = min(stamina + PC.STAMINA_REGEN_RATE * delta, max_stam)
 
 	# Check for exhaustion recovery (need 10% stamina to recover)
-	if is_exhausted and stamina >= MAX_STAMINA * EXHAUSTED_RECOVERY_THRESHOLD:
+	if is_exhausted and stamina >= max_stam * PC.EXHAUSTED_RECOVERY_THRESHOLD:
 		is_exhausted = false
 		print("[Player] Recovered from exhaustion")
 
@@ -2508,16 +2509,18 @@ func consume_stamina(amount: float) -> bool:
 
 ## Update brain power regeneration
 func _update_brain_power(delta: float) -> void:
+	var max_bp = player_food.get_max_brain_power() if player_food else PC.BASE_BRAIN_POWER
+
 	# God mode: unlimited brain power
 	if god_mode:
-		brain_power = MAX_BRAIN_POWER
+		brain_power = max_bp
 		return
 
 	# Regenerate brain power after delay
 	brain_power_regen_timer += delta
 
-	if brain_power_regen_timer >= BRAIN_POWER_REGEN_DELAY:
-		brain_power = min(brain_power + BRAIN_POWER_REGEN_RATE * delta, MAX_BRAIN_POWER)
+	if brain_power_regen_timer >= PC.BRAIN_POWER_REGEN_DELAY:
+		brain_power = min(brain_power + PC.BRAIN_POWER_REGEN_RATE * delta, max_bp)
 
 ## Consume brain power (returns true if enough brain power available)
 func consume_brain_power(amount: float) -> bool:
@@ -2712,11 +2715,16 @@ func _request_respawn() -> void:
 ## Respawn player (called by server via RPC)
 func respawn_at(spawn_position: Vector3) -> void:
 	is_dead = false
-	health = MAX_HEALTH
-	stamina = MAX_STAMINA
-	brain_power = MAX_BRAIN_POWER
+	# Use base stats on respawn (food buffs are cleared)
+	health = PC.BASE_HEALTH
+	stamina = PC.BASE_STAMINA
+	brain_power = PC.BASE_BRAIN_POWER
 	global_position = spawn_position
 	velocity = Vector3.ZERO
+
+	# Clear food buffs on death
+	if player_food:
+		player_food.clear_all_foods()
 
 	print("[Player] Player respawned at %s!" % spawn_position)
 
@@ -2743,6 +2751,38 @@ func set_game_loaded(loaded: bool) -> void:
 		print("[Player] Game fully loaded - input and physics enabled")
 	else:
 		print("[Player] Game loading - input and physics disabled")
+
+# ============================================================================
+# FOOD SYSTEM HELPERS
+# ============================================================================
+
+## Clamp current stats to max values (called when food buffs expire)
+func clamp_stats_to_max() -> void:
+	if player_food:
+		health = min(health, player_food.get_max_health())
+		stamina = min(stamina, player_food.get_max_stamina())
+		brain_power = min(brain_power, player_food.get_max_brain_power())
+	else:
+		health = min(health, PC.BASE_HEALTH)
+		stamina = min(stamina, PC.BASE_STAMINA)
+		brain_power = min(brain_power, PC.BASE_BRAIN_POWER)
+
+## Eat a food item (consume from inventory and apply buff)
+func eat_food(food_id: String) -> bool:
+	if not player_food:
+		return false
+
+	# Check if we have the food item
+	if not inventory.has_item(food_id, 1):
+		print("[Player] Don't have %s to eat" % food_id)
+		return false
+
+	# Try to eat it
+	if player_food.eat_food(food_id):
+		inventory.remove_item(food_id, 1)
+		return true
+
+	return false
 
 # ============================================================================
 # EQUIPMENT SYSTEM

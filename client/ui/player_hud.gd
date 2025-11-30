@@ -32,20 +32,38 @@ func _process(delta: float) -> void:
 	if fps_label:
 		fps_label.text = "FPS: %d" % Engine.get_frames_per_second()
 
+## Get current max health from player's food system
+func _get_max_health() -> float:
+	if player and player.has_node("PlayerFood"):
+		return player.get_node("PlayerFood").get_max_health()
+	return 25.0  # PC.BASE_HEALTH
+
+## Get current max stamina from player's food system
+func _get_max_stamina() -> float:
+	if player and player.has_node("PlayerFood"):
+		return player.get_node("PlayerFood").get_max_stamina()
+	return 50.0  # PC.BASE_STAMINA
+
+## Get current max brain power from player's food system
+func _get_max_brain_power() -> float:
+	if player and player.has_node("PlayerFood"):
+		return player.get_node("PlayerFood").get_max_brain_power()
+	return 25.0  # PC.BASE_BRAIN_POWER
+
 ## Update health, stamina, and brain power bars
 func _update_bars(delta: float = 0.0) -> void:
 	if not player:
 		return
 
-	# Health
-	var max_health = player.MAX_HEALTH if "MAX_HEALTH" in player else 100.0
+	# Health (dynamic max from food system)
+	var max_health = _get_max_health()
 	var health = player.health if "health" in player else max_health
 	health_bar.max_value = max_health
 	health_bar.value = health
 	health_label.text = "HP: %d / %d" % [health, max_health]
 
-	# Stamina
-	var max_stamina = player.MAX_STAMINA if "MAX_STAMINA" in player else 100.0
+	# Stamina (dynamic max from food system)
+	var max_stamina = _get_max_stamina()
 	var stamina = player.stamina if "stamina" in player else max_stamina
 	stamina_bar.max_value = max_stamina
 	stamina_bar.value = stamina
@@ -63,8 +81,8 @@ func _update_bars(delta: float = 0.0) -> void:
 		stamina_bar.modulate.a = 1.0
 		stamina_label.text = "Stamina: %d / %d" % [stamina, max_stamina]
 
-	# Brain Power
-	var max_brain_power = player.MAX_BRAIN_POWER if "MAX_BRAIN_POWER" in player else 100.0
+	# Brain Power (dynamic max from food system)
+	var max_brain_power = _get_max_brain_power()
 	var brain_power = player.brain_power if "brain_power" in player else max_brain_power
 	brain_power_bar.max_value = max_brain_power
 	brain_power_bar.value = brain_power

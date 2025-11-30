@@ -20,6 +20,8 @@ func _ready() -> void:
 const BUILDING_COSTS: Dictionary = {
 	"workbench": {"wood": 10},
 	"chest": {"wood": 10},
+	"fireplace": {"stone": 5, "wood": 2},
+	"cooking_station": {"stone": 3, "wood": 5},
 	"wooden_wall": {"wood": 4},
 	"wooden_floor": {"wood": 2},
 	"wooden_door": {"wood": 4},
@@ -36,7 +38,6 @@ func _initialize_recipes() -> void:
 	add_recipe("hammer", 1, {"wood": 10})
 	add_recipe("torch", 1, {"wood": 1, "resin": 1})
 	add_recipe("club", 1, {"wood": 6})
-	add_recipe("fireplace", 1, {"stone": 5, "wood": 2})
 	add_recipe("stone_axe", 1, {"wood": 4, "stone": 4})  # Basic axe for chopping trees - no workbench!
 
 	# Tools (workbench required)

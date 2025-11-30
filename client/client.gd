@@ -134,6 +134,7 @@ var environmental_objects_container: Node3D
 @onready var players_label: Label = $CanvasLayer/HUD/PlayersLabel
 @onready var build_status_label: Label = $CanvasLayer/HUD/StatusLabel
 @onready var notification_label: Label = $CanvasLayer/HUD/NotificationLabel
+@onready var interact_prompt_label: Label = $CanvasLayer/HUD/Crosshair/InteractPrompt
 
 # World and camera
 @onready var world: Node3D = $World
@@ -250,6 +251,7 @@ func _process(_delta: float) -> void:
 		if not (debug_console_ui and debug_console_ui.visible):
 			_handle_build_input()
 			_handle_interaction_input()
+			_update_interact_prompt()
 		_update_biome_music(_delta)
 
 		# Check queued terrain modifications periodically
@@ -513,13 +515,18 @@ func _interact_with_object_under_cursor() -> void:
 
 	if result and result.collider:
 		var hit_object = result.collider
-		# Check if it's a buildable object (workbench, door, etc.)
+		# Check if it's a buildable object (workbench, door, cooking station, etc.)
 		var buildable = hit_object
 		while buildable:
 			# Check if it's a door
 			if buildable.has_method("interact") and buildable.get("is_interactable"):
 				print("[Client] Interacting with door")
 				buildable.interact()
+				return
+			# Check if it's a cooking station
+			if buildable.is_in_group("cooking_station") and buildable.has_method("interact"):
+				print("[Client] Interacting with cooking station")
+				buildable.interact(local_player)
 				return
 			# Check if it's a crafting station (workbench)
 			if buildable.has_method("is_position_in_range") and buildable.get("is_crafting_station"):
@@ -550,6 +557,63 @@ func _open_crafting_menu() -> void:
 	# Open the menu
 	crafting_menu_ui.show_menu()
 	print("[Client] Opened crafting menu")
+
+## Update the interaction prompt based on what the player is looking at
+func _update_interact_prompt() -> void:
+	if not interact_prompt_label:
+		return
+
+	# Hide prompt if UI is open
+	if (inventory_panel_ui and inventory_panel_ui.is_inventory_open()) or \
+	   (crafting_menu_ui and crafting_menu_ui.is_open) or \
+	   (chest_ui and chest_ui.is_ui_open()):
+		interact_prompt_label.text = ""
+		return
+
+	var camera = _get_camera()
+	if not camera:
+		interact_prompt_label.text = ""
+		return
+
+	# Raycast from crosshair position
+	var viewport_size = get_viewport().get_visible_rect().size
+	var crosshair_screen_pos = viewport_size / 2.0 + Vector2(-41, -50)
+	var from = camera.project_ray_origin(crosshair_screen_pos)
+	var ray_dir = camera.project_ray_normal(crosshair_screen_pos)
+	var to = from + ray_dir * 5.0  # 5m interaction range
+
+	var space_state = world.get_world_3d().direct_space_state
+	var query = PhysicsRayQueryParameters3D.create(from, to)
+	query.collision_mask = 1
+	query.collide_with_areas = true
+
+	var result = space_state.intersect_ray(query)
+
+	if result and result.collider:
+		var hit_object = result.collider
+		var buildable = hit_object
+		while buildable:
+			# Cooking station
+			if buildable.is_in_group("cooking_station") and buildable.has_method("get_interact_prompt"):
+				interact_prompt_label.text = buildable.get_interact_prompt()
+				return
+			# Door
+			if buildable.has_method("get_interaction_prompt") and buildable.get("is_interactable"):
+				interact_prompt_label.text = buildable.get_interaction_prompt() + " [E]"
+				return
+			# Workbench
+			if buildable.has_method("is_position_in_range") and buildable.get("is_crafting_station"):
+				var station_type = buildable.get("station_type")
+				if station_type == "workbench":
+					interact_prompt_label.text = "Open workbench [E]"
+					return
+			# Chest
+			if buildable.is_in_group("chest"):
+				interact_prompt_label.text = "Open chest [E] / Quick-sort [Hold E]"
+				return
+			buildable = buildable.get_parent()
+
+	interact_prompt_label.text = ""
 
 ## Get chest under cursor for interaction (returns null if no chest)
 func _get_chest_under_cursor() -> Node:
@@ -893,7 +957,7 @@ func _on_equipment_changed(equipment_slot: int) -> void:
 	elif main_hand_item == "workbench":
 		if camera and local_player:
 			placement_mode.activate(local_player, camera, world, main_hand_item)
-			print("[Client] Placement mode activated for workbench")
+			print("[Client] Placement mode activated for %s" % main_hand_item)
 
 ## Handle build piece selection from build menu
 func _on_build_piece_selected(piece_name: String) -> void:
@@ -923,9 +987,19 @@ func _on_build_piece_placed(piece_name: String, position: Vector3, rotation_y: f
 ## Handle item placement from placement mode
 func _on_item_placed(item_name: String, position: Vector3, rotation_y: float) -> void:
 	print("[Client] Requesting placement of %s at %s" % [item_name, position])
-	# TODO: Request server to place the item as a buildable
-	# For now, just log it
-	# NetworkManager.rpc_place_buildable.rpc_id(1, item_name, position, rotation_y)
+
+	# Consume the item from inventory (client-side prediction)
+	if local_player:
+		var player_inventory = local_player.get_node_or_null("Inventory")
+		if player_inventory:
+			if not player_inventory.remove_item(item_name, 1):
+				push_error("[Client] Failed to remove %s from inventory!" % item_name)
+				return
+			print("[Client] Consumed %s from inventory" % item_name)
+
+	# Request server to place the buildable
+	var pos_array = [position.x, position.y, position.z]
+	NetworkManager.rpc_place_buildable.rpc_id(1, item_name, pos_array, rotation_y)
 
 ## Get the current camera
 func _get_camera() -> Camera3D:
