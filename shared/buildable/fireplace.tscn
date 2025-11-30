@@ -1,4 +1,4 @@
-[gd_scene load_steps=9 format=3 uid="uid://bkrap1r88usij"]
+[gd_scene load_steps=12 format=3 uid="uid://bkrap1r88usij"]
 
 [ext_resource type="Script" uid="uid://dxurgj0y3ykp8" path="res://shared/buildable/fireplace.gd" id="1"]
 [ext_resource type="Material" path="res://shared/buildable/wood_material.tres" id="2"]
@@ -32,6 +32,32 @@ emission_energy_multiplier = 2.0
 [sub_resource type="CylinderShape3D" id="fireplace_collision"]
 height = 0.3
 radius = 0.6
+
+[sub_resource type="ParticleProcessMaterial" id="fire_particle_material"]
+emission_shape = 1
+emission_sphere_radius = 0.2
+direction = Vector3(0, 1, 0)
+spread = 15.0
+initial_velocity_min = 0.5
+initial_velocity_max = 1.5
+gravity = Vector3(0, 0.5, 0)
+scale_min = 0.2
+scale_max = 0.6
+color = Color(1, 0.5, 0.1, 1)
+
+[sub_resource type="StandardMaterial3D" id="fire_particle_draw_material"]
+transparency = 1
+shading_mode = 0
+vertex_color_use_as_albedo = true
+albedo_color = Color(1, 0.6, 0.2, 0.8)
+emission_enabled = true
+emission = Color(1, 0.4, 0, 1)
+emission_energy_multiplier = 3.0
+billboard_mode = 3
+
+[sub_resource type="QuadMesh" id="fire_quad_mesh"]
+size = Vector2(0.3, 0.4)
+material = SubResource("fire_particle_draw_material")
 
 [node name="Fireplace" type="StaticBody3D"]
 collision_mask = 0
@@ -69,6 +95,16 @@ light_color = Color(1, 0.6, 0.2, 1)
 light_energy = 2.0
 omni_range = 8.0
 omni_attenuation = 1.5
+
+[node name="FireParticles" type="GPUParticles3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.15, 0)
+amount = 40
+lifetime = 0.8
+explosiveness = 0.1
+randomness = 0.5
+local_coords = false
+process_material = SubResource("fire_particle_material")
+draw_pass_1 = SubResource("fire_quad_mesh")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.15, 0)
