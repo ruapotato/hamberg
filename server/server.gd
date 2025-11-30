@@ -1222,6 +1222,23 @@ func _spawn_player_with_data(peer_id: int, player_data: Dictionary) -> void:
 		var inventory = player.get_node("Inventory")
 		inventory.set_inventory_data(player_data["inventory"])
 
+	# Load equipment
+	if player_data.has("equipment") and player.has_node("Equipment"):
+		var equipment = player.get_node("Equipment")
+		equipment.set_equipment_data(player_data["equipment"])
+		print("[Server] Loaded equipment for player %d: %s" % [peer_id, player_data["equipment"]])
+
+	# Load active food buffs
+	if player_data.has("active_foods") and player.has_node("PlayerFood"):
+		var player_food = player.get_node("PlayerFood")
+		player_food.load_save_data(player_data["active_foods"])
+		print("[Server] Loaded %d active food buffs for player %d" % [player_data["active_foods"].size(), peer_id])
+
+	# Load health (after food so max_health is calculated correctly)
+	if player_data.has("health") and "health" in player:
+		player.health = player_data["health"]
+		print("[Server] Loaded health %.1f for player %d" % [player.health, peer_id])
+
 	print("[Server] Spawned player %d at %s" % [peer_id, spawn_pos])
 
 	# Register player with chunk manager for environmental object spawning
@@ -1254,6 +1271,11 @@ func _spawn_player_with_data(peer_id: int, player_data: Dictionary) -> void:
 	# Send inventory to client
 	if player_data.has("inventory"):
 		NetworkManager.rpc_sync_inventory.rpc_id(peer_id, player_data["inventory"])
+
+	# Send equipment to client
+	if player_data.has("equipment"):
+		NetworkManager.rpc_sync_equipment.rpc_id(peer_id, player_data["equipment"])
+		print("[Server] Sent equipment sync to player %d" % peer_id)
 
 	# Send full character data (including map pins) to client
 	NetworkManager.rpc_send_character_data.rpc_id(peer_id, player_data)
@@ -1442,6 +1464,108 @@ func handle_unequip_request(peer_id: int, equip_slot: int) -> void:
 	# Sync equipment to client (inventory unchanged)
 	var equipment_data = equipment.get_equipment_data()
 	NetworkManager.rpc_sync_equipment.rpc_id(peer_id, equipment_data)
+
+## Handle eat food request (server-authoritative)
+## Consumes food from inventory and applies buff on server, then syncs to client
+func handle_eat_food_request(peer_id: int, food_id: String, inventory_slot: int) -> void:
+	if not spawned_players.has(peer_id):
+		return
+
+	var player = spawned_players[peer_id]
+	if not player or not is_instance_valid(player):
+		return
+
+	if not player.has_node("Inventory") or not player.has_node("PlayerFood"):
+		return
+
+	var inventory = player.get_node("Inventory")
+	var player_food = player.get_node("PlayerFood")
+
+	# Verify the slot has the food item
+	var inventory_data = inventory.get_inventory_data()
+	if inventory_slot >= inventory_data.size():
+		print("[Server] Invalid inventory slot %d for food" % inventory_slot)
+		return
+
+	var slot_data = inventory_data[inventory_slot]
+	var slot_item = slot_data.get("item", "")
+	if slot_item != food_id:
+		print("[Server] Slot %d has %s, not %s" % [inventory_slot, slot_item, food_id])
+		return
+
+	# Try to eat the food (PlayerFood validates it's valid food, not already active, etc.)
+	if player_food.eat_food(food_id):
+		# Remove one food from inventory
+		inventory.remove_item(food_id, 1)
+		print("[Server] Player %d ate %s" % [peer_id, food_id])
+
+		# Sync inventory to client
+		NetworkManager.rpc_sync_inventory.rpc_id(peer_id, inventory.get_inventory_data())
+
+		# Sync food buffs to client
+		var food_data = player_food.get_save_data()
+		NetworkManager.rpc_sync_food.rpc_id(peer_id, food_data)
+	else:
+		print("[Server] Player %d failed to eat %s (already active or invalid)" % [peer_id, food_id])
+
+## Handle taking cooked food from cooking station
+## Client runs cooking simulation, tells server what item to give
+func handle_cooking_station_take(peer_id: int, item_id: String) -> void:
+	if not spawned_players.has(peer_id):
+		return
+
+	var player = spawned_players[peer_id]
+	if not player or not is_instance_valid(player):
+		return
+
+	if not player.has_node("Inventory"):
+		return
+
+	# Validate the item is a valid cooked food or charcoal
+	var valid_items = ["cooked_venison", "cooked_pork", "cooked_mutton", "charcoal", "raw_venison", "raw_pork", "raw_mutton"]
+	if item_id not in valid_items:
+		print("[Server] Invalid item from cooking station: %s" % item_id)
+		return
+
+	var inventory = player.get_node("Inventory")
+	inventory.add_item(item_id, 1)
+	print("[Server] Player %d took %s from cooking station" % [peer_id, item_id])
+
+	# Sync inventory to client
+	NetworkManager.rpc_sync_inventory.rpc_id(peer_id, inventory.get_inventory_data())
+
+## Handle adding raw meat to cooking station
+## Server removes from inventory, client handles cooking simulation
+func handle_cooking_station_add(peer_id: int, item_id: String) -> void:
+	if not spawned_players.has(peer_id):
+		return
+
+	var player = spawned_players[peer_id]
+	if not player or not is_instance_valid(player):
+		return
+
+	if not player.has_node("Inventory"):
+		return
+
+	# Validate the item is raw meat
+	var valid_raw = ["raw_venison", "raw_pork", "raw_mutton"]
+	if item_id not in valid_raw:
+		print("[Server] %s cannot be cooked" % item_id)
+		return
+
+	var inventory = player.get_node("Inventory")
+
+	# Check if player has the item
+	if not inventory.has_item(item_id, 1):
+		print("[Server] Player %d doesn't have %s" % [peer_id, item_id])
+		return
+
+	# Remove from inventory
+	inventory.remove_item(item_id, 1)
+	print("[Server] Player %d added %s to cooking station" % [peer_id, item_id])
+
+	# Sync inventory to client
+	NetworkManager.rpc_sync_inventory.rpc_id(peer_id, inventory.get_inventory_data())
 
 ## Handle swap inventory slots request
 func handle_swap_slots_request(peer_id: int, slot_a: int, slot_b: int) -> void:

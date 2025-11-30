@@ -6,6 +6,7 @@ extends Control
 const InventorySlot = preload("res://client/ui/inventory_slot.tscn")
 const ItemData = preload("res://shared/item_data.gd")
 const Equipment = preload("res://shared/equipment.gd")
+const ArmorData = preload("res://shared/armor_data.gd")
 const MAX_SLOTS: int = 30
 const COLUMNS: int = 6
 
@@ -20,8 +21,13 @@ var picked_up_slot: int = -1  # Slot being moved (-1 = none)
 @onready var panel: Panel = $Panel
 @onready var recipe_list: VBoxContainer = $Panel/CraftingPanel/RecipeList
 
+# Stats panel nodes
+var stats_panel: Panel = null
+var stats_label: RichTextLabel = null
+
 func _ready() -> void:
 	_create_slots()
+	_create_stats_panel()
 	hide_inventory()
 
 	# Set up grid columns
@@ -30,6 +36,59 @@ func _ready() -> void:
 
 	# Populate crafting recipes
 	_populate_recipes()
+
+## Create the player stats panel (shows food buffs, armor, set bonuses)
+## This panel appears on the right side of the inventory, as a separate panel
+func _create_stats_panel() -> void:
+	# Create stats panel as sibling to Panel, not inside it
+	stats_panel = Panel.new()
+	stats_panel.name = "StatsPanel"
+	add_child(stats_panel)
+
+	# Position stats panel to the right of the inventory panel
+	# Inventory panel is centered at 450px offset, so place stats panel to its right
+	stats_panel.anchor_left = 0.5
+	stats_panel.anchor_top = 0.5
+	stats_panel.anchor_right = 0.5
+	stats_panel.anchor_bottom = 0.5
+	stats_panel.offset_left = 470  # Just to the right of the inventory panel (which ends at 450)
+	stats_panel.offset_top = -300  # Same height as inventory
+	stats_panel.offset_right = 720  # 250px wide
+	stats_panel.offset_bottom = 300
+
+	# Background
+	var bg = ColorRect.new()
+	bg.name = "Background"
+	bg.color = Color(0.15, 0.15, 0.15, 0.95)
+	bg.anchor_right = 1.0
+	bg.anchor_bottom = 1.0
+	stats_panel.add_child(bg)
+
+	# Title
+	var title = Label.new()
+	title.name = "Title"
+	title.text = "CHARACTER STATS"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	title.anchor_right = 1.0
+	title.offset_bottom = 40
+	title.add_theme_font_size_override("font_size", 20)
+	title.add_theme_color_override("font_color", Color.WHITE)
+	stats_panel.add_child(title)
+
+	# Stats label (RichTextLabel for formatting)
+	stats_label = RichTextLabel.new()
+	stats_label.name = "StatsLabel"
+	stats_label.bbcode_enabled = true
+	stats_label.anchor_top = 0.08
+	stats_label.anchor_right = 1.0
+	stats_label.anchor_bottom = 1.0
+	stats_label.offset_left = 10
+	stats_label.offset_top = 5
+	stats_label.offset_right = -10
+	stats_label.offset_bottom = -5
+	stats_label.add_theme_font_size_override("normal_font_size", 14)
+	stats_panel.add_child(stats_label)
 
 func _process(_delta: float) -> void:
 	# Toggle inventory with Tab key
@@ -102,15 +161,10 @@ func _on_slot_right_clicked(slot_index: int) -> void:
 		print("[InventoryPanel] Unknown item: %s" % item_id)
 		return
 
-	# Handle consumable items (food) - eat on right-click
+	# Handle consumable items (food) - eat on right-click (server-authoritative)
 	if item_data.item_type == ItemData.ItemType.CONSUMABLE:
-		var player = player_inventory.get_parent()
-		if player and player.has_method("eat_food"):
-			if player.eat_food(item_id):
-				print("[InventoryPanel] Ate %s" % item_id)
-				refresh_display()
-			else:
-				print("[InventoryPanel] Could not eat %s (full or invalid)" % item_id)
+		print("[InventoryPanel] Requesting to eat %s from slot %d" % [item_id, slot_index])
+		NetworkManager.rpc_request_eat_food.rpc_id(1, item_id, slot_index)
 		return
 
 	# Determine which slot to equip to based on item type
@@ -121,9 +175,23 @@ func _on_slot_right_clicked(slot_index: int) -> void:
 		ItemData.ItemType.SHIELD:
 			equip_slot = Equipment.EquipmentSlot.OFF_HAND
 		ItemData.ItemType.ARMOR:
-			# TODO: Determine HEAD/CHEST/LEGS based on armor subtype
-			print("[InventoryPanel] Armor equipping not yet implemented")
-			return
+			# Determine equipment slot based on armor slot type
+			if item_data is ArmorData:
+				match item_data.armor_slot:
+					ArmorData.ArmorSlot.HEAD:
+						equip_slot = Equipment.EquipmentSlot.HEAD
+					ArmorData.ArmorSlot.CHEST:
+						equip_slot = Equipment.EquipmentSlot.CHEST
+					ArmorData.ArmorSlot.LEGS:
+						equip_slot = Equipment.EquipmentSlot.LEGS
+					ArmorData.ArmorSlot.CAPE:
+						equip_slot = Equipment.EquipmentSlot.CAPE
+					_:
+						print("[InventoryPanel] Unknown armor slot type")
+						return
+			else:
+				print("[InventoryPanel] Armor item %s has no armor slot data" % item_id)
+				return
 		_:
 			print("[InventoryPanel] Item %s is not equippable" % item_id)
 			return
@@ -187,6 +255,9 @@ func show_inventory() -> void:
 	visible = true
 	refresh_display()
 
+	# Update stats display
+	_update_stats_display()
+
 	# Update recipe button states based on current inventory
 	_update_recipe_buttons()
 
@@ -195,6 +266,79 @@ func show_inventory() -> void:
 
 	# Capture mouse cursor
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+
+## Update the player stats display panel
+func _update_stats_display() -> void:
+	if not stats_label or not player_inventory:
+		return
+
+	var player = player_inventory.get_parent()
+	if not player:
+		return
+
+	var text = ""
+
+	# Food buffs section
+	text += "[b][color=yellow]FOOD BUFFS[/color][/b]\n"
+	var player_food = player.get_node_or_null("PlayerFood")
+	if player_food and player_food.has_method("get_active_foods_info"):
+		var active_foods = player_food.get_active_foods_info()
+		if active_foods.size() > 0:
+			for food in active_foods:
+				var food_name = food.get("food_id", "Unknown")
+				var time_left = food.get("remaining_time", 0)
+				var health_bonus = food.get("health_bonus", 0)
+				var stamina_bonus = food.get("stamina_bonus", 0)
+				var mins = int(time_left) / 60
+				var secs = int(time_left) % 60
+				var bonuses = ""
+				if health_bonus > 0:
+					bonuses += "+%.0fHP " % health_bonus
+				if stamina_bonus > 0:
+					bonuses += "+%.0fStam" % stamina_bonus
+				text += "  %s (%s) - %dm %ds\n" % [food_name.capitalize().replace("_", " "), bonuses.strip_edges(), mins, secs]
+		else:
+			text += "  [color=gray]No food active[/color]\n"
+	else:
+		text += "  [color=gray]No food active[/color]\n"
+
+	# Armor section
+	text += "\n[b][color=cyan]ARMOR[/color][/b]\n"
+	var equipment = player.get_node_or_null("Equipment")
+	if equipment:
+		var total_armor = equipment.get_total_armor()
+		text += "  Defense: +%.0f\n" % total_armor
+
+		# Show equipped armor pieces
+		var armor_slots = {
+			Equipment.EquipmentSlot.HEAD: "Head",
+			Equipment.EquipmentSlot.CHEST: "Chest",
+			Equipment.EquipmentSlot.LEGS: "Legs",
+			Equipment.EquipmentSlot.CAPE: "Cape",
+		}
+		for slot in armor_slots:
+			var item_id = equipment.get_equipped_item(slot)
+			var slot_name = armor_slots[slot]
+			if item_id.is_empty():
+				text += "  %s: [color=gray]None[/color]\n" % slot_name
+			else:
+				var item_data = ItemDatabase.get_item(item_id)
+				var display_name = item_data.display_name if item_data else item_id
+				text += "  %s: %s\n" % [slot_name, display_name]
+
+		# Set bonus
+		var set_bonus = equipment.get_active_set_bonus()
+		text += "\n[b][color=lime]SET BONUS[/color][/b]\n"
+		if set_bonus == ArmorData.SetBonus.PIG_DOUBLE_JUMP:
+			text += "  [color=pink]Pig Set: DOUBLE JUMP[/color]\n"
+		elif set_bonus == ArmorData.SetBonus.DEER_STAMINA_SAVER:
+			text += "  [color=tan]Deer Set: 50% SPRINT STAMINA[/color]\n"
+		else:
+			text += "  [color=gray]None (need full matching set)[/color]\n"
+	else:
+		text += "  [color=gray]No equipment[/color]\n"
+
+	stats_label.text = text
 
 ## Hide inventory panel
 ## Returns true if it was open (for ESC handling)

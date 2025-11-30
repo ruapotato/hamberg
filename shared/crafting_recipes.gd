@@ -56,6 +56,18 @@ func _initialize_recipes() -> void:
 	add_recipe("round_shield", 1, {"wood": 10}, "workbench")
 	add_recipe("buckler", 1, {"wood": 5}, "workbench")
 
+	# Pig Armor Set (workbench required) - grants Double Jump when full set worn
+	add_recipe("pig_helmet", 1, {"pig_leather": 4}, "workbench")
+	add_recipe("pig_chest", 1, {"pig_leather": 6}, "workbench")
+	add_recipe("pig_pants", 1, {"pig_leather": 5}, "workbench")
+	add_recipe("pig_cape", 1, {"pig_leather": 3}, "workbench")
+
+	# Deer Armor Set (workbench required) - grants 50% Sprint Stamina Reduction when full set worn
+	add_recipe("deer_helmet", 1, {"deer_leather": 4}, "workbench")
+	add_recipe("deer_chest", 1, {"deer_leather": 6}, "workbench")
+	add_recipe("deer_pants", 1, {"deer_leather": 5}, "workbench")
+	add_recipe("deer_cape", 1, {"deer_leather": 3}, "workbench")
+
 	print("[CraftingRecipes] Initialized %d recipes" % recipes.size())
 
 func add_recipe(output: String, amount: int, requirements: Dictionary, crafting_station: String = "") -> void:

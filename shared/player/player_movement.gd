@@ -39,11 +39,26 @@ func apply_movement(input_data: Dictionary, delta: float) -> void:
 	_handle_lunge_momentum()
 
 	# Jumping (with stamina cost)
-	if jump_pressed and player.is_on_floor():
-		if player.resources.consume_stamina(PC.JUMP_STAMINA_COST):
-			player.velocity.y = PC.JUMP_VELOCITY
-			if player.is_local_player:
-				SoundManager.play_sound_varied("jump", player.global_position, -3.0, 0.1)
+	if jump_pressed:
+		var can_ground_jump = player.is_on_floor()
+		var has_double_jump = player.equipment and player.equipment.has_double_jump_bonus()
+		var can_double_jump = (not player.is_on_floor()
+			and not player.has_used_double_jump
+			and has_double_jump)
+
+		# Debug: Check double jump status when in air
+		if not player.is_on_floor() and not player.has_used_double_jump:
+			print("[Player] In air, checking double jump: has_bonus=%s, equipment=%s" % [has_double_jump, player.equipment != null])
+
+		if can_ground_jump or can_double_jump:
+			if player.resources.consume_stamina(PC.JUMP_STAMINA_COST):
+				player.velocity.y = PC.JUMP_VELOCITY
+				if player.is_local_player:
+					SoundManager.play_sound_varied("jump", player.global_position, -3.0, 0.1)
+				# Mark double jump as used if we jumped in the air
+				if can_double_jump:
+					player.has_used_double_jump = true
+					print("[Player] Used double jump (Pig Armor set bonus)")
 
 	# Calculate target speed
 	var target_speed := _calculate_target_speed(is_sprinting, delta)
@@ -76,8 +91,12 @@ func _calculate_target_speed(is_sprinting: bool, delta: float) -> float:
 	# Can't sprint while blocking or exhausted
 	var can_sprint = is_sprinting and not player.is_blocking and not player.is_exhausted
 	if can_sprint:
+		# Calculate sprint stamina cost (halved with deer armor set bonus)
+		var sprint_cost = PC.SPRINT_STAMINA_DRAIN * delta
+		if player.equipment and player.equipment.has_stamina_saver_bonus():
+			sprint_cost *= 0.5  # 50% stamina reduction with deer armor set
 		# Only sprint if we have enough stamina
-		can_sprint = player.resources.consume_stamina(PC.SPRINT_STAMINA_DRAIN * delta)
+		can_sprint = player.resources.consume_stamina(sprint_cost)
 
 	var target_speed := PC.SPRINT_SPEED if can_sprint else PC.WALK_SPEED
 
@@ -260,6 +279,7 @@ func update_animation_state() -> void:
 		player.is_jumping = false
 		player.is_falling = false
 		player.is_stepping_up = false
+		player.has_used_double_jump = false  # Reset double jump on landing
 
 	# Update floor tracking
 	player.was_on_floor_last_frame = on_floor

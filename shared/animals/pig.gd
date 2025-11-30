@@ -27,7 +27,7 @@ func _ready() -> void:
 	max_health = 35.0
 	move_speed = 3.5  # Faster in the air
 	strafe_speed = 3.0
-	loot_table = {"raw_pork": 3}
+	loot_table = {"raw_pork": 3, "pig_leather": 2}
 
 	# Randomize starting direction
 	var angle = randf() * TAU

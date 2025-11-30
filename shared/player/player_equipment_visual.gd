@@ -1,12 +1,22 @@
 class_name PlayerEquipmentVisual
 extends RefCounted
 
-## PlayerEquipmentVisual - Handles weapon and shield visual attachment
+## PlayerEquipmentVisual - Handles weapon, shield, and armor visual attachment
 ## Spawns and despawns 3D models when equipment changes
+## Changes player body colors based on equipped armor
 
 const Equipment = preload("res://shared/equipment.gd")
+const ArmorData = preload("res://shared/armor_data.gd")
 
 var player: CharacterBody3D
+
+# Default colors for unarmored player (skin-colored)
+const DEFAULT_SKIN_COLOR: Color = Color(0.9, 0.75, 0.65, 1.0)  # Natural skin tone
+const DEFAULT_CLOTHES_COLOR: Color = Color(0.7, 0.65, 0.6, 1.0)  # Light tan (minimal clothing)
+const DEFAULT_PANTS_COLOR: Color = Color(0.6, 0.55, 0.5, 1.0)  # Slightly darker tan
+
+# Cape visual node reference
+var cape_visual: Node3D = null
 
 func _init(p: CharacterBody3D) -> void:
 	player = p
@@ -24,9 +34,14 @@ func on_equipment_changed(slot) -> void:
 			update_weapon_visual()
 		Equipment.EquipmentSlot.OFF_HAND:
 			update_shield_visual()
-		Equipment.EquipmentSlot.HEAD, Equipment.EquipmentSlot.CHEST, Equipment.EquipmentSlot.LEGS:
-			# TODO: Implement armor visuals
-			pass
+		Equipment.EquipmentSlot.HEAD:
+			update_head_armor_visual()
+		Equipment.EquipmentSlot.CHEST:
+			update_chest_armor_visual()
+		Equipment.EquipmentSlot.LEGS:
+			update_legs_armor_visual()
+		Equipment.EquipmentSlot.CAPE:
+			update_cape_visual()
 
 # =============================================================================
 # WEAPON VISUAL
@@ -187,3 +202,205 @@ func _find_hand_attach_point(hand_name: String) -> Node3D:
 		return arm.get_node("HandAttach")
 
 	return null
+
+# =============================================================================
+# ARMOR VISUALS
+# =============================================================================
+
+## Update head armor visual (changes head/neck color)
+func update_head_armor_visual() -> void:
+	if not player.body_container:
+		return
+
+	var armor_data = player.equipment.get_equipped_item_data(Equipment.EquipmentSlot.HEAD)
+	var color = DEFAULT_SKIN_COLOR
+
+	if armor_data is ArmorData:
+		color = armor_data.primary_color
+		print("[Player] Equipped head armor: %s (color: %s)" % [armor_data.item_id, color])
+	else:
+		print("[Player] Unequipped head armor - reverting to skin color")
+
+	# Apply color to head and neck
+	_set_mesh_color(player.body_container, "Head", color)
+	_set_mesh_color(player.body_container, "Neck", color)
+
+## Update chest armor visual (changes torso color)
+func update_chest_armor_visual() -> void:
+	if not player.body_container:
+		return
+
+	var armor_data = player.equipment.get_equipped_item_data(Equipment.EquipmentSlot.CHEST)
+	var color = DEFAULT_CLOTHES_COLOR
+
+	if armor_data is ArmorData:
+		color = armor_data.primary_color
+		print("[Player] Equipped chest armor: %s (color: %s)" % [armor_data.item_id, color])
+	else:
+		print("[Player] Unequipped chest armor - reverting to default clothes color")
+
+	# Apply color to torso
+	_set_mesh_color(player.body_container, "Torso", color)
+	# Also color the child mesh inside torso if present
+	var torso = player.body_container.get_node_or_null("Torso")
+	if torso:
+		_set_mesh_color(torso, "MeshInstance3D", color)
+
+	# Apply secondary color to arms if armor equipped
+	if armor_data is ArmorData:
+		_set_arm_colors(armor_data.secondary_color)
+	else:
+		_set_arm_colors(DEFAULT_SKIN_COLOR)
+
+## Update legs armor visual (changes legs and hips color)
+func update_legs_armor_visual() -> void:
+	if not player.body_container:
+		return
+
+	var armor_data = player.equipment.get_equipped_item_data(Equipment.EquipmentSlot.LEGS)
+	var color = DEFAULT_PANTS_COLOR
+
+	if armor_data is ArmorData:
+		color = armor_data.primary_color
+		print("[Player] Equipped leg armor: %s (color: %s)" % [armor_data.item_id, color])
+	else:
+		print("[Player] Unequipped leg armor - reverting to default pants color")
+
+	# Apply color to hips and legs
+	_set_mesh_color(player.body_container, "Hips", color)
+	_set_leg_colors(color)
+
+## Update cape visual (creates/removes cape mesh)
+func update_cape_visual() -> void:
+	# Remove existing cape
+	if cape_visual:
+		cape_visual.queue_free()
+		cape_visual = null
+
+	if not player.body_container:
+		return
+
+	var armor_data = player.equipment.get_equipped_item_data(Equipment.EquipmentSlot.CAPE)
+	if not armor_data is ArmorData:
+		print("[Player] Unequipped cape")
+		return
+
+	print("[Player] Equipped cape: %s" % armor_data.item_id)
+
+	# Create cape visual (simple flowing shape attached to shoulders)
+	cape_visual = Node3D.new()
+	cape_visual.name = "Cape"
+	player.body_container.add_child(cape_visual)
+
+	# Create cape mesh - a simple elongated shape hanging from the back
+	var cape_mesh = MeshInstance3D.new()
+	var box = BoxMesh.new()
+	box.size = Vector3(0.25, 0.6, 0.05)  # Wide, tall, thin
+	cape_mesh.mesh = box
+
+	# Create material with armor colors
+	var mat = StandardMaterial3D.new()
+	mat.albedo_color = armor_data.primary_color
+	cape_mesh.material_override = mat
+
+	cape_mesh.position = Vector3(0, -0.3, -0.08)  # Behind and below attachment
+	cape_visual.add_child(cape_mesh)
+
+	# Position cape at upper back (between shoulders)
+	cape_visual.position = Vector3(0, 1.35, -0.05)
+
+## Initialize all armor visuals to default (unarmored) state
+func initialize_armor_visuals() -> void:
+	if not player.body_container:
+		return
+
+	print("[Player] Initializing armor visuals to default skin colors")
+
+	# Head - skin color
+	_set_mesh_color(player.body_container, "Head", DEFAULT_SKIN_COLOR)
+	_set_mesh_color(player.body_container, "Neck", DEFAULT_SKIN_COLOR)
+
+	# Torso - light tan (minimal clothing)
+	_set_mesh_color(player.body_container, "Torso", DEFAULT_CLOTHES_COLOR)
+	var torso = player.body_container.get_node_or_null("Torso")
+	if torso:
+		_set_mesh_color(torso, "MeshInstance3D", DEFAULT_CLOTHES_COLOR)
+
+	# Arms - skin color
+	_set_arm_colors(DEFAULT_SKIN_COLOR)
+
+	# Hips and legs - slightly darker tan
+	_set_mesh_color(player.body_container, "Hips", DEFAULT_PANTS_COLOR)
+	_set_leg_colors(DEFAULT_PANTS_COLOR)
+
+# =============================================================================
+# COLOR HELPERS
+# =============================================================================
+
+## Set the color of a named MeshInstance3D node
+func _set_mesh_color(parent: Node3D, node_name: String, color: Color) -> void:
+	var mesh_node = parent.get_node_or_null(node_name)
+	if mesh_node is MeshInstance3D:
+		var mat = StandardMaterial3D.new()
+		mat.albedo_color = color
+		mesh_node.material_override = mat
+
+## Set colors for arm meshes
+func _set_arm_colors(color: Color) -> void:
+	for arm_name in ["LeftArm", "RightArm"]:
+		var arm = player.body_container.get_node_or_null(arm_name)
+		if not arm:
+			continue
+
+		# Color the upper arm mesh (first MeshInstance3D child)
+		for child in arm.get_children():
+			if child is MeshInstance3D:
+				var mat = StandardMaterial3D.new()
+				mat.albedo_color = color
+				child.material_override = mat
+				break
+
+		# Color forearm (Elbow node and its mesh)
+		var elbow = arm.get_node_or_null("Elbow")
+		if elbow:
+			for child in elbow.get_children():
+				if child is MeshInstance3D:
+					var mat = StandardMaterial3D.new()
+					mat.albedo_color = color
+					child.material_override = mat
+					break
+
+			# Color hand
+			var hand = elbow.get_node_or_null("HandAttach")
+			if hand:
+				for child in hand.get_children():
+					if child is MeshInstance3D:
+						var mat = StandardMaterial3D.new()
+						mat.albedo_color = color
+						child.material_override = mat
+						break
+
+## Set colors for leg meshes
+func _set_leg_colors(color: Color) -> void:
+	for leg_name in ["LeftLeg", "RightLeg"]:
+		var leg = player.body_container.get_node_or_null(leg_name)
+		if not leg:
+			continue
+
+		# Color upper leg mesh
+		for child in leg.get_children():
+			if child is MeshInstance3D:
+				var mat = StandardMaterial3D.new()
+				mat.albedo_color = color
+				child.material_override = mat
+				break
+
+		# Color knee/lower leg
+		var knee = leg.get_node_or_null("Knee")
+		if knee:
+			for child in knee.get_children():
+				if child is MeshInstance3D:
+					var mat = StandardMaterial3D.new()
+					mat.albedo_color = color
+					child.material_override = mat
+					break

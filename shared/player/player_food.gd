@@ -186,23 +186,51 @@ func get_save_data() -> Array:
 	var data: Array = []
 	for food in active_foods:
 		data.append({
-			"food_id": food.food_id,
-			"remaining_time": food.remaining_time
+			"food_id": food.get("food_id", ""),
+			"remaining_time": food.get("remaining_time", 0.0)
 		})
+	print("[PlayerFood] Saving %d food buffs: %s" % [data.size(), data])
 	return data
 
 ## Deserialize from save
-func load_save_data(data: Array) -> void:
+func load_save_data(data) -> void:
+	print("[PlayerFood] Loading food data: %s (type: %s)" % [data, typeof(data)])
 	active_foods.clear()
 
-	for food_save in data:
-		var food_data = ItemDatabase.get_item(food_save.food_id)
+	# Handle both Array and other types (RPC might change type)
+	var food_array: Array = []
+	if data is Array:
+		food_array = data
+	elif data is Dictionary:
+		# If it's somehow a dictionary, try to extract values
+		food_array = data.values()
+	else:
+		print("[PlayerFood] Warning: Unexpected data type for food: %s" % typeof(data))
+		return
+
+	for food_save in food_array:
+		if not food_save is Dictionary:
+			print("[PlayerFood] Skipping non-dictionary food entry: %s" % food_save)
+			continue
+
+		var food_id = food_save.get("food_id", "")
+		var remaining_time = food_save.get("remaining_time", 0.0)
+
+		if food_id.is_empty():
+			print("[PlayerFood] Skipping food with empty id")
+			continue
+
+		var food_data = ItemDatabase.get_item(food_id)
 		if food_data and food_data is FoodData:
 			active_foods.append({
-				"food_id": food_save.food_id,
-				"remaining_time": food_save.remaining_time,
+				"food_id": food_id,
+				"remaining_time": remaining_time,
 				"food_data": food_data
 			})
+			print("[PlayerFood] Loaded food: %s (%.1fs remaining)" % [food_id, remaining_time])
+		else:
+			print("[PlayerFood] Warning: Unknown food item '%s'" % food_id)
 
+	print("[PlayerFood] Loaded %d active food buffs" % active_foods.size())
 	food_changed.emit()
 	_update_player_stats()

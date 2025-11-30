@@ -13,7 +13,7 @@ func _ready() -> void:
 	max_health = 25.0
 	move_speed = 4.0  # Deer are fast
 	strafe_speed = 3.0
-	loot_table = {"raw_venison": 2}
+	loot_table = {"raw_venison": 2, "deer_leather": 2}
 
 	# Deer are skittish - flee when players get close
 	is_skittish = true

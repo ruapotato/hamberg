@@ -147,9 +147,9 @@ func create_new_character(character_name: String) -> Dictionary:
 	for i in range(30):
 		player_data["inventory"].append({})
 
-	# Initialize empty equipment (5 slots: main_hand, off_hand, head, chest, legs)
-	# Equipment uses enum values as keys (0-4)
-	for i in range(5):
+	# Initialize empty equipment (6 slots: main_hand, off_hand, head, chest, legs, cape)
+	# Equipment uses enum values as keys (0-5)
+	for i in range(6):
 		player_data["equipment"][i] = ""
 
 	# Save to disk
@@ -187,9 +187,10 @@ static func serialize_player(player: Node, map_pins: Array = []) -> Dictionary:
 		"rotation_y": player.rotation.y,
 		"inventory": [],
 		"equipment": {},
-		"health": 100.0,  # Will be updated when health system exists
+		"health": player.health if "health" in player else 100.0,
 		"max_health": 100.0,
-		"map_pins": map_pins  # Save map pins
+		"map_pins": map_pins,  # Save map pins
+		"active_foods": []  # Save active food buffs
 	}
 
 	# Serialize inventory if exists
@@ -205,6 +206,11 @@ static func serialize_player(player: Node, map_pins: Array = []) -> Dictionary:
 	if player.has_node("Equipment"):
 		var equipment = player.get_node("Equipment")
 		data["equipment"] = equipment.get_equipment_data()
+
+	# Serialize active food buffs if exists
+	if player.has_node("PlayerFood"):
+		var player_food = player.get_node("PlayerFood")
+		data["active_foods"] = player_food.get_save_data()
 
 	return data
 
@@ -229,6 +235,12 @@ static func deserialize_player(player: Node, data: Dictionary) -> void:
 		var equipment = player.get_node("Equipment")
 		equipment.set_equipment_data(data["equipment"])
 
-	# Set health (when implemented)
-	# if data.has("health"):
-	#     player.health = data["health"]
+	# Load active food buffs (do this BEFORE setting health so max_health is calculated correctly)
+	if data.has("active_foods") and player.has_node("PlayerFood"):
+		var player_food = player.get_node("PlayerFood")
+		player_food.load_save_data(data["active_foods"])
+		print("[PlayerDataManager] Loaded %d active food buffs" % data["active_foods"].size())
+
+	# Set health
+	if data.has("health") and "health" in player:
+		player.health = data["health"]

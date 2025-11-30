@@ -634,6 +634,15 @@ func rpc_sync_equipment(equipment_data: Dictionary) -> void:
 	if client_node and client_node.has_method("receive_equipment_sync"):
 		client_node.receive_equipment_sync(equipment_data)
 
+## SERVER -> CLIENT: Send food buff data (after eating or on spawn)
+@rpc("authority", "call_remote", "reliable")
+func rpc_sync_food(food_data: Array) -> void:
+	print("[NetworkManager] RPC received: sync_food (%d items)" % food_data.size())
+
+	var client_node := get_node_or_null("/root/Main/Client")
+	if client_node and client_node.has_method("receive_food_sync"):
+		client_node.receive_food_sync(food_data)
+
 ## CLIENT -> SERVER: Request to pick up an item (server validates and updates inventory)
 @rpc("any_peer", "call_remote", "reliable")
 func rpc_request_pickup_item(item_name: String, amount: int, network_id: String) -> void:
@@ -710,6 +719,41 @@ func rpc_request_unequip_slot(slot: int) -> void:
 	var server_node := get_node_or_null("/root/Main/Server")
 	if server_node and server_node.has_method("handle_unequip_request"):
 		server_node.handle_unequip_request(peer_id, slot)
+
+## CLIENT -> SERVER: Request to eat food (server-authoritative)
+@rpc("any_peer", "call_remote", "reliable")
+func rpc_request_eat_food(food_id: String, inventory_slot: int) -> void:
+	if not is_server:
+		return
+
+	var peer_id := multiplayer.get_remote_sender_id()
+	var server_node := get_node_or_null("/root/Main/Server")
+	if server_node and server_node.has_method("handle_eat_food_request"):
+		server_node.handle_eat_food_request(peer_id, food_id, inventory_slot)
+
+## CLIENT -> SERVER: Request to take item from cooking station
+## Client runs the cooking simulation, tells server what cooked item to give
+@rpc("any_peer", "call_remote", "reliable")
+func rpc_request_cooking_station_take(item_id: String) -> void:
+	if not is_server:
+		return
+
+	var peer_id := multiplayer.get_remote_sender_id()
+	var server_node := get_node_or_null("/root/Main/Server")
+	if server_node and server_node.has_method("handle_cooking_station_take"):
+		server_node.handle_cooking_station_take(peer_id, item_id)
+
+## CLIENT -> SERVER: Request to add raw meat to cooking station
+## Server removes item from inventory, client handles the cooking simulation
+@rpc("any_peer", "call_remote", "reliable")
+func rpc_request_cooking_station_add(item_id: String) -> void:
+	if not is_server:
+		return
+
+	var peer_id := multiplayer.get_remote_sender_id()
+	var server_node := get_node_or_null("/root/Main/Server")
+	if server_node and server_node.has_method("handle_cooking_station_add"):
+		server_node.handle_cooking_station_add(peer_id, item_id)
 
 ## CLIENT -> SERVER: Request to swap two inventory slots
 @rpc("any_peer", "call_remote", "reliable")

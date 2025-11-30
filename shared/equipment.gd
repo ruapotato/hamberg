@@ -8,6 +8,7 @@ class_name Equipment
 const ItemData = preload("res://shared/item_data.gd")
 const WeaponData = preload("res://shared/weapon_data.gd")
 const ShieldData = preload("res://shared/shield_data.gd")
+const ArmorData = preload("res://shared/armor_data.gd")
 
 signal equipment_changed(slot: EquipmentSlot)
 
@@ -17,6 +18,7 @@ enum EquipmentSlot {
 	HEAD,          # Helmet
 	CHEST,         # Chest armor
 	LEGS,          # Leg armor
+	CAPE,          # Cape/cloak
 }
 
 # Current equipped items: slot -> item_id
@@ -26,6 +28,7 @@ var equipped_items: Dictionary = {
 	EquipmentSlot.HEAD: "",
 	EquipmentSlot.CHEST: "",
 	EquipmentSlot.LEGS: "",
+	EquipmentSlot.CAPE: "",
 }
 
 var owner_id: int = -1
@@ -91,14 +94,23 @@ func get_equipped_item_data(slot: EquipmentSlot):
 	return ItemDatabase.get_item(item_id)
 
 ## Check if an item type is valid for a slot
-func _is_valid_for_slot(item_data, slot: EquipmentSlot) -> bool:  # item_data is ItemData
+func _is_valid_for_slot(item_data, slot: EquipmentSlot) -> bool:  # item_data is ItemData or ArmorData
 	match slot:
 		EquipmentSlot.MAIN_HAND:
 			# Allow weapons, tools, and placeable resources (like earth)
 			return item_data.item_type in [ItemData.ItemType.WEAPON, ItemData.ItemType.TOOL, ItemData.ItemType.RESOURCE]
 		EquipmentSlot.OFF_HAND:
 			return item_data.item_type == ItemData.ItemType.SHIELD
-		EquipmentSlot.HEAD, EquipmentSlot.CHEST, EquipmentSlot.LEGS:
+		EquipmentSlot.HEAD, EquipmentSlot.CHEST, EquipmentSlot.LEGS, EquipmentSlot.CAPE:
+			# For armor, also check that the armor slot matches
+			if item_data is ArmorData:
+				var armor_slot_map = {
+					EquipmentSlot.HEAD: ArmorData.ArmorSlot.HEAD,
+					EquipmentSlot.CHEST: ArmorData.ArmorSlot.CHEST,
+					EquipmentSlot.LEGS: ArmorData.ArmorSlot.LEGS,
+					EquipmentSlot.CAPE: ArmorData.ArmorSlot.CAPE,
+				}
+				return item_data.armor_slot == armor_slot_map.get(slot, -1)
 			return item_data.item_type == ItemData.ItemType.ARMOR
 	return false
 
@@ -108,8 +120,11 @@ func get_equipment_data() -> Dictionary:
 
 ## Set equipment from data (when syncing from server)
 func set_equipment_data(data: Dictionary) -> void:
+	print("[Equipment] set_equipment_data received: %s" % data)
 	for slot in EquipmentSlot.values():
-		var item_id = data.get(slot, "")
+		# Try enum key, int key, and string key (JSON/RPC may convert to string)
+		var item_id = data.get(slot, data.get(int(slot), data.get(str(slot), "")))
+		print("[Equipment]   Slot %d -> item_id: '%s'" % [slot, item_id])
 		if equipped_items.get(slot, "") != item_id:
 			equipped_items[slot] = item_id
 			equipment_changed.emit(slot)
@@ -141,3 +156,60 @@ func is_two_handed_equipped() -> bool:
 	if weapon:
 		return weapon.weapon_type == WeaponData.WeaponType.MELEE_TWO_HAND
 	return false
+
+## Get total armor value from all equipped armor pieces
+func get_total_armor() -> float:
+	var total: float = 0.0
+	for slot in [EquipmentSlot.HEAD, EquipmentSlot.CHEST, EquipmentSlot.LEGS, EquipmentSlot.CAPE]:
+		var item_data = get_equipped_item_data(slot)
+		if item_data is ArmorData:
+			total += item_data.armor_value
+	return total
+
+## Get all equipped armor pieces as ArmorData
+func get_equipped_armor() -> Array:
+	var armor_pieces: Array = []
+	for slot in [EquipmentSlot.HEAD, EquipmentSlot.CHEST, EquipmentSlot.LEGS, EquipmentSlot.CAPE]:
+		var item_data = get_equipped_item_data(slot)
+		if item_data is ArmorData:
+			armor_pieces.append(item_data)
+	return armor_pieces
+
+## Check if player has a full armor set equipped (all 4 pieces with same set_id)
+func has_full_armor_set(set_id: String) -> bool:
+	var armor_pieces = get_equipped_armor()
+	if armor_pieces.size() < 4:
+		return false
+
+	for piece in armor_pieces:
+		if piece.armor_set_id != set_id:
+			return false
+	return true
+
+## Get the active set bonus (if any) - returns ArmorData.SetBonus enum value
+func get_active_set_bonus():
+	var armor_pieces = get_equipped_armor()
+
+	if armor_pieces.size() < 4:
+		return ArmorData.SetBonus.NONE
+
+	# Check if all pieces are from the same set
+	var first_set_id = armor_pieces[0].armor_set_id
+
+	if first_set_id.is_empty():
+		return ArmorData.SetBonus.NONE
+
+	for piece in armor_pieces:
+		if piece.armor_set_id != first_set_id:
+			return ArmorData.SetBonus.NONE
+
+	# All pieces match - return the set bonus from the first piece
+	return armor_pieces[0].set_bonus
+
+## Check if player has the pig double jump set bonus active
+func has_double_jump_bonus() -> bool:
+	return get_active_set_bonus() == ArmorData.SetBonus.PIG_DOUBLE_JUMP
+
+## Check if player has the deer stamina saver set bonus active
+func has_stamina_saver_bonus() -> bool:
+	return get_active_set_bonus() == ArmorData.SetBonus.DEER_STAMINA_SAVER

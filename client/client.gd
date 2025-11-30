@@ -526,10 +526,10 @@ func _interact_with_object_under_cursor() -> void:
 				print("[Client] Interacting with door")
 				buildable.interact()
 				return
-			# Check if it's a cooking station
+			# Check if it's a cooking station (server handles inventory, client handles cooking)
 			if buildable.is_in_group("cooking_station") and buildable.has_method("interact"):
 				print("[Client] Interacting with cooking station")
-				buildable.interact(local_player)
+				_interact_with_cooking_station(buildable)
 				return
 			# Check if it's a crafting station (workbench)
 			if buildable.has_method("is_position_in_range") and buildable.get("is_crafting_station"):
@@ -618,6 +618,39 @@ func _update_interact_prompt() -> void:
 
 	interact_prompt_label.text = ""
 
+## Interact with cooking station - server handles inventory, client handles cooking simulation
+func _interact_with_cooking_station(station: Node) -> void:
+	if not local_player:
+		return
+
+	# First, check if any slot has cooked/burned food to take
+	for slot_idx in station.cooking_slots.size():
+		var slot = station.cooking_slots[slot_idx]
+		if slot.state == station.CookState.COOKED or slot.state == station.CookState.BURNED:
+			var result_item = station.remove_item(slot_idx)
+			if not result_item.is_empty():
+				# Tell server to add item to inventory
+				NetworkManager.rpc_request_cooking_station_take.rpc_id(1, result_item)
+				print("[Client] Took %s from cooking station" % result_item)
+				return
+
+	# No cooked food - try to add raw meat
+	# Check local player's inventory (will be synced from server)
+	var inventory = local_player.get_node_or_null("Inventory")
+	if not inventory:
+		return
+
+	for raw_item in station.COOKING_RECIPES.keys():
+		if inventory.has_item(raw_item, 1):
+			var slot_idx = station.add_item_to_cook(raw_item)
+			if slot_idx >= 0:
+				# Tell server to remove from inventory
+				NetworkManager.rpc_request_cooking_station_add.rpc_id(1, raw_item)
+				print("[Client] Added %s to cooking station" % raw_item)
+				return
+
+	print("[Client] No raw meat to cook")
+
 ## Handle number key input when looking at a cooking station
 func _handle_cooking_station_hotbar_input() -> void:
 	if not local_player:
@@ -655,13 +688,18 @@ func _handle_cooking_station_hotbar_input() -> void:
 	if item_id.is_empty():
 		return
 
-	# Try to cook this specific item
-	if cooking_station.has_method("interact_with_item"):
-		if cooking_station.interact_with_item(local_player, item_id):
-			print("[Client] Cooked %s from hotbar slot %d" % [item_id, pressed_slot + 1])
-			# Refresh hotbar display
-			if hotbar_ui:
-				hotbar_ui.refresh_display()
+	# Check if this item can be cooked
+	if not cooking_station.COOKING_RECIPES.has(item_id):
+		print("[Client] %s cannot be cooked" % item_id)
+		return
+
+	# Add to local cooking station and tell server to remove from inventory
+	var slot_idx = cooking_station.add_item_to_cook(item_id)
+	if slot_idx >= 0:
+		NetworkManager.rpc_request_cooking_station_add.rpc_id(1, item_id)
+		print("[Client] Added %s to cooking station from hotbar slot %d" % [item_id, pressed_slot + 1])
+	else:
+		print("[Client] No empty cooking slots")
 
 ## Get cooking station under cursor (returns null if not looking at one)
 func _get_cooking_station_under_cursor() -> Node:
@@ -1414,7 +1452,7 @@ func receive_inventory_sync(inventory_data: Array) -> void:
 		if chest_ui and chest_ui.is_ui_open():
 			chest_ui.refresh_display()
 
-## Receive character data including map pins
+## Receive character data including map pins and food buffs
 func receive_character_data(character_data: Dictionary) -> void:
 	"""Called when character is fully loaded from server"""
 	print("[Client] Received full character data")
@@ -1438,6 +1476,29 @@ func receive_character_data(character_data: Dictionary) -> void:
 				var pos: Vector2 = Vector2(pos_data[0], pos_data[1]) if pos_data is Array else pos_data
 				_create_map_marker(pos, pin.get("name", "Pin"))
 
+	# Load active food buffs if they exist
+	if character_data.has("active_foods"):
+		var foods = character_data.get("active_foods", [])
+		print("[Client] Character data has active_foods: %d items" % foods.size())
+
+		if local_player:
+			print("[Client] local_player exists")
+			if local_player.has_node("PlayerFood"):
+				var player_food = local_player.get_node("PlayerFood")
+				print("[Client] Loading %d food buffs to PlayerFood" % foods.size())
+				player_food.load_save_data(foods)
+			else:
+				print("[Client] ERROR: local_player has no PlayerFood node!")
+		else:
+			print("[Client] ERROR: local_player is null when receiving character data!")
+	else:
+		print("[Client] No active_foods in character data")
+
+	# Load health if it exists
+	if character_data.has("health") and local_player and "health" in local_player:
+		local_player.health = character_data.get("health", 100.0)
+		print("[Client] Loaded health: %.1f" % local_player.health)
+
 ## Receive inventory slot update from server
 func receive_inventory_slot_update(slot: int, item: String, amount: int) -> void:
 	if local_player and local_player.has_node("Inventory"):
@@ -1460,6 +1521,15 @@ func receive_equipment_sync(equipment_data: Dictionary) -> void:
 
 		# TODO: Update equipment UI when we create it
 		# Update inventory panel to show equipped items with visual indicators
+
+## Receive food buff sync from server (after eating or on spawn)
+func receive_food_sync(food_data: Array) -> void:
+	print("[Client] Received food sync (%d items)" % food_data.size())
+
+	if local_player and local_player.has_node("PlayerFood"):
+		var player_food = local_player.get_node("PlayerFood")
+		player_food.load_save_data(food_data)
+		print("[Client] Updated local player food buffs")
 
 # ============================================================================
 # TERRAIN MODIFICATION SYNC

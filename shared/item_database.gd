@@ -8,6 +8,7 @@ const ItemData = preload("res://shared/item_data.gd")
 const WeaponData = preload("res://shared/weapon_data.gd")
 const ShieldData = preload("res://shared/shield_data.gd")
 const FoodData = preload("res://shared/food_data.gd")
+const ArmorData = preload("res://shared/armor_data.gd")
 
 var items: Dictionary = {}  # item_id -> ItemData
 
@@ -31,6 +32,10 @@ func _initialize_items() -> void:
 
 	# Cooking byproducts
 	_register_resource("charcoal", "Charcoal", "Burned remains of food. Can be used as fuel.", 50, 0.3)
+
+	# Leather (from animals - for crafting armor)
+	_register_resource("pig_leather", "Pig Leather", "Soft pink leather from flying pigs. Light and bouncy.", 30, 1.0)
+	_register_resource("deer_leather", "Deer Leather", "Supple tan leather from deer. Surprisingly light.", 30, 0.8)
 
 	# Cooked food (consumable)
 	_register_food("cooked_venison", "Cooked Venison", "Hearty deer meat. Increases max health and regenerates HP over time.", 20, 1.5, 25.0, 15.0, 10.0, 600.0, 1.5)
@@ -62,6 +67,10 @@ func _initialize_items() -> void:
 	_register_shield_tower()
 	_register_shield_round()
 	_register_shield_buckler()
+
+	# Armor sets
+	_register_pig_armor_set()
+	_register_deer_armor_set()
 
 ## Helper: Register a basic resource item
 func _register_resource(id: String, name: String, desc: String, stack: int, w: float) -> void:
@@ -293,3 +302,87 @@ func get_max_stack_size(item_id: String) -> int:
 ## Get all items as an array
 func get_all_items() -> Array:
 	return items.values()
+
+# =============================================================================
+# ARMOR REGISTRATION
+# =============================================================================
+
+## Helper: Register an armor piece
+func _register_armor(id: String, name: String, desc: String, slot: ArmorData.ArmorSlot, armor_value: float, set_id: String, set_bonus: ArmorData.SetBonus, primary_color: Color, secondary_color: Color, weight: float = 2.0) -> void:
+	var armor = ArmorData.new()
+	armor.item_id = id
+	armor.display_name = name
+	armor.description = desc
+	armor.armor_slot = slot
+	armor.armor_value = armor_value
+	armor.armor_set_id = set_id
+	armor.set_bonus = set_bonus
+	armor.primary_color = primary_color
+	armor.secondary_color = secondary_color
+	armor.weight = weight
+	armor.durability = 100
+	items[id] = armor
+
+## Pig Armor Set - Pink flying pig leather armor
+## Set Bonus: Double Jump (can jump again while in the air)
+func _register_pig_armor_set() -> void:
+	# Pig colors - pink with white accents (like the flying pig's wings)
+	var pig_pink = Color(0.95, 0.7, 0.75, 1.0)  # Soft pink
+	var pig_white = Color(1.0, 0.95, 0.95, 1.0)  # Wing white
+
+	_register_armor(
+		"pig_helmet", "Pig Leather Hood",
+		"A bouncy hood made from flying pig leather. Part of the Pig Set.\nFull Set Bonus: Double Jump",
+		ArmorData.ArmorSlot.HEAD, 3.0, "pig", ArmorData.SetBonus.PIG_DOUBLE_JUMP,
+		pig_pink, pig_white, 1.5
+	)
+	_register_armor(
+		"pig_chest", "Pig Leather Vest",
+		"A light vest made from flying pig leather. Part of the Pig Set.\nFull Set Bonus: Double Jump",
+		ArmorData.ArmorSlot.CHEST, 5.0, "pig", ArmorData.SetBonus.PIG_DOUBLE_JUMP,
+		pig_pink, pig_white, 3.0
+	)
+	_register_armor(
+		"pig_pants", "Pig Leather Pants",
+		"Springy pants made from flying pig leather. Part of the Pig Set.\nFull Set Bonus: Double Jump",
+		ArmorData.ArmorSlot.LEGS, 4.0, "pig", ArmorData.SetBonus.PIG_DOUBLE_JUMP,
+		pig_pink, pig_white, 2.5
+	)
+	_register_armor(
+		"pig_cape", "Pig Wing Cape",
+		"A cape styled after the flying pig's wings. Part of the Pig Set.\nFull Set Bonus: Double Jump",
+		ArmorData.ArmorSlot.CAPE, 2.0, "pig", ArmorData.SetBonus.PIG_DOUBLE_JUMP,
+		pig_white, pig_pink, 1.0
+	)
+
+## Deer Armor Set - Tan/brown deer leather armor
+## Set Bonus: Stamina Saver (50% less stamina for sprinting)
+func _register_deer_armor_set() -> void:
+	# Deer colors - tan/brown like the deer's fur
+	var deer_tan = Color(0.65, 0.5, 0.35, 1.0)  # Main fur color
+	var deer_cream = Color(0.85, 0.75, 0.65, 1.0)  # Belly/lighter areas
+
+	_register_armor(
+		"deer_helmet", "Deer Leather Hood",
+		"A lightweight hood made from deer leather. Part of the Deer Set.\nFull Set Bonus: 50% Sprint Stamina Reduction",
+		ArmorData.ArmorSlot.HEAD, 2.0, "deer", ArmorData.SetBonus.DEER_STAMINA_SAVER,
+		deer_tan, deer_cream, 1.0
+	)
+	_register_armor(
+		"deer_chest", "Deer Leather Tunic",
+		"A supple tunic made from deer leather. Part of the Deer Set.\nFull Set Bonus: 50% Sprint Stamina Reduction",
+		ArmorData.ArmorSlot.CHEST, 4.0, "deer", ArmorData.SetBonus.DEER_STAMINA_SAVER,
+		deer_tan, deer_cream, 2.0
+	)
+	_register_armor(
+		"deer_pants", "Deer Leather Leggings",
+		"Light leggings made from deer leather. Part of the Deer Set.\nFull Set Bonus: 50% Sprint Stamina Reduction",
+		ArmorData.ArmorSlot.LEGS, 3.0, "deer", ArmorData.SetBonus.DEER_STAMINA_SAVER,
+		deer_tan, deer_cream, 1.5
+	)
+	_register_armor(
+		"deer_cape", "Deer Hide Cloak",
+		"A flowing cloak made from deer hide. Part of the Deer Set.\nFull Set Bonus: 50% Sprint Stamina Reduction",
+		ArmorData.ArmorSlot.CAPE, 1.0, "deer", ArmorData.SetBonus.DEER_STAMINA_SAVER,
+		deer_cream, deer_tan, 0.8
+	)
