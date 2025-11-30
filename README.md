@@ -380,14 +380,17 @@ Code that runs on both client and server. Contains core game systems and network
   - Network state management
   - Client/server communication hub
 
-- **shared/player.gd** & **player.tscn**
-  - Player entity with segmented body (arms, legs, torso)
-  - Client-authoritative movement (validated by server)
-  - Attack, jump, sprint, block mechanics
-  - Inventory component (server-synced)
-  - Equipment component (weapon, shield, armor)
-  - Weapon/shield visuals attach to hand mount points
-  - Projectile spawning for ranged weapons
+- **shared/player/** - Modular Player System
+  - **player.gd** - Main player entity (orchestrator)
+  - **player_constants.gd** - All tunable constants (speed, damage, timers)
+  - **player_movement.gd** - Movement, jumping, step-up, lunge physics
+  - **player_combat.gd** - Attacks, combos, special attacks, damage dealing
+  - **player_resources.gd** - Stamina, brain power, health, death/respawn
+  - **player_blocking.gd** - Block and parry mechanics
+  - **player_terrain.gd** - Terrain modification (dig, place, flatten)
+  - **player_animation.gd** - Procedural body animations
+  - **player_equipment_visual.gd** - Weapon/shield visual attachment
+  - **player.tscn** - Player scene with segmented body
 
 - **shared/equipment.gd** - Equipment management system
   - Server-authoritative equipment state
@@ -540,13 +543,16 @@ NetworkManager.rpc_place_buildable.rpc_id(1, piece_name, pos, rot)
 
 | Feature | Files to Check |
 |---------|---------------|
-| Player movement | `shared/player.gd`, `client/client.gd` |
-| Combat & attacking | `shared/player.gd` (_handle_attack, _spawn_projectile) |
-| Equipment system | `shared/equipment.gd`, `shared/player.gd` (_on_equipment_changed) |
+| Player movement | `shared/player/player_movement.gd` |
+| Combat & attacking | `shared/player/player_combat.gd` |
+| Stamina/health | `shared/player/player_resources.gd` |
+| Blocking & parry | `shared/player/player_blocking.gd` |
+| Terrain modification | `shared/player/player_terrain.gd` |
+| Body animations | `shared/player/player_animation.gd` |
+| Weapon visuals | `shared/player/player_equipment_visual.gd`, `shared/weapons/*.tscn` |
+| Equipment system | `shared/equipment.gd` |
 | Weapons & shields | `shared/weapon_data.gd`, `shared/shield_data.gd`, `shared/item_database.gd` |
-| Weapon visuals | `shared/weapons/*.tscn`, `shared/player.gd` (_update_weapon_visual) |
 | Projectiles | `shared/projectiles/projectile.gd`, `shared/projectiles/fireball.tscn` |
-| Blocking & parry | `shared/player.gd` (take_damage, check_parry_window) |
 | Inventory | `shared/inventory.gd`, `client/ui/inventory_panel.gd`, `client/ui/hotbar.gd` |
 | Item discovery | `client/item_discovery_tracker.gd` |
 | Crafting menu | `client/ui/crafting_menu.gd` |
@@ -554,7 +560,7 @@ NetworkManager.rpc_place_buildable.rpc_id(1, piece_name, pos, rot)
 | Terrain system | `shared/custom_terrain/terrain_world.gd`, `chunk_data.gd`, `chunk_mesh_generator.gd` |
 | World generation | `shared/custom_terrain/terrain_biome_generator.gd`, `shared/biome_generator.gd` |
 | Chunk streaming | `shared/environmental/chunk_manager.gd` |
-| Resource gathering | `shared/environmental/environmental_object.gd`, `shared/player.gd` |
+| Resource gathering | `shared/environmental/environmental_object.gd` |
 | Networking | `shared/network_manager.gd`, `server/server.gd`, `client/client.gd` |
 | Enemy AI | `shared/enemies/enemy.gd`, `server/enemy_spawner.gd` |
 
