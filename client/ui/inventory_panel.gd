@@ -7,6 +7,7 @@ const InventorySlot = preload("res://client/ui/inventory_slot.tscn")
 const ItemData = preload("res://shared/item_data.gd")
 const Equipment = preload("res://shared/equipment.gd")
 const ArmorData = preload("res://shared/armor_data.gd")
+const WeaponData = preload("res://shared/weapon_data.gd")
 const MAX_SLOTS: int = 30
 const COLUMNS: int = 6
 
@@ -302,12 +303,22 @@ func _update_stats_display() -> void:
 	else:
 		text += "  [color=gray]No food active[/color]\n"
 
-	# Armor section
-	text += "\n[b][color=cyan]ARMOR[/color][/b]\n"
+	# Armor section - show defense per damage type
+	text += "\n[b][color=cyan]DEFENSE[/color][/b]\n"
 	var equipment = player.get_node_or_null("Equipment")
 	if equipment:
-		var total_armor = equipment.get_total_armor()
-		text += "  Defense: +%.0f\n" % total_armor
+		var damage_types = {
+			WeaponData.DamageType.SLASH: ["Slash", "#ffffff"],
+			WeaponData.DamageType.BLUNT: ["Blunt", "#aaaaaa"],
+			WeaponData.DamageType.PIERCE: ["Pierce", "#ffaaff"],
+			WeaponData.DamageType.FIRE: ["Fire", "#ff6600"],
+			WeaponData.DamageType.ICE: ["Ice", "#66ffff"],
+			WeaponData.DamageType.POISON: ["Poison", "#66ff66"],
+		}
+		for dmg_type in damage_types:
+			var armor_val = equipment.get_total_armor(dmg_type)
+			var type_info = damage_types[dmg_type]
+			text += "  [color=%s]%s:[/color] %.1f\n" % [type_info[1], type_info[0], armor_val]
 
 		# Show equipped armor pieces
 		var armor_slots = {

@@ -638,10 +638,11 @@ func _do_melee_attack() -> void:
 	var knockback_dir = (local_player.global_position - global_position).normalized()
 	var damage = weapon_data.damage
 	var knockback = weapon_data.knockback
+	var dmg_type = weapon_data.damage_type if weapon_data else -1
 
 	if local_player.has_method("take_damage"):
 		print("[Enemy] Dealing %.1f melee damage to local player" % damage)
-		local_player.take_damage(damage, -1, knockback_dir * knockback)
+		local_player.take_damage(damage, -1, knockback_dir * knockback, dmg_type)
 
 ## Check if local player should take melee damage (for non-host clients)
 ## Called when we see ATTACKING state from network sync
@@ -659,10 +660,11 @@ func _check_local_melee_damage() -> void:
 	var knockback_dir = (local_player.global_position - global_position).normalized()
 	var damage = weapon_data.damage
 	var knockback = weapon_data.knockback
+	var dmg_type = weapon_data.damage_type if weapon_data else -1
 
 	if local_player.has_method("take_damage"):
 		print("[Enemy] (non-host) Dealing %.1f melee damage to local player" % damage)
-		local_player.take_damage(damage, -1, knockback_dir * knockback)
+		local_player.take_damage(damage, -1, knockback_dir * knockback, dmg_type)
 
 func _throw_rock() -> void:
 	if not target_player:

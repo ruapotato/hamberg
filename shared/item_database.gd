@@ -128,6 +128,22 @@ func _register_weapon_fists() -> void:
 	# No weapon scene - fists are always visible (viewmodel arms)
 	items["fists"] = weapon
 
+	# Sporeling tendrils - Dark Forest enemies hit HARD (biome 2)
+	# Players need biome 1 armor before venturing into the dark forest
+	var sporeling = WeaponData.new()
+	sporeling.item_id = "sporeling_fists"
+	sporeling.display_name = "Sporeling Tendrils"
+	sporeling.description = "Powerful fungal tendrils."
+	sporeling.weapon_type = WeaponData.WeaponType.MELEE_ONE_HAND
+	sporeling.damage = 35.0  # Biome 2 - will wreck unarmored players
+	sporeling.damage_type = WeaponData.DamageType.BLUNT
+	sporeling.attack_speed = 1.2
+	sporeling.knockback = 8.0
+	sporeling.durability = 999999
+	sporeling.stamina_cost = 0.0
+	sporeling.weight = 0.0
+	items["sporeling_fists"] = sporeling
+
 ## Basic club weapon (no workbench required)
 func _register_weapon_club() -> void:
 	var weapon = WeaponData.new()
