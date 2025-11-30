@@ -404,8 +404,53 @@ func _on_player_joined(peer_id: int, player_name: String) -> void:
 func _on_player_left(peer_id: int) -> void:
 	print("[Server] Player left (ID: %d)" % peer_id)
 
+	# Reassign or despawn enemies hosted by this player
+	_handle_disconnected_host_enemies(peer_id)
+
 	# Despawn player entity
 	_despawn_player(peer_id)
+
+## Handle enemies that were hosted by a disconnected player
+func _handle_disconnected_host_enemies(disconnected_peer_id: int) -> void:
+	var enemy_spawner = get_node_or_null("EnemySpawner")
+	if not enemy_spawner:
+		return
+
+	# Find all enemies hosted by this peer
+	var enemies_to_reassign: Array = []
+	for net_id in enemy_spawner.enemy_host_peers.keys():
+		if enemy_spawner.enemy_host_peers[net_id] == disconnected_peer_id:
+			enemies_to_reassign.append(net_id)
+
+	if enemies_to_reassign.is_empty():
+		return
+
+	print("[Server] Player %d disconnected, handling %d hosted enemies" % [disconnected_peer_id, enemies_to_reassign.size()])
+
+	# Find another connected player to reassign to, or despawn
+	var new_host_peer: int = 0
+	for peer_id in spawned_players.keys():
+		if peer_id != disconnected_peer_id:
+			new_host_peer = peer_id
+			break
+
+	for net_id in enemies_to_reassign:
+		var enemy = enemy_spawner.network_id_to_enemy.get(net_id)
+		if not enemy or not is_instance_valid(enemy):
+			continue
+
+		if new_host_peer > 0:
+			# Reassign to another player
+			print("[Server] Reassigning enemy %d from %d to %d" % [net_id, disconnected_peer_id, new_host_peer])
+			if "host_peer_id" in enemy:
+				enemy.host_peer_id = new_host_peer
+			enemy_spawner.enemy_host_peers[net_id] = new_host_peer
+			# Notify all clients of the host change
+			NetworkManager.rpc_update_enemy_host.rpc(net_id, new_host_peer)
+		else:
+			# No other players - despawn the enemy
+			print("[Server] No players left, despawning enemy %d" % net_id)
+			enemy_spawner.despawn_enemy(enemy)
 
 func _spawn_player(peer_id: int, player_name: String) -> void:
 	if spawned_players.has(peer_id):
@@ -1477,6 +1522,14 @@ func handle_enemy_damage(peer_id: int, enemy_network_id: int, damage: float, kno
 	# Get the host_peer_id for this enemy - they run the actual AI
 	var host_peer_id = enemy.host_peer_id if "host_peer_id" in enemy else 0
 
+	# Check if host is still connected - if not, reassign to attacking player
+	if host_peer_id > 0 and not spawned_players.has(host_peer_id):
+		print("[Server] Enemy %d host %d disconnected, reassigning to attacker %d" % [enemy_network_id, host_peer_id, peer_id])
+		host_peer_id = peer_id
+		if "host_peer_id" in enemy:
+			enemy.host_peer_id = peer_id
+		enemy_spawner.enemy_host_peers[enemy_network_id] = peer_id
+
 	print("[Server] Player %d hit enemy %d for %.1f damage (forwarding to host %d)" % [peer_id, enemy_network_id, damage, host_peer_id])
 
 	# Apply damage on server copy (for tracking)
@@ -1484,7 +1537,7 @@ func handle_enemy_damage(peer_id: int, enemy_network_id: int, damage: float, kno
 		enemy.take_damage(damage, knockback, direction)
 
 	# Forward damage to the HOST client so they can apply it to their authoritative copy
-	if host_peer_id > 0:
+	if host_peer_id > 0 and spawned_players.has(host_peer_id):
 		var dir_array = [direction.x, direction.y, direction.z]
 		NetworkManager.rpc_apply_enemy_damage.rpc_id(host_peer_id, enemy_network_id, damage, knockback, dir_array)
 

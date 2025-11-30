@@ -1767,6 +1767,34 @@ func apply_enemy_damage(enemy_network_id: int, damage: float, knockback: float, 
 	else:
 		print("[Client] ERROR: Enemy %d has no take_damage method!" % enemy_network_id)
 
+## Update enemy host when server reassigns (e.g., original host disconnected)
+func update_enemy_host(enemy_network_id: int, new_host_peer_id: int) -> void:
+	print("[Client] Updating enemy %d host to peer %d" % [enemy_network_id, new_host_peer_id])
+
+	# Find enemy by network_id
+	var enemy: Node = null
+	for key in spawned_enemies.keys():
+		var e = spawned_enemies[key]
+		if e and is_instance_valid(e) and "network_id" in e and e.network_id == enemy_network_id:
+			enemy = e
+			break
+
+	if not enemy:
+		print("[Client] Enemy with network_id %d not found for host update" % enemy_network_id)
+		return
+
+	# Update the host peer ID
+	if "host_peer_id" in enemy:
+		enemy.host_peer_id = new_host_peer_id
+
+	# Update is_host flag based on whether we are the new host
+	var my_peer_id = multiplayer.get_unique_id()
+	if "is_host" in enemy:
+		var was_host = enemy.is_host
+		enemy.is_host = (new_host_peer_id == my_peer_id)
+		if enemy.is_host and not was_host:
+			print("[Client] We are now the host for enemy %d!" % enemy_network_id)
+
 ## Request server to perform a manual save (triggered by F5 key)
 func _request_server_save() -> void:
 	print("[Client] Requesting manual save (F5 pressed)...")

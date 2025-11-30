@@ -1029,6 +1029,18 @@ func rpc_apply_enemy_damage(enemy_network_id: int, damage: float, knockback: flo
 			dir_v3 = Vector3(direction[0], direction[1], direction[2])
 		client_node.apply_enemy_damage(enemy_network_id, damage, knockback, dir_v3)
 
+## SERVER -> ALL CLIENTS: Update enemy host (when original host disconnects)
+@rpc("authority", "call_remote", "reliable")
+func rpc_update_enemy_host(enemy_network_id: int, new_host_peer_id: int) -> void:
+	if is_server:
+		return
+
+	print("[NetworkManager] Enemy %d host changed to peer %d" % [enemy_network_id, new_host_peer_id])
+
+	var client_node := get_node_or_null("/root/Main/Client")
+	if client_node and client_node.has_method("update_enemy_host"):
+		client_node.update_enemy_host(enemy_network_id, new_host_peer_id)
+
 # ============================================================================
 # DEBUG CONSOLE RPCs
 # ============================================================================
