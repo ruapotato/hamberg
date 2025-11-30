@@ -274,22 +274,20 @@ func _update_environment() -> void:
 	# Reflections: disable when sky contribution is very low
 	env.reflected_light_source = 0 if biome_sky_contribution < 0.1 else 2
 
-	# Fog settings - no emission at night to prevent glow
+	# Fog settings - match fog to sky horizon color for seamless fade
 	var is_dark = hour < 6.0 or hour >= 20.0
-	var fog_color = ambient_color.lerp(Color.WHITE, 0.3)
 
-	env.fog_light_color = fog_color
-	env.fog_sky_affect = 0.0
-
-	# Volumetric fog - reduce/eliminate emission at night
+	# Get sky horizon color to match fog (from _update_sky logic)
+	var sky_horizon: Color
 	if is_dark:
-		env.volumetric_fog_emission = Color(0.0, 0.0, 0.0)
-		env.volumetric_fog_albedo = Color(0.1, 0.1, 0.15)
+		sky_horizon = Color(0.1, 0.1, 0.15)  # Night sky horizon
 	else:
-		env.volumetric_fog_emission = fog_color * 0.1
-		env.volumetric_fog_albedo = Color(0.6, 0.7, 0.8)
+		sky_horizon = Color(0.55, 0.7, 0.9)  # Day sky horizon
 
-	env.volumetric_fog_sky_affect = 0.0
+	# Update fog wall manager colors (client only)
+	var client_node := get_node_or_null("/root/Main/Client")
+	if client_node and client_node.fog_wall_manager:
+		client_node.fog_wall_manager.set_fog_color(sky_horizon)
 
 func _update_sky() -> void:
 	var hour = current_hour

@@ -18,7 +18,11 @@ signal quit_pressed
 @onready var terrain_slider: HSlider = $GraphicsPanel/VBox/TerrainSlider
 @onready var objects_label: Label = $GraphicsPanel/VBox/ObjectsLabel
 @onready var objects_slider: HSlider = $GraphicsPanel/VBox/ObjectsSlider
+@onready var fog_check: CheckButton = $GraphicsPanel/VBox/FogCheck
 @onready var back_button: Button = $GraphicsPanel/VBox/BackButton
+
+# Chunk size for calculating fog distance
+const CHUNK_SIZE: float = 32.0
 
 var selected_index: int = 0  # For controller D-pad navigation
 var buttons: Array[Button] = []
@@ -37,6 +41,7 @@ func _ready() -> void:
 	# Slider signals
 	terrain_slider.value_changed.connect(_on_terrain_slider_changed)
 	objects_slider.value_changed.connect(_on_objects_slider_changed)
+	fog_check.toggled.connect(_on_fog_toggled)
 
 	# Build button array for D-pad navigation
 	buttons = [resume_button, save_button, graphics_button, quit_button]
@@ -112,6 +117,14 @@ func _on_terrain_slider_changed(value: float) -> void:
 func _on_objects_slider_changed(value: float) -> void:
 	objects_label.text = "Object Distance: %d" % int(value)
 	_apply_objects_distance(int(value))
+	# Update fog distance to match object distance
+	if fog_check.button_pressed:
+		_apply_fog_distance(int(value))
+
+func _on_fog_toggled(enabled: bool) -> void:
+	_apply_fog_enabled(enabled)
+	if enabled:
+		_apply_fog_distance(int(objects_slider.value))
 
 func _load_current_values() -> void:
 	var terrain_worlds = get_tree().get_nodes_in_group("terrain_world")
@@ -143,10 +156,29 @@ func _apply_objects_distance(value: int) -> void:
 	if multiplayer.has_multiplayer_peer() and multiplayer.multiplayer_peer.get_connection_status() == MultiplayerPeer.CONNECTION_CONNECTED:
 		NetworkManager.rpc_set_object_distance.rpc_id(1, value)
 
+func _apply_fog_enabled(enabled: bool) -> void:
+	var fog_manager = _get_fog_wall_manager()
+	if fog_manager:
+		fog_manager.set_fog_enabled(enabled)
+		print("[PauseMenu] Fog walls enabled: %s" % enabled)
+
+func _apply_fog_distance(object_distance: int) -> void:
+	var fog_manager = _get_fog_wall_manager()
+	if fog_manager:
+		fog_manager.set_render_distance(object_distance)
+		print("[PauseMenu] Fog walls at object distance: %d chunks" % object_distance)
+
+func _get_fog_wall_manager():
+	var client_node := get_node_or_null("/root/Main/Client")
+	if client_node and client_node.fog_wall_manager:
+		return client_node.fog_wall_manager
+	return null
+
 func _save_settings() -> void:
 	var config = ConfigFile.new()
 	config.set_value("graphics", "terrain_distance", int(terrain_slider.value))
 	config.set_value("graphics", "objects_distance", int(objects_slider.value))
+	config.set_value("graphics", "fog_enabled", fog_check.button_pressed)
 	var err = config.save(SETTINGS_PATH)
 	if err == OK:
 		print("[PauseMenu] Graphics settings saved")
@@ -158,23 +190,30 @@ func _load_settings() -> void:
 	var err = config.load(SETTINGS_PATH)
 	if err != OK:
 		print("[PauseMenu] No saved graphics settings, using defaults")
+		# Apply default fog on first run
+		call_deferred("_apply_loaded_settings", 12, 4, true)
 		return
 
 	var terrain_dist = config.get_value("graphics", "terrain_distance", 12)
 	var objects_dist = config.get_value("graphics", "objects_distance", 4)
+	var fog_enabled = config.get_value("graphics", "fog_enabled", true)
 
 	terrain_slider.value = terrain_dist
 	objects_slider.value = objects_dist
+	fog_check.button_pressed = fog_enabled
 
 	# Apply settings on load (after terrain world is ready)
-	call_deferred("_apply_loaded_settings", terrain_dist, objects_dist)
+	call_deferred("_apply_loaded_settings", terrain_dist, objects_dist, fog_enabled)
 
-func _apply_loaded_settings(terrain_dist: int, objects_dist: int) -> void:
+func _apply_loaded_settings(terrain_dist: int, objects_dist: int, fog_enabled: bool = true) -> void:
 	# Wait a bit for terrain world to initialize
 	await get_tree().create_timer(1.0).timeout
 	_apply_terrain_distance(terrain_dist)
 	_apply_objects_distance(objects_dist)
-	print("[PauseMenu] Applied saved graphics settings: terrain=%d, objects=%d" % [terrain_dist, objects_dist])
+	_apply_fog_enabled(fog_enabled)
+	if fog_enabled:
+		_apply_fog_distance(objects_dist)
+	print("[PauseMenu] Applied saved graphics settings: terrain=%d, objects=%d, fog=%s" % [terrain_dist, objects_dist, fog_enabled])
 
 func show_menu() -> void:
 	visible = true

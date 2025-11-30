@@ -115,6 +115,9 @@ var current_biome: String = ""
 var biome_check_timer: float = 0.0
 const BIOME_CHECK_INTERVAL: float = 2.0  # Check biome every 2 seconds
 
+# Fog wall manager
+var fog_wall_manager: Node3D = null
+
 # Environmental objects
 var environmental_chunks: Dictionary = {} # Vector2i -> Dictionary of objects
 var environmental_objects_container: Node3D
@@ -143,6 +146,12 @@ func _ready() -> void:
 	environmental_objects_container = Node3D.new()
 	environmental_objects_container.name = "EnvironmentalObjects"
 	world.add_child(environmental_objects_container)
+
+	# Create fog wall manager for render distance fog
+	var FogWallManager = preload("res://client/fog_wall_manager.gd")
+	fog_wall_manager = FogWallManager.new()
+	fog_wall_manager.name = "FogWallManager"
+	world.add_child(fog_wall_manager)
 
 	# Create build mode
 	var BuildMode = preload("res://client/build_mode.gd")

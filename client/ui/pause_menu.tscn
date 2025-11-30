@@ -126,7 +126,16 @@ step = 1.0
 value = 4.0
 
 [node name="Spacer3" type="Control" parent="GraphicsPanel/VBox"]
-custom_minimum_size = Vector2(0, 20)
+custom_minimum_size = Vector2(0, 10)
+layout_mode = 2
+
+[node name="FogCheck" type="CheckButton" parent="GraphicsPanel/VBox"]
+layout_mode = 2
+button_pressed = true
+text = "Distance Fog"
+
+[node name="Spacer4" type="Control" parent="GraphicsPanel/VBox"]
+custom_minimum_size = Vector2(0, 10)
 layout_mode = 2
 
 [node name="BackButton" type="Button" parent="GraphicsPanel/VBox"]
