@@ -13,43 +13,68 @@ uniform float sun_size : hint_range(0.0, 1.0) = 0.05;
 uniform float star_brightness : hint_range(0.0, 1.0) = 0.0;
 uniform float star_density : hint_range(0.0, 1.0) = 0.5;
 
-// Hash function for star generation
-float hash(vec2 p) {
+// Hash functions for star generation
+float hash(vec3 p) {
+	p = fract(p * vec3(443.897, 441.423, 437.195));
+	p += dot(p, p.yxz + 19.19);
+	return fract((p.x + p.y) * p.z);
+}
+
+float hash2(vec2 p) {
 	return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
 }
 
-// Generate stars at a position
-float stars(vec3 dir) {
-	// Use spherical coordinates for consistent star positions
-	vec2 uv = vec2(atan(dir.x, dir.z), asin(dir.y));
-	uv *= 100.0; // Scale for star density
+// Generate stars using 3D grid for stable positions regardless of camera rotation
+float stars(vec3 dir, float time) {
+	// Normalize direction to ensure consistent lookup
+	vec3 n = normalize(dir);
 
-	// Grid-based stars
-	vec2 grid = floor(uv);
-	vec2 frac_uv = fract(uv);
+	// Scale for star density - larger = more smaller cells = more stars
+	float scale = 80.0;
+	vec3 p = n * scale;
+
+	// 3D grid-based stars
+	vec3 grid = floor(p);
+	vec3 frac_p = fract(p);
 
 	float star = 0.0;
 
-	// Check nearby cells for stars
+	// Check nearby cells
 	for (int x = -1; x <= 1; x++) {
 		for (int y = -1; y <= 1; y++) {
-			vec2 cell = grid + vec2(float(x), float(y));
-			vec2 star_pos = vec2(hash(cell), hash(cell + vec2(1.0, 0.0)));
+			for (int z = -1; z <= 1; z++) {
+				vec3 cell = grid + vec3(float(x), float(y), float(z));
 
-			// Only some cells have stars
-			if (hash(cell + vec2(0.0, 1.0)) > (1.0 - star_density * 0.3)) {
-				vec2 diff = frac_uv - star_pos - vec2(float(x), float(y));
-				float dist = length(diff);
+				// Deterministic star presence based on cell - more stars!
+				float has_star = hash(cell);
+				if (has_star > (1.0 - star_density * 0.4)) {
+					// Star position within cell
+					vec3 star_pos = vec3(
+						hash(cell + vec3(1.0, 0.0, 0.0)),
+						hash(cell + vec3(0.0, 1.0, 0.0)),
+						hash(cell + vec3(0.0, 0.0, 1.0))
+					);
 
-				// Star brightness falloff
-				float brightness = hash(cell + vec2(2.0, 0.0));
-				float size = 0.02 + brightness * 0.03;
-				star += smoothstep(size, 0.0, dist) * brightness;
+					vec3 diff = frac_p - star_pos - vec3(float(x), float(y), float(z));
+					float dist = length(diff);
+
+					// Star brightness and size
+					float base_brightness = hash(cell + vec3(2.0, 2.0, 2.0));
+
+					// Sparkle effect tied purely to time and cell position
+					float sparkle_speed = 1.0 + hash(cell + vec3(3.0, 3.0, 3.0)) * 3.0;
+					float sparkle_phase = hash(cell + vec3(4.0, 4.0, 4.0)) * 6.28;
+					float sparkle = 0.6 + 0.4 * sin(time * sparkle_speed + sparkle_phase);
+
+					float brightness = base_brightness * sparkle;
+					float size = 0.06 + base_brightness * 0.1;
+					star += smoothstep(size, 0.0, dist) * (0.4 + brightness * 0.6);
+				}
 			}
 		}
 	}
 
-	return star;
+	return min(star, 1.0);
 }
 
 void sky() {
@@ -77,9 +102,7 @@ void sky() {
 
 	// Stars (only visible at night, above horizon)
 	if (star_brightness > 0.0 && dir.y > 0.0) {
-		float star_value = stars(dir) * star_brightness;
-		// Twinkle effect
-		star_value *= 0.7 + 0.3 * sin(TIME * 2.0 + hash(dir.xz) * 10.0);
+		float star_value = stars(dir, TIME) * star_brightness;
 		sky += vec3(star_value);
 	}
 
