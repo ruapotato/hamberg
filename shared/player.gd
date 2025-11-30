@@ -34,6 +34,7 @@ var is_game_loaded: bool = false  # Set to true when loading is complete
 # Jump/landing animation state
 var is_jumping: bool = false  # Set on jump button press
 var is_falling: bool = false  # Set when falling without jumping
+var is_stepping_up: bool = false  # Set during step-up to prevent fall animation
 var was_on_floor_last_frame: bool = false  # Track floor state for landing detection
 var landing_timer: float = 0.0  # Timer for landing animation
 const LANDING_ANIMATION_TIME: float = 0.2  # How long landing animation plays
@@ -571,6 +572,7 @@ func _handle_step_up(_delta: float) -> void:
 	# Just enough to clear the step smoothly, not launch into the air
 	var step_up_speed = 1.5 + h_speed * 0.3  # Gentle lift, scales slightly with speed
 	velocity.y = maxf(velocity.y, step_up_speed)
+	is_stepping_up = true  # Prevent fall animation during step-up
 
 func _update_animation_state() -> void:
 	"""Update animation state based on velocity"""
@@ -579,12 +581,15 @@ func _update_animation_state() -> void:
 
 	# Detect landing (transition from air to ground)
 	if on_floor and not was_on_floor_last_frame:
-		is_landing = true
-		landing_timer = 0.0
+		# Don't play landing animation/sound for small step-ups
+		if not is_stepping_up:
+			is_landing = true
+			landing_timer = 0.0
+			if is_local_player:
+				SoundManager.play_sound_varied("land", global_position, -3.0, 0.1)
 		is_jumping = false
 		is_falling = false
-		if is_local_player:
-			SoundManager.play_sound_varied("land", global_position, -3.0, 0.1)
+		is_stepping_up = false  # Clear step-up flag when back on ground
 
 	# Update floor tracking
 	was_on_floor_last_frame = on_floor
@@ -592,7 +597,8 @@ func _update_animation_state() -> void:
 	# Set animation state
 	if is_landing:
 		current_animation_state = "landing"
-	elif not on_floor:
+	elif not on_floor and not is_stepping_up:
+		# Only show jump/fall animation if not stepping up
 		if velocity.y > 0.5:
 			current_animation_state = "jump"
 			is_jumping = true
