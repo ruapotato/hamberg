@@ -29,10 +29,6 @@ emission_enabled = true
 emission = Color(1, 0.4, 0.1, 1)
 emission_energy_multiplier = 2.0
 
-[sub_resource type="CylinderShape3D" id="fireplace_collision"]
-height = 0.3
-radius = 0.6
-
 [sub_resource type="ParticleProcessMaterial" id="fire_particle_material"]
 emission_shape = 1
 emission_sphere_radius = 0.2
@@ -50,14 +46,18 @@ transparency = 1
 shading_mode = 0
 vertex_color_use_as_albedo = true
 albedo_color = Color(1, 0.6, 0.2, 0.8)
-emission_enabled = true
-emission = Color(1, 0.4, 0, 1)
-emission_energy_multiplier = 3.0
 billboard_mode = 3
+particles_anim_h_frames = 1
+particles_anim_v_frames = 1
+particles_anim_loop = false
 
 [sub_resource type="QuadMesh" id="fire_quad_mesh"]
-size = Vector2(0.3, 0.4)
 material = SubResource("fire_particle_draw_material")
+size = Vector2(0.1, 0.2)
+
+[sub_resource type="CylinderShape3D" id="fireplace_collision"]
+height = 0.3
+radius = 0.6
 
 [node name="Fireplace" type="StaticBody3D"]
 collision_mask = 0
@@ -98,11 +98,10 @@ omni_attenuation = 1.5
 
 [node name="FireParticles" type="GPUParticles3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.15, 0)
-amount = 40
+amount = 15
 lifetime = 0.8
 explosiveness = 0.1
 randomness = 0.5
-local_coords = false
 process_material = SubResource("fire_particle_material")
 draw_pass_1 = SubResource("fire_quad_mesh")
 
