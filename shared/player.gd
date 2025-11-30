@@ -525,13 +525,14 @@ func _apply_movement(input_data: Dictionary, delta: float) -> void:
 			body_container.rotation.y = lerp_angle(body_container.rotation.y, target_rotation, delta * 10.0)
 
 func _handle_step_up(_delta: float) -> void:
-	"""Handle stepping up small ledges like floor boards and stairs"""
+	"""Handle stepping up small ledges like floor boards and stairs - smooth version"""
 	# Only attempt step-up when on ground and moving horizontally
 	if not is_on_floor():
 		return
 
 	var horizontal_velocity = Vector3(velocity.x, 0, velocity.z)
-	if horizontal_velocity.length() < 0.1:
+	var h_speed = horizontal_velocity.length()
+	if h_speed < 0.1:
 		return
 
 	# Don't step up during special movement states
@@ -546,7 +547,7 @@ func _handle_step_up(_delta: float) -> void:
 		return  # No obstacle, no step-up needed
 
 	# There's an obstacle - check if it's a step we can climb
-	# Move up by step height and test again
+	# Test if we can move up by step height
 	var step_up_motion = Vector3(0, STEP_HEIGHT, 0)
 	var step_collision = move_and_collide(step_up_motion, true)
 
@@ -554,20 +555,22 @@ func _handle_step_up(_delta: float) -> void:
 		return  # Can't move up (ceiling or something)
 
 	# Temporarily move up to test forward motion
+	var original_y = global_position.y
 	global_position.y += STEP_HEIGHT
 
 	# Test forward motion at elevated position
 	var elevated_collision = move_and_collide(motion, true)
 
-	if elevated_collision:
-		# Still blocked at elevated position - restore position
-		global_position.y -= STEP_HEIGHT
-		return
+	# Restore position - we'll use velocity for smooth movement
+	global_position.y = original_y
 
-	# Success! We can step up. Keep the elevated position.
-	# The floor snapping will adjust us to the actual step surface.
-	# Add slight downward velocity to help snap to floor
-	velocity.y = -2.0
+	if elevated_collision:
+		return  # Still blocked at elevated position - it's a wall, not a step
+
+	# Success! Apply smooth upward velocity to glide up the step
+	# Calculate velocity needed to rise smoothly over a short time
+	var step_up_speed = h_speed * 2.0 + 3.0  # Scale with movement speed, minimum 3 m/s
+	velocity.y = maxf(velocity.y, step_up_speed)
 
 func _update_animation_state() -> void:
 	"""Update animation state based on velocity"""
