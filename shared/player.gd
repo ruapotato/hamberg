@@ -550,7 +550,7 @@ func _handle_step_up(_delta: float) -> void:
 	# Check collision normal - only step up on steep/vertical surfaces (steps, walls)
 	# Not on sloped terrain (normal pointing mostly upward)
 	var collision_normal = collision.get_normal()
-	if collision_normal.y > 0.5:
+	if collision_normal.y > 0.75:
 		return  # This is sloped terrain, not a step - let normal movement handle it
 
 	# There's a steep obstacle - check if it's a step we can climb
