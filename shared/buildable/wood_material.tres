@@ -1,14 +1,14 @@
-[gd_resource type="StandardMaterial3D" format=3]
+[gd_resource type="ShaderMaterial" load_steps=2 format=3]
+
+[ext_resource type="Shader" path="res://shared/buildable/wood_grain.gdshader" id="1"]
 
 [resource]
 resource_name = "WoodPlanks"
-albedo_color = Color(0.55, 0.38, 0.22, 1.0)
-roughness = 0.85
-metallic_specular = 0.1
-normal_enabled = false
-uv1_scale = Vector3(2, 0.5, 1)
-uv1_triplanar = true
-uv1_triplanar_sharpness = 1.5
-detail_enabled = true
-detail_blend_mode = 0
-detail_uv_layer = 0
+shader = ExtResource("1")
+shader_parameter/wood_color_light = Vector3(0.65, 0.45, 0.25)
+shader_parameter/wood_color_dark = Vector3(0.35, 0.22, 0.12)
+shader_parameter/grain_scale = 12.0
+shader_parameter/grain_strength = 0.6
+shader_parameter/roughness = 0.85
+shader_parameter/ring_scale = 3.0
+shader_parameter/noise_scale = 8.0
