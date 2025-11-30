@@ -568,9 +568,9 @@ func _handle_step_up(_delta: float) -> void:
 	if elevated_collision:
 		return  # Still blocked at elevated position - it's a wall, not a step
 
-	# Success! Apply gentle upward velocity to glide up the step
-	# Just enough to clear the step smoothly, not launch into the air
-	var step_up_speed = 1.5 + h_speed * 0.3  # Gentle lift, scales slightly with speed
+	# Success! Apply upward velocity to glide up the step
+	# Strong enough to clear steps smoothly but not launch into the air
+	var step_up_speed = 2.5 + h_speed * 0.5  # Moderate lift, scales with speed
 	velocity.y = maxf(velocity.y, step_up_speed)
 	is_stepping_up = true  # Prevent fall animation during step-up
 

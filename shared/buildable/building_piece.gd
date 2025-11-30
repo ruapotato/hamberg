@@ -141,15 +141,14 @@ func _setup_snap_points() -> void:
 
 ## Set up as a ghost preview
 func _setup_preview_mode() -> void:
-	# Make semi-transparent
+	# Replace materials with simple transparent preview materials
 	for child in get_children():
 		if child is MeshInstance3D:
-			var mat = child.get_surface_override_material(0)
-			if mat:
-				mat = mat.duplicate()
-				mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-				mat.albedo_color.a = 0.5
-				child.set_surface_override_material(0, mat)
+			# Create a simple StandardMaterial3D for preview (works with any source material type)
+			var preview_mat = StandardMaterial3D.new()
+			preview_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+			preview_mat.albedo_color = Color(0.6, 0.8, 0.6, 0.5)  # Green tint, semi-transparent
+			child.set_surface_override_material(0, preview_mat)
 
 	# Disable collision for preview
 	collision_layer = 0
@@ -161,18 +160,19 @@ func set_preview_valid(valid: bool, is_snapped: bool = false) -> void:
 
 	var color_tint: Color
 	if not valid:
-		color_tint = Color.RED
+		color_tint = Color(1.0, 0.3, 0.3)  # Red
 	elif is_snapped:
 		color_tint = Color(0.3, 1.0, 0.3)  # Bright green when snapped
 	else:
 		color_tint = Color(0.6, 0.8, 0.6)  # Dimmer green for ground placement
 
+	var alpha = 0.6 if is_snapped else 0.5
+
 	for child in get_children():
 		if child is MeshInstance3D:
 			var mat = child.get_surface_override_material(0)
-			if mat:
-				mat.albedo_color = color_tint
-				mat.albedo_color.a = 0.6 if is_snapped else 0.5  # Slightly more visible when snapped
+			if mat and mat is StandardMaterial3D:
+				mat.albedo_color = Color(color_tint.r, color_tint.g, color_tint.b, alpha)
 
 ## Take damage (SERVER-SIDE)
 func take_damage(damage: float) -> bool:
