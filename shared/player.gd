@@ -19,6 +19,7 @@ const ACCELERATION: float = 10.0
 const FRICTION: float = 8.0
 const AIR_CONTROL: float = 0.3
 const head_height: float = 1.50
+const STEP_HEIGHT: float = 0.35  # Maximum height player can step up without jumping (stairs, floor boards)
 
 # Gravity
 var gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
@@ -479,7 +480,8 @@ func _apply_movement(input_data: Dictionary, delta: float) -> void:
 			velocity.x = lerp(velocity.x, 0.0, FRICTION * delta * control_factor)
 			velocity.z = lerp(velocity.z, 0.0, FRICTION * delta * control_factor)
 
-	# Apply movement
+	# Apply movement with step-up logic
+	_handle_step_up(delta)
 	move_and_slide()
 
 	# LUNGE LANDING DETECTION - Check immediately after move_and_slide() updates is_on_floor()
@@ -521,6 +523,51 @@ func _apply_movement(input_data: Dictionary, delta: float) -> void:
 		if horizontal_speed_check > 0.1:
 			var target_rotation = atan2(direction.x, direction.z)
 			body_container.rotation.y = lerp_angle(body_container.rotation.y, target_rotation, delta * 10.0)
+
+func _handle_step_up(_delta: float) -> void:
+	"""Handle stepping up small ledges like floor boards and stairs"""
+	# Only attempt step-up when on ground and moving horizontally
+	if not is_on_floor():
+		return
+
+	var horizontal_velocity = Vector3(velocity.x, 0, velocity.z)
+	if horizontal_velocity.length() < 0.1:
+		return
+
+	# Don't step up during special movement states
+	if is_lunging or is_jumping:
+		return
+
+	# Test if we would collide at current height
+	var motion = horizontal_velocity * _delta
+	var collision = move_and_collide(motion, true)  # Test only, don't actually move
+
+	if not collision:
+		return  # No obstacle, no step-up needed
+
+	# There's an obstacle - check if it's a step we can climb
+	# Move up by step height and test again
+	var step_up_motion = Vector3(0, STEP_HEIGHT, 0)
+	var step_collision = move_and_collide(step_up_motion, true)
+
+	if step_collision:
+		return  # Can't move up (ceiling or something)
+
+	# Temporarily move up to test forward motion
+	global_position.y += STEP_HEIGHT
+
+	# Test forward motion at elevated position
+	var elevated_collision = move_and_collide(motion, true)
+
+	if elevated_collision:
+		# Still blocked at elevated position - restore position
+		global_position.y -= STEP_HEIGHT
+		return
+
+	# Success! We can step up. Keep the elevated position.
+	# The floor snapping will adjust us to the actual step surface.
+	# Add slight downward velocity to help snap to floor
+	velocity.y = -2.0
 
 func _update_animation_state() -> void:
 	"""Update animation state based on velocity"""

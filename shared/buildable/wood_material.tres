@@ -1,0 +1,14 @@
+[gd_resource type="StandardMaterial3D" format=3]
+
+[resource]
+resource_name = "WoodPlanks"
+albedo_color = Color(0.55, 0.38, 0.22, 1.0)
+roughness = 0.85
+metallic_specular = 0.1
+normal_enabled = false
+uv1_scale = Vector3(2, 0.5, 1)
+uv1_triplanar = true
+uv1_triplanar_sharpness = 1.5
+detail_enabled = true
+detail_blend_mode = 0
+detail_uv_layer = 0

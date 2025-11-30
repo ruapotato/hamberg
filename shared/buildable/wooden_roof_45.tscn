@@ -1,12 +1,10 @@
 [gd_scene load_steps=3 format=3 uid="uid://wooden_roof_45_001"]
 
 [ext_resource type="Script" path="res://shared/buildable/building_piece.gd" id="1"]
+[ext_resource type="Material" path="res://shared/buildable/wood_material.tres" id="2"]
 
 [sub_resource type="BoxMesh" id="roof_mesh"]
 size = Vector3(2.0, 0.1, 2.0)
-
-[sub_resource type="StandardMaterial3D" id="wood_mat"]
-albedo_color = Color(0.4, 0.25, 0.15, 1)
 
 [sub_resource type="BoxShape3D" id="roof_collision"]
 size = Vector3(2.0, 0.1, 2.0)
@@ -19,12 +17,12 @@ piece_name = "wooden_roof_45"
 grid_size = Vector3(2.0, 0.1, 2.0)
 snap_to_grid = true
 can_rotate = true
-rotation_angle = 45.0  # 45 degrees - steep roof pitch
+rotation_angle = 45.0
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 0.7071, 0.7071, 0, -0.7071, 0.7071, 0, 0, 0)
 mesh = SubResource("roof_mesh")
-surface_material_override/0 = SubResource("wood_mat")
+surface_material_override/0 = ExtResource("2")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 0.7071, 0.7071, 0, -0.7071, 0.7071, 0, 0, 0)

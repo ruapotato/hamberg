@@ -1,6 +1,7 @@
 [gd_scene load_steps=7 format=3 uid="uid://wooden_stairs_001"]
 
 [ext_resource type="Script" path="res://shared/buildable/building_piece.gd" id="1"]
+[ext_resource type="Material" path="res://shared/buildable/wood_material.tres" id="2"]
 
 [sub_resource type="BoxMesh" id="step1_mesh"]
 size = Vector3(2.0, 0.3, 0.4)
@@ -16,9 +17,6 @@ size = Vector3(2.0, 0.3, 0.4)
 
 [sub_resource type="BoxMesh" id="step5_mesh"]
 size = Vector3(2.0, 0.3, 0.4)
-
-[sub_resource type="StandardMaterial3D" id="wood_mat"]
-albedo_color = Color(0.5, 0.35, 0.2, 1)
 
 [sub_resource type="BoxShape3D" id="step1_col"]
 size = Vector3(2.0, 0.3, 0.4)
@@ -47,7 +45,7 @@ can_rotate = true
 [node name="Step1" type="MeshInstance3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.85, 0.8)
 mesh = SubResource("step1_mesh")
-surface_material_override/0 = SubResource("wood_mat")
+surface_material_override/0 = ExtResource("2")
 
 [node name="Step1Col" type="CollisionShape3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.85, 0.8)
@@ -56,7 +54,7 @@ shape = SubResource("step1_col")
 [node name="Step2" type="MeshInstance3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.45, 0.4)
 mesh = SubResource("step2_mesh")
-surface_material_override/0 = SubResource("wood_mat")
+surface_material_override/0 = ExtResource("2")
 
 [node name="Step2Col" type="CollisionShape3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.45, 0.4)
@@ -65,7 +63,7 @@ shape = SubResource("step2_col")
 [node name="Step3" type="MeshInstance3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.05, 0.0)
 mesh = SubResource("step3_mesh")
-surface_material_override/0 = SubResource("wood_mat")
+surface_material_override/0 = ExtResource("2")
 
 [node name="Step3Col" type="CollisionShape3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.05, 0.0)
@@ -74,7 +72,7 @@ shape = SubResource("step3_col")
 [node name="Step4" type="MeshInstance3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.35, -0.4)
 mesh = SubResource("step4_mesh")
-surface_material_override/0 = SubResource("wood_mat")
+surface_material_override/0 = ExtResource("2")
 
 [node name="Step4Col" type="CollisionShape3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.35, -0.4)
@@ -83,7 +81,7 @@ shape = SubResource("step4_col")
 [node name="Step5" type="MeshInstance3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.75, -0.8)
 mesh = SubResource("step5_mesh")
-surface_material_override/0 = SubResource("wood_mat")
+surface_material_override/0 = ExtResource("2")
 
 [node name="Step5Col" type="CollisionShape3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.75, -0.8)

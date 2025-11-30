@@ -1,6 +1,7 @@
 [gd_scene load_steps=6 format=3 uid="uid://workbench_001"]
 
 [ext_resource type="Script" path="res://shared/buildable/buildable_object.gd" id="1"]
+[ext_resource type="Material" path="res://shared/buildable/wood_material.tres" id="2"]
 
 [sub_resource type="BoxMesh" id="tabletop_mesh"]
 size = Vector3(1.5, 0.1, 1.0)
@@ -9,9 +10,6 @@ size = Vector3(1.5, 0.1, 1.0)
 top_radius = 0.05
 bottom_radius = 0.05
 height = 0.8
-
-[sub_resource type="StandardMaterial3D" id="wood_mat"]
-albedo_color = Color(0.6, 0.4, 0.2, 1)
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_workbench"]
 size = Vector3(1.5, 0.1, 1.0)
@@ -28,27 +26,27 @@ crafting_station_range = 20.0
 [node name="Tabletop" type="MeshInstance3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.8, 0)
 mesh = SubResource("tabletop_mesh")
-surface_material_override/0 = SubResource("wood_mat")
+surface_material_override/0 = ExtResource("2")
 
 [node name="Leg1" type="MeshInstance3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.6, 0.4, -0.4)
 mesh = SubResource("leg_mesh")
-surface_material_override/0 = SubResource("wood_mat")
+surface_material_override/0 = ExtResource("2")
 
 [node name="Leg2" type="MeshInstance3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.6, 0.4, -0.4)
 mesh = SubResource("leg_mesh")
-surface_material_override/0 = SubResource("wood_mat")
+surface_material_override/0 = ExtResource("2")
 
 [node name="Leg3" type="MeshInstance3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.6, 0.4, 0.4)
 mesh = SubResource("leg_mesh")
-surface_material_override/0 = SubResource("wood_mat")
+surface_material_override/0 = ExtResource("2")
 
 [node name="Leg4" type="MeshInstance3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.6, 0.4, 0.4)
 mesh = SubResource("leg_mesh")
-surface_material_override/0 = SubResource("wood_mat")
+surface_material_override/0 = ExtResource("2")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.8, 0)

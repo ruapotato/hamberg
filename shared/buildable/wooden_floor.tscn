@@ -1,12 +1,10 @@
 [gd_scene load_steps=3 format=3 uid="uid://wooden_floor_001"]
 
 [ext_resource type="Script" path="res://shared/buildable/building_piece.gd" id="1"]
+[ext_resource type="Material" path="res://shared/buildable/wood_material.tres" id="2"]
 
 [sub_resource type="BoxMesh" id="floor_mesh"]
 size = Vector3(2.0, 0.2, 2.0)
-
-[sub_resource type="StandardMaterial3D" id="wood_mat"]
-albedo_color = Color(0.5, 0.35, 0.2, 1)
 
 [sub_resource type="BoxShape3D" id="floor_collision"]
 size = Vector3(2.0, 0.2, 2.0)
@@ -21,7 +19,7 @@ snap_to_grid = true
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="."]
 mesh = SubResource("floor_mesh")
-surface_material_override/0 = SubResource("wood_mat")
+surface_material_override/0 = ExtResource("2")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
 shape = SubResource("floor_collision")
