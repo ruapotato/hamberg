@@ -11,6 +11,8 @@ extends Control
 @onready var fps_label: Label = $FPSLabel
 
 var player: CharacterBody3D = null
+var flash_timer: float = 0.0
+const FLASH_SPEED: float = 8.0  # Flashes per second
 
 func _ready() -> void:
 	# Start hidden until player is set
@@ -20,18 +22,18 @@ func _ready() -> void:
 func set_player(p: CharacterBody3D) -> void:
 	player = p
 	visible = true
-	_update_bars()
+	_update_bars(0.0)
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	if player and is_instance_valid(player):
-		_update_bars()
+		_update_bars(delta)
 
 	# Update FPS counter
 	if fps_label:
 		fps_label.text = "FPS: %d" % Engine.get_frames_per_second()
 
 ## Update health, stamina, and brain power bars
-func _update_bars() -> void:
+func _update_bars(delta: float = 0.0) -> void:
 	if not player:
 		return
 
@@ -47,7 +49,19 @@ func _update_bars() -> void:
 	var stamina = player.stamina if "stamina" in player else max_stamina
 	stamina_bar.max_value = max_stamina
 	stamina_bar.value = stamina
-	stamina_label.text = "Stamina: %d / %d" % [stamina, max_stamina]
+
+	# Check for exhausted state and flash the stamina bar
+	var is_exhausted = player.is_exhausted if "is_exhausted" in player else false
+	if is_exhausted:
+		flash_timer += delta * FLASH_SPEED
+		# Use sin wave for smooth flashing between 0.3 and 1.0 alpha
+		var flash_alpha = 0.65 + 0.35 * sin(flash_timer * TAU)
+		stamina_bar.modulate.a = flash_alpha
+		stamina_label.text = "EXHAUSTED"
+	else:
+		flash_timer = 0.0
+		stamina_bar.modulate.a = 1.0
+		stamina_label.text = "Stamina: %d / %d" % [stamina, max_stamina]
 
 	# Brain Power
 	var max_brain_power = player.MAX_BRAIN_POWER if "MAX_BRAIN_POWER" in player else 100.0

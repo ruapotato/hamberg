@@ -147,9 +147,12 @@ const STAMINA_REGEN_RATE: float = 15.0  # Per second
 const STAMINA_REGEN_DELAY: float = 1.0  # Delay after using stamina
 const SPRINT_STAMINA_DRAIN: float = 10.0  # Per second
 const JUMP_STAMINA_COST: float = 10.0
+const EXHAUSTED_RECOVERY_THRESHOLD: float = 0.10  # 10% stamina to recover from exhaustion
+const EXHAUSTED_SPEED_MULTIPLIER: float = 0.6  # 60% speed when exhausted
 
 var stamina: float = MAX_STAMINA
 var stamina_regen_timer: float = 0.0  # Time since last stamina use
+var is_exhausted: bool = false  # True when stamina fully depleted, until 10% recovered
 
 # Brain Power system (for magic)
 const MAX_BRAIN_POWER: float = 100.0
@@ -163,6 +166,7 @@ var brain_power_regen_timer: float = 0.0  # Time since last brain power use
 const MAX_HEALTH: float = 100.0
 var health: float = MAX_HEALTH
 var is_dead: bool = false
+var god_mode: bool = false  # Debug god mode - unlimited stamina/brain power
 
 # Fall death system (for falling out of world)
 var fall_time_below_ground: float = 0.0
@@ -266,16 +270,16 @@ func _physics_process(delta: float) -> void:
 		var handled_terrain_action = _handle_terrain_modification_input(input_data)
 		# Only process combat if terrain modification wasn't handled
 		if not handled_terrain_action:
-			# Handle special attack input (can't attack while stunned or blocking)
-			if input_data.get("special_attack", false) and attack_cooldown <= 0 and not is_stunned and not is_blocking:
+			# Handle special attack input (can't attack while stunned, blocking, or exhausted)
+			if input_data.get("special_attack", false) and attack_cooldown <= 0 and not is_stunned and not is_blocking and not is_exhausted:
 				_handle_special_attack()
 				attack_cooldown = ATTACK_COOLDOWN_TIME
-			# Handle normal attack input (can't attack while stunned or blocking)
-			elif input_data.get("attack", false) and attack_cooldown <= 0 and not is_stunned and not is_blocking:
+			# Handle normal attack input (can't attack while stunned, blocking, or exhausted)
+			elif input_data.get("attack", false) and attack_cooldown <= 0 and not is_stunned and not is_blocking and not is_exhausted:
 				_handle_attack()
 				attack_cooldown = ATTACK_COOLDOWN_TIME
-	# Handle special attack input when no other input (can't attack while stunned or blocking)
-	elif input_data.get("special_attack", false) and attack_cooldown <= 0 and not is_stunned and not is_blocking:
+	# Handle special attack input when no other input (can't attack while stunned, blocking, or exhausted)
+	elif input_data.get("special_attack", false) and attack_cooldown <= 0 and not is_stunned and not is_blocking and not is_exhausted:
 		_handle_special_attack()
 		attack_cooldown = ATTACK_COOLDOWN_TIME
 
@@ -459,10 +463,16 @@ func _apply_movement(input_data: Dictionary, delta: float) -> void:
 				SoundManager.play_sound_varied("jump", global_position, -3.0, 0.1)
 
 	# Movement speed (sprint drains stamina, blocking reduces speed)
-	var can_sprint = is_sprinting and stamina > 0 and not is_blocking  # Can't sprint while blocking
+	# Can't sprint while blocking or exhausted
+	var can_sprint = is_sprinting and not is_blocking and not is_exhausted
 	if can_sprint:
-		consume_stamina(SPRINT_STAMINA_DRAIN * delta)
+		# Only sprint if we have enough stamina (consume_stamina returns false if not enough)
+		can_sprint = consume_stamina(SPRINT_STAMINA_DRAIN * delta)
 	var target_speed := SPRINT_SPEED if can_sprint else WALK_SPEED
+
+	# Apply exhausted speed reduction (slower walking)
+	if is_exhausted:
+		target_speed *= EXHAUSTED_SPEED_MULTIPLIER
 
 	# Apply blocking speed reduction
 	if is_blocking:
@@ -2457,22 +2467,52 @@ func _animate_axe_attack(progress: float, right_arm: Node3D, left_arm: Node3D, r
 
 ## Update stamina regeneration
 func _update_stamina(delta: float) -> void:
+	# God mode: unlimited stamina, never exhausted
+	if god_mode:
+		stamina = MAX_STAMINA
+		is_exhausted = false
+		return
+
 	# Regenerate stamina after delay
 	stamina_regen_timer += delta
 
 	if stamina_regen_timer >= STAMINA_REGEN_DELAY:
 		stamina = min(stamina + STAMINA_REGEN_RATE * delta, MAX_STAMINA)
 
+	# Check for exhaustion recovery (need 10% stamina to recover)
+	if is_exhausted and stamina >= MAX_STAMINA * EXHAUSTED_RECOVERY_THRESHOLD:
+		is_exhausted = false
+		print("[Player] Recovered from exhaustion")
+
 ## Consume stamina (returns true if enough stamina available)
 func consume_stamina(amount: float) -> bool:
+	# God mode: unlimited stamina
+	if god_mode:
+		return true
 	if stamina >= amount:
 		stamina -= amount
 		stamina_regen_timer = 0.0  # Reset regen delay
+		# Check if we just became exhausted (stamina depleted)
+		if stamina <= 0:
+			stamina = 0
+			if not is_exhausted:
+				is_exhausted = true
+				print("[Player] Exhausted! Must recover stamina before sprinting/attacking")
 		return true
-	return false
+	else:
+		# Failed to consume - become exhausted if stamina is very low
+		if stamina < amount and not is_exhausted:
+			is_exhausted = true
+			print("[Player] Exhausted! Not enough stamina")
+		return false
 
 ## Update brain power regeneration
 func _update_brain_power(delta: float) -> void:
+	# God mode: unlimited brain power
+	if god_mode:
+		brain_power = MAX_BRAIN_POWER
+		return
+
 	# Regenerate brain power after delay
 	brain_power_regen_timer += delta
 
@@ -2481,6 +2521,9 @@ func _update_brain_power(delta: float) -> void:
 
 ## Consume brain power (returns true if enough brain power available)
 func consume_brain_power(amount: float) -> bool:
+	# God mode: unlimited brain power
+	if god_mode:
+		return true
 	if brain_power >= amount:
 		brain_power -= amount
 		brain_power_regen_timer = 0.0  # Reset regen delay

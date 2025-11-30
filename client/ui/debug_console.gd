@@ -281,6 +281,10 @@ func _cmd_heal() -> void:
 func _cmd_god() -> void:
 	god_mode = not god_mode
 	NetworkManager.rpc_debug_god_mode.rpc_id(1, god_mode)
+	# Also set on local player so client-side checks work
+	var local_player = get_tree().get_first_node_in_group("local_player")
+	if local_player and "god_mode" in local_player:
+		local_player.god_mode = god_mode
 	if god_mode:
 		_add_output("[color=gold]God mode ENABLED[/color]")
 	else:
