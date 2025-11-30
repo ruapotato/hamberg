@@ -207,6 +207,9 @@ func _load_chunk_from_saved_data(chunk_pos: Vector2i, mm_chunk) -> void:
 	var destroyed_objects = chunk_data.get_destroyed_objects()
 	for obj_data in destroyed_objects:
 		var obj_type: String = obj_data.object_type
+		# Skip invalid object_ids (from old save data without this field)
+		if obj_data.object_id < 0:
+			continue
 		if not destroyed_by_type.has(obj_type):
 			destroyed_by_type[obj_type] = []
 		destroyed_by_type[obj_type].append(obj_data.object_id)
@@ -269,16 +272,17 @@ func _save_chunk_to_database(chunk_pos: Vector2i, mm_chunk) -> void:
 			var inst = inst_array[i]
 			var transform: Transform3D = transform_array[i]
 
-			chunk_data.add_object(
+			var obj_data = chunk_data.add_object(
 				object_type,
 				transform.origin,
 				transform.basis.get_euler(),
-				transform.basis.get_scale()
+				transform.basis.get_scale(),
+				i  # Pass the instance index as object_id
 			)
 
 			# Mark destroyed in database
 			if inst.destroyed:
-				chunk_data.mark_object_destroyed(i)
+				obj_data.is_destroyed = true
 
 	database.mark_chunk_generated(chunk_pos)
 	database.save_chunk(chunk_pos)

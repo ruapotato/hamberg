@@ -6,6 +6,7 @@ class_name ChunkData
 
 class ObjectData:
 	var object_type: String  # "tree", "rock", "grass", etc.
+	var object_id: int = -1  # Index within the object type array
 	var position: Vector3
 	var rotation: Vector3
 	var scale: Vector3
@@ -14,6 +15,7 @@ class ObjectData:
 	func to_dict() -> Dictionary:
 		return {
 			"type": object_type,
+			"id": object_id,
 			"pos": [position.x, position.y, position.z],
 			"rot": [rotation.x, rotation.y, rotation.z],
 			"scale": [scale.x, scale.y, scale.z],
@@ -23,6 +25,7 @@ class ObjectData:
 	static func from_dict(data: Dictionary) -> ObjectData:
 		var obj_data := ObjectData.new()
 		obj_data.object_type = data.get("type", "")
+		obj_data.object_id = data.get("id", -1)
 		var pos = data.get("pos", [0, 0, 0])
 		obj_data.position = Vector3(pos[0], pos[1], pos[2])
 		var rot = data.get("rot", [0, 0, 0])
@@ -40,9 +43,10 @@ func _init(pos: Vector2i = Vector2i.ZERO) -> void:
 	chunk_position = pos
 
 ## Add an object to this chunk's data
-func add_object(obj_type: String, pos: Vector3, rot: Vector3, scl: Vector3) -> ObjectData:
+func add_object(obj_type: String, pos: Vector3, rot: Vector3, scl: Vector3, obj_id: int = -1) -> ObjectData:
 	var obj_data := ObjectData.new()
 	obj_data.object_type = obj_type
+	obj_data.object_id = obj_id
 	obj_data.position = pos
 	obj_data.rotation = rot
 	obj_data.scale = scl

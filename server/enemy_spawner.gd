@@ -353,7 +353,18 @@ func _spawn_enemy(enemy_scene: PackedScene, position: Vector3, host_peer_id: int
 ## Handle enemy death
 func _on_enemy_died(enemy: Node) -> void:
 	print("[EnemySpawner] Enemy died: %s" % enemy.name)
+	_remove_enemy(enemy)
 
+## Despawn an enemy (e.g., when host disconnects and no other players available)
+func despawn_enemy(enemy: Node) -> void:
+	if not enemy or not is_instance_valid(enemy):
+		return
+	print("[EnemySpawner] Despawning enemy: %s" % enemy.name)
+	_remove_enemy(enemy)
+	enemy.queue_free()
+
+## Internal: Remove enemy from tracking and notify clients
+func _remove_enemy(enemy: Node) -> void:
 	# Broadcast enemy despawn to all clients
 	var enemy_path = enemy_paths.get(enemy, enemy.get_path())
 	NetworkManager.rpc_despawn_enemy.rpc(enemy_path)
