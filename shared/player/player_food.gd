@@ -23,13 +23,21 @@ func _process(delta: float) -> void:
 		return
 
 	var foods_to_remove: Array[int] = []
+	var total_regen: float = 0.0
 
-	# Decay all active foods
+	# Decay all active foods and sum up regen
 	for i in active_foods.size():
 		active_foods[i].remaining_time -= delta
 
 		if active_foods[i].remaining_time <= 0:
 			foods_to_remove.append(i)
+		elif active_foods[i].food_data:
+			# Sum up health regen from all active foods
+			total_regen += active_foods[i].food_data.heal_per_second
+
+	# Apply health regeneration
+	if total_regen > 0.0 and player:
+		_apply_health_regen(total_regen * delta)
 
 	# Remove expired foods (in reverse order to maintain indices)
 	if not foods_to_remove.is_empty():
@@ -41,7 +49,7 @@ func _process(delta: float) -> void:
 			active_foods.remove_at(idx)
 
 		food_changed.emit()
-		_update_player_stats()
+		_update_player_stats(true)  # true = food expired, scale health down
 
 ## Attempt to eat a food item
 ## Returns true if successfully eaten, false if couldn't (e.g., already have 3 foods of same type)
@@ -66,6 +74,9 @@ func eat_food(food_id: String) -> bool:
 		print("[PlayerFood] Cannot eat %s - already have %d foods active" % [food_id, PC.MAX_FOOD_SLOTS])
 		return false
 
+	# Store old max health BEFORE adding the food for percentage calculation
+	var old_max_health = get_max_health()
+
 	# Add new food buff
 	active_foods.append({
 		"food_id": food_id,
@@ -73,12 +84,13 @@ func eat_food(food_id: String) -> bool:
 		"food_data": food_data
 	})
 
-	print("[PlayerFood] Ate %s (+%.0f HP, +%.0f Stam, +%.0f BP for %.0fs)" % [
-		food_id, food_data.health_bonus, food_data.stamina_bonus, food_data.bp_bonus, food_data.duration
+	print("[PlayerFood] Ate %s (+%.0f HP, +%.0f Stam, +%.0f BP, +%.1f HP/s for %.0fs)" % [
+		food_id, food_data.health_bonus, food_data.stamina_bonus, food_data.bp_bonus,
+		food_data.heal_per_second, food_data.duration
 	])
 
 	food_changed.emit()
-	_update_player_stats()
+	_update_player_stats_with_old_max(old_max_health)
 	return true
 
 ## Get total health bonus from all active foods
@@ -117,14 +129,40 @@ func get_max_stamina() -> float:
 func get_max_brain_power() -> float:
 	return min(PC.BASE_BRAIN_POWER + get_bp_bonus(), PC.MAX_BRAIN_POWER)
 
-## Update player stats when food changes
-func _update_player_stats() -> void:
+## Update player stats when food expires (max stats decrease)
+func _update_player_stats(food_expired: bool = false) -> void:
 	if not player:
 		return
 
-	# Clamp current values to new maximums
+	# When food expires, scale health down to preserve percentage
+	if player.has_method("scale_health_to_new_max"):
+		player.scale_health_to_new_max(get_max_health())
+
+	# Clamp stamina and brain power to new maximums
 	if player.has_method("clamp_stats_to_max"):
 		player.clamp_stats_to_max()
+
+## Update player stats with known old max (used when eating food)
+func _update_player_stats_with_old_max(old_max_health: float) -> void:
+	if not player:
+		return
+
+	# Scale health to preserve percentage using the old max we stored
+	if player.has_method("scale_health_with_old_max"):
+		player.scale_health_with_old_max(old_max_health, get_max_health())
+
+	# Clamp stamina and brain power to new maximums
+	if player.has_method("clamp_stats_to_max"):
+		player.clamp_stats_to_max()
+
+## Apply health regeneration from food
+func _apply_health_regen(amount: float) -> void:
+	if not player:
+		return
+
+	var max_health = get_max_health()
+	if "health" in player:
+		player.health = min(player.health + amount, max_health)
 
 ## Get info about active foods for UI
 func get_active_foods_info() -> Array[Dictionary]:

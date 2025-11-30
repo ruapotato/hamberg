@@ -33,9 +33,9 @@ func _initialize_items() -> void:
 	_register_resource("charcoal", "Charcoal", "Burned remains of food. Can be used as fuel.", 50, 0.3)
 
 	# Cooked food (consumable)
-	_register_food("cooked_venison", "Cooked Venison", "Hearty deer meat. Increases max health.", 20, 1.5, 25.0, 15.0, 10.0, 600.0)
-	_register_food("cooked_pork", "Cooked Pork", "Savory pig meat. Increases max stamina.", 20, 2.0, 15.0, 25.0, 10.0, 600.0)
-	_register_food("cooked_mutton", "Cooked Mutton", "Tender sheep meat. Balanced nutrition.", 20, 1.8, 20.0, 20.0, 15.0, 600.0)
+	_register_food("cooked_venison", "Cooked Venison", "Hearty deer meat. Increases max health and regenerates HP over time.", 20, 1.5, 25.0, 15.0, 10.0, 600.0, 1.5)
+	_register_food("cooked_pork", "Cooked Pork", "Savory pig meat. Increases max stamina and regenerates HP over time.", 20, 2.0, 15.0, 25.0, 10.0, 600.0, 1.0)
+	_register_food("cooked_mutton", "Cooked Mutton", "Tender sheep meat. Balanced nutrition and regenerates HP over time.", 20, 1.8, 20.0, 20.0, 15.0, 600.0, 1.2)
 
 	# Basic tools (no workbench required)
 	_register_tool("hammer", "Hammer", "Used for building structures.", 1)
@@ -86,7 +86,7 @@ func _register_tool(id: String, name: String, desc: String, stack: int) -> void:
 	items[id] = item
 
 ## Helper: Register a food item (consumable with stat bonuses)
-func _register_food(id: String, name: String, desc: String, stack: int, w: float, health: float, stamina: float, bp: float, duration: float) -> void:
+func _register_food(id: String, name: String, desc: String, stack: int, w: float, health: float, stamina: float, bp: float, duration: float, regen: float = 1.0) -> void:
 	var food = FoodData.new()
 	food.item_id = id
 	food.display_name = name
@@ -97,6 +97,7 @@ func _register_food(id: String, name: String, desc: String, stack: int, w: float
 	food.stamina_bonus = stamina
 	food.bp_bonus = bp
 	food.duration = duration
+	food.heal_per_second = regen
 	items[id] = food
 
 ## Tier 0: Unarmed

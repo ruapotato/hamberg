@@ -160,6 +160,7 @@ var god_mode: bool = false  # Debug god mode - unlimited stamina/brain power
 
 # Food system node (added in _ready)
 var player_food: Node = null
+var _previous_max_health: float = 0.0  # Tracks max health for percentage scaling
 
 # Fall death system (for falling out of world)
 var fall_time_below_ground: float = 0.0
@@ -185,6 +186,7 @@ func _ready() -> void:
 	player_food = PlayerFoodScript.new()
 	player_food.name = "PlayerFood"
 	add_child(player_food)
+	_previous_max_health = PC.BASE_HEALTH  # Initialize for health percentage tracking
 
 	# Determine if this is the local player
 	is_local_player = is_multiplayer_authority()
@@ -2755,6 +2757,35 @@ func set_game_loaded(loaded: bool) -> void:
 # ============================================================================
 # FOOD SYSTEM HELPERS
 # ============================================================================
+
+## Scale health to preserve percentage when max health changes (used when food expires)
+## Uses the tracked previous max health
+func scale_health_to_new_max(new_max_health: float) -> void:
+	# Get the old max health from before the change
+	var old_max = _previous_max_health if _previous_max_health > 0 else PC.BASE_HEALTH
+
+	if old_max > 0 and old_max != new_max_health:
+		var health_percent = health / old_max
+		health = health_percent * new_max_health
+		# Ensure we don't exceed new max
+		health = min(health, new_max_health)
+		print("[Player] Health scaled (expire): %.1f%% of %.0f -> %.0f/%.0f" % [health_percent * 100, old_max, health, new_max_health])
+
+	# Update the tracked max for next time
+	_previous_max_health = new_max_health
+
+## Scale health with explicit old max (used when eating food)
+## Example: 12/25 HP (48%) -> eat food -> new max 50 -> 24/50 HP (still 48%)
+func scale_health_with_old_max(old_max_health: float, new_max_health: float) -> void:
+	if old_max_health > 0 and old_max_health != new_max_health:
+		var health_percent = health / old_max_health
+		health = health_percent * new_max_health
+		# Ensure we don't exceed new max
+		health = min(health, new_max_health)
+		print("[Player] Health scaled (eat): %.1f%% of %.0f -> %.0f/%.0f" % [health_percent * 100, old_max_health, health, new_max_health])
+
+	# Update the tracked max for next time
+	_previous_max_health = new_max_health
 
 ## Clamp current stats to max values (called when food buffs expire)
 func clamp_stats_to_max() -> void:
