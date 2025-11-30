@@ -1,17 +1,7 @@
-[gd_scene load_steps=8 format=3 uid="uid://fireplace_001"]
+[gd_scene load_steps=9 format=3 uid="uid://bkrap1r88usij"]
 
-[ext_resource type="Script" path="res://shared/buildable/fireplace.gd" id="1"]
+[ext_resource type="Script" uid="uid://dxurgj0y3ykp8" path="res://shared/buildable/fireplace.gd" id="1"]
 [ext_resource type="Material" path="res://shared/buildable/wood_material.tres" id="2"]
-
-[sub_resource type="StandardMaterial3D" id="stone_material"]
-albedo_color = Color(0.4, 0.4, 0.4, 1.0)
-roughness = 0.9
-
-[sub_resource type="StandardMaterial3D" id="ember_material"]
-albedo_color = Color(0.8, 0.3, 0.1, 1.0)
-emission_enabled = true
-emission = Color(1.0, 0.4, 0.1, 1.0)
-emission_energy_multiplier = 2.0
 
 [sub_resource type="TorusMesh" id="stone_ring_mesh"]
 inner_radius = 0.4
@@ -19,9 +9,13 @@ outer_radius = 0.6
 rings = 16
 ring_segments = 24
 
+[sub_resource type="StandardMaterial3D" id="stone_material"]
+albedo_color = Color(0.4, 0.4, 0.4, 1)
+roughness = 0.9
+
 [sub_resource type="CylinderMesh" id="log_mesh"]
-top_radius = 0.06
-bottom_radius = 0.07
+top_radius = 0.09
+bottom_radius = 0.09
 height = 0.5
 
 [sub_resource type="CylinderMesh" id="ember_mesh"]
@@ -29,12 +23,17 @@ top_radius = 0.25
 bottom_radius = 0.3
 height = 0.08
 
+[sub_resource type="StandardMaterial3D" id="ember_material"]
+albedo_color = Color(0.8, 0.3, 0.1, 1)
+emission_enabled = true
+emission = Color(1, 0.4, 0.1, 1)
+emission_energy_multiplier = 2.0
+
 [sub_resource type="CylinderShape3D" id="fireplace_collision"]
 height = 0.3
 radius = 0.6
 
 [node name="Fireplace" type="StaticBody3D"]
-collision_layer = 1
 collision_mask = 0
 script = ExtResource("1")
 object_name = "fireplace"
@@ -45,17 +44,17 @@ mesh = SubResource("stone_ring_mesh")
 surface_material_override/0 = SubResource("stone_material")
 
 [node name="Log1" type="MeshInstance3D" parent="."]
-transform = Transform3D(0.866, 0, 0.5, 0, 1, 0, -0.5, 0, 0.866, 0.1, 0.15, 0)
+transform = Transform3D(0.007708334, 0.9999605, 0.004450539, 0.28175277, 0.0020984532, -0.9594618, -0.95943314, 0.008650185, -0.28172544, -0.022442292, 0.1659069, -0.084641844)
 mesh = SubResource("log_mesh")
 surface_material_override/0 = ExtResource("2")
 
 [node name="Log2" type="MeshInstance3D" parent="."]
-transform = Transform3D(0.866, 0, -0.5, 0, 1, 0, 0.5, 0, 0.866, -0.1, 0.15, 0.05)
+transform = Transform3D(0.007708334, 0.9999605, -0.004450539, -0.6900604, 0.0020984532, -0.7237184, -0.7236804, 0.008650184, 0.6900492, -0.024222508, 0.16446494, 0.121500716)
 mesh = SubResource("log_mesh")
 surface_material_override/0 = ExtResource("2")
 
 [node name="Log3" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 0.866, -0.5, 0, 0.5, 0.866, 0, 0.22, 0)
+transform = Transform3D(0.008901077, 0.86596566, -0.4999802, -0.23574343, -0.48408937, -0.84263945, -0.9717746, 0.12536743, 0.19983679, 0.046664815, 0.18962814, 0.01314113)
 mesh = SubResource("log_mesh")
 surface_material_override/0 = ExtResource("2")
 
@@ -66,7 +65,7 @@ surface_material_override/0 = SubResource("ember_material")
 
 [node name="FireLight" type="OmniLight3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, 0)
-light_color = Color(1.0, 0.6, 0.2, 1.0)
+light_color = Color(1, 0.6, 0.2, 1)
 light_energy = 2.0
 omni_range = 8.0
 omni_attenuation = 1.5
