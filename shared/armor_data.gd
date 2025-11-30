@@ -20,6 +20,7 @@ enum SetBonus {
 }
 
 const ItemData = preload("res://shared/item_data.gd")
+const WeaponData = preload("res://shared/weapon_data.gd")
 
 @export var item_id: String = ""
 @export var display_name: String = ""
@@ -31,8 +32,31 @@ var item_type = ItemData.ItemType.ARMOR  # Always ARMOR type
 
 # Armor-specific properties
 @export var armor_slot: ArmorSlot = ArmorSlot.CHEST
-@export var armor_value: float = 5.0  # Flat damage reduction
 @export var durability: int = 100
+
+# Per-damage-type armor values (flat damage reduction)
+# Each damage type has its own armor value
+@export var armor_values: Dictionary = {
+	WeaponData.DamageType.SLASH: 1.0,
+	WeaponData.DamageType.BLUNT: 1.0,
+	WeaponData.DamageType.PIERCE: 1.0,
+	WeaponData.DamageType.FIRE: 1.0,
+	WeaponData.DamageType.ICE: 1.0,
+	WeaponData.DamageType.POISON: 1.0,
+}
+
+## Get armor value for a specific damage type
+func get_armor_for_type(damage_type: int) -> float:
+	if armor_values.has(damage_type):
+		return armor_values[damage_type]
+	return 1.0  # Default
+
+## Get total armor (sum of all types, for display purposes)
+func get_total_armor() -> float:
+	var total := 0.0
+	for value in armor_values.values():
+		total += value
+	return total / armor_values.size()  # Average armor across types
 
 # Set bonus system
 @export var armor_set_id: String = ""  # e.g., "pig", "deer" - pieces with same ID form a set
@@ -51,7 +75,7 @@ func to_dict() -> Dictionary:
 		"max_stack_size": max_stack_size,
 		"weight": weight,
 		"armor_slot": armor_slot,
-		"armor_value": armor_value,
+		"armor_values": armor_values,
 		"durability": durability,
 		"armor_set_id": armor_set_id,
 		"set_bonus": set_bonus,

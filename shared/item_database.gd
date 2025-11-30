@@ -307,14 +307,14 @@ func get_all_items() -> Array:
 # ARMOR REGISTRATION
 # =============================================================================
 
-## Helper: Register an armor piece
-func _register_armor(id: String, name: String, desc: String, slot: ArmorData.ArmorSlot, armor_value: float, set_id: String, set_bonus: ArmorData.SetBonus, primary_color: Color, secondary_color: Color, weight: float = 2.0) -> void:
+## Helper: Register an armor piece with per-damage-type armor values
+func _register_armor(id: String, name: String, desc: String, slot: ArmorData.ArmorSlot, armor_vals: Dictionary, set_id: String, set_bonus: ArmorData.SetBonus, primary_color: Color, secondary_color: Color, weight: float = 2.0) -> void:
 	var armor = ArmorData.new()
 	armor.item_id = id
 	armor.display_name = name
 	armor.description = desc
 	armor.armor_slot = slot
-	armor.armor_value = armor_value
+	armor.armor_values = armor_vals
 	armor.armor_set_id = set_id
 	armor.set_bonus = set_bonus
 	armor.primary_color = primary_color
@@ -325,38 +325,79 @@ func _register_armor(id: String, name: String, desc: String, slot: ArmorData.Arm
 
 ## Pig Armor Set - Pink flying pig leather armor
 ## Set Bonus: Double Jump (can jump again while in the air)
+## Total armor: ~6 per damage type (blocks 6 damage from a 10 damage hit)
 func _register_pig_armor_set() -> void:
 	# Pig colors - pink with white accents (like the flying pig's wings)
 	var pig_pink = Color(0.95, 0.7, 0.75, 1.0)  # Soft pink
 	var pig_white = Color(1.0, 0.95, 0.95, 1.0)  # Wing white
 
+	# Pig leather is soft - good vs blunt, weak vs pierce/slash
+	# Head: 1.0 armor avg
 	_register_armor(
 		"pig_helmet", "Pig Leather Hood",
 		"A bouncy hood made from flying pig leather. Part of the Pig Set.\nFull Set Bonus: Double Jump",
-		ArmorData.ArmorSlot.HEAD, 3.0, "pig", ArmorData.SetBonus.PIG_DOUBLE_JUMP,
+		ArmorData.ArmorSlot.HEAD, {
+			WeaponData.DamageType.SLASH: 0.5,
+			WeaponData.DamageType.BLUNT: 2.0,
+			WeaponData.DamageType.PIERCE: 0.5,
+			WeaponData.DamageType.FIRE: 1.0,
+			WeaponData.DamageType.ICE: 1.0,
+			WeaponData.DamageType.POISON: 1.0,
+		}, "pig", ArmorData.SetBonus.PIG_DOUBLE_JUMP,
 		pig_pink, pig_white, 1.5
 	)
+	# Chest: 2.5 armor avg (main piece)
 	_register_armor(
 		"pig_chest", "Pig Leather Vest",
 		"A light vest made from flying pig leather. Part of the Pig Set.\nFull Set Bonus: Double Jump",
-		ArmorData.ArmorSlot.CHEST, 5.0, "pig", ArmorData.SetBonus.PIG_DOUBLE_JUMP,
+		ArmorData.ArmorSlot.CHEST, {
+			WeaponData.DamageType.SLASH: 1.5,
+			WeaponData.DamageType.BLUNT: 4.0,
+			WeaponData.DamageType.PIERCE: 1.5,
+			WeaponData.DamageType.FIRE: 2.5,
+			WeaponData.DamageType.ICE: 2.5,
+			WeaponData.DamageType.POISON: 3.0,
+		}, "pig", ArmorData.SetBonus.PIG_DOUBLE_JUMP,
 		pig_pink, pig_white, 3.0
 	)
+	# Legs: 1.5 armor avg
 	_register_armor(
 		"pig_pants", "Pig Leather Pants",
 		"Springy pants made from flying pig leather. Part of the Pig Set.\nFull Set Bonus: Double Jump",
-		ArmorData.ArmorSlot.LEGS, 4.0, "pig", ArmorData.SetBonus.PIG_DOUBLE_JUMP,
+		ArmorData.ArmorSlot.LEGS, {
+			WeaponData.DamageType.SLASH: 1.0,
+			WeaponData.DamageType.BLUNT: 2.5,
+			WeaponData.DamageType.PIERCE: 1.0,
+			WeaponData.DamageType.FIRE: 1.5,
+			WeaponData.DamageType.ICE: 1.5,
+			WeaponData.DamageType.POISON: 1.5,
+		}, "pig", ArmorData.SetBonus.PIG_DOUBLE_JUMP,
 		pig_pink, pig_white, 2.5
 	)
+	# Cape: 1.0 armor avg
 	_register_armor(
 		"pig_cape", "Pig Wing Cape",
 		"A cape styled after the flying pig's wings. Part of the Pig Set.\nFull Set Bonus: Double Jump",
-		ArmorData.ArmorSlot.CAPE, 2.0, "pig", ArmorData.SetBonus.PIG_DOUBLE_JUMP,
+		ArmorData.ArmorSlot.CAPE, {
+			WeaponData.DamageType.SLASH: 0.5,
+			WeaponData.DamageType.BLUNT: 1.5,
+			WeaponData.DamageType.PIERCE: 0.5,
+			WeaponData.DamageType.FIRE: 1.0,
+			WeaponData.DamageType.ICE: 1.0,
+			WeaponData.DamageType.POISON: 1.0,
+		}, "pig", ArmorData.SetBonus.PIG_DOUBLE_JUMP,
 		pig_white, pig_pink, 1.0
 	)
+	# Full set totals:
+	# Blunt: 10.0 (very good vs Gahnome fists)
+	# Slash: 3.5
+	# Pierce: 3.5
+	# Fire/Ice: 6.0
+	# Poison: 6.5
 
 ## Deer Armor Set - Tan/brown deer leather armor
 ## Set Bonus: Stamina Saver (50% less stamina for sprinting)
+## Deer leather is tougher than pig - better balanced protection
 func _register_deer_armor_set() -> void:
 	# Deer colors - tan/brown like the deer's fur
 	var deer_tan = Color(0.65, 0.5, 0.35, 1.0)  # Main fur color
@@ -365,24 +406,57 @@ func _register_deer_armor_set() -> void:
 	_register_armor(
 		"deer_helmet", "Deer Leather Hood",
 		"A lightweight hood made from deer leather. Part of the Deer Set.\nFull Set Bonus: 50% Sprint Stamina Reduction",
-		ArmorData.ArmorSlot.HEAD, 2.0, "deer", ArmorData.SetBonus.DEER_STAMINA_SAVER,
+		ArmorData.ArmorSlot.HEAD, {
+			WeaponData.DamageType.SLASH: 1.0,
+			WeaponData.DamageType.BLUNT: 1.0,
+			WeaponData.DamageType.PIERCE: 1.0,
+			WeaponData.DamageType.FIRE: 0.5,
+			WeaponData.DamageType.ICE: 1.5,
+			WeaponData.DamageType.POISON: 1.0,
+		}, "deer", ArmorData.SetBonus.DEER_STAMINA_SAVER,
 		deer_tan, deer_cream, 1.0
 	)
 	_register_armor(
 		"deer_chest", "Deer Leather Tunic",
 		"A supple tunic made from deer leather. Part of the Deer Set.\nFull Set Bonus: 50% Sprint Stamina Reduction",
-		ArmorData.ArmorSlot.CHEST, 4.0, "deer", ArmorData.SetBonus.DEER_STAMINA_SAVER,
+		ArmorData.ArmorSlot.CHEST, {
+			WeaponData.DamageType.SLASH: 2.5,
+			WeaponData.DamageType.BLUNT: 2.5,
+			WeaponData.DamageType.PIERCE: 2.5,
+			WeaponData.DamageType.FIRE: 1.5,
+			WeaponData.DamageType.ICE: 3.0,
+			WeaponData.DamageType.POISON: 2.0,
+		}, "deer", ArmorData.SetBonus.DEER_STAMINA_SAVER,
 		deer_tan, deer_cream, 2.0
 	)
 	_register_armor(
 		"deer_pants", "Deer Leather Leggings",
 		"Light leggings made from deer leather. Part of the Deer Set.\nFull Set Bonus: 50% Sprint Stamina Reduction",
-		ArmorData.ArmorSlot.LEGS, 3.0, "deer", ArmorData.SetBonus.DEER_STAMINA_SAVER,
+		ArmorData.ArmorSlot.LEGS, {
+			WeaponData.DamageType.SLASH: 1.5,
+			WeaponData.DamageType.BLUNT: 1.5,
+			WeaponData.DamageType.PIERCE: 1.5,
+			WeaponData.DamageType.FIRE: 1.0,
+			WeaponData.DamageType.ICE: 2.0,
+			WeaponData.DamageType.POISON: 1.5,
+		}, "deer", ArmorData.SetBonus.DEER_STAMINA_SAVER,
 		deer_tan, deer_cream, 1.5
 	)
 	_register_armor(
 		"deer_cape", "Deer Hide Cloak",
 		"A flowing cloak made from deer hide. Part of the Deer Set.\nFull Set Bonus: 50% Sprint Stamina Reduction",
-		ArmorData.ArmorSlot.CAPE, 1.0, "deer", ArmorData.SetBonus.DEER_STAMINA_SAVER,
+		ArmorData.ArmorSlot.CAPE, {
+			WeaponData.DamageType.SLASH: 0.5,
+			WeaponData.DamageType.BLUNT: 0.5,
+			WeaponData.DamageType.PIERCE: 0.5,
+			WeaponData.DamageType.FIRE: 0.5,
+			WeaponData.DamageType.ICE: 1.0,
+			WeaponData.DamageType.POISON: 0.5,
+		}, "deer", ArmorData.SetBonus.DEER_STAMINA_SAVER,
 		deer_cream, deer_tan, 0.8
 	)
+	# Full set totals:
+	# Slash/Blunt/Pierce: 5.5 (balanced)
+	# Fire: 3.5 (weak to fire)
+	# Ice: 7.5 (good vs ice)
+	# Poison: 5.0

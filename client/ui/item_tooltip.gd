@@ -194,12 +194,27 @@ func _get_weapon_controls(data: WeaponData) -> Array[String]:
 func _armor_tooltip(data: ArmorData) -> Array[String]:
 	var lines: Array[String] = []
 
-	# Armor value
-	lines.append("[color=#66aaff]Armor:[/color] +%.0f" % data.armor_value)
-
 	# Slot
 	var slot_name = ["Head", "Chest", "Legs", "Cape"][data.armor_slot]
 	lines.append("[color=#aaaaaa]Slot:[/color] %s" % slot_name)
+
+	# Per-damage-type armor values
+	lines.append("")
+	lines.append("[color=#ffdd66]— Protection —[/color]")
+	if data.armor_values:
+		var type_names = {
+			WeaponData.DamageType.SLASH: ["Slash", "#ffffff"],
+			WeaponData.DamageType.BLUNT: ["Blunt", "#aaaaaa"],
+			WeaponData.DamageType.PIERCE: ["Pierce", "#ffaaff"],
+			WeaponData.DamageType.FIRE: ["Fire", "#ff6600"],
+			WeaponData.DamageType.ICE: ["Ice", "#66ffff"],
+			WeaponData.DamageType.POISON: ["Poison", "#66ff66"],
+		}
+		for dmg_type in data.armor_values:
+			var val = data.armor_values[dmg_type]
+			if type_names.has(dmg_type):
+				var name_color = type_names[dmg_type]
+				lines.append("[color=%s]%s:[/color] %.1f" % [name_color[1], name_color[0], val])
 
 	# Set info
 	if not data.armor_set_id.is_empty():

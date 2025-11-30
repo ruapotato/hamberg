@@ -157,13 +157,17 @@ func is_two_handed_equipped() -> bool:
 		return weapon.weapon_type == WeaponData.WeaponType.MELEE_TWO_HAND
 	return false
 
-## Get total armor value from all equipped armor pieces
-func get_total_armor() -> float:
+## Get total armor value from all equipped armor pieces for a specific damage type
+## If damage_type is -1, returns average armor across all types
+func get_total_armor(damage_type: int = -1) -> float:
 	var total: float = 0.0
 	for slot in [EquipmentSlot.HEAD, EquipmentSlot.CHEST, EquipmentSlot.LEGS, EquipmentSlot.CAPE]:
 		var item_data = get_equipped_item_data(slot)
 		if item_data is ArmorData:
-			total += item_data.armor_value
+			if damage_type >= 0 and item_data.has_method("get_armor_for_type"):
+				total += item_data.get_armor_for_type(damage_type)
+			elif item_data.has_method("get_total_armor"):
+				total += item_data.get_total_armor()
 	return total
 
 ## Get all equipped armor pieces as ArmorData

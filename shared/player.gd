@@ -2567,7 +2567,8 @@ func consume_brain_power(amount: float) -> bool:
 	return false
 
 ## Take damage (with blocking/parry support and armor reduction)
-func take_damage(damage: float, attacker_id: int = -1, knockback_dir: Vector3 = Vector3.ZERO) -> void:
+## damage_type: WeaponData.DamageType enum (-1 = physical/untyped)
+func take_damage(damage: float, attacker_id: int = -1, knockback_dir: Vector3 = Vector3.ZERO, damage_type: int = -1) -> void:
 	if is_dead:
 		return
 
@@ -2575,13 +2576,12 @@ func take_damage(damage: float, attacker_id: int = -1, knockback_dir: Vector3 = 
 	var was_parried = false
 
 	# Apply armor damage reduction FIRST (before blocking)
-	# Each point of armor provides 2.5% damage reduction, capped at 75%
+	# Armor is flat subtraction based on damage type, minimum 1 damage
 	if equipment:
-		var total_armor = equipment.get_total_armor()
-		if total_armor > 0:
-			var armor_reduction = min(0.75, total_armor * 0.025)  # 2.5% per armor point, max 75%
-			var reduced_damage = final_damage * (1.0 - armor_reduction)
-			print("[Player] Armor (%.0f) reduced damage: %.1f -> %.1f (%.0f%% reduction)" % [total_armor, final_damage, reduced_damage, armor_reduction * 100])
+		var armor = equipment.get_total_armor(damage_type)
+		if armor > 0:
+			var reduced_damage = max(1.0, final_damage - armor)
+			print("[Player] Armor (%.1f vs type %d) reduced damage: %.1f -> %.1f" % [armor, damage_type, final_damage, reduced_damage])
 			final_damage = reduced_damage
 
 	# Apply stun damage multiplier if stunned
