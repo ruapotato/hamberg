@@ -8,6 +8,7 @@ extends Control
 ##   /heal - Heal to full health
 ##   /god - Toggle god mode (invincibility)
 ##   /clear - Clear inventory
+##   /time [hour] - Show or set time of day (0-24)
 ##   /help - Show commands
 
 signal command_executed(command: String)
@@ -22,7 +23,7 @@ var god_mode: bool = false
 var browsing_history: bool = false
 
 # Autocomplete data
-var all_commands: Array[String] = ["/give", "/spawn", "/tp", "/heal", "/god", "/clear", "/kill", "/pos", "/items", "/enemies", "/help"]
+var all_commands: Array[String] = ["/give", "/spawn", "/tp", "/heal", "/god", "/clear", "/kill", "/pos", "/items", "/enemies", "/time", "/help"]
 var all_items: Array[String] = []
 var all_enemies: Array[String] = ["gahnome", "sporeling", "deer", "pig", "sheep"]
 
@@ -204,6 +205,8 @@ func _execute_command(text: String) -> void:
 			_cmd_position()
 		"/kill", "kill":
 			_cmd_kill()
+		"/time", "time":
+			_cmd_time(args)
 		_:
 			_add_output("[color=red]Unknown command: %s[/color]" % cmd)
 
@@ -291,6 +294,41 @@ func _cmd_kill() -> void:
 	NetworkManager.rpc_debug_kill_nearby.rpc_id(1)
 	_add_output("[color=red]Killed all nearby enemies[/color]")
 
+func _cmd_time(args: Array) -> void:
+	# Find day/night cycle
+	var day_night_cycle: Node = null
+	var terrain_worlds = get_tree().get_nodes_in_group("terrain_world")
+	if terrain_worlds.size() > 0:
+		var terrain_world = terrain_worlds[0]
+		if terrain_world.has_node("DayNightCycle"):
+			day_night_cycle = terrain_world.get_node("DayNightCycle")
+
+	if not day_night_cycle:
+		_add_output("[color=red]DayNightCycle not found![/color]")
+		return
+
+	if args.is_empty():
+		# Show current time
+		var time_str = day_night_cycle.get_time_string_12h() if day_night_cycle.has_method("get_time_string_12h") else "%.1f" % day_night_cycle.current_hour
+		var period = day_night_cycle.get_current_period() if day_night_cycle.has_method("get_current_period") else "unknown"
+		_add_output("Current time: %s (%s)" % [time_str, period])
+		_add_output("[color=gray]Usage: /time <hour> (0-24, e.g. /time 12 for noon, /time 22 for night)[/color]")
+		return
+
+	# Set time
+	var hour = float(args[0])
+	if hour < 0 or hour > 24:
+		_add_output("[color=red]Hour must be 0-24[/color]")
+		return
+	# Wrap 24 to 0 (midnight)
+	if hour >= 24:
+		hour = 0
+
+	day_night_cycle.set_time(hour)
+	var time_str = day_night_cycle.get_time_string_12h()
+	var period = day_night_cycle.get_current_period()
+	_add_output("[color=green]Time set to %s (%s)[/color]" % [time_str, period])
+
 func _cmd_position() -> void:
 	if client_ref and client_ref.local_player:
 		var pos = client_ref.local_player.global_position
@@ -321,6 +359,7 @@ func _cmd_help() -> void:
 	_add_output("  /clear - Clear inventory")
 	_add_output("  /kill - Kill nearby enemies")
 	_add_output("  /pos - Show position")
+	_add_output("  /time [hour] - Show/set time (0-24)")
 	_add_output("  /items - List all items")
 	_add_output("  /enemies - List enemy types")
 

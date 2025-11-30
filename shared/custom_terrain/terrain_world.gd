@@ -68,6 +68,9 @@ const CHUNKS_PER_FRAME: int = 8  # Load up to 8 chunks per frame (much faster no
 func _ready() -> void:
 	print("[TerrainWorld] Initializing custom terrain system...")
 
+	# Add to group so other nodes can find us
+	add_to_group("terrain_world")
+
 	# Create mesh generator
 	mesh_generator = ChunkMeshGeneratorClass.new()
 

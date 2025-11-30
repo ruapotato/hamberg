@@ -22,6 +22,14 @@ const DARK_FOREST_MIN_SPAWN_DISTANCE: float = 15.0   # Much closer (dense forest
 const DARK_FOREST_MAX_SPAWN_DISTANCE: float = 30.0   # Still relatively close
 const DARK_FOREST_MAX_ENEMIES_PER_PLAYER: int = 6    # More enemies in the creepy forest
 
+# Night-time spawn parameters (more dangerous!)
+const NIGHT_SPAWN_CHECK_INTERVAL: float = 5.0   # Faster spawns at night
+const NIGHT_MAX_ENEMIES_MULTIPLIER: float = 2.0 # Double max enemies at night
+const NIGHT_ENEMY_DAMAGE_MULTIPLIER: float = 1.5  # 50% more damage at night
+const NIGHT_ENEMY_HEALTH_MULTIPLIER: float = 1.3  # 30% more health at night
+const NIGHT_MIN_SPAWN_DISTANCE: float = 25.0    # Closer spawns at night
+const NIGHT_MAX_SPAWN_DISTANCE: float = 45.0    # Closer max distance at night
+
 # State sync parameters
 const STATE_SYNC_INTERVAL: float = 0.1   # 10Hz position relay
 
@@ -48,7 +56,11 @@ var animal_spawn_timer: float = 0.0
 # Tracking
 var spawn_timer: float = 0.0
 var dark_forest_spawn_timer: float = 0.0  # Separate faster timer for dark forest
+var night_spawn_timer: float = 0.0  # Faster spawn timer for nighttime
 var state_sync_timer: float = 0.0
+
+# Day/night cycle reference
+var day_night_cycle: Node = null
 var spawned_enemies: Array[Node] = []
 var enemy_paths: Dictionary = {}  # Node -> NodePath (cached for performance)
 var enemy_network_ids: Dictionary = {}  # Node -> int (network ID)
@@ -76,26 +88,38 @@ func _process(delta: float) -> void:
 	if not multiplayer.is_server():
 		return
 
+	# Find day/night cycle if we don't have it
+	if not day_night_cycle:
+		_find_day_night_cycle()
+
+	var is_night = _is_night_time()
+
 	# Update spawn timer (normal biomes)
 	spawn_timer += delta
 
-	if spawn_timer >= SPAWN_CHECK_INTERVAL:
+	# Use faster spawn interval at night
+	var current_spawn_interval = NIGHT_SPAWN_CHECK_INTERVAL if is_night else SPAWN_CHECK_INTERVAL
+
+	if spawn_timer >= current_spawn_interval:
 		spawn_timer = 0.0
-		_check_spawns(false)  # Normal biome spawns
+		_check_spawns(false, is_night)  # Normal biome spawns
 
 	# Update dark forest spawn timer (faster!)
 	dark_forest_spawn_timer += delta
 
-	if dark_forest_spawn_timer >= DARK_FOREST_SPAWN_CHECK_INTERVAL:
+	# Dark forest is even faster at night
+	var dark_forest_interval = DARK_FOREST_SPAWN_CHECK_INTERVAL * (0.5 if is_night else 1.0)
+	if dark_forest_spawn_timer >= dark_forest_interval:
 		dark_forest_spawn_timer = 0.0
-		_check_spawns(true)  # Dark forest spawns only
+		_check_spawns(true, is_night)  # Dark forest spawns only
 
-	# Update animal spawn timer
-	animal_spawn_timer += delta
+	# Update animal spawn timer (animals don't spawn at night - they hide!)
+	if not is_night:
+		animal_spawn_timer += delta
 
-	if animal_spawn_timer >= ANIMAL_SPAWN_CHECK_INTERVAL:
-		animal_spawn_timer = 0.0
-		_check_animal_spawns()
+		if animal_spawn_timer >= ANIMAL_SPAWN_CHECK_INTERVAL:
+			animal_spawn_timer = 0.0
+			_check_animal_spawns()
 
 	# Update state sync timer
 	state_sync_timer += delta
@@ -109,7 +133,8 @@ func _process(delta: float) -> void:
 
 ## Check if we should spawn enemies
 ## dark_forest_only: if true, only spawn for players in dark_forest biome
-func _check_spawns(dark_forest_only: bool = false) -> void:
+## is_night: if true, use night-time spawn parameters (more enemies, closer)
+func _check_spawns(dark_forest_only: bool = false, is_night: bool = false) -> void:
 	if not server_node or not "spawned_players" in server_node:
 		return
 
@@ -139,9 +164,14 @@ func _check_spawns(dark_forest_only: bool = false) -> void:
 		if not dark_forest_only and is_in_dark_forest:
 			continue  # Normal timer, but player in dark forest (handled by dark forest timer)
 
-		# Use different max enemies based on biome
+		# Use different max enemies based on biome and time of day
 		var max_enemies = DARK_FOREST_MAX_ENEMIES_PER_PLAYER if is_in_dark_forest else MAX_ENEMIES_PER_PLAYER
 		var count_distance = DARK_FOREST_MAX_SPAWN_DISTANCE if is_in_dark_forest else MAX_SPAWN_DISTANCE
+
+		# Night-time multiplier for more enemies
+		if is_night:
+			max_enemies = int(max_enemies * NIGHT_MAX_ENEMIES_MULTIPLIER)
+			count_distance = NIGHT_MAX_SPAWN_DISTANCE if not is_in_dark_forest else count_distance
 
 		# Count enemies near this player (using biome-appropriate distance)
 		var nearby_enemies = _count_nearby_enemies(player.global_position, count_distance)
@@ -151,7 +181,7 @@ func _check_spawns(dark_forest_only: bool = false) -> void:
 			var enemies_to_spawn = max_enemies - nearby_enemies
 			for i in range(enemies_to_spawn):
 				# The player that triggered the spawn becomes the host
-				_spawn_enemy_near_player(player, peer_id, is_in_dark_forest)
+				_spawn_enemy_near_player(player, peer_id, is_in_dark_forest, is_night)
 
 ## Count enemies near a position (within max_distance)
 func _count_nearby_enemies(position: Vector3, max_distance: float = MAX_SPAWN_DISTANCE) -> int:
@@ -165,7 +195,8 @@ func _count_nearby_enemies(position: Vector3, max_distance: float = MAX_SPAWN_DI
 
 ## Spawn an enemy near a player (player becomes the host for this enemy)
 ## is_dark_forest: if true, use closer spawn distances
-func _spawn_enemy_near_player(player: Node, peer_id: int = 0, is_dark_forest: bool = false) -> void:
+## is_night: if true, use night-time spawn distances and apply night buffs
+func _spawn_enemy_near_player(player: Node, peer_id: int = 0, is_dark_forest: bool = false, is_night: bool = false) -> void:
 	# Validate and fix spawn position
 	# Don't spawn if player Y is invalid (fell through world or died)
 	if player.global_position.y < -50 or player.global_position.y > 500:
@@ -179,9 +210,18 @@ func _spawn_enemy_near_player(player: Node, peer_id: int = 0, is_dark_forest: bo
 	# Get player's backward direction angle (opposite of where they're looking)
 	var player_backward_angle = player.rotation.y  # Behind player (+Z direction in local space)
 
-	# Use biome-specific spawn distances
-	var min_dist = DARK_FOREST_MIN_SPAWN_DISTANCE if is_dark_forest else MIN_SPAWN_DISTANCE
-	var max_dist = DARK_FOREST_MAX_SPAWN_DISTANCE if is_dark_forest else MAX_SPAWN_DISTANCE
+	# Use biome-specific spawn distances (night brings enemies closer!)
+	var min_dist: float
+	var max_dist: float
+	if is_dark_forest:
+		min_dist = DARK_FOREST_MIN_SPAWN_DISTANCE
+		max_dist = DARK_FOREST_MAX_SPAWN_DISTANCE
+	elif is_night:
+		min_dist = NIGHT_MIN_SPAWN_DISTANCE
+		max_dist = NIGHT_MAX_SPAWN_DISTANCE
+	else:
+		min_dist = MIN_SPAWN_DISTANCE
+		max_dist = MAX_SPAWN_DISTANCE
 
 	# Try multiple times to find a valid spawn position with terrain collision
 	for attempt in range(5):
@@ -231,17 +271,18 @@ func _spawn_enemy_near_player(player: Node, peer_id: int = 0, is_dark_forest: bo
 		if terrain_world and terrain_world.has_method("has_collision_at_position"):
 			if terrain_world.has_collision_at_position(spawn_position):
 				# Valid spawn position with collision - spawn the enemy
-				_spawn_enemy(enemy_scene, spawn_position, peer_id)
+				_spawn_enemy(enemy_scene, spawn_position, peer_id, is_night)
 				return
 		else:
 			# No terrain world check available, spawn anyway (fallback)
-			_spawn_enemy(enemy_scene, spawn_position, peer_id)
+			_spawn_enemy(enemy_scene, spawn_position, peer_id, is_night)
 			return
 
 	# All attempts failed - don't spawn (terrain not loaded yet)
 
 ## Spawn an enemy at a position with assigned host client
-func _spawn_enemy(enemy_scene: PackedScene, position: Vector3, host_peer_id: int = 0) -> void:
+## is_night: if true, apply night-time buffs (more damage, more health)
+func _spawn_enemy(enemy_scene: PackedScene, position: Vector3, host_peer_id: int = 0, is_night: bool = false) -> void:
 	var enemy = enemy_scene.instantiate()
 
 	# Assign network ID BEFORE adding to tree (so it's available in _ready)
@@ -253,6 +294,17 @@ func _spawn_enemy(enemy_scene: PackedScene, position: Vector3, host_peer_id: int
 	# Assign host peer ID
 	if "host_peer_id" in enemy:
 		enemy.host_peer_id = host_peer_id
+
+	# Apply night-time buffs (enemies are stronger at night!)
+	if is_night and not enemy.is_in_group("animals"):
+		if "max_health" in enemy:
+			enemy.max_health = int(enemy.max_health * NIGHT_ENEMY_HEALTH_MULTIPLIER)
+		if "health" in enemy:
+			enemy.health = int(enemy.health * NIGHT_ENEMY_HEALTH_MULTIPLIER)
+		if "rock_damage" in enemy:
+			enemy.rock_damage = enemy.rock_damage * NIGHT_ENEMY_DAMAGE_MULTIPLIER
+		# Mark as night enemy for potential visual effects later
+		enemy.add_to_group("night_enemy")
 
 	# Add to world container FIRST (before setting global_position)
 	if server_node and server_node.has_node("World"):
@@ -285,7 +337,8 @@ func _spawn_enemy(enemy_scene: PackedScene, position: Vector3, host_peer_id: int
 			enemy.died.connect(_on_enemy_died)
 
 		var enemy_name = enemy.enemy_name if "enemy_name" in enemy else "Enemy"
-		print("[EnemySpawner] Spawned %s at %s (network_id=%d, host_peer=%d)" % [enemy_name, position, net_id, host_peer_id])
+		var night_str = " [NIGHT BUFFED]" if is_night and not enemy.is_in_group("animals") else ""
+		print("[EnemySpawner] Spawned %s at %s (network_id=%d, host_peer=%d)%s" % [enemy_name, position, net_id, host_peer_id, night_str])
 
 		# Broadcast enemy spawn to all clients (include network_id AND host_peer_id in position array)
 		var enemy_path = enemy_paths[enemy]
@@ -577,3 +630,35 @@ func _get_random_animal_scene(biome: String) -> PackedScene:
 	animal_scenes.append(SHEEP_SCENE)
 
 	return animal_scenes[randi() % animal_scenes.size()]
+
+# ============================================================================
+# DAY/NIGHT CYCLE HELPERS
+# ============================================================================
+
+## Find the day/night cycle node in the world
+func _find_day_night_cycle() -> void:
+	# Try to find via terrain world group
+	var terrain_worlds = get_tree().get_nodes_in_group("terrain_world")
+	if terrain_worlds.size() > 0:
+		var terrain_world = terrain_worlds[0]
+		if terrain_world.has_node("DayNightCycle"):
+			day_night_cycle = terrain_world.get_node("DayNightCycle")
+			print("[EnemySpawner] Found DayNightCycle node")
+			return
+
+	# Fallback: try direct path from server
+	if server_node and server_node.has_node("World/TerrainWorld/DayNightCycle"):
+		day_night_cycle = server_node.get_node("World/TerrainWorld/DayNightCycle")
+		print("[EnemySpawner] Found DayNightCycle via server path")
+
+## Check if it's currently night time
+func _is_night_time() -> bool:
+	if not day_night_cycle:
+		return false
+	if day_night_cycle.has_method("is_night"):
+		return day_night_cycle.is_night()
+	# Fallback: check current_hour directly
+	if "current_hour" in day_night_cycle:
+		var hour = day_night_cycle.current_hour
+		return hour < 6.0 or hour >= 20.0  # Night is 8pm to 6am
+	return false

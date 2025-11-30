@@ -31,10 +31,14 @@ var active_pings: Array = []
 @onready var map_texture_rect: TextureRect = $Panel/MapTextureRect
 @onready var refresh_timer: Timer = $RefreshTimer
 @onready var overlay: Control = $Panel/MapTextureRect/Overlay
-@onready var biome_label: Label = $BiomeLabel
+@onready var biome_label: Label = $InfoContainer/BiomeLabel
+@onready var time_label: Label = $InfoContainer/TimeLabel
 
 # Biome tracking
 var current_biome: String = "Valley"
+
+# Day/night cycle reference
+var day_night_cycle: Node = null
 
 ## Format biome name from snake_case to Title Case
 func _format_biome_name(biome: String) -> String:
@@ -138,6 +142,9 @@ func refresh_map() -> void:
 			current_biome = biome
 			if biome_label:
 				biome_label.text = _format_biome_name(biome)
+
+	# Update time label
+	_update_time_display()
 
 	# Check if player is near the edge of the buffer
 	var distance_from_center := player_xz.distance_to(buffer_center)
@@ -405,6 +412,40 @@ func set_pins(pins: Array) -> void:
 		else:
 			pos = Vector2.ZERO
 		map_pins.append({"pos": pos, "name": pin.get("name", "Pin")})
+
+func _update_time_display() -> void:
+	"""Update the time label from DayNightCycle"""
+	if not time_label:
+		return
+
+	# Find DayNightCycle if we don't have it yet
+	if not day_night_cycle:
+		_find_day_night_cycle()
+
+	if day_night_cycle and day_night_cycle.has_method("get_time_string_12h"):
+		time_label.text = day_night_cycle.get_time_string_12h()
+
+func _find_day_night_cycle() -> void:
+	"""Find the DayNightCycle node in the scene tree"""
+	# Look for TerrainWorld which contains DayNightCycle
+	var terrain_world = get_tree().get_first_node_in_group("terrain_world")
+	if terrain_world:
+		day_night_cycle = terrain_world.get_node_or_null("DayNightCycle")
+		return
+
+	# Fallback: search from root
+	var root = get_tree().root
+	day_night_cycle = _find_node_by_class(root, "DayNightCycle")
+
+func _find_node_by_class(node: Node, class_name_to_find: String) -> Node:
+	"""Recursively search for a node by class name"""
+	if node.get_class() == class_name_to_find or node.name == class_name_to_find:
+		return node
+	for child in node.get_children():
+		var result = _find_node_by_class(child, class_name_to_find)
+		if result:
+			return result
+	return null
 
 # Debug timer for logging
 var debug_log_timer: float = 0.0

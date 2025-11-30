@@ -186,6 +186,10 @@ func _ready() -> void:
 	# Determine if this is the local player
 	is_local_player = is_multiplayer_authority()
 
+	# Add to group for easy lookup by other systems (e.g., day/night cycle biome detection)
+	if is_local_player:
+		add_to_group("local_player")
+
 	print("[Player] Player ready (ID: %d, Local: %s)" % [get_multiplayer_authority(), is_local_player])
 
 	# Set collision layer
