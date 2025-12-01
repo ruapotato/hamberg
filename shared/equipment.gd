@@ -217,3 +217,13 @@ func has_double_jump_bonus() -> bool:
 ## Check if player has the deer stamina saver set bonus active
 func has_stamina_saver_bonus() -> bool:
 	return get_active_set_bonus() == ArmorData.SetBonus.DEER_STAMINA_SAVER
+
+## Get total speed modifier from all armor pieces (sum of all speed_modifier values)
+## Returns a value like -0.15 for 15% slower
+func get_total_speed_modifier() -> float:
+	var total: float = 0.0
+	for slot in [EquipmentSlot.HEAD, EquipmentSlot.CHEST, EquipmentSlot.LEGS, EquipmentSlot.CAPE]:
+		var item_data = get_equipped_item_data(slot)
+		if item_data is ArmorData and item_data.speed_modifier != 0.0:
+			total += item_data.speed_modifier
+	return total

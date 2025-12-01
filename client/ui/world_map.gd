@@ -46,6 +46,10 @@ var map_pins: Array = []  # Array of {pos: Vector2, name: String}
 # Active pings (ephemeral, 15 seconds)
 var active_pings: Array = []  # Array of {pos: Vector2, time_left: float, from_peer: int}
 
+# Special location markers (Shnarken huts, dungeons, etc.)
+# Format: {pos: Vector2, name: String, type: String, color: Color}
+var special_markers: Array = []
+
 # Pin editing state
 var selected_pin_index: int = -1
 var is_renaming_pin: bool = false
@@ -198,7 +202,8 @@ func _draw_overlay() -> void:
 	if not visible or not overlay:
 		return
 
-	# Draw player markers, pins, and pings on top of the map texture
+	# Draw player markers, pins, pings, and special markers on top of the map texture
+	_draw_special_markers()
 	_draw_pins()
 	_draw_pings()
 	_draw_player_markers()
@@ -564,6 +569,113 @@ func _draw_pings() -> void:
 
 			overlay.draw_circle(local_pos, radius, color, false, 3.0)
 			overlay.draw_circle(local_pos, radius * 0.4, color)
+
+func _draw_special_markers() -> void:
+	if not overlay:
+		return
+
+	for marker in special_markers:
+		var local_pos := _world_to_overlay_pos(marker.pos)
+
+		if _is_pos_visible(local_pos):
+			var marker_color: Color = marker.get("color", Color.GOLD)
+			var marker_type: String = marker.get("type", "default")
+
+			# Draw based on marker type
+			if marker_type == "shnarken":
+				# Draw boot/shoe icon for Shnarken huts
+				_draw_shnarken_marker(local_pos, marker_color)
+			else:
+				# Default marker (diamond shape)
+				var diamond := PackedVector2Array([
+					local_pos + Vector2(0, -10),
+					local_pos + Vector2(8, 0),
+					local_pos + Vector2(0, 10),
+					local_pos + Vector2(-8, 0)
+				])
+				overlay.draw_colored_polygon(diamond, marker_color)
+				overlay.draw_polyline(diamond + PackedVector2Array([diamond[0]]), Color.WHITE, 2.0)
+
+			# Draw marker name
+			var font: Font = ThemeDB.fallback_font
+			var font_size: int = 11
+			var marker_name: String = marker.get("name", "")
+			if not marker_name.is_empty():
+				var text_size := font.get_string_size(marker_name, HORIZONTAL_ALIGNMENT_CENTER, -1, font_size)
+				var text_pos := local_pos + Vector2(-text_size.x * 0.5, 18)
+
+				# Outline
+				for offset in [Vector2(-1, -1), Vector2(1, -1), Vector2(-1, 1), Vector2(1, 1)]:
+					overlay.draw_string(font, text_pos + offset, marker_name, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, Color.BLACK)
+				overlay.draw_string(font, text_pos, marker_name, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, marker_color)
+
+## Draw a boot-shaped marker for Shnarken huts
+func _draw_shnarken_marker(pos: Vector2, color: Color) -> void:
+	# Boot shape (simplified)
+	# Sole
+	var sole := PackedVector2Array([
+		pos + Vector2(-6, 8),
+		pos + Vector2(8, 8),
+		pos + Vector2(8, 5),
+		pos + Vector2(-6, 5)
+	])
+	overlay.draw_colored_polygon(sole, color.darkened(0.3))
+
+	# Toe
+	var toe := PackedVector2Array([
+		pos + Vector2(3, 5),
+		pos + Vector2(10, 5),
+		pos + Vector2(10, 0),
+		pos + Vector2(8, -2),
+		pos + Vector2(3, -2)
+	])
+	overlay.draw_colored_polygon(toe, color)
+
+	# Shaft
+	var shaft := PackedVector2Array([
+		pos + Vector2(-6, 5),
+		pos + Vector2(3, 5),
+		pos + Vector2(3, -10),
+		pos + Vector2(-6, -10)
+	])
+	overlay.draw_colored_polygon(shaft, color)
+
+	# Top rim
+	overlay.draw_line(pos + Vector2(-6, -10), pos + Vector2(3, -10), color.lightened(0.3), 2.0)
+
+	# Outline
+	overlay.draw_polyline(PackedVector2Array([
+		pos + Vector2(-6, 8),
+		pos + Vector2(8, 8),
+		pos + Vector2(10, 5),
+		pos + Vector2(10, 0),
+		pos + Vector2(8, -2),
+		pos + Vector2(3, -2),
+		pos + Vector2(3, -10),
+		pos + Vector2(-6, -10),
+		pos + Vector2(-6, 8)
+	]), Color.WHITE, 1.5)
+
+## Add a special marker to the map
+func add_special_marker(world_pos: Vector2, name: String, type: String = "default", color: Color = Color.GOLD) -> void:
+	special_markers.append({
+		"pos": world_pos,
+		"name": name,
+		"type": type,
+		"color": color
+	})
+	print("[WorldMap] Added special marker: %s at %s" % [name, world_pos])
+
+## Remove a special marker by name
+func remove_special_marker(name: String) -> void:
+	for i in range(special_markers.size() - 1, -1, -1):
+		if special_markers[i].name == name:
+			special_markers.remove_at(i)
+			print("[WorldMap] Removed special marker: %s" % name)
+
+## Clear all special markers
+func clear_special_markers() -> void:
+	special_markers.clear()
 
 func _is_on_screen(screen_pos: Vector2) -> bool:
 	var rect_pos := map_texture_rect.global_position

@@ -66,4 +66,4 @@ Shnarken are a species - a family of shop owners. They are always snarky and mak
 
 ## Future Ideas
 
-*(Add more ideas here)*
+Eyeball blumbs (Like bluebarries in Valheim) spawn in Vally

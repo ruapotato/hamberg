@@ -44,6 +44,10 @@ var spawn_configs: Dictionary = {}
 var world_seed: int = 42
 var chunk_size: float = 32.0  # Chunk size in world units
 
+# Exclusion zones - positions where objects should not spawn
+# Format: Array of {position: Vector2, radius: float}
+var exclusion_zones: Array = []
+
 func _ready() -> void:
 	# Load scenes
 	tree_scene = load("res://shared/environmental/tree.tscn")  # Legacy
@@ -220,6 +224,10 @@ func spawn_saved_object(obj_data, voxel_world: Node3D, parent: Node3D):
 
 ## Check if an object should spawn at the given position
 func _should_spawn_at_position(xz_pos: Vector2, config: SpawnConfig, voxel_world: Node3D, rng: RandomNumberGenerator) -> bool:
+	# Check exclusion zones first (e.g., Shnarken huts)
+	if _is_in_exclusion_zone(xz_pos):
+		return false
+
 	# Get terrain height at this position
 	var height: float = voxel_world.get_terrain_height_at(xz_pos)
 
@@ -405,6 +413,23 @@ func set_world_seed(seed_value: int) -> void:
 func set_chunk_size(size: float) -> void:
 	chunk_size = size
 
+## Add an exclusion zone where objects should not spawn
+func add_exclusion_zone(position: Vector2, radius: float) -> void:
+	exclusion_zones.append({"position": position, "radius": radius})
+	print("[EnvironmentalSpawner] Added exclusion zone at %s with radius %.1f" % [position, radius])
+
+## Clear all exclusion zones
+func clear_exclusion_zones() -> void:
+	exclusion_zones.clear()
+
+## Check if a position is inside any exclusion zone
+func _is_in_exclusion_zone(xz_pos: Vector2) -> bool:
+	for zone in exclusion_zones:
+		var dist: float = xz_pos.distance_to(zone.position)
+		if dist < zone.radius:
+			return true
+	return false
+
 ## Generate transforms for MultiMesh spawning (no scene instantiation)
 ## Returns a Dictionary: object_type -> Array[Transform3D]
 func generate_chunk_transforms(chunk_pos: Vector2i, voxel_world: Node3D) -> Dictionary:
@@ -462,6 +487,10 @@ func generate_dense_grass_transforms(chunk_pos: Vector2i, voxel_world: Node3D, d
 		var local_x := rng.randf_range(0, chunk_size)
 		var local_z := rng.randf_range(0, chunk_size)
 		var world_pos := Vector2(chunk_world_pos.x + local_x, chunk_world_pos.y + local_z)
+
+		# Check exclusion zones (e.g., Shnarken huts)
+		if _is_in_exclusion_zone(world_pos):
+			continue
 
 		# Quick height/biome check
 		var height: float = voxel_world.get_terrain_height_at(world_pos)

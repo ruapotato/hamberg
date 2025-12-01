@@ -121,6 +121,9 @@ func initialize_world(config_seed: int, config_world_name: String) -> void:
 	# Setup environmental object spawning (server only)
 	if is_server:
 		_setup_chunk_manager()
+	else:
+		# Client-side: spawn special buildings (Shnarken huts, etc.)
+		_setup_client_special_buildings()
 
 	is_initialized = true
 	print("[TerrainWorld] World initialized")
@@ -258,6 +261,45 @@ func _setup_chunk_manager() -> void:
 	chunk_manager.initialize(self)
 
 	print("[TerrainWorld] ChunkManager initialized")
+
+## Setup client-side special buildings (Shnarken huts, etc.)
+## These are static buildings that exist at known locations
+func _setup_client_special_buildings() -> void:
+	print("[TerrainWorld] Setting up client-side special buildings...")
+
+	# Create container for special buildings
+	var special_buildings_container = Node3D.new()
+	special_buildings_container.name = "SpecialBuildings"
+	add_child(special_buildings_container)
+
+	# Spawn Shnarken hut at world origin
+	var ShnarkenHutScene = load("res://shared/npcs/shnarken_hut.tscn")
+	if ShnarkenHutScene:
+		var hut = ShnarkenHutScene.instantiate()
+		# Get terrain height at origin
+		var terrain_height: float = get_terrain_height_at(Vector2(0, 0))
+
+		# Flatten terrain around the hut (client-side)
+		_flatten_terrain_area(Vector2(0, 0), terrain_height, 10.0)
+
+		hut.position = Vector3(0, terrain_height, 0)
+		special_buildings_container.add_child(hut)
+		print("[TerrainWorld] Spawned client-side Shnarken hut at origin (0, %.1f, 0)" % terrain_height)
+	else:
+		push_error("[TerrainWorld] Failed to load ShnarkenHutScene!")
+
+## Flatten terrain in a circular area (for client-side special building sites)
+func _flatten_terrain_area(center_xz: Vector2, target_height: float, radius: float) -> void:
+	var radius_sq: float = radius * radius
+
+	for x in range(int(-radius), int(radius) + 1):
+		for z in range(int(-radius), int(radius) + 1):
+			var offset := Vector2(float(x), float(z))
+			if offset.length_squared() <= radius_sq:
+				var world_pos := Vector3(center_xz.x + x, target_height, center_xz.y + z)
+				flatten_square(world_pos, target_height)
+
+	print("[TerrainWorld] Flattened terrain around building (radius %.1f, height %.1f)" % [radius, target_height])
 
 func _process(delta: float) -> void:
 	if not is_initialized:

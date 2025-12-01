@@ -1,0 +1,478 @@
+[gd_scene load_steps=20 format=3 uid="uid://dshnarken_hut001"]
+
+[ext_resource type="Script" path="res://shared/npcs/shnarken_hut.gd" id="1_script"]
+[ext_resource type="PackedScene" path="res://shared/npcs/shnarken.tscn" id="2_shnarken"]
+
+[sub_resource type="StandardMaterial3D" id="Material_leather"]
+albedo_color = Color(0.4, 0.28, 0.18, 1)
+roughness = 0.85
+
+[sub_resource type="StandardMaterial3D" id="Material_dark_leather"]
+albedo_color = Color(0.3, 0.2, 0.12, 1)
+roughness = 0.9
+
+[sub_resource type="StandardMaterial3D" id="Material_sole"]
+albedo_color = Color(0.15, 0.12, 0.1, 1)
+roughness = 0.95
+
+[sub_resource type="StandardMaterial3D" id="Material_lace"]
+albedo_color = Color(0.6, 0.5, 0.35, 1)
+roughness = 0.8
+
+[sub_resource type="StandardMaterial3D" id="Material_wood"]
+albedo_color = Color(0.45, 0.32, 0.2, 1)
+roughness = 0.75
+
+[sub_resource type="StandardMaterial3D" id="Material_glass"]
+albedo_color = Color(1.0, 0.9, 0.6, 0.4)
+emission_enabled = true
+emission = Color(1.0, 0.85, 0.5, 1)
+emission_energy_multiplier = 0.8
+
+[sub_resource type="StandardMaterial3D" id="Material_metal"]
+albedo_color = Color(0.5, 0.45, 0.4, 1)
+metallic = 0.7
+roughness = 0.5
+
+[sub_resource type="StandardMaterial3D" id="Material_lantern"]
+albedo_color = Color(1.0, 0.8, 0.4, 1)
+emission_enabled = true
+emission = Color(1.0, 0.7, 0.3, 1)
+emission_energy_multiplier = 1.5
+
+[sub_resource type="StandardMaterial3D" id="Material_barrel"]
+albedo_color = Color(0.5, 0.35, 0.2, 1)
+roughness = 0.75
+
+[sub_resource type="StandardMaterial3D" id="Material_mushroom_stem"]
+albedo_color = Color(0.7, 0.5, 0.35, 1)
+
+[sub_resource type="StandardMaterial3D" id="Material_mushroom_cap"]
+albedo_color = Color(0.6, 0.2, 0.15, 1)
+
+[sub_resource type="SphereMesh" id="SphereMesh_toe"]
+radius = 2.5
+height = 3.5
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_shaft"]
+top_radius = 1.8
+bottom_radius = 2.2
+height = 4.0
+
+[sub_resource type="TorusMesh" id="TorusMesh_rim"]
+inner_radius = 1.5
+outer_radius = 1.9
+
+[sub_resource type="BoxMesh" id="BoxMesh_sole"]
+size = Vector3(3.5, 0.5, 6.0)
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_sole_front"]
+top_radius = 1.7
+bottom_radius = 1.7
+height = 0.5
+
+[sub_resource type="BoxMesh" id="BoxMesh_heel"]
+size = Vector3(2.8, 1.0, 1.5)
+
+[sub_resource type="BoxMesh" id="BoxMesh_door_frame"]
+size = Vector3(1.4, 2.2, 0.15)
+
+[sub_resource type="BoxMesh" id="BoxMesh_door"]
+size = Vector3(1.2, 2.0, 0.1)
+
+[sub_resource type="SphereMesh" id="SphereMesh_handle"]
+radius = 0.08
+
+[sub_resource type="BoxMesh" id="BoxMesh_window_frame"]
+size = Vector3(0.8, 0.8, 0.1)
+
+[sub_resource type="BoxMesh" id="BoxMesh_window_glass"]
+size = Vector3(0.6, 0.6, 0.05)
+
+[sub_resource type="BoxMesh" id="BoxMesh_window_bar"]
+size = Vector3(0.6, 0.05, 0.08)
+
+[sub_resource type="TorusMesh" id="TorusMesh_eyelet"]
+inner_radius = 0.06
+outer_radius = 0.1
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_lace"]
+top_radius = 0.03
+bottom_radius = 0.025
+height = 1.5
+
+[sub_resource type="BoxMesh" id="BoxMesh_patch"]
+size = Vector3(0.6, 0.45, 0.05)
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_sign_post"]
+top_radius = 0.05
+bottom_radius = 0.05
+height = 1.0
+
+[sub_resource type="BoxMesh" id="BoxMesh_sign"]
+size = Vector3(1.2, 0.6, 0.08)
+
+[sub_resource type="BoxMesh" id="BoxMesh_crate"]
+size = Vector3(0.6, 0.5, 0.6)
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_barrel"]
+top_radius = 0.35
+bottom_radius = 0.4
+height = 0.9
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_post"]
+top_radius = 0.05
+bottom_radius = 0.06
+height = 2.5
+
+[sub_resource type="BoxMesh" id="BoxMesh_lantern"]
+size = Vector3(0.25, 0.35, 0.25)
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_mushroom_stem"]
+top_radius = 0.04
+bottom_radius = 0.05
+height = 0.25
+
+[sub_resource type="SphereMesh" id="SphereMesh_mushroom_cap"]
+radius = 0.12
+height = 0.12
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_toe"]
+size = Vector3(5.0, 3.5, 5.0)
+
+[sub_resource type="CylinderShape3D" id="CylinderShape3D_shaft"]
+radius = 2.0
+height = 4.0
+
+[node name="ShnarkenHut" type="Node3D"]
+script = ExtResource("1_script")
+
+[node name="BootStructure" type="Node3D" parent="."]
+
+[node name="Toe" type="MeshInstance3D" parent="BootStructure"]
+transform = Transform3D(1.2, 0, 0, 0, 0.8, 0, 0, 0, 1.5, 0, 1.8, 2.0)
+mesh = SubResource("SphereMesh_toe")
+surface_material_override/0 = SubResource("Material_leather")
+
+[node name="Shaft" type="MeshInstance3D" parent="BootStructure"]
+transform = Transform3D(1, 0, 0, 0, 0.9887, 0.15, 0, -0.15, 0.9887, 0, 3.5, -1.5)
+mesh = SubResource("CylinderMesh_shaft")
+surface_material_override/0 = SubResource("Material_leather")
+
+[node name="ShaftRim" type="MeshInstance3D" parent="BootStructure"]
+transform = Transform3D(1, 0, 0, 0, 0.15, 0.9887, 0, -0.9887, 0.15, 0, 5.5, -1.8)
+mesh = SubResource("TorusMesh_rim")
+surface_material_override/0 = SubResource("Material_dark_leather")
+
+[node name="Sole" type="MeshInstance3D" parent="BootStructure"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.25, 0.5)
+mesh = SubResource("BoxMesh_sole")
+surface_material_override/0 = SubResource("Material_sole")
+
+[node name="SoleFront" type="MeshInstance3D" parent="BootStructure"]
+transform = Transform3D(1, 0, 0, 0, -4.37114e-08, -1, 0, 1, -4.37114e-08, 0, 0.25, 3.2)
+mesh = SubResource("CylinderMesh_sole_front")
+surface_material_override/0 = SubResource("Material_sole")
+
+[node name="Heel" type="MeshInstance3D" parent="BootStructure"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, -2.8)
+mesh = SubResource("BoxMesh_heel")
+surface_material_override/0 = SubResource("Material_sole")
+
+[node name="Door" type="Node3D" parent="BootStructure"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.8, 4.2)
+
+[node name="DoorFrame" type="MeshInstance3D" parent="BootStructure/Door"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.0, 0)
+mesh = SubResource("BoxMesh_door_frame")
+surface_material_override/0 = SubResource("Material_wood")
+
+[node name="DoorPanel" type="MeshInstance3D" parent="BootStructure/Door"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.0, 0.08)
+mesh = SubResource("BoxMesh_door")
+surface_material_override/0 = SubResource("Material_dark_leather")
+
+[node name="DoorHandle" type="MeshInstance3D" parent="BootStructure/Door"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.4, 1.0, 0.15)
+mesh = SubResource("SphereMesh_handle")
+surface_material_override/0 = SubResource("Material_metal")
+
+[node name="Window1" type="Node3D" parent="BootStructure"]
+transform = Transform3D(0.9553, 0, 0.2955, 0, 1, 0, -0.2955, 0, 0.9553, 2.2, 2.0, 1.0)
+
+[node name="Frame" type="MeshInstance3D" parent="BootStructure/Window1"]
+mesh = SubResource("BoxMesh_window_frame")
+surface_material_override/0 = SubResource("Material_wood")
+
+[node name="Glass" type="MeshInstance3D" parent="BootStructure/Window1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.03)
+mesh = SubResource("BoxMesh_window_glass")
+surface_material_override/0 = SubResource("Material_glass")
+
+[node name="HBar" type="MeshInstance3D" parent="BootStructure/Window1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.05)
+mesh = SubResource("BoxMesh_window_bar")
+surface_material_override/0 = SubResource("Material_wood")
+
+[node name="VBar" type="MeshInstance3D" parent="BootStructure/Window1"]
+transform = Transform3D(-4.37114e-08, -1, 0, 1, -4.37114e-08, 0, 0, 0, 1, 0, 0, 0.05)
+mesh = SubResource("BoxMesh_window_bar")
+surface_material_override/0 = SubResource("Material_wood")
+
+[node name="Window2" type="Node3D" parent="BootStructure"]
+transform = Transform3D(0.9553, 0, -0.2955, 0, 1, 0, 0.2955, 0, 0.9553, -2.2, 2.0, 1.0)
+
+[node name="Frame" type="MeshInstance3D" parent="BootStructure/Window2"]
+mesh = SubResource("BoxMesh_window_frame")
+surface_material_override/0 = SubResource("Material_wood")
+
+[node name="Glass" type="MeshInstance3D" parent="BootStructure/Window2"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.03)
+mesh = SubResource("BoxMesh_window_glass")
+surface_material_override/0 = SubResource("Material_glass")
+
+[node name="Window3" type="Node3D" parent="BootStructure"]
+transform = Transform3D(0.8775, 0, 0.4794, 0, 1, 0, -0.4794, 0, 0.8775, 1.8, 2.5, -0.5)
+
+[node name="Frame" type="MeshInstance3D" parent="BootStructure/Window3"]
+mesh = SubResource("BoxMesh_window_frame")
+surface_material_override/0 = SubResource("Material_wood")
+
+[node name="Glass" type="MeshInstance3D" parent="BootStructure/Window3"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.03)
+mesh = SubResource("BoxMesh_window_glass")
+surface_material_override/0 = SubResource("Material_glass")
+
+[node name="Window4" type="Node3D" parent="BootStructure"]
+transform = Transform3D(0.8775, 0, -0.4794, 0, 1, 0, 0.4794, 0, 0.8775, -1.8, 2.5, -0.5)
+
+[node name="Frame" type="MeshInstance3D" parent="BootStructure/Window4"]
+mesh = SubResource("BoxMesh_window_frame")
+surface_material_override/0 = SubResource("Material_wood")
+
+[node name="Glass" type="MeshInstance3D" parent="BootStructure/Window4"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.03)
+mesh = SubResource("BoxMesh_window_glass")
+surface_material_override/0 = SubResource("Material_glass")
+
+[node name="Eyelets" type="Node3D" parent="BootStructure"]
+
+[node name="Eyelet1L" type="MeshInstance3D" parent="BootStructure/Eyelets"]
+transform = Transform3D(0.9553, 0.2955, 0, -0.2955, 0.9553, 0, 0, 0, 1, -0.8, 2.5, 0.3)
+mesh = SubResource("TorusMesh_eyelet")
+surface_material_override/0 = SubResource("Material_metal")
+
+[node name="Eyelet1R" type="MeshInstance3D" parent="BootStructure/Eyelets"]
+transform = Transform3D(0.9553, -0.2955, 0, 0.2955, 0.9553, 0, 0, 0, 1, 0.8, 2.5, 0.3)
+mesh = SubResource("TorusMesh_eyelet")
+surface_material_override/0 = SubResource("Material_metal")
+
+[node name="Eyelet2L" type="MeshInstance3D" parent="BootStructure/Eyelets"]
+transform = Transform3D(0.9553, 0.2955, 0, -0.2955, 0.9553, 0, 0, 0, 1, -0.8, 3.1, 0.3)
+mesh = SubResource("TorusMesh_eyelet")
+surface_material_override/0 = SubResource("Material_metal")
+
+[node name="Eyelet2R" type="MeshInstance3D" parent="BootStructure/Eyelets"]
+transform = Transform3D(0.9553, -0.2955, 0, 0.2955, 0.9553, 0, 0, 0, 1, 0.8, 3.1, 0.3)
+mesh = SubResource("TorusMesh_eyelet")
+surface_material_override/0 = SubResource("Material_metal")
+
+[node name="Eyelet3L" type="MeshInstance3D" parent="BootStructure/Eyelets"]
+transform = Transform3D(0.9553, 0.2955, 0, -0.2955, 0.9553, 0, 0, 0, 1, -0.8, 3.7, 0.3)
+mesh = SubResource("TorusMesh_eyelet")
+surface_material_override/0 = SubResource("Material_metal")
+
+[node name="Eyelet3R" type="MeshInstance3D" parent="BootStructure/Eyelets"]
+transform = Transform3D(0.9553, -0.2955, 0, 0.2955, 0.9553, 0, 0, 0, 1, 0.8, 3.7, 0.3)
+mesh = SubResource("TorusMesh_eyelet")
+surface_material_override/0 = SubResource("Material_metal")
+
+[node name="Eyelet4L" type="MeshInstance3D" parent="BootStructure/Eyelets"]
+transform = Transform3D(0.9553, 0.2955, 0, -0.2955, 0.9553, 0, 0, 0, 1, -0.8, 4.3, 0.3)
+mesh = SubResource("TorusMesh_eyelet")
+surface_material_override/0 = SubResource("Material_metal")
+
+[node name="Eyelet4R" type="MeshInstance3D" parent="BootStructure/Eyelets"]
+transform = Transform3D(0.9553, -0.2955, 0, 0.2955, 0.9553, 0, 0, 0, 1, 0.8, 4.3, 0.3)
+mesh = SubResource("TorusMesh_eyelet")
+surface_material_override/0 = SubResource("Material_metal")
+
+[node name="LaceL" type="MeshInstance3D" parent="BootStructure"]
+transform = Transform3D(0.8253, 0, 0.5646, 0.2195, 0.9211, -0.3208, -0.5201, 0.3894, 0.7601, -0.8, 4.0, 0.4)
+mesh = SubResource("CylinderMesh_lace")
+surface_material_override/0 = SubResource("Material_lace")
+
+[node name="LaceR" type="MeshInstance3D" parent="BootStructure"]
+transform = Transform3D(0.8253, 0, -0.5646, -0.2195, 0.9211, -0.3208, 0.5201, 0.3894, 0.7601, 0.8, 4.0, 0.4)
+mesh = SubResource("CylinderMesh_lace")
+surface_material_override/0 = SubResource("Material_lace")
+
+[node name="Patch1" type="MeshInstance3D" parent="BootStructure"]
+transform = Transform3D(0.9801, -0.0998, 0.1723, 0.0998, 0.995, 0.0086, -0.1723, 0.0086, 0.985, 1.5, 1.5, 2.5)
+mesh = SubResource("BoxMesh_patch")
+surface_material_override/0 = SubResource("Material_dark_leather")
+
+[node name="Patch2" type="MeshInstance3D" parent="BootStructure"]
+transform = Transform3D(0.9553, 0.1987, -0.2194, -0.1987, 0.9801, 0.0196, 0.2194, 0.0196, 0.9752, -1.8, 2.2, 1.0)
+mesh = SubResource("BoxMesh_patch")
+surface_material_override/0 = SubResource("Material_dark_leather")
+
+[node name="Patch3" type="MeshInstance3D" parent="BootStructure"]
+transform = Transform3D(0.9801, 0.0998, -0.1723, -0.0998, 0.995, 0.0086, 0.1723, 0.0086, 0.985, 0.5, 3.0, -1.0)
+mesh = SubResource("BoxMesh_patch")
+surface_material_override/0 = SubResource("Material_dark_leather")
+
+[node name="SignPost" type="MeshInstance3D" parent="BootStructure"]
+transform = Transform3D(0.9553, 0, 0.2955, 0, 1, 0, -0.2955, 0, 0.9553, 2.0, 2.5, 4.0)
+mesh = SubResource("CylinderMesh_sign_post")
+surface_material_override/0 = SubResource("Material_wood")
+
+[node name="SignBoard" type="MeshInstance3D" parent="BootStructure"]
+transform = Transform3D(0.995, 0, 0.0998, 0, 1, 0, -0.0998, 0, 0.995, 2.3, 2.0, 4.0)
+mesh = SubResource("BoxMesh_sign")
+surface_material_override/0 = SubResource("Material_wood")
+
+[node name="Decorations" type="Node3D" parent="."]
+
+[node name="Crate1" type="MeshInstance3D" parent="Decorations"]
+transform = Transform3D(0.9553, 0, 0.2955, 0, 1, 0, -0.2955, 0, 0.9553, 3.0, 0.25, 2.5)
+mesh = SubResource("BoxMesh_crate")
+surface_material_override/0 = SubResource("Material_wood")
+
+[node name="Crate2" type="MeshInstance3D" parent="Decorations"]
+transform = Transform3D(0.9801, 0, -0.1987, 0, 1, 0, 0.1987, 0, 0.9801, 3.7, 0.25, 2.0)
+mesh = SubResource("BoxMesh_crate")
+surface_material_override/0 = SubResource("Material_wood")
+
+[node name="Barrel" type="MeshInstance3D" parent="Decorations"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.2, 0.45, 2.0)
+mesh = SubResource("CylinderMesh_barrel")
+surface_material_override/0 = SubResource("Material_barrel")
+
+[node name="LanternPost" type="MeshInstance3D" parent="Decorations"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.5, 1.25, 4.5)
+mesh = SubResource("CylinderMesh_post")
+surface_material_override/0 = SubResource("Material_wood")
+
+[node name="Lantern" type="MeshInstance3D" parent="Decorations"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.5, 2.7, 4.5)
+mesh = SubResource("BoxMesh_lantern")
+surface_material_override/0 = SubResource("Material_lantern")
+
+[node name="LanternLight" type="OmniLight3D" parent="Decorations"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.5, 2.7, 4.5)
+light_color = Color(1, 0.8, 0.5, 1)
+omni_range = 6.0
+
+[node name="Mushrooms" type="Node3D" parent="Decorations"]
+
+[node name="Mushroom1" type="Node3D" parent="Decorations/Mushrooms"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.5, 0, 3.5)
+
+[node name="Stem" type="MeshInstance3D" parent="Decorations/Mushrooms/Mushroom1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.125, 0)
+mesh = SubResource("CylinderMesh_mushroom_stem")
+surface_material_override/0 = SubResource("Material_mushroom_stem")
+
+[node name="Cap" type="MeshInstance3D" parent="Decorations/Mushrooms/Mushroom1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.27, 0)
+mesh = SubResource("SphereMesh_mushroom_cap")
+surface_material_override/0 = SubResource("Material_mushroom_cap")
+
+[node name="Mushroom2" type="Node3D" parent="Decorations/Mushrooms"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.0, 0, 2.0)
+
+[node name="Stem" type="MeshInstance3D" parent="Decorations/Mushrooms/Mushroom2"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.1, 0)
+mesh = SubResource("CylinderMesh_mushroom_stem")
+surface_material_override/0 = SubResource("Material_mushroom_stem")
+
+[node name="Cap" type="MeshInstance3D" parent="Decorations/Mushrooms/Mushroom2"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.22, 0)
+mesh = SubResource("SphereMesh_mushroom_cap")
+surface_material_override/0 = SubResource("Material_mushroom_cap")
+
+[node name="Mushroom3" type="Node3D" parent="Decorations/Mushrooms"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.8, 0, 3.0)
+
+[node name="Stem" type="MeshInstance3D" parent="Decorations/Mushrooms/Mushroom3"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.15, 0)
+mesh = SubResource("CylinderMesh_mushroom_stem")
+surface_material_override/0 = SubResource("Material_mushroom_stem")
+
+[node name="Cap" type="MeshInstance3D" parent="Decorations/Mushrooms/Mushroom3"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.32, 0)
+mesh = SubResource("SphereMesh_mushroom_cap")
+surface_material_override/0 = SubResource("Material_mushroom_cap")
+
+[node name="Mushroom4" type="Node3D" parent="Decorations/Mushrooms"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.0, 0, -2.0)
+
+[node name="Stem" type="MeshInstance3D" parent="Decorations/Mushrooms/Mushroom4"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.12, 0)
+mesh = SubResource("CylinderMesh_mushroom_stem")
+surface_material_override/0 = SubResource("Material_mushroom_stem")
+
+[node name="Cap" type="MeshInstance3D" parent="Decorations/Mushrooms/Mushroom4"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.26, 0)
+mesh = SubResource("SphereMesh_mushroom_cap")
+surface_material_override/0 = SubResource("Material_mushroom_cap")
+
+[node name="Mushroom5" type="Node3D" parent="Decorations/Mushrooms"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.5, 0, -1.5)
+
+[node name="Stem" type="MeshInstance3D" parent="Decorations/Mushrooms/Mushroom5"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.17, 0)
+mesh = SubResource("CylinderMesh_mushroom_stem")
+surface_material_override/0 = SubResource("Material_mushroom_stem")
+
+[node name="Cap" type="MeshInstance3D" parent="Decorations/Mushrooms/Mushroom5"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.36, 0)
+mesh = SubResource("SphereMesh_mushroom_cap")
+surface_material_override/0 = SubResource("Material_mushroom_cap")
+
+[node name="WindowLights" type="Node3D" parent="."]
+
+[node name="WindowLight1" type="OmniLight3D" parent="WindowLights"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.8, 2.0, 0.7)
+light_color = Color(1, 0.85, 0.6, 1)
+light_energy = 0.5
+omni_range = 3.0
+
+[node name="WindowLight2" type="OmniLight3D" parent="WindowLights"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.8, 2.0, 0.7)
+light_color = Color(1, 0.85, 0.6, 1)
+light_energy = 0.5
+omni_range = 3.0
+
+[node name="WindowLight3" type="OmniLight3D" parent="WindowLights"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.4, 2.5, -0.8)
+light_color = Color(1, 0.85, 0.6, 1)
+light_energy = 0.5
+omni_range = 3.0
+
+[node name="WindowLight4" type="OmniLight3D" parent="WindowLights"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.4, 2.5, -0.8)
+light_color = Color(1, 0.85, 0.6, 1)
+light_energy = 0.5
+omni_range = 3.0
+
+[node name="StaticBody3D" type="StaticBody3D" parent="."]
+collision_layer = 1
+collision_mask = 0
+
+[node name="ToeCollision" type="CollisionShape3D" parent="StaticBody3D"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.0, 1.5)
+shape = SubResource("BoxShape3D_toe")
+
+[node name="ShaftCollision" type="CollisionShape3D" parent="StaticBody3D"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3.5, -1.5)
+shape = SubResource("CylinderShape3D_shaft")
+
+[node name="ChimneySmoke" type="GPUParticles3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 5.8, -1.8)
+amount = 20
+lifetime = 4.0
+
+[node name="Shnarken" parent="." instance=ExtResource("2_shnarken")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.1, 7.0)

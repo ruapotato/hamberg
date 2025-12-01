@@ -28,6 +28,16 @@ func _ready() -> void:
 # =============================================================================
 
 func _setup_boot() -> void:
+	# Check if boot structure already exists from .tscn scene
+	var boot_structure = get_node_or_null("BootStructure")
+	if boot_structure:
+		door_node = boot_structure.get_node_or_null("Door")
+		smoke_particles = get_node_or_null("ChimneySmoke")
+		print("[ShnarkenHut] Using scene-based mesh (editable in Godot)")
+		return
+
+	# Fallback: Procedural generation
+	print("[ShnarkenHut] Generating procedural mesh")
 	var scale_factor: float = 1.0
 
 	# === MATERIALS ===
@@ -356,6 +366,10 @@ func _setup_collision() -> void:
 # =============================================================================
 
 func _setup_decorations() -> void:
+	# Skip if using scene-based mesh
+	if get_node_or_null("BootStructure"):
+		return
+
 	var wood_mat = StandardMaterial3D.new()
 	wood_mat.albedo_color = Color(0.45, 0.32, 0.2, 1)
 	wood_mat.roughness = 0.75
@@ -470,7 +484,15 @@ func _add_mushrooms() -> void:
 # =============================================================================
 
 func _setup_lighting() -> void:
-	# Chimney smoke particles
+	# Check if using scene-based smoke
+	smoke_particles = get_node_or_null("ChimneySmoke")
+	if smoke_particles:
+		# Just need to set up the particle material if not already set
+		if not smoke_particles.process_material:
+			_setup_smoke_material()
+		return
+
+	# Fallback: Procedural chimney smoke particles
 	smoke_particles = GPUParticles3D.new()
 	smoke_particles.name = "ChimneySmoke"
 	smoke_particles.position = Vector3(0, 5.8, -1.8)
@@ -479,6 +501,11 @@ func _setup_lighting() -> void:
 	smoke_particles.explosiveness = 0.0
 	smoke_particles.randomness = 0.5
 
+	_setup_smoke_material()
+
+	add_child(smoke_particles)
+
+func _setup_smoke_material() -> void:
 	var smoke_mat = ParticleProcessMaterial.new()
 	smoke_mat.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
 	smoke_mat.emission_sphere_radius = 0.5
@@ -498,14 +525,19 @@ func _setup_lighting() -> void:
 	smoke_mesh.size = Vector2(0.5, 0.5)
 	smoke_particles.draw_pass_1 = smoke_mesh
 
-	add_child(smoke_particles)
-
 # =============================================================================
 # SHNARKEN SPAWN
 # =============================================================================
 
 func _spawn_shnarken() -> void:
-	# Spawn the Shnarken NPC outside the hut - it will hop around
+	# Check if Shnarken already exists from .tscn scene
+	shnarken = get_node_or_null("Shnarken")
+	if shnarken:
+		shnarken.biome_id = biome_id
+		print("[ShnarkenHut] Using scene-based Shnarken")
+		return
+
+	# Fallback: Spawn the Shnarken NPC outside the hut
 	if ShnarkenScene:
 		shnarken = ShnarkenScene.instantiate()
 		shnarken.biome_id = biome_id

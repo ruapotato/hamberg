@@ -27,6 +27,9 @@ const BUFFER_EXPAND_THRESHOLD := 50.0  # Regenerate when within 50 units of edge
 var map_pins: Array = []
 var active_pings: Array = []
 
+# Special location markers (Shnarken huts, etc.)
+var special_markers: Array = []
+
 # UI nodes
 @onready var map_texture_rect: TextureRect = $Panel/MapTextureRect
 @onready var refresh_timer: Timer = $RefreshTimer
@@ -99,6 +102,7 @@ func _process(delta: float) -> void:
 func _draw_overlay() -> void:
 	# Draw on top of the map texture
 	_draw_compass_directions()
+	_draw_special_markers()
 	_draw_pins()
 	_draw_pings()
 	_draw_player_markers()
@@ -376,6 +380,51 @@ func _draw_pings() -> void:
 			overlay.draw_line(edge_pos, arrow_tip, color, 2.0)
 			overlay.draw_line(arrow_tip, arrow_left, color, 2.0)
 			overlay.draw_line(arrow_tip, arrow_right, color, 2.0)
+
+func _draw_special_markers() -> void:
+	var center := overlay.size * 0.5
+	var edge_radius := (overlay.size.x * 0.5) - 6.0
+
+	for marker in special_markers:
+		var screen_pos := _world_to_screen_pos(marker.pos)
+		var marker_color: Color = marker.get("color", Color.GOLD)
+		var marker_type: String = marker.get("type", "default")
+
+		if _is_on_screen(screen_pos):
+			var local_pos := screen_pos - overlay.global_position
+
+			# Draw small icon based on type
+			if marker_type == "shnarken":
+				# Draw small boot icon
+				overlay.draw_rect(Rect2(local_pos + Vector2(-3, -4), Vector2(6, 8)), marker_color)
+				overlay.draw_rect(Rect2(local_pos + Vector2(1, 0), Vector2(4, 4)), marker_color)
+				overlay.draw_rect(Rect2(local_pos + Vector2(-3, -4), Vector2(6, 8)), Color.WHITE, false, 1.0)
+			else:
+				# Default small diamond
+				var diamond := PackedVector2Array([
+					local_pos + Vector2(0, -5),
+					local_pos + Vector2(4, 0),
+					local_pos + Vector2(0, 5),
+					local_pos + Vector2(-4, 0)
+				])
+				overlay.draw_colored_polygon(diamond, marker_color)
+		else:
+			# Draw edge indicator pointing to off-screen marker
+			var local_pos := screen_pos - overlay.global_position
+			var direction := (local_pos - center).normalized()
+			var edge_pos := center + direction * edge_radius
+
+			# Small arrow at edge
+			overlay.draw_circle(edge_pos, 3, marker_color)
+
+## Add a special marker to the mini-map
+func add_special_marker(world_pos: Vector2, name: String, type: String = "default", color: Color = Color.GOLD) -> void:
+	special_markers.append({
+		"pos": world_pos,
+		"name": name,
+		"type": type,
+		"color": color
+	})
 
 func _is_on_screen(screen_pos: Vector2) -> bool:
 	if not overlay:

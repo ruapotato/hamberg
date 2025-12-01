@@ -1,0 +1,14 @@
+[gd_scene load_steps=2 format=3 uid="uid://dshnarken001"]
+
+[ext_resource type="Script" path="res://shared/npcs/shnarken.gd" id="1_script"]
+
+[sub_resource type="SphereShape3D" id="SphereShape3D_interaction"]
+radius = 3.0
+
+[node name="Shnarken" type="Node3D"]
+script = ExtResource("1_script")
+
+[node name="InteractionArea" type="Area3D" parent="."]
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="InteractionArea"]
+shape = SubResource("SphereShape3D_interaction")

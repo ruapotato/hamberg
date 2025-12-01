@@ -71,6 +71,10 @@ func _initialize_items() -> void:
 	# Armor sets
 	_register_pig_armor_set()
 	_register_deer_armor_set()
+	_register_tank_armor_set()  # Buy-only from Shnarken
+
+	# Buy-only weapons
+	_register_ice_wand()  # Buy-only from Shnarken
 
 ## Helper: Register a basic resource item
 func _register_resource(id: String, name: String, desc: String, stack: int, w: float) -> void:
@@ -324,7 +328,7 @@ func get_all_items() -> Array:
 # =============================================================================
 
 ## Helper: Register an armor piece with per-damage-type armor values
-func _register_armor(id: String, name: String, desc: String, slot: ArmorData.ArmorSlot, armor_vals: Dictionary, set_id: String, set_bonus: ArmorData.SetBonus, primary_color: Color, secondary_color: Color, weight: float = 2.0) -> void:
+func _register_armor(id: String, name: String, desc: String, slot: ArmorData.ArmorSlot, armor_vals: Dictionary, set_id: String, set_bonus: ArmorData.SetBonus, primary_color: Color, secondary_color: Color, weight: float = 2.0, speed_mod: float = 0.0) -> void:
 	var armor = ArmorData.new()
 	armor.item_id = id
 	armor.display_name = name
@@ -337,6 +341,7 @@ func _register_armor(id: String, name: String, desc: String, slot: ArmorData.Arm
 	armor.secondary_color = secondary_color
 	armor.weight = weight
 	armor.durability = 100
+	armor.speed_modifier = speed_mod
 	items[id] = armor
 
 ## Pig Armor Set - Pink flying pig leather armor
@@ -476,3 +481,94 @@ func _register_deer_armor_set() -> void:
 	# Fire: 3.5 (weak to fire)
 	# Ice: 7.5 (good vs ice)
 	# Poison: 5.0
+
+## Tank Armor Set - Heavy iron plate armor (BUY-ONLY from Shnarken)
+## No set bonus, but VERY high armor values
+## Trade-off: -5% movement speed per piece except helmet (15% total slow)
+## Cannot be crafted - must be purchased from the Meadow Shnarken
+func _register_tank_armor_set() -> void:
+	# Tank colors - dark iron with bronze trim
+	var tank_iron = Color(0.35, 0.35, 0.4, 1.0)  # Dark iron
+	var tank_bronze = Color(0.7, 0.55, 0.35, 1.0)  # Bronze accents
+
+	# Head: No speed penalty (still need to see!)
+	_register_armor(
+		"tank_helmet", "Iron Greathelm",
+		"A heavy iron helmet with full face protection. Part of the Tank Set.\nNo movement penalty.\nBuy-only from Shnarken.",
+		ArmorData.ArmorSlot.HEAD, {
+			WeaponData.DamageType.SLASH: 4.0,
+			WeaponData.DamageType.BLUNT: 4.0,
+			WeaponData.DamageType.PIERCE: 4.0,
+			WeaponData.DamageType.FIRE: 2.0,
+			WeaponData.DamageType.ICE: 2.0,
+			WeaponData.DamageType.POISON: 1.0,
+		}, "tank", ArmorData.SetBonus.NONE,
+		tank_iron, tank_bronze, 5.0, 0.0  # No speed penalty
+	)
+	# Chest: -5% speed
+	_register_armor(
+		"tank_chest", "Iron Cuirass",
+		"A massive iron chestplate. Part of the Tank Set.\n-5% movement speed.\nBuy-only from Shnarken.",
+		ArmorData.ArmorSlot.CHEST, {
+			WeaponData.DamageType.SLASH: 8.0,
+			WeaponData.DamageType.BLUNT: 8.0,
+			WeaponData.DamageType.PIERCE: 8.0,
+			WeaponData.DamageType.FIRE: 4.0,
+			WeaponData.DamageType.ICE: 4.0,
+			WeaponData.DamageType.POISON: 2.0,
+		}, "tank", ArmorData.SetBonus.NONE,
+		tank_iron, tank_bronze, 8.0, -0.05  # -5% speed
+	)
+	# Legs: -5% speed
+	_register_armor(
+		"tank_pants", "Iron Greaves",
+		"Heavy iron leg armor. Part of the Tank Set.\n-5% movement speed.\nBuy-only from Shnarken.",
+		ArmorData.ArmorSlot.LEGS, {
+			WeaponData.DamageType.SLASH: 6.0,
+			WeaponData.DamageType.BLUNT: 6.0,
+			WeaponData.DamageType.PIERCE: 6.0,
+			WeaponData.DamageType.FIRE: 3.0,
+			WeaponData.DamageType.ICE: 3.0,
+			WeaponData.DamageType.POISON: 1.5,
+		}, "tank", ArmorData.SetBonus.NONE,
+		tank_iron, tank_bronze, 6.0, -0.05  # -5% speed
+	)
+	# Cape: -5% speed (it's a heavy cloak of chainmail)
+	_register_armor(
+		"tank_cape", "Chainmail Mantle",
+		"A heavy chainmail cloak. Part of the Tank Set.\n-5% movement speed.\nBuy-only from Shnarken.",
+		ArmorData.ArmorSlot.CAPE, {
+			WeaponData.DamageType.SLASH: 4.0,
+			WeaponData.DamageType.BLUNT: 2.0,
+			WeaponData.DamageType.PIERCE: 4.0,
+			WeaponData.DamageType.FIRE: 2.0,
+			WeaponData.DamageType.ICE: 2.0,
+			WeaponData.DamageType.POISON: 1.0,
+		}, "tank", ArmorData.SetBonus.NONE,
+		tank_iron, tank_bronze, 4.0, -0.05  # -5% speed
+	)
+	# Full set totals:
+	# Slash: 22.0 (VERY tanky)
+	# Blunt: 20.0
+	# Pierce: 22.0
+	# Fire: 11.0
+	# Ice: 11.0
+	# Poison: 5.5
+	# Speed penalty: -15% total (helmet has no penalty)
+
+## Ice Wand - Buy-only magic weapon from Shnarken
+## Cannot be crafted - entry-level magic weapon for players who can't make fire wand
+func _register_ice_wand() -> void:
+	var weapon = WeaponData.new()
+	weapon.item_id = "ice_wand"
+	weapon.display_name = "Frost Wand"
+	weapon.description = "A basic wand that shoots frost bolts. Buy-only from Shnarken.\nDeals ice damage - effective against fire enemies."
+	weapon.weapon_type = WeaponData.WeaponType.MAGIC
+	weapon.damage = 12.0  # Slightly less than fire wand
+	weapon.damage_type = WeaponData.DamageType.ICE
+	weapon.attack_speed = 1.5
+	weapon.knockback = 3.0
+	weapon.durability = 80
+	weapon.stamina_cost = 12.0  # Uses brain power for magic
+	weapon.weight = 1.5
+	items["ice_wand"] = weapon

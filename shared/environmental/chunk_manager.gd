@@ -27,17 +27,31 @@ var update_timer: float = 0.0
 # Node container for spawned objects
 var objects_container: Node3D
 
+# Container for special NPCs/buildings (like Shnarken huts)
+var special_buildings_container: Node3D
+
 # MultimeshChunk script - loaded dynamically to avoid circular reference issues
 var MultimeshChunkScript
+
+# Shnarken hut scene
+var ShnarkenHutScene: PackedScene
 
 func _ready() -> void:
 	# Load MultimeshChunk script
 	MultimeshChunkScript = load("res://shared/environmental/multimesh_chunk.gd")
 
+	# Load Shnarken hut scene
+	ShnarkenHutScene = load("res://shared/npcs/shnarken_hut.tscn")
+
 	# Create container for objects
 	objects_container = Node3D.new()
 	objects_container.name = "EnvironmentalObjects"
 	add_child(objects_container)
+
+	# Create container for special buildings (Shnarken huts, etc.)
+	special_buildings_container = Node3D.new()
+	special_buildings_container.name = "SpecialBuildings"
+	add_child(special_buildings_container)
 
 	# Create database for persistent storage
 	var ChunkDatabaseScript = load("res://shared/environmental/chunk_database.gd")
@@ -74,6 +88,9 @@ func initialize(voxel_world_ref: Node3D) -> void:
 	if spawner and is_instance_valid(spawner):
 		spawner.set_world_seed(voxel_world.world_seed)
 		spawner.set_chunk_size(chunk_size)
+
+	# Spawn Shnarken hut at world origin (meadow biome Shnarken)
+	_spawn_shnarken_hut_at_origin()
 
 	print("[ChunkManager] Initialized with voxel world (MultiMesh mode)")
 
@@ -344,3 +361,59 @@ func get_stats() -> Dictionary:
 		"registered_players": player_chunk_positions.size(),
 		"modified_chunks": modified_chunks.size()
 	}
+
+# =============================================================================
+# SHNARKEN HUT SPAWNING
+# =============================================================================
+
+## Spawn the Shnarken hut at world origin with terrain flattening
+func _spawn_shnarken_hut_at_origin() -> void:
+	if not ShnarkenHutScene:
+		push_error("[ChunkManager] ShnarkenHutScene not loaded!")
+		return
+
+	if not voxel_world:
+		push_error("[ChunkManager] Cannot spawn Shnarken hut - voxel_world not set!")
+		return
+
+	# Shnarken hut spawn position (world origin with slight offset for visibility)
+	var hut_xz := Vector2(0.0, 0.0)
+
+	# Get terrain height at spawn location
+	var terrain_height: float = voxel_world.get_terrain_height_at(hut_xz)
+
+	# Flatten terrain around the hut (radius of 10 units)
+	var flatten_radius: float = 10.0
+	_flatten_terrain_area(hut_xz, terrain_height, flatten_radius)
+
+	# Add exclusion zone to prevent trees/objects spawning near hut
+	if spawner and is_instance_valid(spawner):
+		spawner.add_exclusion_zone(hut_xz, 15.0)  # 15m radius exclusion
+
+	# Spawn the hut
+	var hut = ShnarkenHutScene.instantiate()
+	hut.position = Vector3(hut_xz.x, terrain_height, hut_xz.y)
+	if hut.has_method("set") and "biome_id" in hut:
+		hut.biome_id = 1  # Meadow/Valley biome
+		hut.hut_name = "Shnarken's Boot Emporium"
+	special_buildings_container.add_child(hut)
+
+	print("[ChunkManager] Spawned Shnarken hut at origin (%.1f, %.1f, %.1f)" % [hut_xz.x, terrain_height, hut_xz.y])
+
+## Flatten terrain in a circular area around a position
+func _flatten_terrain_area(center_xz: Vector2, target_height: float, radius: float) -> void:
+	if not voxel_world:
+		return
+
+	# Flatten in a grid pattern within the radius
+	var step: float = 1.0  # Flatten every 1 unit
+	var radius_sq: float = radius * radius
+
+	for x in range(int(-radius), int(radius) + 1):
+		for z in range(int(-radius), int(radius) + 1):
+			var offset := Vector2(float(x), float(z))
+			if offset.length_squared() <= radius_sq:
+				var world_pos := Vector3(center_xz.x + x, target_height, center_xz.y + z)
+				voxel_world.flatten_square(world_pos, target_height)
+
+	print("[ChunkManager] Flattened terrain around hut (radius %.1f, height %.1f)" % [radius, target_height])

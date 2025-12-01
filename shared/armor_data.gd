@@ -62,6 +62,10 @@ func get_total_armor() -> float:
 @export var armor_set_id: String = ""  # e.g., "pig", "deer" - pieces with same ID form a set
 @export var set_bonus: SetBonus = SetBonus.NONE  # Bonus when full set is worn
 
+# Movement speed modifier (negative = slower, e.g., -0.05 = 5% slower)
+# Used for heavy tank armor that trades speed for defense
+@export var speed_modifier: float = 0.0
+
 # Visual customization - colors to apply to player body parts when worn
 @export var primary_color: Color = Color(0.5, 0.5, 0.5, 1.0)  # Main armor color
 @export var secondary_color: Color = Color(0.3, 0.3, 0.3, 1.0)  # Accent color
