@@ -170,6 +170,9 @@ var health: float = PC.BASE_HEALTH
 var is_dead: bool = false
 var god_mode: bool = false  # Debug god mode - unlimited stamina/brain power
 
+# Gold currency (separate from inventory, doesn't take a slot)
+var gold: int = 0
+
 # Food system node (added in _ready)
 var player_food: Node = null
 var _previous_max_health: float = 0.0  # Tracks max health for percentage scaling
@@ -211,7 +214,7 @@ func _ready() -> void:
 
 	# Set collision layer
 	collision_layer = 2  # Players layer
-	collision_mask = 1   # World layer
+	collision_mask = 1 | 4  # World layer + Enemies/NPCs layer
 
 	# Setup player body visuals
 	_setup_player_body()
@@ -500,6 +503,12 @@ func _apply_movement(input_data: Dictionary, delta: float) -> void:
 		# Only sprint if we have enough stamina (consume_stamina returns false if not enough)
 		can_sprint = consume_stamina(sprint_cost)
 	var target_speed := PC.SPRINT_SPEED if can_sprint else PC.WALK_SPEED
+
+	# Apply armor speed modifier (heavy armor slows you down)
+	if equipment:
+		var speed_mod = equipment.get_total_speed_modifier()
+		if speed_mod != 0.0:
+			target_speed *= (1.0 + speed_mod)  # speed_mod is negative for slow, e.g., -0.15
 
 	# Apply exhausted speed reduction (slower walking)
 	if is_exhausted:
@@ -2565,6 +2574,32 @@ func consume_brain_power(amount: float) -> bool:
 		brain_power_regen_timer = 0.0  # Reset regen delay
 		return true
 	return false
+
+# =============================================================================
+# GOLD CURRENCY
+# =============================================================================
+
+## Add gold to player
+func add_gold(amount: int) -> void:
+	gold += amount
+	print("[Player] Gained %d gold, total: %d" % [amount, gold])
+
+## Spend gold (returns true if enough gold available)
+func spend_gold(amount: int) -> bool:
+	if gold >= amount:
+		gold -= amount
+		print("[Player] Spent %d gold, remaining: %d" % [amount, gold])
+		return true
+	print("[Player] Not enough gold! Have %d, need %d" % [gold, amount])
+	return false
+
+## Check if player can afford something
+func can_afford(amount: int) -> bool:
+	return gold >= amount
+
+## Get current gold amount
+func get_gold() -> int:
+	return gold
 
 ## Take damage (with blocking/parry support and armor reduction)
 ## damage_type: WeaponData.DamageType enum (-1 = physical/untyped)
