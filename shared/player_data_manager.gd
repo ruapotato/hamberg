@@ -131,7 +131,7 @@ func create_new_character(character_name: String) -> Dictionary:
 	var player_data = {
 		"character_id": character_id,
 		"character_name": character_name,
-		"position": [0.0, 10.0, 0.0],  # Spawn point
+		"position": [5.0, 10.0, 0.0],  # Spawn point (offset from origin to avoid hut)
 		"rotation_y": 0.0,
 		"inventory": [],  # Will be populated with 30 empty slots
 		"equipment": {},  # Will be populated with empty equipment slots

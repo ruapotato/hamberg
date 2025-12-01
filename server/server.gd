@@ -15,7 +15,7 @@ var spawned_players: Dictionary = {} # peer_id -> Player node
 var player_characters: Dictionary = {} # peer_id -> character_id (for saving on disconnect)
 var player_map_pins: Dictionary = {} # peer_id -> Array of map pins
 var player_open_chests: Dictionary = {} # peer_id -> chest network_id (tracks which chest each player has open)
-var player_spawn_area_center: Vector2 = Vector2(0, 0) # Center of spawn area
+var player_spawn_area_center: Vector2 = Vector2(5, 0) # Center of spawn area (offset from origin to avoid hut)
 
 # Buildable management
 var placed_buildables: Dictionary = {} # network_id -> {piece_name, position, rotation_y}
