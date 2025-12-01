@@ -1239,6 +1239,11 @@ func _spawn_player_with_data(peer_id: int, player_data: Dictionary) -> void:
 		player.health = player_data["health"]
 		print("[Server] Loaded health %.1f for player %d" % [player.health, peer_id])
 
+	# Load gold
+	if player_data.has("gold") and "gold" in player:
+		player.gold = player_data["gold"]
+		print("[Server] Loaded gold %d for player %d" % [player.gold, peer_id])
+
 	print("[Server] Spawned player %d at %s" % [peer_id, spawn_pos])
 
 	# Register player with chunk manager for environmental object spawning
@@ -1276,6 +1281,11 @@ func _spawn_player_with_data(peer_id: int, player_data: Dictionary) -> void:
 	if player_data.has("equipment"):
 		NetworkManager.rpc_sync_equipment.rpc_id(peer_id, player_data["equipment"])
 		print("[Server] Sent equipment sync to player %d" % peer_id)
+
+	# Send gold to client
+	if player_data.has("gold"):
+		NetworkManager.rpc_sync_gold.rpc_id(peer_id, player_data["gold"])
+		print("[Server] Sent gold sync to player %d: %d" % [peer_id, player_data["gold"]])
 
 	# Send full character data (including map pins) to client
 	NetworkManager.rpc_send_character_data.rpc_id(peer_id, player_data)

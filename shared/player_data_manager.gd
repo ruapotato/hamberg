@@ -189,6 +189,7 @@ static func serialize_player(player: Node, map_pins: Array = []) -> Dictionary:
 		"equipment": {},
 		"health": player.health if "health" in player else 100.0,
 		"max_health": 100.0,
+		"gold": player.gold if "gold" in player else 0,  # Save gold
 		"map_pins": map_pins,  # Save map pins
 		"active_foods": []  # Save active food buffs
 	}
