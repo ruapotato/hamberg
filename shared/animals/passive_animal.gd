@@ -117,9 +117,9 @@ func _update_idle(delta: float) -> void:
 	# Set AI state for animation sync
 	ai_state = AIState.IDLE
 
-## Detect nearby players within flee detection range
+## Detect nearby players within flee detection range (uses cached player list)
 func _detect_nearby_player() -> CharacterBody3D:
-	var players = get_tree().get_nodes_in_group("players")
+	var players = EnemyAI._get_cached_players(get_tree())
 	var nearest_player: CharacterBody3D = null
 	var nearest_dist: float = flee_detection_range
 

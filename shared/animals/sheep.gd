@@ -421,9 +421,9 @@ func _do_horn_attack() -> void:
 		print("[Sheep] Dealing %.1f horn damage to player" % horn_damage)
 		local_player.take_damage(horn_damage, -1, knockback_dir * horn_knockback)
 
-## Find the nearest player (for targeting)
+## Find the nearest player (for targeting) - uses cached player list
 func _find_nearest_player() -> CharacterBody3D:
-	var players = get_tree().get_nodes_in_group("players")
+	var players = EnemyAI._get_cached_players(get_tree())
 	var nearest_player: CharacterBody3D = null
 	var nearest_dist: float = INF
 

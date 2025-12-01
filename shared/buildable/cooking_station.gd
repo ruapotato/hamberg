@@ -358,23 +358,40 @@ func get_slot_state(slot_idx: int) -> int:
 	return cooking_slots[slot_idx].state
 
 ## Check if station is near a lit fireplace
+# PERFORMANCE: Cache fireplace reference - only need to find it once
+var _cached_fireplace: Node3D = null
+var _fireplace_search_done: bool = false
+
 func check_fire_proximity() -> void:
-	var fireplaces = get_tree().get_nodes_in_group("fireplace")
+	# PERFORMANCE: Only search for fireplace once, then cache it
+	if not _fireplace_search_done:
+		_fireplace_search_done = true
+		var fireplaces = get_tree().get_nodes_in_group("fireplace")
+		for fireplace in fireplaces:
+			if not is_instance_valid(fireplace):
+				continue
+			var distance = global_position.distance_to(fireplace.global_position)
+			if distance < 1.5:
+				_cached_fireplace = fireplace
+				break
+
+	# Check cached fireplace status
 	is_over_fire = false
+	if is_instance_valid(_cached_fireplace):
+		if _cached_fireplace.get("is_lit") != null:
+			is_over_fire = _cached_fireplace.is_lit
+		else:
+			is_over_fire = true
 
-	for fireplace in fireplaces:
-		if not is_instance_valid(fireplace):
-			continue
-		var distance = global_position.distance_to(fireplace.global_position)
-		if distance < 1.5:
-			if fireplace.get("is_lit") != null:
-				is_over_fire = fireplace.is_lit
-			else:
-				is_over_fire = true
-			break
+# PERFORMANCE: Throttle fire proximity check
+var _fire_check_timer: float = 0.0
+const FIRE_CHECK_INTERVAL: float = 0.5
 
-func _physics_process(_delta: float) -> void:
-	check_fire_proximity()
+func _physics_process(delta: float) -> void:
+	_fire_check_timer += delta
+	if _fire_check_timer >= FIRE_CHECK_INTERVAL:
+		_fire_check_timer = 0.0
+		check_fire_proximity()
 
 ## Serialize for network/save
 func get_cooking_data() -> Array:

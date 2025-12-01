@@ -44,10 +44,35 @@ var head: Node3D = null
 # Head height (for head bobbing, set by subclasses)
 var head_base_height: float = 0.0
 
+# PERFORMANCE: Cached joint references (avoid get_node_or_null every frame)
+var _left_knee: Node3D = null
+var _right_knee: Node3D = null
+var _left_elbow: Node3D = null
+var _right_elbow: Node3D = null
+var _joints_cached: bool = false
+
+## PERFORMANCE: Cache joint references once (call after body parts are set)
+func _cache_joint_nodes() -> void:
+	if _joints_cached:
+		return
+	_joints_cached = true
+	if left_leg:
+		_left_knee = left_leg.get_node_or_null("Knee")
+	if right_leg:
+		_right_knee = right_leg.get_node_or_null("Knee")
+	if left_arm:
+		_left_elbow = left_arm.get_node_or_null("Elbow")
+	if right_arm:
+		_right_elbow = right_arm.get_node_or_null("Elbow")
+
 ## Update all animations - call this in _physics_process
 func update_animations(delta: float) -> void:
 	if not body_container or not left_leg or not right_leg:
 		return
+
+	# PERFORMANCE: Cache joint references on first call
+	if not _joints_cached:
+		_cache_joint_nodes()
 
 	# PERFORMANCE: Update distance check periodically
 	_anim_cull_check_timer += delta
@@ -102,10 +127,12 @@ func update_animations(delta: float) -> void:
 	elif is_attacking:
 		_animate_attack(delta)
 
-## PERFORMANCE: Cache distance to nearest player
+## PERFORMANCE: Cache distance to nearest player (uses EnemyAI's cached player list)
 func _update_nearest_player_distance() -> void:
 	_nearest_player_distance = INF
-	for player in get_tree().get_nodes_in_group("players"):
+	# Use EnemyAI's static cached player list (refreshed once per frame, shared across all)
+	var players := EnemyAI._get_cached_players(get_tree())
+	for player in players:
 		if is_instance_valid(player):
 			var dist := global_position.distance_to(player.global_position)
 			if dist < _nearest_player_distance:
@@ -137,26 +164,20 @@ func _animate_walking(delta: float, horizontal_speed: float, use_detailed: bool 
 	if use_detailed:
 		# Add natural knee bend - knees bend more when leg is forward
 		var knee_angle = sin(animation_phase) * 0.5
-		var left_knee = left_leg.get_node_or_null("Knee") if left_leg else null
-		var right_knee = right_leg.get_node_or_null("Knee") if right_leg else null
-		if left_knee:
-			left_knee.rotation.x = max(0.0, knee_angle)
-		if right_knee:
-			right_knee.rotation.x = max(0.0, -knee_angle)
+		if _left_knee:
+			_left_knee.rotation.x = max(0.0, knee_angle)
+		if _right_knee:
+			_right_knee.rotation.x = max(0.0, -knee_angle)
 
 	# Arms swing opposite to legs
 	if left_arm:
 		left_arm.rotation.x = -arm_angle
-		if use_detailed:
-			var left_elbow = left_arm.get_node_or_null("Elbow")
-			if left_elbow:
-				left_elbow.rotation.x = max(0.0, arm_angle * 0.8)
+		if use_detailed and _left_elbow:
+			_left_elbow.rotation.x = max(0.0, arm_angle * 0.8)
 	if right_arm and not is_attacking:
 		right_arm.rotation.x = arm_angle
-		if use_detailed:
-			var right_elbow = right_arm.get_node_or_null("Elbow")
-			if right_elbow:
-				right_elbow.rotation.x = max(0.0, -arm_angle * 0.8)
+		if use_detailed and _right_elbow:
+			_right_elbow.rotation.x = max(0.0, -arm_angle * 0.8)
 
 	# Add subtle torso sway (only when close)
 	if use_detailed and torso:
@@ -181,24 +202,20 @@ func _animate_idle(delta: float) -> void:
 
 	if left_leg:
 		left_leg.rotation.x = lerp(left_leg.rotation.x, 0.0, delta * 5.0)
-		var left_knee = left_leg.get_node_or_null("Knee")
-		if left_knee:
-			left_knee.rotation.x = lerp(left_knee.rotation.x, 0.0, delta * 5.0)
+		if _left_knee:
+			_left_knee.rotation.x = lerp(_left_knee.rotation.x, 0.0, delta * 5.0)
 	if right_leg:
 		right_leg.rotation.x = lerp(right_leg.rotation.x, 0.0, delta * 5.0)
-		var right_knee = right_leg.get_node_or_null("Knee")
-		if right_knee:
-			right_knee.rotation.x = lerp(right_knee.rotation.x, 0.0, delta * 5.0)
+		if _right_knee:
+			_right_knee.rotation.x = lerp(_right_knee.rotation.x, 0.0, delta * 5.0)
 	if left_arm:
 		left_arm.rotation.x = lerp(left_arm.rotation.x, 0.0, delta * 5.0)
-		var left_elbow = left_arm.get_node_or_null("Elbow")
-		if left_elbow:
-			left_elbow.rotation.x = lerp(left_elbow.rotation.x, 0.0, delta * 5.0)
+		if _left_elbow:
+			_left_elbow.rotation.x = lerp(_left_elbow.rotation.x, 0.0, delta * 5.0)
 	if right_arm:
 		right_arm.rotation.x = lerp(right_arm.rotation.x, 0.0, delta * 5.0)
-		var right_elbow = right_arm.get_node_or_null("Elbow")
-		if right_elbow:
-			right_elbow.rotation.x = lerp(right_elbow.rotation.x, 0.0, delta * 5.0)
+		if _right_elbow:
+			_right_elbow.rotation.x = lerp(_right_elbow.rotation.x, 0.0, delta * 5.0)
 	if torso:
 		torso.rotation.z = lerp(torso.rotation.z, 0.0, delta * 5.0)
 
@@ -208,7 +225,7 @@ func _animate_idle(delta: float) -> void:
 		body_container.position.y = breathe
 
 ## Animate attack (arm swing)
-func _animate_attack(delta: float) -> void:
+func _animate_attack(_delta: float) -> void:
 	if not right_arm:
 		return
 
@@ -218,10 +235,9 @@ func _animate_attack(delta: float) -> void:
 	right_arm.rotation.x = swing_angle
 
 	# Elbow extends during attack
-	var right_elbow = right_arm.get_node_or_null("Elbow")
-	if right_elbow:
+	if _right_elbow:
 		var elbow_bend = -sin(attack_progress * PI) * 0.6
-		right_elbow.rotation.x = elbow_bend
+		_right_elbow.rotation.x = elbow_bend
 
 ## Start an attack animation
 func start_attack_animation() -> void:
@@ -253,9 +269,8 @@ func _animate_throw(delta: float) -> void:
 	right_arm.rotation.x = arm_angle
 
 	# Elbow extends during throw
-	var right_elbow = right_arm.get_node_or_null("Elbow")
-	if right_elbow:
-		right_elbow.rotation.x = elbow_angle
+	if _right_elbow:
+		_right_elbow.rotation.x = elbow_angle
 
 	# Body leans into throw
 	if torso:

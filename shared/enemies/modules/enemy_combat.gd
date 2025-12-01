@@ -122,9 +122,9 @@ func get_attack_target() -> Node:
 		return enemy.ai.target_player
 	return get_local_player()
 
-## Get local player
+## Get local player (uses cached player list)
 func get_local_player() -> Node:
-	for player in enemy.get_tree().get_nodes_in_group("players"):
+	for player in EnemyAI._get_cached_players(enemy.get_tree()):
 		if player.is_local_player:
 			return player
 	return null
