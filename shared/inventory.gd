@@ -184,3 +184,53 @@ func set_slot(slot_index: int, item_name: String, amount: int) -> void:
 		slots[slot_index] = {}
 	else:
 		slots[slot_index] = {"item": item_name, "amount": amount}
+
+## Remove a specific amount from a specific slot (for shop selling)
+func remove_item_at_slot(slot_index: int, amount: int) -> bool:
+	if slot_index < 0 or slot_index >= MAX_SLOTS:
+		push_error("[Inventory] Invalid slot index: %d" % slot_index)
+		return false
+
+	if slots[slot_index].is_empty():
+		return false
+
+	var current_amount: int = slots[slot_index].get("amount", 0)
+	if current_amount < amount:
+		return false
+
+	var new_amount = current_amount - amount
+	if new_amount <= 0:
+		slots[slot_index] = {}
+	else:
+		slots[slot_index]["amount"] = new_amount
+
+	return true
+
+## Get data for a specific slot
+func get_slot(slot_index: int) -> Dictionary:
+	if slot_index < 0 or slot_index >= MAX_SLOTS:
+		return {}
+	return slots[slot_index]
+
+## Check if inventory has space for an item
+func has_space_for(item_name: String, amount: int) -> bool:
+	var remaining := amount
+	var max_stack: int = _get_max_stack_size(item_name)
+
+	# Check existing stacks
+	for slot in slots:
+		if slot.get("item") == item_name:
+			var current_amount: int = slot.get("amount", 0)
+			var can_add := max_stack - current_amount
+			remaining -= can_add
+			if remaining <= 0:
+				return true
+
+	# Check empty slots
+	for slot in slots:
+		if slot.is_empty():
+			remaining -= max_stack
+			if remaining <= 0:
+				return true
+
+	return remaining <= 0

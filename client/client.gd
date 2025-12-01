@@ -18,6 +18,7 @@ var world_map_scene := preload("res://client/ui/world_map.tscn")
 var mini_map_scene := preload("res://client/ui/mini_map.tscn")
 var debug_console_scene := preload("res://client/ui/debug_console.tscn")
 var chest_ui_scene := preload("res://client/ui/chest_ui.tscn")
+var shop_ui_scene := preload("res://client/ui/shop_ui.tscn")
 var build_controls_hint_scene := preload("res://client/ui/build_controls_hint.tscn")
 
 # Enemy scenes
@@ -88,6 +89,9 @@ var debug_console_ui: Control = null
 
 # Chest UI
 var chest_ui: Control = null
+
+# Shop UI (Shnarken NPC)
+var shop_ui: Control = null
 var interact_held_time: float = 0.0
 
 # Build controls hint UI
@@ -218,6 +222,10 @@ func _ready() -> void:
 	chest_ui = chest_ui_scene.instantiate()
 	canvas_layer.add_child(chest_ui)
 
+	# Create shop UI (Shnarken NPC)
+	shop_ui = shop_ui_scene.instantiate()
+	canvas_layer.add_child(shop_ui)
+
 	# Create build controls hint UI
 	build_controls_hint_ui = build_controls_hint_scene.instantiate()
 	canvas_layer.add_child(build_controls_hint_ui)
@@ -279,6 +287,9 @@ func _process(_delta: float) -> void:
 		# Check if chest UI is open - if so, close it and don't toggle pause
 		elif chest_ui and chest_ui.is_ui_open():
 			chest_ui.hide_ui()
+		# Check if shop UI is open - if so, close it and don't toggle pause
+		elif shop_ui and shop_ui.is_shop_open():
+			shop_ui.hide_ui()
 		else:
 			_toggle_pause_menu()
 
@@ -471,6 +482,8 @@ func _handle_interaction_input() -> void:
 		return
 	if chest_ui and chest_ui.is_ui_open():
 		return
+	if shop_ui and shop_ui.is_shop_open():
+		return
 
 	# Check for number keys 1-9 when looking at cooking station
 	_handle_cooking_station_hotbar_input()
@@ -491,8 +504,13 @@ func _handle_interaction_input() -> void:
 			_open_chest_ui(interact_target_chest, quick_sort)
 			interact_target_chest = null
 		else:
-			# Normal interaction (workbench, etc.)
-			_interact_with_object_under_cursor()
+			# Check for nearby Shnarken NPC first
+			var nearby_shnarken = _get_nearby_shnarken()
+			if nearby_shnarken:
+				_open_shop_ui(nearby_shnarken)
+			else:
+				# Normal interaction (workbench, etc.)
+				_interact_with_object_under_cursor()
 		interact_held_time = 0.0
 
 func _interact_with_object_under_cursor() -> void:
@@ -569,8 +587,15 @@ func _update_interact_prompt() -> void:
 	# Hide prompt if UI is open
 	if (inventory_panel_ui and inventory_panel_ui.is_inventory_open()) or \
 	   (crafting_menu_ui and crafting_menu_ui.is_open) or \
-	   (chest_ui and chest_ui.is_ui_open()):
+	   (chest_ui and chest_ui.is_ui_open()) or \
+	   (shop_ui and shop_ui.is_shop_open()):
 		interact_prompt_label.text = ""
+		return
+
+	# Check for nearby Shnarken NPC first
+	var nearby_shnarken = _get_nearby_shnarken()
+	if nearby_shnarken:
+		interact_prompt_label.text = "Trade [E]"
 		return
 
 	var camera = _get_camera()
@@ -806,6 +831,57 @@ func _open_chest_ui(chest: Node, quick_sort: bool = false) -> void:
 func _on_chest_ui_closed() -> void:
 	NetworkManager.rpc_close_chest.rpc_id(1)
 	print("[Client] Sent rpc_close_chest")
+
+## Get nearby Shnarken NPC (within interaction range)
+func _get_nearby_shnarken() -> Node:
+	if not local_player:
+		return null
+
+	var player_pos = local_player.global_position
+
+	# Find all Shnarken NPCs in the scene
+	var shnarkens = get_tree().get_nodes_in_group("shnarken")
+
+	# Also search for Shnarken class instances
+	for node in get_tree().get_nodes_in_group("npc"):
+		if node.get_class() == "Shnarken" or node.get_script() and node.get_script().get_global_name() == "Shnarken":
+			if not node in shnarkens:
+				shnarkens.append(node)
+
+	# Search in world for ShnarkenHut which contains Shnarken
+	for child in world.get_children():
+		_find_shnarkens_recursive(child, shnarkens)
+
+	for shnarken in shnarkens:
+		if not is_instance_valid(shnarken):
+			continue
+		var dist = player_pos.distance_to(shnarken.global_position)
+		if dist < 3.5:  # Interaction range (slightly more than the Area3D radius)
+			return shnarken
+
+	return null
+
+## Recursively find Shnarken NPCs in node tree
+func _find_shnarkens_recursive(node: Node, shnarkens: Array) -> void:
+	if node.has_method("get_greeting_dialogue"):  # Check for Shnarken methods
+		if not node in shnarkens:
+			shnarkens.append(node)
+	for child in node.get_children():
+		_find_shnarkens_recursive(child, shnarkens)
+
+## Open shop UI for a Shnarken NPC
+func _open_shop_ui(shnarken: Node) -> void:
+	if not shop_ui:
+		push_error("[Client] Shop UI not found!")
+		return
+
+	if not local_player:
+		push_error("[Client] No local player!")
+		return
+
+	# Open the shop UI
+	shop_ui.show_ui(shnarken)
+	print("[Client] Opened Shnarken shop")
 
 ## Handle chest inventory sync from server
 func handle_chest_sync(chest_network_id: String, inventory_data: Array) -> void:
@@ -1308,6 +1384,9 @@ func _initialize_maps_with_player(player: Node3D) -> void:
 			world_map_ui.pin_renamed.connect(_on_pin_renamed)
 		print("[Client] World map initialized")
 
+		# Add special markers for known locations (Shnarken huts, etc.)
+		_add_known_location_markers()
+
 	# Initialize mini-map (uses procedural biome calculation - no texture needed)
 	if mini_map_ui and mini_map_ui.has_method("initialize"):
 		mini_map_ui.initialize(generator, player)
@@ -1315,6 +1394,23 @@ func _initialize_maps_with_player(player: Node3D) -> void:
 		if mini_map_ui.has_method("generate_initial_map"):
 			mini_map_ui.generate_initial_map()
 		print("[Client] Mini-map initialized")
+
+## Add special markers for known locations (Shnarken huts, dungeons, etc.)
+func _add_known_location_markers() -> void:
+	# Shnarken hut at world origin (meadow biome shop)
+	var shnarken_pos := Vector2(0, 0)
+	var shnarken_name := "Shnarken's Shop"
+	var shnarken_color := Color(0.4, 0.8, 0.3)  # Frog green
+
+	# Add to world map
+	if world_map_ui and world_map_ui.has_method("add_special_marker"):
+		world_map_ui.add_special_marker(shnarken_pos, shnarken_name, "shnarken", shnarken_color)
+
+	# Add to mini-map
+	if mini_map_ui and mini_map_ui.has_method("add_special_marker"):
+		mini_map_ui.add_special_marker(shnarken_pos, shnarken_name, "shnarken", shnarken_color)
+
+	print("[Client] Added known location markers to maps")
 
 func _on_pin_placed(world_pos: Vector2, pin_name: String) -> void:
 	"""Called when a pin is placed on the map"""
@@ -1521,6 +1617,13 @@ func receive_equipment_sync(equipment_data: Dictionary) -> void:
 
 		# TODO: Update equipment UI when we create it
 		# Update inventory panel to show equipped items with visual indicators
+
+## Receive gold sync from server (after buy/sell/upgrade)
+func receive_gold_sync(gold_amount: int) -> void:
+	print("[Client] Received gold sync: %d" % gold_amount)
+
+	if local_player:
+		local_player.gold = gold_amount
 
 ## Receive food buff sync from server (after eating or on spawn)
 func receive_food_sync(food_data: Array) -> void:

@@ -644,6 +644,15 @@ func rpc_sync_food(food_data: Array) -> void:
 	if client_node and client_node.has_method("receive_food_sync"):
 		client_node.receive_food_sync(food_data)
 
+## SERVER -> CLIENT: Sync gold amount (after buy/sell/upgrade)
+@rpc("authority", "call_remote", "reliable")
+func rpc_sync_gold(gold_amount: int) -> void:
+	print("[NetworkManager] RPC received: sync_gold (%d)" % gold_amount)
+
+	var client_node := get_node_or_null("/root/Main/Client")
+	if client_node and client_node.has_method("receive_gold_sync"):
+		client_node.receive_gold_sync(gold_amount)
+
 ## CLIENT -> SERVER: Request to pick up an item (server validates and updates inventory)
 @rpc("any_peer", "call_remote", "reliable")
 func rpc_request_pickup_item(item_name: String, amount: int, network_id: String) -> void:
@@ -1175,3 +1184,37 @@ func rpc_set_object_distance(distance: int) -> void:
 	var server_node := get_node_or_null("/root/Main/Server")
 	if server_node and server_node.has_method("handle_set_object_distance"):
 		server_node.handle_set_object_distance(peer_id, distance)
+
+# ============================================================================
+# SHNARKEN SHOP SYSTEM
+# ============================================================================
+
+## CLIENT -> SERVER: Request to buy an item from Shnarken shop
+@rpc("any_peer", "call_remote", "reliable")
+func rpc_request_shop_buy(item_id: String, price: int) -> void:
+	if not is_server:
+		return
+	var peer_id := multiplayer.get_remote_sender_id()
+	var server_node := get_node_or_null("/root/Main/Server")
+	if server_node and server_node.has_method("handle_shop_buy"):
+		server_node.handle_shop_buy(peer_id, item_id, price)
+
+## CLIENT -> SERVER: Request to sell items from inventory
+@rpc("any_peer", "call_remote", "reliable")
+func rpc_request_shop_sell(slot_index: int, amount: int, total_price: int) -> void:
+	if not is_server:
+		return
+	var peer_id := multiplayer.get_remote_sender_id()
+	var server_node := get_node_or_null("/root/Main/Server")
+	if server_node and server_node.has_method("handle_shop_sell"):
+		server_node.handle_shop_sell(peer_id, slot_index, amount, total_price)
+
+## CLIENT -> SERVER: Request to upgrade armor piece
+@rpc("any_peer", "call_remote", "reliable")
+func rpc_request_shop_upgrade(equipment_slot: int, cost: int) -> void:
+	if not is_server:
+		return
+	var peer_id := multiplayer.get_remote_sender_id()
+	var server_node := get_node_or_null("/root/Main/Server")
+	if server_node and server_node.has_method("handle_shop_upgrade"):
+		server_node.handle_shop_upgrade(peer_id, equipment_slot, cost)

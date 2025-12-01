@@ -2371,3 +2371,143 @@ func handle_set_object_distance(peer_id: int, distance: int) -> void:
 	# Pass to chunk manager
 	if terrain_world and terrain_world.chunk_manager:
 		terrain_world.chunk_manager.set_player_load_radius(peer_id, distance)
+
+# ============================================================================
+# SHNARKEN SHOP SYSTEM
+# ============================================================================
+
+## Handle shop buy request
+func handle_shop_buy(peer_id: int, item_id: String, price: int) -> void:
+	print("[Server] Player %d wants to buy %s for %d gold" % [peer_id, item_id, price])
+
+	if not spawned_players.has(peer_id):
+		print("[Server] ERROR: Player %d not found" % peer_id)
+		return
+
+	var player = spawned_players[peer_id]
+	if not player or not is_instance_valid(player):
+		return
+
+	# Check if player has enough gold
+	var current_gold = player.get("gold")
+	if current_gold == null or current_gold < price:
+		print("[Server] Player %d doesn't have enough gold (has %d, needs %d)" % [peer_id, current_gold if current_gold else 0, price])
+		return
+
+	# Check if item exists
+	if not ItemDatabase.has_item(item_id):
+		print("[Server] ERROR: Unknown item %s" % item_id)
+		return
+
+	# Check if player has inventory space
+	var inventory = player.get_node_or_null("Inventory")
+	if not inventory:
+		return
+
+	if not inventory.has_space_for(item_id, 1):
+		print("[Server] Player %d has no inventory space for %s" % [peer_id, item_id])
+		return
+
+	# Deduct gold
+	player.gold -= price
+	print("[Server] Player %d now has %d gold (spent %d)" % [peer_id, player.gold, price])
+
+	# Add item to inventory
+	inventory.add_item(item_id, 1)
+	print("[Server] Player %d bought %s" % [peer_id, item_id])
+
+	# Sync inventory and gold back to client
+	var inventory_data = inventory.get_inventory_data()
+	NetworkManager.rpc_sync_inventory.rpc_id(peer_id, inventory_data)
+	NetworkManager.rpc_sync_gold.rpc_id(peer_id, player.gold)
+
+## Handle shop sell request
+func handle_shop_sell(peer_id: int, slot_index: int, amount: int, total_price: int) -> void:
+	print("[Server] Player %d wants to sell %d items from slot %d for %d gold" % [peer_id, amount, slot_index, total_price])
+
+	if not spawned_players.has(peer_id):
+		return
+
+	var player = spawned_players[peer_id]
+	if not player or not is_instance_valid(player):
+		return
+
+	var inventory = player.get_node_or_null("Inventory")
+	if not inventory:
+		return
+
+	var inventory_data = inventory.get_inventory_data()
+	if slot_index >= inventory_data.size():
+		print("[Server] ERROR: Invalid slot index %d" % slot_index)
+		return
+
+	var slot_data = inventory_data[slot_index]
+	if slot_data.is_empty():
+		print("[Server] ERROR: Slot %d is empty" % slot_index)
+		return
+
+	var item_id = slot_data.get("item", "")
+	var slot_amount = slot_data.get("amount", 0)
+
+	if slot_amount < amount:
+		print("[Server] ERROR: Slot %d only has %d items (tried to sell %d)" % [slot_index, slot_amount, amount])
+		return
+
+	# Remove items from inventory
+	inventory.remove_item_at_slot(slot_index, amount)
+
+	# Add gold
+	player.gold += total_price
+	print("[Server] Player %d sold %d x %s for %d gold (now has %d)" % [peer_id, amount, item_id, total_price, player.gold])
+
+	# Sync inventory and gold back to client
+	NetworkManager.rpc_sync_inventory.rpc_id(peer_id, inventory.get_inventory_data())
+	NetworkManager.rpc_sync_gold.rpc_id(peer_id, player.gold)
+
+## Handle shop upgrade request
+func handle_shop_upgrade(peer_id: int, equipment_slot: int, cost: int) -> void:
+	print("[Server] Player %d wants to upgrade equipment slot %d for %d gold" % [peer_id, equipment_slot, cost])
+
+	if not spawned_players.has(peer_id):
+		return
+
+	var player = spawned_players[peer_id]
+	if not player or not is_instance_valid(player):
+		return
+
+	# Check gold
+	var current_gold = player.get("gold")
+	if current_gold == null or current_gold < cost:
+		print("[Server] Player %d doesn't have enough gold for upgrade" % peer_id)
+		return
+
+	var equipment = player.get_node_or_null("Equipment")
+	if not equipment:
+		return
+
+	# Get equipped item
+	var item_id = equipment.get_equipped_item(equipment_slot)
+	if item_id.is_empty():
+		print("[Server] ERROR: No item equipped in slot %d" % equipment_slot)
+		return
+
+	# Get current upgrade level
+	var upgrade_key = "upgrade_level_%s" % item_id
+	var current_level = player.get_meta(upgrade_key, 0) if player.has_meta(upgrade_key) else 0
+
+	if current_level >= 3:
+		print("[Server] ERROR: Item %s is already at max upgrade level" % item_id)
+		return
+
+	# Deduct gold
+	player.gold -= cost
+
+	# Increase upgrade level
+	player.set_meta(upgrade_key, current_level + 1)
+	print("[Server] Player %d upgraded %s to level %d (spent %d gold)" % [peer_id, item_id, current_level + 1, cost])
+
+	# Note: The actual armor bonus is calculated client-side based on upgrade level
+	# Sync equipment and gold to client
+	var equipment_data = equipment.get_equipment_data()
+	NetworkManager.rpc_sync_equipment.rpc_id(peer_id, equipment_data)
+	NetworkManager.rpc_sync_gold.rpc_id(peer_id, player.gold)
