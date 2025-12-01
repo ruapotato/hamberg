@@ -11,6 +11,13 @@ var attack_timer: float = 0.0
 var is_throwing: bool = false
 var throw_timer: float = 0.0
 
+# PERFORMANCE: Animation distance culling
+const ANIMATION_CULL_DISTANCE: float = 60.0  # Skip detailed animations beyond this distance
+const ANIMATION_DISABLE_DISTANCE: float = 100.0  # Skip all animations beyond this distance
+var _anim_cull_check_timer: float = 0.0
+const ANIM_CULL_CHECK_INTERVAL: float = 0.25  # Check distance every 0.25s
+var _nearest_player_distance: float = 0.0  # Cached distance to nearest player
+
 # Footstep tracking (for sound triggering)
 var _prev_leg_sin: float = 0.0  # Previous sin(animation_phase) value for zero-crossing detection
 
@@ -42,6 +49,16 @@ func update_animations(delta: float) -> void:
 	if not body_container or not left_leg or not right_leg:
 		return
 
+	# PERFORMANCE: Update distance check periodically
+	_anim_cull_check_timer += delta
+	if _anim_cull_check_timer >= ANIM_CULL_CHECK_INTERVAL:
+		_anim_cull_check_timer = 0.0
+		_update_nearest_player_distance()
+
+	# PERFORMANCE: Skip all animations if too far from any player
+	if _nearest_player_distance > ANIMATION_DISABLE_DISTANCE:
+		return
+
 	# Update stun timer
 	if is_stunned:
 		stun_timer -= delta
@@ -70,8 +87,11 @@ func update_animations(delta: float) -> void:
 	var horizontal_speed = Vector2(velocity.x, velocity.z).length()
 	var is_moving = horizontal_speed > 0.1
 
+	# PERFORMANCE: Use simplified animations when far from player
+	var use_detailed_animations := _nearest_player_distance < ANIMATION_CULL_DISTANCE
+
 	if is_moving:
-		_animate_walking(delta, horizontal_speed)
+		_animate_walking(delta, horizontal_speed, use_detailed_animations)
 	else:
 		_animate_idle(delta)
 
@@ -82,8 +102,18 @@ func update_animations(delta: float) -> void:
 	elif is_attacking:
 		_animate_attack(delta)
 
+## PERFORMANCE: Cache distance to nearest player
+func _update_nearest_player_distance() -> void:
+	_nearest_player_distance = INF
+	for player in get_tree().get_nodes_in_group("players"):
+		if is_instance_valid(player):
+			var dist := global_position.distance_to(player.global_position)
+			if dist < _nearest_player_distance:
+				_nearest_player_distance = dist
+
 ## Animate walking (legs and arms swinging)
-func _animate_walking(delta: float, horizontal_speed: float) -> void:
+## use_detailed: if false, skip expensive secondary animations (elbows, knees, head bob)
+func _animate_walking(delta: float, horizontal_speed: float, use_detailed: bool = true) -> void:
 	# Accumulate animation phase based on actual movement speed
 	# This ensures smooth animations that don't "scramble" during acceleration/deceleration
 	var speed_multiplier = horizontal_speed / walk_speed
@@ -92,48 +122,49 @@ func _animate_walking(delta: float, horizontal_speed: float) -> void:
 	var leg_sin = sin(animation_phase)
 	var leg_angle = leg_sin * 0.3
 
-	# Detect footsteps via zero-crossing of leg sine wave
-	# When sin crosses from + to - or - to +, a foot hits the ground
-	if _prev_leg_sin != 0.0:  # Skip first frame
+	# Detect footsteps via zero-crossing of leg sine wave (only when close)
+	if use_detailed and _prev_leg_sin != 0.0:
 		if (_prev_leg_sin > 0 and leg_sin <= 0) or (_prev_leg_sin < 0 and leg_sin >= 0):
 			_play_footstep()
 	_prev_leg_sin = leg_sin
 	var arm_angle = sin(animation_phase) * 0.2
 
-	# Legs swing opposite with knee articulation
+	# Legs swing opposite
 	left_leg.rotation.x = leg_angle
 	right_leg.rotation.x = -leg_angle
 
-	# Add natural knee bend - knees bend more when leg is forward
-	var knee_angle = sin(animation_phase) * 0.5
-	var left_knee = left_leg.get_node_or_null("Knee") if left_leg else null
-	var right_knee = right_leg.get_node_or_null("Knee") if right_leg else null
-	if left_knee:
-		left_knee.rotation.x = max(0.0, knee_angle)  # Only bend forward
-	if right_knee:
-		right_knee.rotation.x = max(0.0, -knee_angle)  # Only bend forward
+	# PERFORMANCE: Skip detailed knee/elbow animations when far away
+	if use_detailed:
+		# Add natural knee bend - knees bend more when leg is forward
+		var knee_angle = sin(animation_phase) * 0.5
+		var left_knee = left_leg.get_node_or_null("Knee") if left_leg else null
+		var right_knee = right_leg.get_node_or_null("Knee") if right_leg else null
+		if left_knee:
+			left_knee.rotation.x = max(0.0, knee_angle)
+		if right_knee:
+			right_knee.rotation.x = max(0.0, -knee_angle)
 
-	# Arms swing opposite to legs with elbow articulation (natural walking motion)
+	# Arms swing opposite to legs
 	if left_arm:
-		left_arm.rotation.x = -arm_angle  # Left arm swings opposite to left leg
-		var left_elbow = left_arm.get_node_or_null("Elbow")
-		if left_elbow:
-			# Elbow bends slightly when arm is back
-			left_elbow.rotation.x = max(0.0, arm_angle * 0.8)
+		left_arm.rotation.x = -arm_angle
+		if use_detailed:
+			var left_elbow = left_arm.get_node_or_null("Elbow")
+			if left_elbow:
+				left_elbow.rotation.x = max(0.0, arm_angle * 0.8)
 	if right_arm and not is_attacking:
-		right_arm.rotation.x = arm_angle   # Right arm swings opposite to right leg (unless attacking)
-		var right_elbow = right_arm.get_node_or_null("Elbow")
-		if right_elbow:
-			# Elbow bends slightly when arm is back
-			right_elbow.rotation.x = max(0.0, -arm_angle * 0.8)
+		right_arm.rotation.x = arm_angle
+		if use_detailed:
+			var right_elbow = right_arm.get_node_or_null("Elbow")
+			if right_elbow:
+				right_elbow.rotation.x = max(0.0, -arm_angle * 0.8)
 
-	# Add subtle torso sway
-	if torso:
+	# Add subtle torso sway (only when close)
+	if use_detailed and torso:
 		var sway = sin(animation_phase) * 0.05
 		torso.rotation.z = sway
 
-	# Add subtle head bob
-	if head and head_base_height > 0:
+	# Add subtle head bob (only when close)
+	if use_detailed and head and head_base_height > 0:
 		var bob = sin(animation_phase * 2.0) * 0.015
 		head.position.y = head_base_height + bob
 

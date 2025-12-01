@@ -595,11 +595,15 @@ func _update_retreating(delta: float, distance: float) -> void:
 	if distance > preferred_distance * 1.2 or state_timer > 2.0:
 		_change_state(AIState.STALKING)
 
+## PERFORMANCE: Use EnemyAI's cached player list instead of scanning tree every call
 func _find_nearest_player() -> CharacterBody3D:
 	var nearest: CharacterBody3D = null
 	var nearest_dist: float = INF
 
-	for player in get_tree().get_nodes_in_group("players"):
+	# Use EnemyAI's static cached player list (refreshed once per frame)
+	var players := EnemyAI._get_cached_players(get_tree())
+
+	for player in players:
 		if player == self or player.is_in_group("enemies"):
 			continue
 		if player is CharacterBody3D:

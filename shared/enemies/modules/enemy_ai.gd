@@ -5,6 +5,11 @@ extends RefCounted
 
 var enemy: CharacterBody3D
 
+# PERFORMANCE: Static cache for player list (shared across all EnemyAI instances)
+# This avoids calling get_nodes_in_group("players") for every enemy every frame
+static var _cached_players: Array = []
+static var _cache_frame: int = -1  # Engine frame when cache was last updated
+
 # AI States
 enum State { IDLE, STALKING, CIRCLING, CHARGING, WINDING_UP, ATTACKING, THROWING, RETREATING }
 
@@ -261,12 +266,26 @@ func make_combat_decision() -> void:
 # HELPERS
 # =============================================================================
 
-## Find nearest player
+## Get cached player list (updated once per frame, shared across all enemies)
+static func _get_cached_players(tree: SceneTree) -> Array:
+	var current_frame := Engine.get_process_frames()
+
+	# Only refresh cache once per frame
+	if current_frame != _cache_frame:
+		_cache_frame = current_frame
+		_cached_players = tree.get_nodes_in_group("players")
+
+	return _cached_players
+
+## Find nearest player (OPTIMIZED - uses cached player list)
 func find_nearest_player() -> Node:
 	var nearest: Node = null
 	var nearest_dist = INF
 
-	for player in enemy.get_tree().get_nodes_in_group("players"):
+	# Use cached player list instead of scanning tree every time
+	var players := _get_cached_players(enemy.get_tree())
+
+	for player in players:
 		if not is_instance_valid(player):
 			continue
 		if player.is_dead:

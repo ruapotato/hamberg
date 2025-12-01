@@ -23,6 +23,10 @@ func _ready() -> void:
 		_setup_preview_mode()
 
 	if is_crafting_station and not station_type.is_empty():
+		# PERFORMANCE: Add to group for efficient proximity lookup
+		add_to_group("crafting_stations")
+		if station_type == "workbench":
+			add_to_group("workbenches")
 		print("[BuildableObject] %s crafting station ready (range: %.1fm)" % [station_type, crafting_station_range])
 
 ## Check if a position is within this crafting station's range

@@ -58,6 +58,10 @@ var requires_workbench: bool = true  # Whether building requires being near a wo
 var workbench_range: float = 20.0  # How close you need to be to a workbench
 var is_near_workbench: bool = false  # Cached result of workbench check
 
+# PERFORMANCE: Throttle workbench proximity check
+var _workbench_check_timer: float = 0.0
+const WORKBENCH_CHECK_INTERVAL: float = 0.3  # Check every 0.3 seconds instead of every frame
+
 func _ready() -> void:
 	piece_names = available_pieces.keys()
 	piece_names.sort()
@@ -115,8 +119,11 @@ func _process(delta: float) -> void:
 	if placement_cooldown > 0.0:
 		placement_cooldown -= delta
 
-	# Check workbench proximity
-	_update_workbench_proximity()
+	# PERFORMANCE: Throttle workbench proximity check
+	_workbench_check_timer += delta
+	if _workbench_check_timer >= WORKBENCH_CHECK_INTERVAL:
+		_workbench_check_timer = 0.0
+		_update_workbench_proximity()
 
 	if ghost_preview:
 		_update_ghost_position()
@@ -1326,22 +1333,18 @@ func _update_workbench_proximity() -> void:
 			_clear_status_message()
 
 ## Check if player is within range of any workbench
+## PERFORMANCE: Uses group lookup instead of iterating all world children
 func _check_near_workbench() -> bool:
-	if not world or not player:
+	if not player:
 		return false
 
-	# Search for all workbenches in the world
-	var buildables = world.get_children()
-	for child in buildables:
-		# Check if it's a buildable object node (spawned buildables are children of world)
-		if child.name.begins_with("Buildable_"):
-			# Check if it has is_crafting_station property and it's a workbench
-			if "is_crafting_station" in child and child.is_crafting_station:
-				if "station_type" in child and child.station_type == "workbench":
-					# Check distance
-					var distance = player.global_position.distance_to(child.global_position)
-					if distance <= workbench_range:
-						return true
+	# Use group lookup instead of iterating all world children
+	var workbenches := get_tree().get_nodes_in_group("workbenches")
+	for workbench in workbenches:
+		if is_instance_valid(workbench):
+			var distance := player.global_position.distance_to(workbench.global_position)
+			if distance <= workbench_range:
+				return true
 
 	return false
 

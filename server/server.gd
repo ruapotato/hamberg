@@ -20,6 +20,13 @@ var player_spawn_area_center: Vector2 = Vector2(5, 0) # Center of spawn area (of
 # Buildable management
 var placed_buildables: Dictionary = {} # network_id -> {piece_name, position, rotation_y}
 
+# PERFORMANCE: Proximity-based buildable loading
+var player_loaded_buildables: Dictionary = {} # peer_id -> Dictionary{network_id -> true}
+const BUILDABLE_LOAD_DISTANCE: float = 150.0  # Load buildables within this distance
+const BUILDABLE_UNLOAD_DISTANCE: float = 180.0  # Unload buildables beyond this distance (hysteresis)
+var buildable_proximity_timer: float = 0.0
+const BUILDABLE_PROXIMITY_CHECK_INTERVAL: float = 1.0  # Check every 1 second
+
 # Dynamic object tracking (fallen logs, split logs - objects spawned at runtime)
 var dynamic_objects: Dictionary = {} # network_id -> {type, position, health, max_health, ...}
 
@@ -189,6 +196,12 @@ func _server_tick() -> void:
 	# Update player positions in chunk manager for environmental object loading
 	_update_environmental_chunks()
 
+	# PERFORMANCE: Proximity-based buildable loading
+	buildable_proximity_timer += TICK_RATE
+	if buildable_proximity_timer >= BUILDABLE_PROXIMITY_CHECK_INTERVAL:
+		buildable_proximity_timer = 0.0
+		_update_buildable_proximity()
+
 	# Broadcast player states to all clients
 	_broadcast_player_states()
 
@@ -308,25 +321,80 @@ func _send_loaded_chunks_to_player(peer_id: int) -> void:
 
 	print("[Server] Sent %d loaded chunks to player %d" % [chunks_sent, peer_id])
 
+## PERFORMANCE: Proximity-based buildable loading - only send buildables near player
 func _send_buildables_to_player(peer_id: int) -> void:
+	# Initialize player's loaded buildables tracking
+	if not player_loaded_buildables.has(peer_id):
+		player_loaded_buildables[peer_id] = {}
+
+	var player = spawned_players.get(peer_id)
+	if not player or not is_instance_valid(player):
+		print("[Server] No buildables to send - player %d not spawned yet" % peer_id)
+		return
+
 	if placed_buildables.is_empty():
 		print("[Server] No buildables to send to player %d" % peer_id)
 		return
 
+	var player_pos: Vector3 = player.global_position
 	var buildables_sent := 0
 
-	# Send each buildable to the new player
+	# Send only buildables within load distance
 	for net_id in placed_buildables.keys():
 		var buildable_data = placed_buildables[net_id]
 		var piece_name = buildable_data.piece_name
-		var position = buildable_data.position
+		var position_arr = buildable_data.position
 		var rotation_y = buildable_data.rotation_y
 
-		# Send to this specific client only
-		NetworkManager.rpc_spawn_buildable.rpc_id(peer_id, piece_name, position, rotation_y, net_id)
-		buildables_sent += 1
+		# Convert position array to Vector3 for distance check
+		var buildable_pos := Vector3(position_arr[0], position_arr[1], position_arr[2])
+		var distance := player_pos.distance_to(buildable_pos)
 
-	print("[Server] Sent %d buildables to player %d" % [buildables_sent, peer_id])
+		if distance <= BUILDABLE_LOAD_DISTANCE:
+			# Send to this specific client only
+			NetworkManager.rpc_spawn_buildable.rpc_id(peer_id, piece_name, position_arr, rotation_y, net_id)
+			player_loaded_buildables[peer_id][net_id] = true
+			buildables_sent += 1
+
+	print("[Server] Sent %d nearby buildables to player %d (of %d total)" % [buildables_sent, peer_id, placed_buildables.size()])
+
+## PERFORMANCE: Update buildable loading for all players based on proximity
+func _update_buildable_proximity() -> void:
+	if placed_buildables.is_empty():
+		return
+
+	for peer_id in spawned_players:
+		var player = spawned_players[peer_id]
+		if not player or not is_instance_valid(player):
+			continue
+
+		# Initialize tracking if needed
+		if not player_loaded_buildables.has(peer_id):
+			player_loaded_buildables[peer_id] = {}
+
+		var player_pos: Vector3 = player.global_position
+		var loaded: Dictionary = player_loaded_buildables[peer_id]
+
+		# Check all buildables for this player
+		for net_id in placed_buildables.keys():
+			var buildable_data = placed_buildables[net_id]
+			var position_arr = buildable_data.position
+			var buildable_pos := Vector3(position_arr[0], position_arr[1], position_arr[2])
+			var distance: float = player_pos.distance_to(buildable_pos)
+
+			var is_loaded: bool = loaded.has(net_id)
+
+			# Load buildable if within load distance and not yet loaded
+			if distance <= BUILDABLE_LOAD_DISTANCE and not is_loaded:
+				var piece_name = buildable_data.piece_name
+				var rotation_y = buildable_data.rotation_y
+				NetworkManager.rpc_spawn_buildable.rpc_id(peer_id, piece_name, position_arr, rotation_y, net_id)
+				loaded[net_id] = true
+
+			# Unload buildable if beyond unload distance and currently loaded
+			elif distance > BUILDABLE_UNLOAD_DISTANCE and is_loaded:
+				NetworkManager.rpc_remove_buildable.rpc_id(peer_id, net_id)
+				loaded.erase(net_id)
 
 func _send_terrain_chunks_to_player(peer_id: int) -> void:
 	if not terrain_world:
@@ -406,6 +474,9 @@ func _on_player_left(peer_id: int) -> void:
 
 	# Reassign or despawn enemies hosted by this player
 	_handle_disconnected_host_enemies(peer_id)
+
+	# Clean up buildable proximity tracking
+	player_loaded_buildables.erase(peer_id)
 
 	# Despawn player entity
 	_despawn_player(peer_id)
@@ -850,11 +921,22 @@ func handle_place_buildable(peer_id: int, piece_name: String, position: Vector3,
 		buildable_data["inventory"] = chest_inv
 	placed_buildables[net_id] = buildable_data
 
-	# Broadcast to all clients to spawn the buildable
+	# PERFORMANCE: Only send to nearby players instead of broadcasting to all
 	var pos_array = [position.x, position.y, position.z]
-	NetworkManager.rpc_spawn_buildable.rpc(piece_name, pos_array, rotation_y, net_id)
+	var players_sent := 0
+	for other_peer_id in spawned_players:
+		var other_player = spawned_players[other_peer_id]
+		if other_player and is_instance_valid(other_player):
+			var distance: float = other_player.global_position.distance_to(position)
+			if distance <= BUILDABLE_LOAD_DISTANCE:
+				NetworkManager.rpc_spawn_buildable.rpc_id(other_peer_id, piece_name, pos_array, rotation_y, net_id)
+				# Track that this player has this buildable loaded
+				if not player_loaded_buildables.has(other_peer_id):
+					player_loaded_buildables[other_peer_id] = {}
+				player_loaded_buildables[other_peer_id][net_id] = true
+				players_sent += 1
 
-	print("[Server] Buildable %s placed successfully (ID: %s)" % [piece_name, net_id])
+	print("[Server] Buildable %s placed successfully (ID: %s, sent to %d players)" % [piece_name, net_id, players_sent])
 
 func handle_destroy_buildable(peer_id: int, network_id: String) -> void:
 	print("[Server] Player %d requesting to destroy buildable %s" % [peer_id, network_id])
@@ -889,8 +971,11 @@ func handle_destroy_buildable(peer_id: int, network_id: String) -> void:
 	# Remove from placed buildables dictionary
 	placed_buildables.erase(network_id)
 
-	# Broadcast to all clients to remove the buildable
-	NetworkManager.rpc_remove_buildable.rpc(network_id)
+	# PERFORMANCE: Only send removal to players who have this buildable loaded
+	for other_peer_id in player_loaded_buildables:
+		if player_loaded_buildables[other_peer_id].has(network_id):
+			NetworkManager.rpc_remove_buildable.rpc_id(other_peer_id, network_id)
+			player_loaded_buildables[other_peer_id].erase(network_id)
 
 	print("[Server] Buildable %s destroyed successfully" % network_id)
 

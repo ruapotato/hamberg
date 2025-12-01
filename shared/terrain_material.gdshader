@@ -93,6 +93,7 @@ float simplex2d(vec2 v) {
 }
 
 // Fractal Brownian Motion using Simplex noise - matches FastNoiseLite FBM
+// PERFORMANCE: Reduced max iterations from 8 to 4 for better GPU performance
 float fbm(vec2 p, int seed, float frequency, int octaves, float lacunarity, float gain) {
 	float value = 0.0;
 	float amplitude = 1.0;
@@ -101,8 +102,11 @@ float fbm(vec2 p, int seed, float frequency, int octaves, float lacunarity, floa
 	// Offset position by seed for variation (each noise instance has different seed)
 	vec2 pos = p * frequency + vec2(float(seed) * 12.9898, float(seed) * 78.233);
 
-	for (int i = 0; i < 8; i++) {
-		if (i >= octaves) break;
+	// PERFORMANCE: Cap at 4 octaves max for better performance (was 8)
+	int max_octaves = min(octaves, 4);
+
+	for (int i = 0; i < 4; i++) {
+		if (i >= max_octaves) break;
 
 		value += simplex2d(pos) * amplitude;
 		total_amplitude += amplitude;
@@ -326,15 +330,16 @@ float blade_shape(vec2 uv, float blade_width, float blade_height, float bend) {
 }
 
 // Single grass clump - multiple blades emanating from a point
+// PERFORMANCE: Reduced from 5 blades to 3 blades per clump
 float grass_clump(vec2 p, vec2 clump_center, float wind_phase, float clump_size) {
 	vec2 local = p - clump_center;
 
 	float total = 0.0;
 
-	// Generate 3-5 blades per clump (fewer for efficiency)
-	float blade_count = 3.0 + hash21(clump_center) * 2.0;
+	// PERFORMANCE: Generate 2-3 blades per clump (was 3-5)
+	float blade_count = 2.0 + hash21(clump_center);
 
-	for (float i = 0.0; i < 5.0; i++) {
+	for (float i = 0.0; i < 3.0; i++) {
 		if (i >= blade_count) break;
 
 		// Randomize blade properties
@@ -356,21 +361,16 @@ float grass_clump(vec2 p, vec2 clump_center, float wind_phase, float clump_size)
 		wind *= clump_size * 0.5;
 
 		// Transform to blade-local coordinates
-		// Blades point upward but we're viewing from above (XZ plane)
-		// So we interpret Y as the "up" direction in blade space
 		vec2 blade_local = local - blade_base;
 
 		// Create pseudo-3D effect: blade "height" mapped to pattern
 		float dist_from_base = length(blade_local);
-		float blade_y = dist_from_base;  // Distance = height up the blade
-		float blade_x = blade_local.x * 0.5 + blade_local.y * 0.5;  // Lateral position
+		float blade_y = dist_from_base;
+		float blade_x = blade_local.x * 0.5 + blade_local.y * 0.5;
 
 		float blade = blade_shape(vec2(blade_x, blade_y), blade_width, blade_height, wind);
 
-		// Height gradient for coloring (0 at base, 1 at tip)
-		float height_factor = clamp(blade_y / blade_height, 0.0, 1.0);
-
-		// Combine blades - front blades occlude back ones slightly
+		// Combine blades
 		total = max(total, blade * (0.7 + 0.3 * (1.0 - i / blade_count)));
 	}
 
@@ -386,6 +386,7 @@ struct GrassInfo {
 };
 
 // Main grass pattern function - creates a field of grass clumps
+// PERFORMANCE: Reduced from 3x3 grid with 2 clumps to 2x2 grid with 1 clump (was 18 checks, now 4)
 GrassInfo get_grass_pattern(vec2 world_xz, float anim_time) {
 	GrassInfo info;
 	info.coverage = 0.0;
@@ -394,14 +395,11 @@ GrassInfo get_grass_pattern(vec2 world_xz, float anim_time) {
 	info.wind_bend = 0.0;
 
 	// Scale for grass (larger = bigger clumps, more spread out)
-	float grass_scale = 2.5;  // Bigger for efficiency
+	float grass_scale = 3.0;  // Increased for efficiency
 	vec2 scaled_pos = world_xz / grass_scale;
 
-	// Wind parameters
-	float wind_speed = 1.2;
-	float wind_dir_angle = anim_time * 0.1;  // Slowly rotating wind direction
-	vec2 wind_dir = vec2(cos(wind_dir_angle), sin(wind_dir_angle));
-	float wind_phase = anim_time * wind_speed + dot(world_xz, wind_dir) * 0.02;
+	// Wind parameters (simplified)
+	float wind_phase = anim_time * 1.2 + world_xz.x * 0.02;
 
 	// Grid-based clump placement with jitter
 	vec2 grid_cell = floor(scaled_pos);
@@ -410,43 +408,33 @@ GrassInfo get_grass_pattern(vec2 world_xz, float anim_time) {
 	float total_height = 0.0;
 	float weight_sum = 0.0;
 
-	// Check nearby cells for grass clumps
-	for (int dx = -1; dx <= 1; dx++) {
-		for (int dy = -1; dy <= 1; dy++) {
+	// PERFORMANCE: Check only 2x2 nearby cells with 1 clump each (was 3x3 with 2 clumps)
+	for (int dx = 0; dx <= 1; dx++) {
+		for (int dy = 0; dy <= 1; dy++) {
 			vec2 cell = grid_cell + vec2(float(dx), float(dy));
+			vec2 rnd = hash22(cell);
 
-			// Multiple clumps per cell for density
-			for (int c = 0; c < 2; c++) {
-				vec2 clump_seed = cell + vec2(float(c) * 0.33, float(c) * 0.77);
-				vec2 rnd = hash22(clump_seed);
+			// Skip some cells for variation
+			if (rnd.x > 0.8) continue;
 
-				// Skip some cells for variation
-				if (rnd.x > 0.85) continue;
+			// Clump position with jitter
+			vec2 clump_pos = (cell + hash22(cell + 0.5)) * grass_scale;
 
-				// Clump position with jitter
-				vec2 clump_pos = (cell + hash22(clump_seed + 0.5)) * grass_scale;
+			// Clump size variation
+			float clump_size = grass_scale * (0.7 + rnd.y * 0.5);
 
-				// Clump size variation
-				float clump_size = grass_scale * (0.6 + rnd.y * 0.6);
+			// Distance check for early exit
+			float dist = length(world_xz - clump_pos);
+			if (dist > clump_size * 1.2) continue;
 
-				// Distance check for early exit
-				float dist = length(world_xz - clump_pos);
-				if (dist > clump_size * 1.5) continue;
+			// Get grass from this clump
+			float grass = grass_clump(world_xz, clump_pos, wind_phase, clump_size);
 
-				// Get grass from this clump
-				float grass = grass_clump(world_xz, clump_pos, wind_phase, clump_size);
-
-				if (grass > 0.01) {
-					// Calculate height on blade based on distance from clump center
-					float h = clamp(dist / clump_size, 0.0, 1.0);
-
-					// Weighted average for height
-					total_height += h * grass;
-					weight_sum += grass;
-
-					// Max for coverage
-					total_grass = max(total_grass, grass);
-				}
+			if (grass > 0.01) {
+				float h = clamp(dist / clump_size, 0.0, 1.0);
+				total_height += h * grass;
+				weight_sum += grass;
+				total_grass = max(total_grass, grass);
 			}
 		}
 	}
@@ -454,9 +442,8 @@ GrassInfo get_grass_pattern(vec2 world_xz, float anim_time) {
 	info.coverage = total_grass;
 	info.height = weight_sum > 0.0 ? total_height / weight_sum : 0.0;
 
-	// Calculate shadow based on density variation
-	float shadow_noise = value_noise_simple(scaled_pos * 3.0 + vec2(anim_time * 0.2, 0.0));
-	info.shadow = (1.0 - shadow_noise) * 0.3 * info.coverage;
+	// Simplified shadow calculation
+	info.shadow = (1.0 - info.height) * 0.2 * info.coverage;
 
 	// Wind bend visualization
 	info.wind_bend = sin(wind_phase) * 0.5 + 0.5;
@@ -549,6 +536,7 @@ float root_tendril(vec2 p, float anim_time) {
 }
 
 // Get forest floor pattern for dark forest biome
+// PERFORMANCE: Reduced from 3x3 grid with 4 mushrooms to 2x2 grid with 2 mushrooms (was 36 checks, now 8)
 ForestFloorInfo get_forest_floor_pattern(vec2 world_xz, float anim_time) {
 	ForestFloorInfo info;
 	info.coverage = 0.0;
@@ -557,51 +545,45 @@ ForestFloorInfo get_forest_floor_pattern(vec2 world_xz, float anim_time) {
 	info.height = 0.0;
 	info.glow = 0.0;
 
-	float pattern_scale = 2.0;
+	float pattern_scale = 2.5;  // Slightly larger for efficiency
 	vec2 scaled_pos = world_xz / pattern_scale;
 
 	// Grid for mushroom placement
 	vec2 grid_cell = floor(scaled_pos);
 
 	float mushroom_total = 0.0;
-	float root_total = 0.0;
 
-	// Check nearby cells for mushrooms
-	for (int dx = -1; dx <= 1; dx++) {
-		for (int dy = -1; dy <= 1; dy++) {
+	// PERFORMANCE: Check only 2x2 nearby cells with 2 mushrooms each (was 3x3 with 4)
+	for (int dx = 0; dx <= 1; dx++) {
+		for (int dy = 0; dy <= 1; dy++) {
 			vec2 cell = grid_cell + vec2(float(dx), float(dy));
 
-			// 2-4 mushrooms per cell, but many cells are empty
-			for (int m = 0; m < 4; m++) {
-				vec2 mush_seed = cell + vec2(float(m) * 0.25, float(m) * 0.75);
+			for (int m = 0; m < 2; m++) {
+				vec2 mush_seed = cell + vec2(float(m) * 0.5, float(m) * 0.5);
 				vec2 rnd = hash22(mush_seed);
 
-				// Only 30% of potential mushrooms exist (sparse clusters)
-				if (rnd.x > 0.3) continue;
+				// Only 25% of potential mushrooms exist
+				if (rnd.x > 0.25) continue;
 
 				// Mushroom position with jitter
 				vec2 mush_pos = (cell + hash22(mush_seed + 0.5)) * pattern_scale;
 
-				// Mushroom size variation (small to medium)
+				// Mushroom size variation
 				float mush_radius = pattern_scale * (0.15 + rnd.y * 0.25);
 
 				// Distance check
 				float dist = length(world_xz - mush_pos);
-				if (dist > mush_radius * 1.5) continue;
+				if (dist > mush_radius * 1.2) continue;
 
 				// Get mushroom cap pattern
 				float cap = mushroom_cap(world_xz, mush_pos, mush_radius);
 
 				if (cap > mushroom_total) {
 					mushroom_total = cap;
-
-					// Height: center is top of cap
 					info.height = 1.0 - clamp(dist / (mush_radius * 0.8), 0.0, 1.0);
 
-					// Glow for bioluminescent effect (some mushrooms glow)
-					float glow_chance = hash21(mush_seed + 10.0);
-					if (glow_chance > 0.6) {
-						// Subtle pulsing glow
+					// Glow for bioluminescent effect
+					if (rnd.y > 0.5) {
 						info.glow = cap * (0.3 + 0.2 * sin(anim_time * 0.5 + rnd.x * 6.28));
 					}
 				}
@@ -609,29 +591,20 @@ ForestFloorInfo get_forest_floor_pattern(vec2 world_xz, float anim_time) {
 		}
 	}
 
-	// Root pattern (covers most of the floor)
-	root_total = root_tendril(scaled_pos, anim_time);
+	// Simplified moss pattern (skip expensive root calculation most of the time)
+	float moss = value_noise_simple(scaled_pos * 2.0);
+	moss = smoothstep(0.35, 0.65, moss);
 
-	// Add some moss patches using noise
-	float moss = value_noise_simple(scaled_pos * 1.5) * 0.5;
-	moss += value_noise_simple(scaled_pos * 4.0) * 0.3;
-	moss = smoothstep(0.3, 0.7, moss);
-
-	// Combine: mushrooms on top, roots and moss below
+	// Combine: mushrooms on top, moss below
 	if (mushroom_total > 0.1) {
 		info.coverage = mushroom_total;
 		info.is_mushroom = 1.0;
 		info.is_root = 0.0;
-	} else if (root_total > 0.1) {
-		info.coverage = root_total * 0.8;
-		info.is_root = 1.0;
-		info.is_mushroom = 0.0;
-		info.height = 0.3;  // Roots are low
 	} else {
-		info.coverage = moss * 0.4;
+		info.coverage = moss * 0.5;
 		info.is_mushroom = 0.0;
 		info.is_root = 0.0;
-		info.height = 0.1;  // Moss is very low
+		info.height = 0.1;
 	}
 
 	return info;

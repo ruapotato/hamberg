@@ -38,6 +38,11 @@ var is_initialized: bool = false
 # Player tracking for chunk loading
 var tracked_players: Dictionary = {}  # peer_id -> Node3D
 
+# Performance optimization: Only check LOD when player moves to new chunk
+var last_lod_check_chunks: Dictionary = {}  # peer_id -> Vector2i (last chunk coords)
+var lod_check_interval: float = 0.5  # Check LOD every 0.5 seconds at most
+var lod_check_timer: float = 0.0
+
 # Chunk manager for environmental objects
 var chunk_manager  # Will be set up after initialization
 
@@ -334,21 +339,65 @@ func _process(delta: float) -> void:
 		# Server doesn't need visual meshes, just collision for enemies/NPCs
 		_update_server_collision()
 
-	# Update chunks around players and check for LOD changes
+	# Update chunks around players
 	for peer_id in tracked_players:
 		var player = tracked_players[peer_id]
 		if is_instance_valid(player):
 			_update_chunks_around_position(player.global_position)
-			_check_lod_updates(player.global_position)
 			# Update dynamic biome texture (client only)
 			_update_biome_texture_for_player(player.global_position)
 
-## Check if any chunks need LOD updates (when player moves closer)
-func _check_lod_updates(player_pos: Vector3) -> void:
-	var player_chunk := ChunkDataClass.world_to_chunk_coords(player_pos)
+	# PERFORMANCE: Only check LOD updates periodically and when players move to new chunks
+	lod_check_timer += delta
+	if lod_check_timer >= lod_check_interval:
+		lod_check_timer = 0.0
+		_check_all_player_lod_updates()
 
-	# Only check chunks that are loaded and not currently being processed
-	for chunk_key in chunks:
+## PERFORMANCE: Check LOD updates for all players, but only when they move to new chunks
+func _check_all_player_lod_updates() -> void:
+	var any_player_moved := false
+
+	for peer_id in tracked_players:
+		var player = tracked_players[peer_id]
+		if not is_instance_valid(player):
+			continue
+
+		var player_chunk := ChunkDataClass.world_to_chunk_coords(player.global_position)
+		var last_chunk: Vector2i = last_lod_check_chunks.get(peer_id, Vector2i(-999, -999))
+
+		# Only recheck LOD if player moved to a different chunk
+		if player_chunk.x != last_chunk.x or player_chunk.y != last_chunk.y:
+			last_lod_check_chunks[peer_id] = player_chunk
+			any_player_moved = true
+
+	# Only do the expensive LOD check if a player actually moved chunks
+	if any_player_moved:
+		_check_lod_updates_optimized()
+
+## Optimized LOD check - only checks chunks near players, not ALL chunks
+func _check_lod_updates_optimized() -> void:
+	# Build set of chunks to check (only chunks within LOD transition distances)
+	var chunks_to_check: Dictionary = {}
+	var max_lod_distance: int = LOD_DISTANCES[LOD_DISTANCES.size() - 1] + 2  # Check slightly beyond max LOD
+
+	for peer_id in tracked_players:
+		var player = tracked_players[peer_id]
+		if not is_instance_valid(player):
+			continue
+
+		var player_chunk := ChunkDataClass.world_to_chunk_coords(player.global_position)
+
+		# Only check chunks within LOD transition range
+		for dx in range(-max_lod_distance, max_lod_distance + 1):
+			for dz in range(-max_lod_distance, max_lod_distance + 1):
+				var cx := player_chunk.x + dx
+				var cz := player_chunk.y + dz
+				var key := ChunkDataClass.make_key(cx, cz)
+				if chunks.has(key):
+					chunks_to_check[key] = true
+
+	# Now check only the relevant chunks
+	for chunk_key in chunks_to_check:
 		if mesh_updates_in_progress.has(chunk_key):
 			continue
 		if pending_mesh_updates.has(chunk_key):
@@ -359,7 +408,6 @@ func _check_lod_updates(player_pos: Vector3) -> void:
 		var desired_lod: int = _get_chunk_lod_level(chunk.chunk_x, chunk.chunk_z)
 
 		# Only upgrade LOD (reduce level number) when player gets closer
-		# Don't downgrade to avoid constant regeneration at boundaries
 		if current_lod > desired_lod or current_lod == -1:
 			chunk.is_dirty = true
 			pending_mesh_updates.append(chunk_key)

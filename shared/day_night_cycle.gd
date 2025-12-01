@@ -35,6 +35,12 @@ const DARK_FOREST_SUN_MULTIPLIER: float = 0.15  # Sun is mostly blocked by trees
 const DARK_FOREST_BIOMES: Array[String] = ["dark_forest"]
 const BIOME_TRANSITION_SPEED: float = 1.5  # How fast to lerp (higher = faster)
 
+# PERFORMANCE: Cached references to avoid get_tree() calls every frame
+var _cached_player: Node3D = null
+var _cached_terrain_world: Node = null
+var _biome_check_timer: float = 0.0
+const BIOME_CHECK_INTERVAL: float = 0.5  # Only check biome every 0.5 seconds
+
 # Sun rotation (degrees)
 const SUNRISE_HOUR: float = 6.0
 const SUNSET_HOUR: float = 20.0
@@ -112,8 +118,11 @@ func _process(delta: float) -> void:
 	if current_hour >= 24.0:
 		current_hour -= 24.0
 
-	# Check player biome for ambient adjustments
-	_update_player_biome()
+	# PERFORMANCE: Only check player biome periodically instead of every frame
+	_biome_check_timer += delta
+	if _biome_check_timer >= BIOME_CHECK_INTERVAL:
+		_biome_check_timer = 0.0
+		_update_player_biome()
 
 	# Smoothly lerp toward target biome lighting values
 	biome_ambient_multiplier = lerpf(biome_ambient_multiplier, target_ambient_multiplier, delta * BIOME_TRANSITION_SPEED)
@@ -133,27 +142,25 @@ func _process(delta: float) -> void:
 	emit_signal("time_changed", current_hour)
 
 func _update_player_biome() -> void:
-	# Find local player
-	var player: Node3D = null
-	var players = get_tree().get_nodes_in_group("local_player")
-	if players.size() > 0:
-		player = players[0]
+	# PERFORMANCE: Use cached player reference, only lookup if invalid
+	if not is_instance_valid(_cached_player):
+		var players = get_tree().get_nodes_in_group("local_player")
+		_cached_player = players[0] if players.size() > 0 else null
 
-	if not player:
+	if not _cached_player:
 		return
 
-	# Find terrain world for biome detection
-	var terrain_worlds = get_tree().get_nodes_in_group("terrain_world")
-	if terrain_worlds.size() == 0:
-		return
+	# PERFORMANCE: Use cached terrain_world reference, only lookup if invalid
+	if not is_instance_valid(_cached_terrain_world):
+		var terrain_worlds = get_tree().get_nodes_in_group("terrain_world")
+		_cached_terrain_world = terrain_worlds[0] if terrain_worlds.size() > 0 else null
 
-	var terrain_world = terrain_worlds[0]
-	if not terrain_world.has_method("get_biome_at"):
+	if not _cached_terrain_world or not _cached_terrain_world.has_method("get_biome_at"):
 		return
 
 	# Get biome at player position
-	var pos = player.global_position
-	var new_biome = terrain_world.get_biome_at(Vector2(pos.x, pos.z))
+	var pos = _cached_player.global_position
+	var new_biome = _cached_terrain_world.get_biome_at(Vector2(pos.x, pos.z))
 
 	if new_biome != current_biome:
 		current_biome = new_biome

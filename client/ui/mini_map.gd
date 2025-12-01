@@ -27,6 +27,11 @@ const BUFFER_EXPAND_THRESHOLD := 50.0  # Regenerate when within 50 units of edge
 var map_pins: Array = []
 var active_pings: Array = []
 
+# PERFORMANCE: Throttle overlay redraw
+var _overlay_redraw_timer: float = 0.0
+const OVERLAY_REDRAW_INTERVAL: float = 0.1  # Redraw at 10fps instead of 60fps
+var _last_player_pos: Vector3 = Vector3.ZERO
+
 # Special location markers (Shnarken huts, etc.)
 var special_markers: Array = []
 
@@ -87,13 +92,24 @@ func set_world_texture(texture: ImageTexture, texture_size: int, map_radius: flo
 
 func _process(delta: float) -> void:
 	# Update active pings (count down timers)
+	var ping_changed := false
 	for i in range(active_pings.size() - 1, -1, -1):
 		active_pings[i].time_left -= delta
 		if active_pings[i].time_left <= 0:
 			active_pings.remove_at(i)
+			ping_changed = true
 
-	# Queue redraw for markers on overlay
-	if overlay:
+	# PERFORMANCE: Only redraw overlay periodically or when something changes
+	_overlay_redraw_timer += delta
+	var needs_redraw := ping_changed or _overlay_redraw_timer >= OVERLAY_REDRAW_INTERVAL
+
+	# Also check if player moved significantly (for marker positions)
+	if local_player and local_player.global_position.distance_to(_last_player_pos) > 1.0:
+		needs_redraw = true
+		_last_player_pos = local_player.global_position
+
+	if needs_redraw and overlay:
+		_overlay_redraw_timer = 0.0
 		overlay.queue_redraw()
 
 	# Debug logging (in _process, not in _draw)

@@ -173,6 +173,12 @@ var god_mode: bool = false  # Debug god mode - unlimited stamina/brain power
 # Gold currency (separate from inventory, doesn't take a slot)
 var gold: int = 0
 
+# PERFORMANCE: Throttle position sync from 60Hz to 20Hz
+var position_sync_timer: float = 0.0
+const POSITION_SYNC_INTERVAL: float = 0.05  # 20Hz (every 50ms)
+var last_synced_position: Vector3 = Vector3.ZERO
+const POSITION_SYNC_THRESHOLD: float = 0.1  # Only sync if moved more than this
+
 # Food system node (added in _ready)
 var player_food: Node = null
 var _previous_max_health: float = 0.0  # Tracks max health for percentage scaling
@@ -313,14 +319,29 @@ func _physics_process(delta: float) -> void:
 		_update_body_animations(delta)
 
 	# Send position update to server (client-authoritative)
+	# PERFORMANCE: Throttled to 20Hz instead of 60Hz
 	if NetworkManager.is_client:
-		var position_data := {
-			"position": global_position,
-			"rotation": rotation.y,
-			"velocity": velocity,
-			"animation_state": current_animation_state
-		}
-		NetworkManager.rpc_send_player_position.rpc_id(1, position_data)
+		position_sync_timer += delta
+		var should_sync := false
+
+		# Always sync at interval
+		if position_sync_timer >= POSITION_SYNC_INTERVAL:
+			position_sync_timer = 0.0
+			should_sync = true
+
+		# Also sync immediately if position changed significantly (for responsiveness)
+		if global_position.distance_to(last_synced_position) > POSITION_SYNC_THRESHOLD:
+			should_sync = true
+
+		if should_sync:
+			last_synced_position = global_position
+			var position_data := {
+				"position": global_position,
+				"rotation": rotation.y,
+				"velocity": velocity,
+				"animation_state": current_animation_state
+			}
+			NetworkManager.rpc_send_player_position.rpc_id(1, position_data)
 
 func _process(delta: float) -> void:
 	if not is_local_player:

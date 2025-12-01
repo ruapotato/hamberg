@@ -31,7 +31,8 @@ const NIGHT_MIN_SPAWN_DISTANCE: float = 25.0    # Closer spawns at night
 const NIGHT_MAX_SPAWN_DISTANCE: float = 45.0    # Closer max distance at night
 
 # State sync parameters
-const STATE_SYNC_INTERVAL: float = 0.1   # 10Hz position relay
+# PERFORMANCE: Reduced from 10Hz to 5Hz (0.1 -> 0.2) for better network performance
+const STATE_SYNC_INTERVAL: float = 0.2   # 5Hz position relay
 
 # Enemy scenes
 const GAHNOME_SCENE = preload("res://shared/enemies/gahnome.tscn")
