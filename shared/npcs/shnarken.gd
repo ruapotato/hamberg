@@ -627,7 +627,7 @@ func stop_talking() -> void:
 	is_talking = false
 
 # =============================================================================
-# DIALOGUE
+# DIALOGUE - Snarky shopkeeper who mocks player and hints at next gear
 # =============================================================================
 
 func get_greeting_dialogue(player: Node) -> String:
@@ -638,15 +638,19 @@ func get_greeting_dialogue(player: Node) -> String:
 	var has_armor = false
 	var has_weapon = false
 	var armor_set = ""
+	var armor_count = 0
 
 	for slot in [1, 2, 3, 4]:
 		var item_id = equipment.get_equipped_item(slot)
 		if not item_id.is_empty():
 			has_armor = true
+			armor_count += 1
 			if "pig" in item_id:
 				armor_set = "pig"
 			elif "deer" in item_id:
 				armor_set = "deer"
+			elif "tank" in item_id:
+				armor_set = "tank"
 
 	var weapon_id = equipment.get_equipped_item(0)
 	if not weapon_id.is_empty() and weapon_id != "fists":
@@ -656,55 +660,121 @@ func get_greeting_dialogue(player: Node) -> String:
 		return _get_naked_dialogue()
 	elif not has_armor:
 		return _get_no_armor_dialogue()
-	elif not has_weapon:
-		return _get_no_weapon_dialogue(armor_set)
 	else:
-		return _get_geared_dialogue(armor_set)
+		return _get_armor_dialogue(armor_set, armor_count)
 
 func _get_naked_dialogue() -> String:
+	# Mock the naked player, hint at flying pigs for first armor
 	var lines = [
-		"*bleats softly* Oh my, you're practically naked! The forest is dangerous, friend!",
-		"By my horns! Not even a scrap of leather? The Gahnomes will have you for lunch!",
-		"*scratches beard* Running around bare like a newborn kid? Most unwise...",
-		"*ear flicks* No armor, no weapon... are you TRYING to become monster food?",
+		"Poor, poor peasant. Do you even have armor? You're a muddy nudist!",
+		"Oh look, a naked ape stumbled into my shop. The Gahnomes will eat well tonight!",
+		"No armor? No weapon? Did you CRAWL here from the spawn point? The flying pigs have better fashion sense than you.",
+		"*laughs* You call yourself an adventurer? My grandmother's goat has thicker skin! Maybe kill a flying pig or two?",
+		"Ahhh, fresh meat walks in! And I don't mean for my shop. Have you SEEN the monsters out there, nudist?",
 	]
 	return lines[randi() % lines.size()]
 
 func _get_no_armor_dialogue() -> String:
+	# Has weapon but no armor - still basically naked
 	var lines = [
-		"*nods at weapon* A fine start! But one good hit and you're done for. Need protection?",
-		"Ah, armed but unarmored! Bold choice. Foolish, but bold. *chuckles*",
-		"*tugs beard thoughtfully* You swing that around, but what stops THEM from hitting YOU?",
+		"Ooh, a pointy stick! That'll help when a Gahnome tears your naked flesh off. Ever heard of ARMOR?",
+		"Armed but not armored? Bold strategy. Stupid, but bold. Those flying pigs aren't just for looking at, you know.",
+		"*snorts* You wave that around while your soft pink belly hangs out? Pathetic. Kill some pigs, make some leather!",
+		"A weapon! How quaint. Now if only you had something to stop yourself from DYING. Flying pigs, genius. Flying pigs.",
 	]
 	return lines[randi() % lines.size()]
 
-func _get_no_weapon_dialogue(armor_set: String) -> String:
-	if armor_set == "pig":
+func _get_armor_dialogue(armor_set: String, armor_count: int) -> String:
+	match armor_set:
+		"pig":
+			return _get_pig_armor_dialogue(armor_count)
+		"deer":
+			return _get_deer_armor_dialogue(armor_count)
+		"tank":
+			return _get_tank_armor_dialogue(armor_count)
+		_:
+			return _get_mixed_armor_dialogue()
+
+func _get_pig_armor_dialogue(count: int) -> String:
+	# Mock pig armor, hint at deer for speed/stamina
+	if count < 4:
 		var lines = [
-			"*sniffs* Pig leather! Excellent nose for materials. Now let's get you something sharp!",
-			"Dressed for battle but nothing to battle WITH? *bleats* Come, come, let me help!",
+			"*snickers* Nice pig outfit. Incomplete pig outfit, but still... you smell like bacon. Finish the set or don't bother.",
+			"Half-dressed in pig leather? Commit to the look or go home! You need all four pieces, genius.",
+		]
+		return lines[randi() % lines.size()]
+	else:
+		# Full pig set - hint at deer
+		var lines = [
+			"*slow clap* A full pig set! You can double jump now. Adorable. Too bad you still run like a pregnant sow. Ever heard of DEER leather?",
+			"Oink oink! The flying pig cosplay is complete! Shame about your stamina though. The deer in the forest look MUCH faster than you.",
+			"Congratulations, you're a bouncy pink nightmare. But can you RUN? Deer leather might help with that wheezing problem.",
+			"Full pig armor! How... cute. You hop around like a piglet. Meanwhile, the deer laugh at your pathetic sprint speed.",
+		]
+		return lines[randi() % lines.size()]
+
+func _get_deer_armor_dialogue(count: int) -> String:
+	# Mock deer armor, hint at tank armor from shop
+	if count < 4:
+		var lines = [
+			"*yawns* Deer leather? An upgrade, I suppose. But only %d pieces? You're half-deer, half-idiot." % count,
+			"Incomplete deer set? You run fast but die faster. Finish the set, bambi.",
+		]
+		return lines[randi() % lines.size()]
+	else:
+		# Full deer set - hint at tank armor
+		var lines = [
+			"Oh my, full deer armor! You can run AND run away! But when running fails... well, I happen to sell something MUCH tougher.",
+			"*slow clap* The graceful deer look. You prance, you leap, you... still die to hard hits. My tank armor could fix that. For a price.",
+			"Speedy little deer! Too bad speed won't save you from everything. Maybe browse my REAL armor sometime?",
+			"Full deer set! Now you can sprint away from your problems! Or... you could buy some REAL protection from me.",
+		]
+		return lines[randi() % lines.size()]
+
+func _get_tank_armor_dialogue(count: int) -> String:
+	# They bought from us - still mock them
+	if count < 4:
+		var lines = [
+			"*sighs* You bought my armor but didn't finish the set? I'm insulted AND you're still vulnerable.",
+			"Partial tank armor? You're like a turtle missing half its shell. Pathetic. Buy the rest.",
 		]
 		return lines[randi() % lines.size()]
 	else:
 		var lines = [
-			"*ear perks up* Well protected! But you'll need something to fight back with, yes?",
-			"All that lovely armor and bare fists? *chuckles* We can do better than that!",
+			"*inspects you* Full tank armor from MY shop! You're slow as molasses but at least you won't die immediately. You're welcome.",
+			"Ah, a walking fortress! My finest work. You move like a glacier, but glaciers don't DIE, do they?",
+			"The complete tank set! Now you can stand there and take hits like the stubborn rock you are. Beautiful.",
 		]
 		return lines[randi() % lines.size()]
 
-func _get_geared_dialogue(armor_set: String) -> String:
+func _get_mixed_armor_dialogue() -> String:
 	var lines = [
-		"*nods approvingly* Ah, a proper adventurer! What can this humble merchant do for you?",
-		"Well equipped, well prepared! *bleats happily* A pleasure to serve someone sensible!",
-		"*strokes beard* You look ready for anything! Browse my wares, friend!",
-		"*hooves click together* Wonderful! Someone who takes survival seriously!",
+		"*stares* What ARE you wearing? A bit of this, a bit of that... you look like a patchwork disaster.",
+		"Mixed armor? No set bonus for you! Just a confused fashion victim stumbling through the wilderness.",
+		"*laughs* Did you get dressed in the dark? Pick a SET and commit, you chaotic mess!",
 	]
 	return lines[randi() % lines.size()]
 
 func get_max_upgrade_dialogue() -> String:
 	var lines = [
-		"*shakes head* That's as fine as it gets! Even faun-craft couldn't improve it!",
-		"*bleats proudly* Maxed out! A masterwork worthy of the ancient forests!",
-		"*tugs beard* No more upgrades possible, I'm afraid. It's perfect as is!",
+		"*rolls eyes* It's already maxed out. What, you want me to sprinkle magic fairy dust on it?",
+		"That's as good as it gets, genius. Even I can't improve perfection. Well... MY perfection.",
+		"*sighs dramatically* Maxed. Done. Finished. Stop wasting my time with things I can't upgrade!",
+	]
+	return lines[randi() % lines.size()]
+
+func get_purchase_dialogue() -> String:
+	var lines = [
+		"*counts coins* Pleasure doing business. Try not to die immediately, it's bad for repeat customers.",
+		"Sold! Now get out there and make me look good. Or at least, less embarrassing.",
+		"*smirks* Another satisfied customer. Well, YOU'RE satisfied. I just tolerate you.",
+	]
+	return lines[randi() % lines.size()]
+
+func get_no_money_dialogue() -> String:
+	var lines = [
+		"*stares* You're broke? Then why are you in my shop? Go kill things and come back with MONEY.",
+		"No coins? No deal. I don't run a charity for poorly-dressed adventurers.",
+		"*laughs* You can't afford that. Maybe if you spent less time dying and more time looting...",
 	]
 	return lines[randi() % lines.size()]
