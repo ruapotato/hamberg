@@ -384,18 +384,19 @@ func _change_state(new_state: AIState) -> void:
 	has_committed_charge = false
 
 ## PERFORMANCE: Use direct atan2 instead of expensive look_at() matrix operations
+## Note: Godot's -Z is forward, so we add PI to match look_at() behavior
 func _face_target() -> void:
 	if not target_player:
 		return
 	var direction = target_player.global_position - global_position
 	direction.y = 0
 	if direction.length() > 0.1:
-		rotation.y = atan2(direction.x, direction.z)
+		rotation.y = atan2(direction.x, direction.z) + PI
 
 func _face_movement() -> void:
 	var horizontal_velocity = Vector3(velocity.x, 0, velocity.z)
 	if horizontal_velocity.length() > 0.1:
-		rotation.y = atan2(horizontal_velocity.x, horizontal_velocity.z)
+		rotation.y = atan2(horizontal_velocity.x, horizontal_velocity.z) + PI
 
 func _update_idle(delta: float) -> void:
 	if is_wander_paused:
@@ -519,7 +520,7 @@ func _update_charging(delta: float, distance: float) -> void:
 		direction = direction.normalized()
 		velocity.x = direction.x * charge_speed
 		velocity.z = direction.z * charge_speed
-		rotation.y = atan2(direction.x, direction.z)
+		rotation.y = atan2(direction.x, direction.z) + PI
 	else:
 		if distance > attack_range * 2:
 			_change_state(AIState.STALKING)
@@ -591,7 +592,7 @@ func _update_retreating(delta: float, distance: float) -> void:
 		direction = direction.normalized()
 		velocity.x = direction.x * move_speed
 		velocity.z = direction.z * move_speed
-		rotation.y = atan2(direction.x, direction.z)
+		rotation.y = atan2(direction.x, direction.z) + PI
 
 	if distance > preferred_distance * 1.2 or state_timer > 2.0:
 		_change_state(AIState.STALKING)
