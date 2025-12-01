@@ -16,6 +16,8 @@ var biome_warp_z: FastNoiseLite     # Domain warping for Z
 var biome_scale_noise: FastNoiseLite # Controls biome size variation
 
 # Biome difficulty zones (distances from origin) - MUST match shader constants
+const SPAWN_FLAT_RADIUS := 20.0  # Flat terrain near spawn for shoe hut placement
+const SPAWN_FLAT_BLEND := 10.0  # Blend distance from flat to normal terrain
 const SPAWN_VALLEY_RADIUS := 100.0  # Always valley near spawn point (safe starting area)
 const SAFE_ZONE_RADIUS := 5000.0
 const MID_ZONE_RADIUS := 10000.0
@@ -333,6 +335,13 @@ func _get_biome_height(xz_pos: Vector2, biome_idx: int) -> float:
 
 ## Get terrain height with smooth blending between biomes
 func get_height_at_position(xz_pos: Vector2) -> float:
+	var distance := xz_pos.length()
+
+	# Flat spawn area for shoe hut
+	const SPAWN_HEIGHT := 5.0  # Valley base height
+	if distance < SPAWN_FLAT_RADIUS:
+		return SPAWN_HEIGHT
+
 	var blend_weights := _get_biome_blend_weights(xz_pos)
 
 	# Blend heights from all contributing biomes
@@ -342,5 +351,12 @@ func get_height_at_position(xz_pos: Vector2) -> float:
 		var weight: float = entry[1]
 		var height := _get_biome_height(xz_pos, biome_idx)
 		final_height += height * weight
+
+	# Smooth blend from flat spawn area to normal terrain
+	if distance < SPAWN_FLAT_RADIUS + SPAWN_FLAT_BLEND:
+		var blend_factor := (distance - SPAWN_FLAT_RADIUS) / SPAWN_FLAT_BLEND
+		# Smoothstep for nicer transition
+		blend_factor = blend_factor * blend_factor * (3.0 - 2.0 * blend_factor)
+		return lerpf(SPAWN_HEIGHT, final_height, blend_factor)
 
 	return final_height
