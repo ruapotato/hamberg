@@ -16,6 +16,7 @@ var biome_warp_z: FastNoiseLite     # Domain warping for Z
 var biome_scale_noise: FastNoiseLite # Controls biome size variation
 
 # Biome difficulty zones (distances from origin) - MUST match shader constants
+const SPAWN_VALLEY_RADIUS := 100.0  # Always valley near spawn point (safe starting area)
 const SAFE_ZONE_RADIUS := 5000.0
 const MID_ZONE_RADIUS := 10000.0
 const DANGER_ZONE_RADIUS := 15000.0
@@ -92,6 +93,10 @@ func _init(seed_value: int = 42) -> void:
 ## Get biome index (0-6) - uses FastNoiseLite for perfect match with BiomeGenerator
 func _get_biome_index(xz_pos: Vector2) -> int:
 	var distance := xz_pos.length()
+
+	# Force valley biome near spawn point (safe starting area)
+	if distance < SPAWN_VALLEY_RADIUS:
+		return 0  # valley
 
 	# Domain warping for organic distortion (Valheim-style)
 	var warp_strength := 800.0
@@ -199,6 +204,10 @@ func get_biome_at_position(xz_pos: Vector2) -> String:
 ## Returns array of [biome_index, weight] pairs that sum to 1.0
 func _get_biome_blend_weights(xz_pos: Vector2) -> Array:
 	var distance := xz_pos.length()
+
+	# Force valley biome near spawn point (safe starting area)
+	if distance < SPAWN_VALLEY_RADIUS:
+		return [[0, 1.0]]  # 100% valley
 
 	# Domain warping for organic distortion (Valheim-style)
 	var warp_strength := 800.0

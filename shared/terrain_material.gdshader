@@ -33,6 +33,7 @@ const vec3 WIZARDLAND_ROCK = vec3(0.55, 0.35, 0.65);    // Purple crystal
 const vec3 HELL_ROCK = vec3(0.3, 0.12, 0.08);           // Dark obsidian
 
 // Biome difficulty zones (match BiomeGenerator constants)
+const float SPAWN_VALLEY_RADIUS = 100.0;  // Always valley near spawn (safe starting area)
 const float SAFE_ZONE_RADIUS = 5000.0;
 const float MID_ZONE_RADIUS = 10000.0;
 const float DANGER_ZONE_RADIUS = 15000.0;
@@ -120,6 +121,11 @@ float fbm(vec2 p, int seed, float frequency, int octaves, float lacunarity, floa
 int get_biome_index(vec2 xz_pos) {
 	// Calculate distance from origin
 	float distance = length(xz_pos);
+
+	// Force valley biome near spawn point (safe starting area)
+	if (distance < SPAWN_VALLEY_RADIUS) {
+		return 0;  // valley
+	}
 
 	// Domain warping for organic distortion (Valheim-style)
 	float warp_strength = 800.0;
