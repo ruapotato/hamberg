@@ -310,13 +310,18 @@ func _process(delta: float) -> void:
 	if not is_initialized:
 		return
 
-	# Update shader time for grass animation (client only)
+	# Update shader time and camera position for grass animation/LOD (client only)
 	if not is_server and terrain_material is ShaderMaterial:
 		var shader_mat: ShaderMaterial = terrain_material as ShaderMaterial
 		var current_time = shader_mat.get_shader_parameter("time")
 		if current_time == null:
 			current_time = 0.0
 		shader_mat.set_shader_parameter("time", current_time + delta)
+
+		# Update camera position for shader LOD
+		var camera := get_viewport().get_camera_3d()
+		if camera:
+			shader_mat.set_shader_parameter("camera_position", camera.global_position)
 
 	# Process pending chunk loads (rate limited to avoid blocking network)
 	chunk_load_timer += delta

@@ -8,6 +8,12 @@ uniform int world_seed = 42;
 uniform bool debug_biome_colors = false;  // Set to true to show flat biome colors (no shading)
 uniform float time = 0.0;  // Time for grass animation (set from GDScript)
 uniform bool enable_grass_detail = true;  // Enable shader-based grass detail
+uniform vec3 camera_position = vec3(0.0, 0.0, 0.0);  // Camera position for LOD
+
+// LOD distance thresholds
+const float LOD_NEAR_DISTANCE = 40.0;    // Full detail
+const float LOD_MID_DISTANCE = 80.0;     // Reduced detail
+const float LOD_FAR_DISTANCE = 150.0;    // Minimal detail (flat colors)
 
 // Dynamic biome texture system - follows the player
 uniform sampler2D biome_texture : hint_default_black, filter_linear, repeat_disable;
@@ -696,6 +702,18 @@ int sample_biome_from_texture(vec2 xz_pos) {
 void fragment() {
 	vec2 xz_pos = world_pos.xz;
 
+	// === LOD CALCULATION ===
+	// Calculate distance from camera for LOD decisions
+	float cam_distance = length(world_pos - camera_position);
+
+	// LOD levels: 0 = near (full detail), 1 = mid (reduced), 2 = far (minimal)
+	int lod_level = 0;
+	if (cam_distance > LOD_FAR_DISTANCE) {
+		lod_level = 2;
+	} else if (cam_distance > LOD_MID_DISTANCE) {
+		lod_level = 1;
+	}
+
 	// Try to get biome blend info from dynamic texture (perfect alignment with minimap)
 	BiomeBlendInfo blend_info = sample_biome_blend_from_texture(xz_pos);
 
@@ -710,8 +728,8 @@ void fragment() {
 		vec3 primary_grass = get_biome_grass_color(blend_info.primary_biome);
 		vec3 primary_rock = get_biome_rock_color(blend_info.primary_biome);
 
-		// If blending with a secondary biome
-		if (blend_info.blend_weight > 0.001) {
+		// LOD: Skip biome blending at far distance
+		if (lod_level < 2 && blend_info.blend_weight > 0.001) {
 			vec3 secondary_grass = get_biome_grass_color(blend_info.secondary_biome);
 			vec3 secondary_rock = get_biome_rock_color(blend_info.secondary_biome);
 
@@ -735,42 +753,47 @@ void fragment() {
 	}
 
 	// Calculate slope based on how vertical the surface is (in world space)
-	// world_normal.y is 1.0 for perfectly flat ground (pointing straight up)
-	// world_normal.y is 0.0 for vertical walls (pointing sideways)
-	// We want: flat (world_normal.y near 1.0) = grass, steep (world_normal.y near 0.0) = rock
 	float flatness = world_normal.y;  // 1.0 = flat, 0.0 = vertical
 
 	// Blend between grass and rock based on slope
-	// At 45 degrees (max walkable), normal.y = cos(45°) ≈ 0.707
-	// flatness > 0.85 = flat, mostly grass
-	// flatness < 0.70 = steep/walkable limit, mostly rock
-	// Smooth transition between 0.70 and 0.85 (shows more rock on moderate slopes)
 	float rock_blend = 1.0 - smoothstep(0.70, 0.85, flatness);
 	vec3 base_color = mix(grass_color, rock_color, rock_blend);
 
-	// Apply our custom noise function using full 3D position to avoid stripes on vertical surfaces
-	// Mix XZ and XY/YZ patterns based on surface normal
-	float noise_xz = multi_octave_noise(world_pos.xz * 0.3);
-	float noise_xy = multi_octave_noise(world_pos.xy * 0.3);
-	float noise_yz = multi_octave_noise(world_pos.yz * 0.3);
+	// === LOD-BASED NOISE ===
+	vec3 color;
+	if (lod_level == 2) {
+		// FAR LOD: Skip noise entirely, just use base color with simple variation
+		float simple_noise = simple_rand(floor(xz_pos * 0.1)) * 0.15 - 0.075;
+		color = base_color * (1.0 + simple_noise);
+	} else if (lod_level == 1) {
+		// MID LOD: Use single octave noise only
+		float noise_val = value_noise_simple(world_pos.xz * 0.6);
+		float combined = (noise_val - 0.5) * 1.5;
+		color = base_color * (1.0 + combined * 0.3);
+	} else {
+		// NEAR LOD: Full multi-octave noise
+		float noise_xz = multi_octave_noise(world_pos.xz * 0.3);
+		float noise_xy = multi_octave_noise(world_pos.xy * 0.3);
+		float noise_yz = multi_octave_noise(world_pos.yz * 0.3);
 
-	// Blend noise based on surface orientation
-	// Horizontal surfaces use XZ, vertical surfaces use XY/YZ
-	vec3 blend_weights = abs(world_normal);
-	blend_weights = blend_weights / (blend_weights.x + blend_weights.y + blend_weights.z);
+		// Blend noise based on surface orientation
+		vec3 blend_weights = abs(world_normal);
+		blend_weights = blend_weights / (blend_weights.x + blend_weights.y + blend_weights.z);
 
-	float noise_val = noise_xz * blend_weights.y +  // Horizontal surfaces
-	                  noise_xy * blend_weights.z +  // North/South facing
-	                  noise_yz * blend_weights.x;   // East/West facing
+		float noise_val = noise_xz * blend_weights.y +  // Horizontal surfaces
+		                  noise_xy * blend_weights.z +  // North/South facing
+		                  noise_yz * blend_weights.x;   // East/West facing
 
-	// Convert to -1 to 1 range for color variation
-	float combined = (noise_val - 0.5) * 2.0;
+		// Convert to -1 to 1 range for color variation
+		float combined = (noise_val - 0.5) * 2.0;
 
-	// Apply variation to base color
-	vec3 color = base_color * (1.0 + combined * 0.4);
+		// Apply variation to base color
+		color = base_color * (1.0 + combined * 0.4);
+	}
 
 	// Apply shader-based ground detail on flat terrain
-	if (enable_grass_detail) {
+	// LOD: Only render grass/mushroom detail when close enough
+	if (enable_grass_detail && lod_level == 0) {
 		// Dark forest biome (index 1) gets special mushroom/root pattern
 		if (current_biome == 1 && flatness > 0.8) {
 			// === DARK FOREST FLOOR - MUSHROOMS AND ROOTS ===
@@ -781,15 +804,13 @@ void fragment() {
 
 				if (forest_info.is_mushroom > 0.5) {
 					// === MUSHROOM COLORING ===
-					// Mushroom cap - varies from base color at edges to lighter at center
-					vec3 cap_edge = grass_color * 0.7;  // Darker edge
-					vec3 cap_center = grass_color * 1.4;  // Brighter center
-					// Add some warm tones to mushroom tops
+					vec3 cap_edge = grass_color * 0.7;
+					vec3 cap_center = grass_color * 1.4;
 					cap_center = mix(cap_center, cap_center * vec3(1.2, 1.1, 0.9), 0.3);
 
 					floor_color = mix(cap_edge, cap_center, forest_info.height);
 
-					// Add slight specular highlight at mushroom top
+					// Specular highlight at mushroom top
 					if (forest_info.height > 0.7) {
 						float spec = (forest_info.height - 0.7) * 3.0;
 						floor_color = mix(floor_color, vec3(0.8, 0.9, 0.7), spec * 0.2);
@@ -797,18 +818,16 @@ void fragment() {
 
 					// Bioluminescent glow
 					if (forest_info.glow > 0.01) {
-						vec3 glow_color = vec3(0.2, 0.9, 0.5);  // Cyan-green glow
+						vec3 glow_color = vec3(0.2, 0.9, 0.5);
 						floor_color = mix(floor_color, glow_color, forest_info.glow * 0.6);
 					}
 				} else if (forest_info.is_root > 0.5) {
 					// === ROOT COLORING ===
-					// Roots are darker, more brown-tinted
 					vec3 root_color = grass_color * 0.5;
-					root_color = mix(root_color, root_color * vec3(1.1, 0.9, 0.8), 0.4);  // Slight brown tint
+					root_color = mix(root_color, root_color * vec3(1.1, 0.9, 0.8), 0.4);
 					floor_color = root_color;
 				} else {
 					// === MOSS COLORING ===
-					// Moss is softer, slightly brighter green
 					vec3 moss_color = grass_color * 0.8;
 					moss_color = mix(moss_color, moss_color * vec3(0.9, 1.1, 0.85), 0.3);
 					floor_color = moss_color;
@@ -824,52 +843,37 @@ void fragment() {
 
 			if (grass_info.coverage > 0.01) {
 				// === GRASS BLADE COLORING ===
-				// Real grass blades are darker at the base (shadow, less light penetration)
-				// and lighter/yellower at the tips (new growth, more light)
-
-				// Base color (darker, more saturated - near ground)
 				vec3 blade_base_color = grass_color * 0.6;
-
-				// Tip color (lighter, slightly yellow - new growth receiving light)
 				vec3 blade_tip_color = grass_color * 1.2;
 				blade_tip_color = mix(blade_tip_color, blade_tip_color * vec3(1.05, 1.1, 0.85), 0.4);
 
-				// Interpolate blade color based on height on blade
 				float height_factor = grass_info.height;
 				vec3 blade_color = mix(blade_base_color, blade_tip_color, height_factor);
 
-				// === INTER-BLADE SHADOWS ===
-				// Darker in dense areas where blades overlap
+				// Inter-blade shadows
 				float shadow_factor = grass_info.shadow * grass_info.coverage;
 				blade_color *= (1.0 - shadow_factor * 0.4);
 
-				// === SUBSURFACE SCATTERING ===
-				// Grass blades are translucent - light passes through tips
-				// This creates a bright glow when backlit
+				// Subsurface scattering
 				float sss_strength = height_factor * grass_info.coverage * 0.25;
 				vec3 sss_color = grass_color * vec3(1.1, 1.2, 0.9) * 1.3;
 				blade_color = mix(blade_color, sss_color, sss_strength * grass_info.wind_bend);
 
-				// === WIND HIGHLIGHT ===
-				// When wind bends blades, exposed sides catch more light
+				// Wind highlight
 				float wind_highlight = grass_info.wind_bend * grass_info.coverage * 0.15;
 				blade_color *= (1.0 + wind_highlight);
 
-				// === SPECULAR-LIKE HIGHLIGHT ON BLADE TIPS ===
-				// Grass blades have a slight sheen at the very tips
+				// Specular-like highlight on blade tips
 				if (height_factor > 0.75 && grass_info.coverage > 0.5) {
 					float tip_spec = (height_factor - 0.75) * 4.0 * grass_info.coverage;
 					blade_color = mix(blade_color, vec3(1.0), tip_spec * 0.08);
 				}
 
-				// === BLEND WITH BASE TERRAIN ===
-				// Smoothly blend grass with underlying terrain based on coverage
-				// Low coverage = patches, high coverage = full grass
+				// Blend with base terrain
 				float blend_strength = smoothstep(0.0, 0.6, grass_info.coverage);
 				color = mix(color, blade_color, blend_strength);
 
-				// === EDGE DARKENING ===
-				// Slight darkening at grass patch edges for depth
+				// Edge darkening
 				float edge_factor = smoothstep(0.0, 0.2, grass_info.coverage);
 				color *= mix(0.92, 1.0, edge_factor);
 			}
