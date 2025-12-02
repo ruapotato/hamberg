@@ -1299,8 +1299,8 @@ func _perform_melee_attack(camera: Camera3D, attack_range: float, damage: float,
 
 ## Helper: Deal damage to all enemies in an area
 func _deal_area_damage(center: Vector3, radius: float, damage: float) -> void:
-	# Get all enemies in the scene
-	var enemies = get_tree().get_nodes_in_group("enemies")
+	# Get all enemies in the scene (using cached list)
+	var enemies = EnemyAI._get_cached_enemies(get_tree())
 	for enemy in enemies:
 		if not is_instance_valid(enemy):
 			continue
@@ -1322,8 +1322,8 @@ func _check_lunge_collision() -> void:
 	if lunge_damage <= 0:
 		return  # No damage set, skip
 
-	# Get all enemies in the scene
-	var enemies = get_tree().get_nodes_in_group("enemies")
+	# Get all enemies in the scene (using cached list for performance)
+	var enemies = EnemyAI._get_cached_enemies(get_tree())
 	for enemy in enemies:
 		if not is_instance_valid(enemy):
 			continue
@@ -2337,8 +2337,8 @@ func _check_spin_hits() -> void:
 		weapon_data = ItemDatabase.get_item("fists")
 	var tool_type: String = weapon_data.tool_type if weapon_data and "tool_type" in weapon_data else ""
 
-	# Check enemies
-	var enemies = get_tree().get_nodes_in_group("enemies")
+	# Check enemies (using cached list)
+	var enemies = EnemyAI._get_cached_enemies(get_tree())
 	for enemy in enemies:
 		if not is_instance_valid(enemy):
 			continue

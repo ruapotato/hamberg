@@ -416,7 +416,7 @@ func check_lunge_collision() -> void:
 	var weapon_data = _get_equipped_weapon()
 	var damage_type: int = weapon_data.damage_type if weapon_data and "damage_type" in weapon_data else -1
 
-	var enemies = player.get_tree().get_nodes_in_group("enemies")
+	var enemies = EnemyAI._get_cached_enemies(player.get_tree())
 	for enemy in enemies:
 		if not is_instance_valid(enemy):
 			continue
@@ -449,8 +449,8 @@ func check_spin_hits() -> void:
 	var tool_type: String = weapon_data.tool_type if weapon_data and "tool_type" in weapon_data else ""
 	var damage_type: int = weapon_data.damage_type if weapon_data and "damage_type" in weapon_data else -1
 
-	# Check enemies
-	var enemies = player.get_tree().get_nodes_in_group("enemies")
+	# Check enemies (using cached list)
+	var enemies = EnemyAI._get_cached_enemies(player.get_tree())
 	for enemy in enemies:
 		if not is_instance_valid(enemy):
 			continue

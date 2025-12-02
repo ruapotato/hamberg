@@ -10,6 +10,10 @@ var enemy: CharacterBody3D
 static var _cached_players: Array = []
 static var _cache_frame: int = -1  # Engine frame when cache was last updated
 
+# PERFORMANCE: Static cache for enemy list (shared across all lookups)
+static var _cached_enemies: Array = []
+static var _enemy_cache_frame: int = -1
+
 # AI States
 enum State { IDLE, STALKING, CIRCLING, CHARGING, WINDING_UP, ATTACKING, THROWING, RETREATING }
 
@@ -276,6 +280,17 @@ static func _get_cached_players(tree: SceneTree) -> Array:
 		_cached_players = tree.get_nodes_in_group("players")
 
 	return _cached_players
+
+## Get cached enemy list (updated once per frame, shared across all lookups)
+static func _get_cached_enemies(tree: SceneTree) -> Array:
+	var current_frame := Engine.get_process_frames()
+
+	# Only refresh cache once per frame
+	if current_frame != _enemy_cache_frame:
+		_enemy_cache_frame = current_frame
+		_cached_enemies = tree.get_nodes_in_group("enemies")
+
+	return _cached_enemies
 
 ## Find nearest player (OPTIMIZED - uses cached player list)
 func find_nearest_player() -> Node:
