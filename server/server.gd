@@ -862,8 +862,8 @@ func handle_place_buildable(peer_id: int, piece_name: String, position: Vector3,
 	var inventory = player.get_node("Inventory")
 
 	# Check if this is a placeable item (already in inventory) vs a building piece (costs resources)
-	# Note: workbench is the only item that can be crafted into inventory and placed
-	var placeable_items = ["workbench"]
+	# Currently no items use this path - workbench and all buildables cost resources directly
+	var placeable_items = []
 	var is_placeable_item = piece_name in placeable_items
 
 	if is_placeable_item:
