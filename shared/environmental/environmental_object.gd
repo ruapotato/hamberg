@@ -66,23 +66,26 @@ func _ready() -> void:
 		scale = Vector3.ZERO
 		is_fading_in = true
 		fade_timer = 0.0
+		set_process(true)  # Enable _process for fade animation
 	else:
 		# Spawn instantly (too close to player)
 		if target_scale != Vector3.ZERO:
 			scale = target_scale
+		set_process(false)  # PERFORMANCE: No fade needed, disable _process
 
 func _process(delta: float) -> void:
-	if is_fading_in:
-		fade_timer += delta
-		var progress := minf(fade_timer / fade_in_duration, 1.0)
+	# Only runs during fade-in animation
+	fade_timer += delta
+	var progress := minf(fade_timer / fade_in_duration, 1.0)
 
-		# Ease-out cubic interpolation for smooth fade
-		var eased_progress := 1.0 - pow(1.0 - progress, 3.0)
-		scale = original_scale * eased_progress
+	# Ease-out cubic interpolation for smooth fade
+	var eased_progress := 1.0 - pow(1.0 - progress, 3.0)
+	scale = original_scale * eased_progress
 
-		if progress >= 1.0:
-			is_fading_in = false
-			scale = original_scale
+	if progress >= 1.0:
+		is_fading_in = false
+		scale = original_scale
+		set_process(false)  # PERFORMANCE: Disable _process when fade complete
 
 ## Update visibility and LOD based on nearest player distance
 func update_visibility(nearest_distance: float) -> void:

@@ -20,9 +20,7 @@ func _ready() -> void:
 		progress_bar.max_value = max_health
 		progress_bar.value = current_health
 
-func _process(_delta: float) -> void:
-	# Always face the camera (already handled by billboard mode)
-	pass
+# NOTE: Removed _process - billboard mode handles camera facing automatically
 
 ## Update the health bar
 func update_health(health: float, max_hp: float) -> void:
