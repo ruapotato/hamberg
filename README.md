@@ -308,6 +308,51 @@ GAME_PORT=8888 MAX_PLAYERS=20 ./launch_server.sh
 
 ---
 
+## 🐛 Debug Console
+
+Press **F5** to open the in-game debug console. Commands can be typed with or without the `/` prefix.
+
+### General Commands
+
+| Command | Description |
+|---------|-------------|
+| `/help` | Show all available commands |
+| `/give <item> [amount]` | Spawn items (e.g., `/give 10 wood`) |
+| `/spawn <type> [count]` | Spawn enemies/animals (gahnome, sporeling, deer, pig, sheep) |
+| `/tp <x> <y> <z>` | Teleport to coordinates |
+| `/heal` | Heal to full health |
+| `/god` | Toggle invincibility |
+| `/clear` | Clear inventory |
+| `/kill` | Kill all nearby enemies |
+| `/pos` | Show current position |
+| `/time [hour]` | Show or set time (0-24, e.g., `/time 22` for night) |
+| `/items` | List all available items |
+| `/enemies` | List enemy types |
+
+### Performance Debugging
+
+| Command | Description |
+|---------|-------------|
+| `/perf` | Show FPS, frame time, and toggle status |
+| `/toggle <system>` | Toggle a system on/off |
+| `/toggle all` | Toggle all systems at once |
+
+**Available systems to toggle:**
+- `terrain` - Terrain mesh rendering and processing
+- `env` - Environmental objects (trees, rocks, grass)
+- `enemies` - Enemies and animals
+- `physics` - Player physics processing
+- `ui` - HUD, hotbar, minimap updates
+- `daynight` - Day/night cycle
+
+**Performance Debugging Workflow:**
+1. Open console with F5
+2. Run `/toggle all` to disable everything (FPS should spike)
+3. Enable systems one at a time to find the bottleneck
+4. The system causing the biggest FPS drop is the culprit
+
+---
+
 ## 🏗️ Architecture Guide
 
 ### Directory Structure Overview

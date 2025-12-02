@@ -23,7 +23,17 @@ var god_mode: bool = false
 var browsing_history: bool = false
 
 # Autocomplete data
-var all_commands: Array[String] = ["/give", "/spawn", "/tp", "/heal", "/god", "/clear", "/kill", "/pos", "/items", "/enemies", "/time", "/help"]
+var all_commands: Array[String] = ["/give", "/spawn", "/tp", "/heal", "/god", "/clear", "/kill", "/pos", "/items", "/enemies", "/time", "/help", "/perf", "/toggle"]
+
+# Performance toggle states
+var perf_toggles: Dictionary = {
+	"terrain": true,
+	"env": true,        # Environmental objects (trees, rocks)
+	"enemies": true,
+	"physics": true,
+	"ui": true,
+	"daynight": true,
+}
 var all_items: Array[String] = []
 var all_enemies: Array[String] = ["gahnome", "sporeling", "deer", "pig", "sheep"]
 
@@ -207,6 +217,10 @@ func _execute_command(text: String) -> void:
 			_cmd_kill()
 		"/time", "time":
 			_cmd_time(args)
+		"/perf", "perf":
+			_cmd_perf()
+		"/toggle", "toggle":
+			_cmd_toggle(args)
 		_:
 			_add_output("[color=red]Unknown command: %s[/color]" % cmd)
 
@@ -366,6 +380,104 @@ func _cmd_help() -> void:
 	_add_output("  /time [hour] - Show/set time (0-24)")
 	_add_output("  /items - List all items")
 	_add_output("  /enemies - List enemy types")
+	_add_output("[color=cyan]Performance:[/color]")
+	_add_output("  /perf - Show FPS and toggle status")
+	_add_output("  /toggle <system> - Toggle system on/off")
+	_add_output("    Systems: terrain, env, enemies, physics, ui, daynight")
+
+func _cmd_perf() -> void:
+	var fps = Engine.get_frames_per_second()
+	var frame_time = 1000.0 / fps if fps > 0 else 0
+	_add_output("[color=cyan]Performance Status:[/color]")
+	_add_output("  FPS: %d (%.1f ms/frame)" % [fps, frame_time])
+	_add_output("[color=cyan]System Toggles:[/color]")
+	for system in perf_toggles:
+		var status = "[color=green]ON[/color]" if perf_toggles[system] else "[color=red]OFF[/color]"
+		_add_output("  %s: %s" % [system, status])
+	_add_output("[color=gray]Use /toggle <system> to toggle[/color]")
+
+func _cmd_toggle(args: Array) -> void:
+	if args.is_empty():
+		_add_output("[color=yellow]Usage: /toggle <system>[/color]")
+		_add_output("Systems: terrain, env, enemies, physics, ui, daynight, all")
+		return
+
+	var system = args[0].to_lower()
+
+	if system == "all":
+		# Toggle all off if any are on, otherwise toggle all on
+		var any_on = false
+		for s in perf_toggles:
+			if perf_toggles[s]:
+				any_on = true
+				break
+		var new_state = not any_on
+		for s in perf_toggles:
+			perf_toggles[s] = new_state
+			_apply_toggle(s, new_state)
+		var status = "ON" if new_state else "OFF"
+		_add_output("[color=cyan]All systems toggled %s[/color]" % status)
+		return
+
+	if system not in perf_toggles:
+		_add_output("[color=red]Unknown system: %s[/color]" % system)
+		_add_output("Systems: terrain, env, enemies, physics, ui, daynight, all")
+		return
+
+	perf_toggles[system] = not perf_toggles[system]
+	_apply_toggle(system, perf_toggles[system])
+	var status = "[color=green]ON[/color]" if perf_toggles[system] else "[color=red]OFF[/color]"
+	_add_output("%s: %s" % [system, status])
+
+func _apply_toggle(system: String, enabled: bool) -> void:
+	match system:
+		"terrain":
+			# Toggle terrain rendering
+			var terrain_worlds = get_tree().get_nodes_in_group("terrain_world")
+			for tw in terrain_worlds:
+				tw.visible = enabled
+				tw.set_process(enabled)
+		"env":
+			# Toggle environmental objects (trees, rocks, grass)
+			if client_ref and client_ref.environmental_objects_container:
+				client_ref.environmental_objects_container.visible = enabled
+				# Also disable processing on all env objects
+				for child in client_ref.environmental_objects_container.get_children():
+					child.set_process(enabled)
+		"enemies":
+			# Toggle enemy visibility and processing
+			var enemies = get_tree().get_nodes_in_group("enemies")
+			for enemy in enemies:
+				enemy.visible = enabled
+				enemy.set_process(enabled)
+				enemy.set_physics_process(enabled)
+			var animals = get_tree().get_nodes_in_group("animals")
+			for animal in animals:
+				animal.visible = enabled
+				animal.set_process(enabled)
+				animal.set_physics_process(enabled)
+		"physics":
+			# Toggle physics processing on player
+			if client_ref and client_ref.local_player:
+				client_ref.local_player.set_physics_process(enabled)
+		"ui":
+			# Toggle HUD updates
+			if client_ref and client_ref.player_hud_ui:
+				client_ref.player_hud_ui.set_process(enabled)
+			if client_ref and client_ref.hotbar_ui:
+				client_ref.hotbar_ui.set_process(enabled)
+			if client_ref and client_ref.mini_map_ui:
+				client_ref.mini_map_ui.set_process(enabled)
+		"daynight":
+			# Toggle day/night cycle
+			var day_night_cycles = get_tree().get_nodes_in_group("day_night_cycle")
+			if day_night_cycles.is_empty():
+				var terrain_worlds = get_tree().get_nodes_in_group("terrain_world")
+				for tw in terrain_worlds:
+					if tw.has_node("DayNightCycle"):
+						day_night_cycles.append(tw.get_node("DayNightCycle"))
+			for dnc in day_night_cycles:
+				dnc.set_process(enabled)
 
 func _add_output(text: String) -> void:
 	output_label.append_text(text + "\n")

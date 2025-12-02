@@ -122,6 +122,11 @@ const BIOME_CHECK_INTERVAL: float = 2.0  # Check biome every 2 seconds
 # Fog wall manager
 var fog_wall_manager: Node3D = null
 
+# Cached Shnarken NPCs (avoid expensive tree traversal every frame)
+var cached_shnarkens: Array = []
+var shnarken_cache_timer: float = 0.0
+const SHNARKEN_CACHE_INTERVAL: float = 1.0  # Rebuild cache every 1 second
+
 # Environmental objects
 var environmental_chunks: Dictionary = {} # Vector2i -> Dictionary of objects
 var environmental_objects_container: Node3D
@@ -261,6 +266,12 @@ func _process(_delta: float) -> void:
 			_handle_interaction_input()
 			_update_interact_prompt()
 		_update_biome_music(_delta)
+
+		# Rebuild Shnarken cache periodically (avoid expensive tree traversal every frame)
+		shnarken_cache_timer += _delta
+		if shnarken_cache_timer >= SHNARKEN_CACHE_INTERVAL:
+			shnarken_cache_timer = 0.0
+			_rebuild_shnarken_cache()
 
 		# Check queued terrain modifications periodically
 		queued_mods_check_timer += _delta
@@ -839,20 +850,8 @@ func _get_nearby_shnarken() -> Node:
 
 	var player_pos = local_player.global_position
 
-	# Find all Shnarken NPCs in the scene
-	var shnarkens = get_tree().get_nodes_in_group("shnarken")
-
-	# Also search for Shnarken class instances
-	for node in get_tree().get_nodes_in_group("npc"):
-		if node.get_class() == "Shnarken" or node.get_script() and node.get_script().get_global_name() == "Shnarken":
-			if not node in shnarkens:
-				shnarkens.append(node)
-
-	# Search in world for ShnarkenHut which contains Shnarken
-	for child in world.get_children():
-		_find_shnarkens_recursive(child, shnarkens)
-
-	for shnarken in shnarkens:
+	# Use cached Shnarken list (rebuilt periodically, not every frame)
+	for shnarken in cached_shnarkens:
 		if not is_instance_valid(shnarken):
 			continue
 		var dist = player_pos.distance_to(shnarken.global_position)
@@ -860,6 +859,23 @@ func _get_nearby_shnarken() -> Node:
 			return shnarken
 
 	return null
+
+## Rebuild the cached list of Shnarken NPCs (called periodically, not every frame)
+func _rebuild_shnarken_cache() -> void:
+	cached_shnarkens.clear()
+
+	# Find all Shnarken NPCs in the scene via groups (fast)
+	cached_shnarkens = get_tree().get_nodes_in_group("shnarken").duplicate()
+
+	# Also search for Shnarken class instances in npc group
+	for node in get_tree().get_nodes_in_group("npc"):
+		if node.get_script() and node.get_script().get_global_name() == "Shnarken":
+			if not node in cached_shnarkens:
+				cached_shnarkens.append(node)
+
+	# Search in world for ShnarkenHut which contains Shnarken
+	for child in world.get_children():
+		_find_shnarkens_recursive(child, cached_shnarkens)
 
 ## Recursively find Shnarken NPCs in node tree
 func _find_shnarkens_recursive(node: Node, shnarkens: Array) -> void:
