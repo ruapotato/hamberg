@@ -68,9 +68,8 @@ func update_weapon_visual() -> void:
 		push_error("[Player] Unknown weapon: %s" % weapon_id)
 		return
 
-	# Special case: fists have no visual
-	if weapon_id == "fists":
-		return
+	# Special case: fists have no VISIBLE mesh but still need hitbox
+	# So we don't return early anymore - we load the scene for the hitbox
 
 	# Load weapon scene
 	var weapon_scene = weapon_data.get("weapon_scene")
@@ -186,11 +185,16 @@ func _setup_weapon_hitbox() -> void:
 	player.weapon_hitbox = null
 
 	if not player.equipped_weapon_visual:
+		print("[Player] _setup_weapon_hitbox: No equipped_weapon_visual!")
 		return
+
+	print("[Player] _setup_weapon_hitbox: Looking for Hitbox in %s" % player.equipped_weapon_visual.name)
+	print("[Player] Children: %s" % str(player.equipped_weapon_visual.get_children()))
 
 	# Find the Hitbox Area3D in the weapon scene
 	if player.equipped_weapon_visual.has_node("Hitbox"):
 		player.weapon_hitbox = player.equipped_weapon_visual.get_node("Hitbox")
+		print("[Player] Found Hitbox: %s" % player.weapon_hitbox)
 
 		# Connect body_entered signal for collision detection
 		if not player.weapon_hitbox.body_entered.is_connected(_on_weapon_hitbox_body_entered):
@@ -201,6 +205,9 @@ func _setup_weapon_hitbox() -> void:
 		var collision_shape = player.weapon_hitbox.get_node_or_null("CollisionShape3D")
 		if collision_shape:
 			collision_shape.disabled = true
+			print("[Player] CollisionShape3D found, shape: %s" % collision_shape.shape)
+		else:
+			print("[Player] WARNING: No CollisionShape3D in Hitbox!")
 
 		# DEBUG: Add visual mesh for hitbox
 		_add_hitbox_debug_visual(player.weapon_hitbox, collision_shape)
@@ -208,6 +215,7 @@ func _setup_weapon_hitbox() -> void:
 		print("[Player] Weapon hitbox connected: %s" % player.equipped_weapon_visual.name)
 	else:
 		print("[Player] Weapon has no Hitbox node: %s" % player.equipped_weapon_visual.name)
+		print("[Player] Available nodes: %s" % str(player.equipped_weapon_visual.get_children()))
 
 ## DEBUG: Add visual representation of hitbox
 func _add_hitbox_debug_visual(hitbox: Area3D, collision_shape: CollisionShape3D) -> void:

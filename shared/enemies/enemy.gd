@@ -1173,10 +1173,15 @@ func _setup_attack_hitbox() -> void:
 	collision_shape.disabled = true
 
 	attack_hitbox.add_child(collision_shape)
-	add_child(attack_hitbox)
 
-	# Position in front of enemy at chest height
-	attack_hitbox.position = Vector3(0, 0.6, 0.6)
+	# Add to body_container so it rotates with the enemy's facing direction
+	if body_container:
+		body_container.add_child(attack_hitbox)
+		# Position in front of enemy at chest height (relative to body_container which faces -Z)
+		attack_hitbox.position = Vector3(0, 0.6, -0.8)  # Negative Z is forward for body
+	else:
+		add_child(attack_hitbox)
+		attack_hitbox.position = Vector3(0, 0.6, 0.6)
 
 	# DEBUG: Add visual mesh for attack hitbox
 	var debug_mesh = MeshInstance3D.new()
