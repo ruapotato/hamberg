@@ -589,6 +589,7 @@ func _rotate_to_attack_direction() -> void:
 ## Enable weapon hitbox for collision detection during attack swing
 func enable_weapon_hitbox() -> void:
 	if not player.weapon_hitbox:
+		print("[Combat] WARNING: No weapon hitbox to enable!")
 		return
 
 	# Clear hit tracking for new swing
@@ -600,6 +601,7 @@ func enable_weapon_hitbox() -> void:
 	var collision_shape = player.weapon_hitbox.get_node_or_null("CollisionShape3D")
 	if collision_shape:
 		collision_shape.disabled = false
+		print("[Combat] Hitbox ENABLED - pos: %s, monitoring: %s" % [player.weapon_hitbox.global_position, player.weapon_hitbox.monitoring])
 
 ## Disable weapon hitbox after attack swing completes
 func disable_weapon_hitbox() -> void:

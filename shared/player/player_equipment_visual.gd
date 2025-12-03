@@ -202,17 +202,63 @@ func _setup_weapon_hitbox() -> void:
 		if collision_shape:
 			collision_shape.disabled = true
 
+		# DEBUG: Add visual mesh for hitbox
+		_add_hitbox_debug_visual(player.weapon_hitbox, collision_shape)
+
 		print("[Player] Weapon hitbox connected: %s" % player.equipped_weapon_visual.name)
 	else:
 		print("[Player] Weapon has no Hitbox node: %s" % player.equipped_weapon_visual.name)
 
+## DEBUG: Add visual representation of hitbox
+func _add_hitbox_debug_visual(hitbox: Area3D, collision_shape: CollisionShape3D) -> void:
+	if not collision_shape or not collision_shape.shape:
+		return
+
+	# Remove existing debug mesh if any
+	var existing = hitbox.get_node_or_null("DebugMesh")
+	if existing:
+		existing.queue_free()
+
+	var debug_mesh = MeshInstance3D.new()
+	debug_mesh.name = "DebugMesh"
+
+	# Create mesh matching the collision shape
+	var shape = collision_shape.shape
+	if shape is CapsuleShape3D:
+		var capsule = CapsuleMesh.new()
+		capsule.radius = shape.radius
+		capsule.height = shape.height
+		debug_mesh.mesh = capsule
+	elif shape is BoxShape3D:
+		var box = BoxMesh.new()
+		box.size = shape.size
+		debug_mesh.mesh = box
+	elif shape is SphereShape3D:
+		var sphere = SphereMesh.new()
+		sphere.radius = shape.radius
+		debug_mesh.mesh = sphere
+
+	# Create green translucent material
+	var mat = StandardMaterial3D.new()
+	mat.albedo_color = Color(0.0, 1.0, 0.0, 0.3)  # Green, semi-transparent
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	debug_mesh.material_override = mat
+
+	hitbox.add_child(debug_mesh)
+
 ## Called when weapon hitbox collides with a body during attack
 func _on_weapon_hitbox_body_entered(body: Node3D) -> void:
+	print("[Hitbox] body_entered signal! body=%s, hitbox_active=%s, is_attacking=%s" % [body.name, player.hitbox_active, player.is_attacking])
+
 	if not player.is_local_player or not player.hitbox_active:
+		print("[Hitbox] Skipped - local=%s, active=%s" % [player.is_local_player, player.hitbox_active])
 		return
 
 	# Only process if we're attacking
 	if not player.is_attacking and not player.is_special_attacking:
+		print("[Hitbox] Skipped - not attacking")
 		return
 
 	# Check if it's an enemy
@@ -221,13 +267,17 @@ func _on_weapon_hitbox_body_entered(body: Node3D) -> void:
 
 		# Prevent hitting same enemy twice per swing
 		if enemy_id in player.hitbox_hit_enemies:
+			print("[Hitbox] Skipped - already hit this enemy")
 			return
 
 		player.hitbox_hit_enemies.append(enemy_id)
+		print("[Hitbox] HIT ENEMY: %s" % body.name)
 
 		# Get damage from combat module
 		if player.combat:
 			player.combat.process_hitbox_hit(body)
+	else:
+		print("[Hitbox] Not an enemy - has_take_damage=%s, layer=%d" % [body.has_method("take_damage"), body.collision_layer])
 
 # =============================================================================
 # HELPER

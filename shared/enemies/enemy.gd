@@ -1178,6 +1178,20 @@ func _setup_attack_hitbox() -> void:
 	# Position in front of enemy at chest height
 	attack_hitbox.position = Vector3(0, 0.6, 0.6)
 
+	# DEBUG: Add visual mesh for attack hitbox
+	var debug_mesh = MeshInstance3D.new()
+	debug_mesh.name = "DebugMesh"
+	var sphere_mesh = SphereMesh.new()
+	sphere_mesh.radius = 0.4
+	debug_mesh.mesh = sphere_mesh
+	var mat = StandardMaterial3D.new()
+	mat.albedo_color = Color(1.0, 0.0, 0.0, 0.3)  # Red, semi-transparent
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	debug_mesh.material_override = mat
+	attack_hitbox.add_child(debug_mesh)
+
 	# Connect signal for collision detection
 	attack_hitbox.body_entered.connect(_on_attack_hitbox_body_entered)
 
