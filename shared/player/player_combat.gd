@@ -289,81 +289,32 @@ func _special_attack_default(weapon_data, camera: Camera3D) -> void:
 # MELEE ATTACKS
 # =============================================================================
 
-## Perform area-based melee attack (sphere query for enemies)
-func _perform_melee_area_attack(camera: Camera3D, attack_range: float, damage: float, knockback: float, weapon_data) -> void:
+## Perform area-based melee attack
+## Enemies are now detected via hitbox collision (Valheim-style)
+## This function now handles environmental objects (trees, rocks) via raycast
+func _perform_melee_area_attack(camera: Camera3D, attack_range: float, damage: float, _knockback: float, weapon_data) -> void:
 	var viewport_size := player.get_viewport().get_visible_rect().size
 	var crosshair_offset := Vector2(-41.0, -50.0)
 	var crosshair_pos := viewport_size / 2 + crosshair_offset
 	var ray_origin := camera.project_ray_origin(crosshair_pos)
 	var ray_direction := camera.project_ray_normal(crosshair_pos)
 
-	var attack_center := player.global_position + Vector3(0, 1.2, 0) + ray_direction * (attack_range * 0.6)
-	var hit_radius := 1.5
-
-	var space_state := player.get_world_3d().direct_space_state
-	var shape := SphereShape3D.new()
-	shape.radius = hit_radius
-	var shape_query := PhysicsShapeQueryParameters3D.new()
-	shape_query.shape = shape
-	shape_query.transform = Transform3D(Basis.IDENTITY, attack_center)
-	shape_query.collision_mask = 4  # Enemies layer
-	shape_query.exclude = [player]
-
-	var hits := space_state.intersect_shape(shape_query, 8)
-
-	var closest_enemy: Node = null
-	var closest_distance := 999.0
-
-	for hit in hits:
-		var collider = hit.collider
-		if collider and collider.has_method("take_damage") and collider.collision_layer & 4:
-			var enemy_pos: Vector3 = collider.global_position
-			var to_enemy: Vector3 = (enemy_pos - player.global_position).normalized()
-			var dot: float = ray_direction.dot(to_enemy)
-			if dot > 0.5:
-				var dist: float = enemy_pos.distance_to(attack_center)
-				if dist < closest_distance:
-					closest_distance = dist
-					closest_enemy = collider
-
-	if closest_enemy:
-		var enemy_network_id = closest_enemy.network_id if "network_id" in closest_enemy else 0
-		if enemy_network_id > 0:
-			var damage_type: int = weapon_data.damage_type if weapon_data and "damage_type" in weapon_data else -1
-			send_enemy_damage_request(enemy_network_id, damage, knockback, ray_direction, damage_type)
-		return
-
-	# No enemy hit, check environmental objects
+	# Enemy detection is now handled by weapon hitbox collision (Valheim-style)
+	# Only check environmental objects here (trees, rocks, etc.)
 	_check_environmental_hit(ray_origin, ray_direction, attack_range, damage, weapon_data)
 
-## Perform raycast melee attack
-func perform_melee_attack(camera: Camera3D, attack_range: float, damage: float, knockback: float, weapon_data = null) -> void:
+## Perform raycast melee attack for environmental objects
+## Enemies are now detected via hitbox collision (Valheim-style)
+func perform_melee_attack(camera: Camera3D, attack_range: float, damage: float, _knockback: float, weapon_data = null) -> void:
 	var viewport_size := player.get_viewport().get_visible_rect().size
 	var crosshair_offset := Vector2(-41.0, -50.0)
 	var crosshair_pos := viewport_size / 2 + crosshair_offset
 	var ray_origin := camera.project_ray_origin(crosshair_pos)
 	var ray_direction := camera.project_ray_normal(crosshair_pos)
-	var ray_end := ray_origin + ray_direction * attack_range
 
-	var space_state := player.get_world_3d().direct_space_state
-	var query := PhysicsRayQueryParameters3D.create(ray_origin, ray_end)
-	query.collision_mask = 1 | 4  # World and Enemies
-	query.exclude = [player]
-
-	var result := space_state.intersect_ray(query)
-	if result:
-		var hit_object: Object = result.collider
-
-		if hit_object.has_method("take_damage") and hit_object.collision_layer & 4:
-			var enemy_network_id = hit_object.network_id if "network_id" in hit_object else 0
-			if enemy_network_id > 0:
-				var damage_type: int = weapon_data.damage_type if weapon_data and "damage_type" in weapon_data else -1
-				send_enemy_damage_request(enemy_network_id, damage, knockback, ray_direction, damage_type)
-
-		elif hit_object.has_method("get_object_type") and hit_object.has_method("get_object_id"):
-			var object_id: int = hit_object.get_object_id()
-			var chunk_pos: Vector2i = hit_object.chunk_position if "chunk_position" in hit_object else Vector2i.ZERO
-			send_damage_request(chunk_pos, object_id, damage, result.position)
+	# Enemy detection is now handled by weapon hitbox collision (Valheim-style)
+	# Only check environmental objects here
+	_check_environmental_hit(ray_origin, ray_direction, attack_range, damage, weapon_data)
 
 ## Check for environmental object hits
 func _check_environmental_hit(ray_origin: Vector3, ray_direction: Vector3, attack_range: float, damage: float, weapon_data) -> void:
@@ -552,7 +503,7 @@ func spawn_projectile(weapon_data, camera: Camera3D) -> void:
 	var projectile: Projectile = weapon_data.projectile_scene.instantiate()
 	player.get_tree().root.add_child(projectile)
 
-	var speed := weapon_data.projectile_speed if weapon_data.projectile_speed > 0 else 30.0
+	var speed: float = weapon_data.projectile_speed if weapon_data.projectile_speed > 0 else 30.0
 	var damage_type: int = weapon_data.damage_type if "damage_type" in weapon_data else -1
 	projectile.setup(spawn_pos, direction, speed, weapon_data.damage, player.get_instance_id(), damage_type)
 
@@ -630,3 +581,120 @@ func _rotate_to_attack_direction() -> void:
 	if camera_controller and "camera_rotation" in camera_controller:
 		var camera_yaw = camera_controller.camera_rotation.x
 		player.body_container.rotation.y = camera_yaw + PI
+
+# =============================================================================
+# HITBOX-BASED COMBAT (Valheim-style)
+# =============================================================================
+
+## Enable weapon hitbox for collision detection during attack swing
+func enable_weapon_hitbox() -> void:
+	if not player.weapon_hitbox:
+		return
+
+	# Clear hit tracking for new swing
+	player.hitbox_hit_enemies.clear()
+	player.hitbox_active = true
+
+	# Enable hitbox Area3D monitoring
+	player.weapon_hitbox.monitoring = true
+	var collision_shape = player.weapon_hitbox.get_node_or_null("CollisionShape3D")
+	if collision_shape:
+		collision_shape.disabled = false
+
+## Disable weapon hitbox after attack swing completes
+func disable_weapon_hitbox() -> void:
+	if not player.weapon_hitbox:
+		return
+
+	player.hitbox_active = false
+
+	# Disable hitbox Area3D monitoring
+	player.weapon_hitbox.monitoring = false
+	var collision_shape = player.weapon_hitbox.get_node_or_null("CollisionShape3D")
+	if collision_shape:
+		collision_shape.disabled = true
+
+## Process a hit detected by weapon hitbox collision
+func process_hitbox_hit(enemy: Node3D) -> void:
+	if not player.is_local_player:
+		return
+
+	var weapon_data = _get_equipped_weapon()
+	var combo_multiplier := 1.0
+
+	# Calculate combo damage multiplier
+	if player.current_weapon_type == "stone_knife" and player.current_combo_animation == 2:
+		combo_multiplier = 1.5
+	elif player.current_weapon_type == "stone_axe" and player.current_combo_animation == 2:
+		combo_multiplier = 2.0
+
+	var damage: float = weapon_data.damage * combo_multiplier
+	var knockback: float = weapon_data.knockback
+	var damage_type: int = weapon_data.damage_type if "damage_type" in weapon_data else -1
+
+	# Calculate hit direction from weapon to enemy
+	var hit_direction: Vector3
+	if player.weapon_hitbox:
+		hit_direction = (enemy.global_position - player.weapon_hitbox.global_position).normalized()
+	else:
+		hit_direction = (enemy.global_position - player.global_position).normalized()
+
+	# Send damage request to server
+	var enemy_network_id = enemy.network_id if "network_id" in enemy else 0
+	if enemy_network_id > 0:
+		print("[Player] HITBOX HIT %s! (%.1f damage)" % [enemy.name, damage])
+		send_enemy_damage_request(enemy_network_id, damage, knockback, hit_direction, damage_type)
+
+		# Play hit sound and effect
+		SoundManager.play_sound_varied("sword_hit", enemy.global_position)
+		_spawn_hit_effect(enemy.global_position)
+
+## Spawn hit effect at position
+func _spawn_hit_effect(position: Vector3) -> void:
+	var HitEffectScene = preload("res://shared/effects/hit_effect.tscn")
+	if HitEffectScene:
+		var effect = HitEffectScene.instantiate()
+		player.get_tree().root.add_child(effect)
+		effect.global_position = position
+
+## Update hitbox state during attack animation
+## Called each physics frame during attack
+func update_hitbox_during_attack() -> void:
+	if not player.is_attacking and not player.is_special_attacking:
+		if player.hitbox_active:
+			disable_weapon_hitbox()
+		return
+
+	# Calculate attack progress
+	var progress: float
+	if player.is_attacking:
+		progress = player.attack_timer / player.current_attack_animation_time
+	else:
+		progress = player.special_attack_timer / player.current_special_attack_animation_time
+
+	# Define hitbox active window based on weapon type
+	# This is when the weapon is actually swinging through the arc
+	var active_start: float
+	var active_end: float
+
+	match player.current_weapon_type:
+		"stone_knife":
+			# Knife is fast - active most of swing
+			active_start = 0.15
+			active_end = 0.85
+		"stone_axe":
+			# Axe has windup then powerful swing
+			active_start = 0.25  # After windup
+			active_end = 0.90
+		_:
+			# Default (sword) - balanced timing
+			active_start = 0.20
+			active_end = 0.80
+
+	# Enable or disable hitbox based on attack progress
+	var should_be_active = progress >= active_start and progress <= active_end
+
+	if should_be_active and not player.hitbox_active:
+		enable_weapon_hitbox()
+	elif not should_be_active and player.hitbox_active:
+		disable_weapon_hitbox()

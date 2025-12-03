@@ -100,6 +100,9 @@ func update_weapon_visual() -> void:
 			var rotated_offset = player.equipped_weapon_visual.basis * mount_point.position
 			player.equipped_weapon_visual.position = -rotated_offset
 
+		# Connect weapon hitbox for collision-based combat
+		_setup_weapon_hitbox()
+
 		print("[Player] Equipped weapon visual: %s (with wrist pivot)" % weapon_id)
 	else:
 		# Fallback: attach to body container
@@ -108,6 +111,8 @@ func update_weapon_visual() -> void:
 			player.weapon_wrist_pivot.add_child(player.equipped_weapon_visual)
 			player.weapon_wrist_pivot.position = Vector3(0.3, 1.2, 0)
 			player.equipped_weapon_visual.rotation_degrees = Vector3(90, 0, 0)
+			# Connect weapon hitbox for collision-based combat
+			_setup_weapon_hitbox()
 			print("[Player] Equipped weapon visual (fallback): %s" % weapon_id)
 		else:
 			player.weapon_wrist_pivot.queue_free()
@@ -170,6 +175,59 @@ func update_shield_visual() -> void:
 			player.equipped_shield_visual.queue_free()
 			player.equipped_shield_visual = null
 			push_warning("[Player] No attachment point for shield")
+
+# =============================================================================
+# WEAPON HITBOX SETUP
+# =============================================================================
+
+## Setup weapon hitbox for collision-based combat (Valheim-style)
+func _setup_weapon_hitbox() -> void:
+	# Clear any previous hitbox reference
+	player.weapon_hitbox = null
+
+	if not player.equipped_weapon_visual:
+		return
+
+	# Find the Hitbox Area3D in the weapon scene
+	if player.equipped_weapon_visual.has_node("Hitbox"):
+		player.weapon_hitbox = player.equipped_weapon_visual.get_node("Hitbox")
+
+		# Connect body_entered signal for collision detection
+		if not player.weapon_hitbox.body_entered.is_connected(_on_weapon_hitbox_body_entered):
+			player.weapon_hitbox.body_entered.connect(_on_weapon_hitbox_body_entered)
+
+		# Ensure hitbox starts disabled
+		player.weapon_hitbox.monitoring = false
+		var collision_shape = player.weapon_hitbox.get_node_or_null("CollisionShape3D")
+		if collision_shape:
+			collision_shape.disabled = true
+
+		print("[Player] Weapon hitbox connected: %s" % player.equipped_weapon_visual.name)
+	else:
+		print("[Player] Weapon has no Hitbox node: %s" % player.equipped_weapon_visual.name)
+
+## Called when weapon hitbox collides with a body during attack
+func _on_weapon_hitbox_body_entered(body: Node3D) -> void:
+	if not player.is_local_player or not player.hitbox_active:
+		return
+
+	# Only process if we're attacking
+	if not player.is_attacking and not player.is_special_attacking:
+		return
+
+	# Check if it's an enemy
+	if body.has_method("take_damage") and body.collision_layer & 4:
+		var enemy_id = body.get_instance_id()
+
+		# Prevent hitting same enemy twice per swing
+		if enemy_id in player.hitbox_hit_enemies:
+			return
+
+		player.hitbox_hit_enemies.append(enemy_id)
+
+		# Get damage from combat module
+		if player.combat:
+			player.combat.process_hitbox_hit(body)
 
 # =============================================================================
 # HELPER

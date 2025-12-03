@@ -134,6 +134,11 @@ var equipped_weapon_visual: Node3D = null  # Main hand weapon
 var equipped_shield_visual: Node3D = null  # Off hand shield
 var weapon_wrist_pivot: Node3D = null  # Pivot point for weapon rotation (simulates wrist)
 
+# Weapon hitbox collision detection (Valheim-style)
+var weapon_hitbox: Area3D = null  # Reference to weapon's hitbox Area3D
+var hitbox_hit_enemies: Array = []  # Enemies hit during current attack swing (prevents multi-hit)
+var hitbox_active: bool = false  # Is the hitbox currently enabled for collision detection
+
 # Terrain dig visual feedback
 var terrain_preview_cube: MeshInstance3D = null    # Temporary shape after placement
 var terrain_dig_preview_cube: MeshInstance3D = null  # Red cube showing which block will be dug
@@ -189,6 +194,9 @@ var fall_time_below_ground: float = 0.0
 # Blocking start time (for shield parry timing)
 var block_start_time: float = 0.0
 
+# Combat module (handles attacks, combos, hitbox detection)
+var combat = null
+
 func _ready() -> void:
 	# Create inventory
 	var Inventory = preload("res://shared/inventory.gd")
@@ -208,6 +216,10 @@ func _ready() -> void:
 	player_food.name = "PlayerFood"
 	add_child(player_food)
 	_previous_max_health = PC.BASE_HEALTH  # Initialize for health percentage tracking
+
+	# Create combat module (handles attacks, combos, hitbox detection)
+	var PlayerCombatScript = preload("res://shared/player/player_combat.gd")
+	combat = PlayerCombatScript.new(self)
 
 	# Determine if this is the local player
 	is_local_player = is_multiplayer_authority()
@@ -1889,6 +1901,10 @@ func _update_body_animations(delta: float) -> void:
 			# Reset wrist pivot to neutral
 			if weapon_wrist_pivot:
 				weapon_wrist_pivot.rotation_degrees = Vector3.ZERO
+
+	# Update weapon hitbox state during attacks (Valheim-style collision detection)
+	if combat and is_local_player:
+		combat.update_hitbox_during_attack()
 
 	# Update special attack animation
 	if is_special_attacking:
