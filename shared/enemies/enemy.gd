@@ -134,6 +134,10 @@ var patience: float = 0.5
 var health_bar: Node3D = null
 const HEALTH_BAR_SCENE = preload("res://shared/health_bar_3d.tscn")
 
+# Hit visualization - collision box mesh (normally invisible, flashes on hit)
+var collision_box_mesh: MeshInstance3D = null
+var hit_flash_tween: Tween = null
+
 # Projectiles
 const ThrownRock = preload("res://shared/enemies/thrown_rock.gd")
 
@@ -155,6 +159,7 @@ func _ready() -> void:
 	attack_animation_time = 0.3
 
 	_setup_body()
+	_setup_collision_box_mesh()
 
 	# Random personality
 	aggression = randf_range(0.3, 0.8)
@@ -764,6 +769,9 @@ func take_damage(damage: float, knockback: float = 0.0, direction: Vector3 = Vec
 	# Play enemy hurt sound
 	SoundManager.play_sound_varied("enemy_hurt", global_position)
 
+	# Flash hit effect (collision box + body flash)
+	flash_hit_effect()
+
 	# Create health bar on first damage
 	if not health_bar:
 		health_bar = HEALTH_BAR_SCENE.instantiate()
@@ -1110,3 +1118,68 @@ func _tint_mesh_recursive(node: Node, color: Color) -> void:
 func _restore_original_color(mat: StandardMaterial3D) -> void:
 	if mat.has_meta("original_color"):
 		mat.albedo_color = mat.get_meta("original_color")
+
+# ============================================================================
+# HIT VISUALIZATION - Collision box mesh and flash effect
+# ============================================================================
+
+## Setup invisible collision box mesh that flashes when hit
+func _setup_collision_box_mesh() -> void:
+	# Find the collision shape to match its size
+	var collision_shape = get_node_or_null("CollisionShape3D")
+	if not collision_shape or not collision_shape.shape:
+		return
+
+	collision_box_mesh = MeshInstance3D.new()
+	collision_box_mesh.name = "CollisionBoxMesh"
+
+	# Create mesh matching the collision shape
+	var shape = collision_shape.shape
+	if shape is CapsuleShape3D:
+		var capsule_mesh = CapsuleMesh.new()
+		capsule_mesh.radius = shape.radius
+		capsule_mesh.height = shape.height
+		collision_box_mesh.mesh = capsule_mesh
+	elif shape is BoxShape3D:
+		var box_mesh = BoxMesh.new()
+		box_mesh.size = shape.size
+		collision_box_mesh.mesh = box_mesh
+	elif shape is SphereShape3D:
+		var sphere_mesh = SphereMesh.new()
+		sphere_mesh.radius = shape.radius
+		collision_box_mesh.mesh = sphere_mesh
+
+	# Create translucent material (starts invisible)
+	var mat = StandardMaterial3D.new()
+	mat.albedo_color = Color(1.0, 1.0, 1.0, 0.0)  # White, fully transparent
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED  # No lighting, pure color
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED  # Show from all angles
+	collision_box_mesh.material_override = mat
+
+	# Match the collision shape's transform
+	collision_box_mesh.transform = collision_shape.transform
+
+	add_child(collision_box_mesh)
+
+## Flash the collision box and body when hit
+func flash_hit_effect() -> void:
+	# Kill any existing tween
+	if hit_flash_tween and hit_flash_tween.is_valid():
+		hit_flash_tween.kill()
+
+	hit_flash_tween = create_tween()
+	hit_flash_tween.set_parallel(true)
+
+	# Flash the collision box mesh (white flash)
+	if collision_box_mesh and collision_box_mesh.material_override:
+		var mat = collision_box_mesh.material_override as StandardMaterial3D
+		mat.albedo_color = Color(1.0, 1.0, 1.0, 0.7)  # Bright white, visible
+		hit_flash_tween.tween_property(mat, "albedo_color", Color(1.0, 1.0, 1.0, 0.0), 0.15)
+
+	# Flash the body white
+	_set_body_tint(Color(2.0, 2.0, 2.0, 1.0))  # Bright white (>1 for bloom effect)
+	hit_flash_tween.tween_callback(_reset_body_tint).set_delay(0.1)
+
+func _reset_body_tint() -> void:
+	_set_body_tint(Color(1.0, 1.0, 1.0, 1.0))
