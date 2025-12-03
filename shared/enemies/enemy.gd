@@ -138,6 +138,10 @@ const HEALTH_BAR_SCENE = preload("res://shared/health_bar_3d.tscn")
 var collision_box_mesh: MeshInstance3D = null
 var hit_flash_tween: Tween = null
 
+# Attack hitbox (for melee attacks - Valheim-style)
+var attack_hitbox: Area3D = null
+var attack_hitbox_active: bool = false
+
 # Projectiles
 const ThrownRock = preload("res://shared/enemies/thrown_rock.gd")
 
@@ -160,6 +164,7 @@ func _ready() -> void:
 
 	_setup_body()
 	_setup_collision_box_mesh()
+	_setup_attack_hitbox()
 
 	# Random personality
 	aggression = randf_range(0.3, 0.8)
@@ -633,59 +638,22 @@ func _do_melee_attack() -> void:
 	# Play attack swing sound
 	SoundManager.play_sound_varied("sword_swing", global_position)
 
-	# LOCAL-FIRST: Check if MY local player is in range and being targeted
-	var my_peer_id = multiplayer.get_unique_id()
-	var local_player = _get_local_player()
+	# Enable attack hitbox for collision-based damage (Valheim-style)
+	# The hitbox will detect player collision during the attack animation
+	_enable_attack_hitbox()
 
-	if not local_player:
-		return
-
-	# Check if local player is within attack range
-	var dist = global_position.distance_to(local_player.global_position)
-	if dist > attack_range * 1.5:
-		return  # Too far
-
-	# Check if there's a wall between us and the player
-	if _is_wall_blocking(local_player):
-		print("[Enemy] Attack blocked by wall!")
-		return
-
-	# Apply damage to local player
-	var knockback_dir = (local_player.global_position - global_position).normalized()
-	var damage = weapon_data.damage
-	var knockback = weapon_data.knockback
-	var dmg_type = weapon_data.damage_type if weapon_data else -1
-
-	if local_player.has_method("take_damage"):
-		print("[Enemy] Dealing %.1f melee damage to local player" % damage)
-		local_player.take_damage(damage, -1, knockback_dir * knockback, dmg_type)
+	# Disable hitbox after attack animation completes
+	get_tree().create_timer(attack_animation_time).timeout.connect(_disable_attack_hitbox)
 
 ## Check if local player should take melee damage (for non-host clients)
 ## Called when we see ATTACKING state from network sync
 func _check_local_melee_damage() -> void:
-	var local_player = _get_local_player()
-	if not local_player:
-		return
+	# Enable attack hitbox for collision-based damage (Valheim-style)
+	# Same as host - use hitbox collision instead of distance check
+	_enable_attack_hitbox()
 
-	# Check if local player is within attack range
-	var dist = global_position.distance_to(local_player.global_position)
-	if dist > attack_range * 1.5:
-		return  # Too far
-
-	# Check if there's a wall between us and the player
-	if _is_wall_blocking(local_player):
-		print("[Enemy] (non-host) Attack blocked by wall!")
-		return
-
-	# Apply damage to local player
-	var knockback_dir = (local_player.global_position - global_position).normalized()
-	var damage = weapon_data.damage
-	var knockback = weapon_data.knockback
-	var dmg_type = weapon_data.damage_type if weapon_data else -1
-
-	if local_player.has_method("take_damage"):
-		print("[Enemy] (non-host) Dealing %.1f melee damage to local player" % damage)
-		local_player.take_damage(damage, -1, knockback_dir * knockback, dmg_type)
+	# Disable hitbox after attack animation completes
+	get_tree().create_timer(attack_animation_time).timeout.connect(_disable_attack_hitbox)
 
 func _throw_rock() -> void:
 	if not target_player:
@@ -1183,3 +1151,73 @@ func flash_hit_effect() -> void:
 
 func _reset_body_tint() -> void:
 	_set_body_tint(Color(1.0, 1.0, 1.0, 1.0))
+
+# ============================================================================
+# ATTACK HITBOX (Valheim-style melee collision)
+# ============================================================================
+
+## Setup attack hitbox for melee damage detection
+func _setup_attack_hitbox() -> void:
+	attack_hitbox = Area3D.new()
+	attack_hitbox.name = "AttackHitbox"
+	attack_hitbox.collision_layer = 0
+	attack_hitbox.collision_mask = 2  # Players layer
+	attack_hitbox.monitoring = false
+	attack_hitbox.monitorable = false
+
+	# Create sphere hitbox in front of enemy (fist/punch range)
+	var collision_shape = CollisionShape3D.new()
+	var shape = SphereShape3D.new()
+	shape.radius = 0.4  # Tight hitbox for fist attacks
+	collision_shape.shape = shape
+	collision_shape.disabled = true
+
+	attack_hitbox.add_child(collision_shape)
+	add_child(attack_hitbox)
+
+	# Position in front of enemy at chest height
+	attack_hitbox.position = Vector3(0, 0.6, 0.6)
+
+	# Connect signal for collision detection
+	attack_hitbox.body_entered.connect(_on_attack_hitbox_body_entered)
+
+## Called when attack hitbox collides with player
+func _on_attack_hitbox_body_entered(body: Node3D) -> void:
+	if not attack_hitbox_active:
+		return
+
+	# Check if it's a player
+	if body.collision_layer & 2 and body.has_method("take_damage"):
+		# Apply damage
+		var knockback_dir = (body.global_position - global_position).normalized()
+		var damage = weapon_data.damage if weapon_data else 10.0
+		var knockback = weapon_data.knockback if weapon_data else 5.0
+		var dmg_type = weapon_data.damage_type if weapon_data else -1
+
+		print("[Enemy] HITBOX HIT player! (%.1f damage)" % damage)
+		body.take_damage(damage, -1, knockback_dir * knockback, dmg_type)
+
+		# Disable hitbox after hit (one hit per attack)
+		_disable_attack_hitbox()
+
+## Enable attack hitbox during attack animation
+func _enable_attack_hitbox() -> void:
+	if not attack_hitbox:
+		return
+
+	attack_hitbox_active = true
+	attack_hitbox.monitoring = true
+	var collision_shape = attack_hitbox.get_node_or_null("CollisionShape3D")
+	if collision_shape:
+		collision_shape.disabled = false
+
+## Disable attack hitbox
+func _disable_attack_hitbox() -> void:
+	if not attack_hitbox:
+		return
+
+	attack_hitbox_active = false
+	attack_hitbox.monitoring = false
+	var collision_shape = attack_hitbox.get_node_or_null("CollisionShape3D")
+	if collision_shape:
+		collision_shape.disabled = true

@@ -10,8 +10,8 @@ size = Vector3(0.06, 0.25, 0.06)
 albedo_color = Color(0.5, 0.5, 0.55, 1)
 
 [sub_resource type="CapsuleShape3D" id="hitbox_shape"]
-radius = 0.08
-height = 0.9
+radius = 0.2
+height = 1.5
 
 [node name="StoneSword" type="Node3D"]
 

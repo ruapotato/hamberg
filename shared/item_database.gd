@@ -129,7 +129,7 @@ func _register_weapon_fists() -> void:
 	weapon.parry_window = 0.15  # Short parry window for fists (skilled timing required)
 	weapon.tool_type = "blunt"  # Can break small things, but not chop trees
 	weapon.weight = 0.0
-	# No weapon scene - fists are always visible (viewmodel arms)
+	weapon.weapon_scene = load("res://shared/weapons/fists.tscn")  # Invisible but has hitbox
 	items["fists"] = weapon
 
 	# Sporeling tendrils - Dark Forest enemies hit HARD (biome 2)
