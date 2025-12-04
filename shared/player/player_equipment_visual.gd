@@ -467,6 +467,9 @@ func update_accessory_visual() -> void:
 		cyclops_light.queue_free()
 		cyclops_light = null
 
+	# Remove glow effect from player body
+	_remove_cyclops_glow()
+
 	if not player.body_container:
 		return
 
@@ -484,17 +487,92 @@ func update_accessory_visual() -> void:
 		cyclops_light.name = "CyclopsLight"
 		player.body_container.add_child(cyclops_light)
 
-		# Configure the light - eerie magical glow
-		cyclops_light.light_color = Color(0.8, 0.6, 1.0)  # Purple-ish magical glow
-		cyclops_light.light_energy = 2.0
-		cyclops_light.omni_range = 12.0  # Large light radius
-		cyclops_light.omni_attenuation = 1.5  # Soft falloff
+		# Configure the light - golden magical glow like the Cyclops eye
+		cyclops_light.light_color = Color(1.0, 0.85, 0.4)  # Golden glow
+		cyclops_light.light_energy = 3.0
+		cyclops_light.omni_range = 15.0  # Large light radius for dark areas
+		cyclops_light.omni_attenuation = 1.2  # Soft falloff
 		cyclops_light.shadow_enabled = true
 
 		# Position at chest height
 		cyclops_light.position = Vector3(0, 1.2, 0)
 
-		print("[Player] Cyclops Eye light activated!")
+		# Make the player's body GLOW with emission
+		_apply_cyclops_glow()
+
+		print("[Player] Cyclops Eye activated - player now glows!")
+
+## Apply glowing emission effect to player body parts
+func _apply_cyclops_glow() -> void:
+	if not player.body_container:
+		return
+
+	var glow_color = Color(1.0, 0.9, 0.5)  # Golden yellow glow
+	var emission_strength = 1.5
+
+	# Apply glow to all body parts
+	_apply_glow_to_node(player.body_container, "Head", glow_color, emission_strength)
+	_apply_glow_to_node(player.body_container, "Neck", glow_color, emission_strength)
+	_apply_glow_to_node(player.body_container, "Torso", glow_color, emission_strength)
+	_apply_glow_to_node(player.body_container, "Hips", glow_color, emission_strength)
+
+	# Arms
+	for arm_name in ["LeftArm", "RightArm"]:
+		var arm = player.body_container.get_node_or_null(arm_name)
+		if arm:
+			_apply_glow_to_children(arm, glow_color, emission_strength)
+			var elbow = arm.get_node_or_null("Elbow")
+			if elbow:
+				_apply_glow_to_children(elbow, glow_color, emission_strength)
+
+	# Legs
+	for leg_name in ["LeftLeg", "RightLeg"]:
+		var leg = player.body_container.get_node_or_null(leg_name)
+		if leg:
+			_apply_glow_to_children(leg, glow_color, emission_strength)
+			var knee = leg.get_node_or_null("Knee")
+			if knee:
+				_apply_glow_to_children(knee, glow_color, emission_strength)
+
+## Remove glow effect from player body
+func _remove_cyclops_glow() -> void:
+	if not player.body_container:
+		return
+
+	# Remove glow by re-applying current armor colors (or defaults)
+	update_head_armor_visual()
+	update_chest_armor_visual()
+	update_legs_armor_visual()
+
+## Apply glow emission to a specific named mesh node
+func _apply_glow_to_node(parent: Node3D, node_name: String, glow_color: Color, emission_strength: float) -> void:
+	var mesh_node = parent.get_node_or_null(node_name)
+	if mesh_node is MeshInstance3D:
+		var mat = StandardMaterial3D.new()
+		# Get current color if possible
+		if mesh_node.material_override is StandardMaterial3D:
+			mat.albedo_color = mesh_node.material_override.albedo_color
+		else:
+			mat.albedo_color = glow_color
+		# Add emission for glow effect
+		mat.emission_enabled = true
+		mat.emission = glow_color
+		mat.emission_energy_multiplier = emission_strength
+		mesh_node.material_override = mat
+
+## Apply glow to all MeshInstance3D children of a node
+func _apply_glow_to_children(parent: Node3D, glow_color: Color, emission_strength: float) -> void:
+	for child in parent.get_children():
+		if child is MeshInstance3D:
+			var mat = StandardMaterial3D.new()
+			if child.material_override is StandardMaterial3D:
+				mat.albedo_color = child.material_override.albedo_color
+			else:
+				mat.albedo_color = glow_color
+			mat.emission_enabled = true
+			mat.emission = glow_color
+			mat.emission_energy_multiplier = emission_strength
+			child.material_override = mat
 
 ## Initialize all armor visuals to default (unarmored) state
 func initialize_armor_visuals() -> void:

@@ -21,6 +21,8 @@ const DEFAULT_PANTS_COLOR: Color = Color(0.6, 0.55, 0.5, 1.0)  # Slightly darker
 var cape_visual: Node3D = null
 # Hood visual reference
 var hood_visual: Node3D = null
+# Cyclops eye light effect
+var cyclops_light: OmniLight3D = null
 
 # Movement parameters
 const WALK_SPEED: float = 5.0
@@ -2908,6 +2910,8 @@ func _on_equipment_changed(slot) -> void:  # slot is Equipment.EquipmentSlot
 			_update_legs_armor_visual()
 		Equipment.EquipmentSlot.CAPE:
 			_update_cape_visual()
+		Equipment.EquipmentSlot.ACCESSORY:
+			_update_accessory_visual()
 
 ## Update the main hand weapon visual
 func _update_weapon_visual() -> void:
@@ -3354,6 +3358,80 @@ func _update_cape_visual() -> void:
 
 	# Position cape at upper back (between shoulders)
 	cape_visual.position = Vector3(0, 1.35, -0.05)
+
+## Update accessory visual (Cyclops Eye glow effect)
+func _update_accessory_visual() -> void:
+	# Remove existing light
+	if cyclops_light:
+		cyclops_light.queue_free()
+		cyclops_light = null
+
+	# Remove any existing body glow
+	_remove_cyclops_glow()
+
+	if not body_container:
+		return
+
+	var armor_data = equipment.get_equipped_item_data(Equipment.EquipmentSlot.ACCESSORY)
+	if not armor_data is ArmorData:
+		print("[Player] Unequipped accessory")
+		return
+
+	print("[Player] Equipped accessory: %s" % armor_data.item_id)
+
+	# Check for Cyclops Eye effect
+	if armor_data.set_bonus == ArmorData.SetBonus.CYCLOPS_LIGHT:
+		_apply_cyclops_glow()
+
+## Apply the Cyclops Eye glow effect - light aura and body emission
+func _apply_cyclops_glow() -> void:
+	if not body_container:
+		return
+
+	# Create OmniLight3D for light aura
+	cyclops_light = OmniLight3D.new()
+	cyclops_light.name = "CyclopsLight"
+	cyclops_light.light_color = Color(1.0, 0.85, 0.4)  # Warm golden glow
+	cyclops_light.light_energy = 3.0
+	cyclops_light.omni_range = 15.0
+	cyclops_light.omni_attenuation = 1.5
+	cyclops_light.position = Vector3(0, 1.0, 0)  # At player center
+	body_container.add_child(cyclops_light)
+
+	# Apply emission glow to body parts
+	var glow_color = Color(1.0, 0.9, 0.5)  # Warm yellow glow
+	var emission_strength = 1.5
+
+	# Apply to all visible body meshes
+	var body_parts = ["Head", "Neck", "Torso", "LeftUpperArm", "LeftLowerArm", "LeftHand",
+					  "RightUpperArm", "RightLowerArm", "RightHand", "LeftUpperLeg",
+					  "LeftLowerLeg", "LeftFoot", "RightUpperLeg", "RightLowerLeg", "RightFoot"]
+
+	for part_name in body_parts:
+		var mesh = body_container.get_node_or_null(part_name)
+		if mesh and mesh is MeshInstance3D:
+			var mat = mesh.material_override
+			if mat and mat is StandardMaterial3D:
+				mat.emission_enabled = true
+				mat.emission = glow_color
+				mat.emission_energy_multiplier = emission_strength
+
+## Remove the Cyclops Eye glow effect
+func _remove_cyclops_glow() -> void:
+	if not body_container:
+		return
+
+	# Remove emission from body parts
+	var body_parts = ["Head", "Neck", "Torso", "LeftUpperArm", "LeftLowerArm", "LeftHand",
+					  "RightUpperArm", "RightLowerArm", "RightHand", "LeftUpperLeg",
+					  "LeftLowerLeg", "LeftFoot", "RightUpperLeg", "RightLowerLeg", "RightFoot"]
+
+	for part_name in body_parts:
+		var mesh = body_container.get_node_or_null(part_name)
+		if mesh and mesh is MeshInstance3D:
+			var mat = mesh.material_override
+			if mat and mat is StandardMaterial3D:
+				mat.emission_enabled = false
 
 ## Initialize all armor visuals to default (unarmored) state
 func _initialize_armor_visuals() -> void:
