@@ -326,11 +326,47 @@ func _process(_delta: float) -> void:
 
 func auto_connect_to_localhost() -> void:
 	"""Auto-connect to localhost for singleplayer mode"""
+	auto_connect_to_address("127.0.0.1:%d" % NetworkManager.DEFAULT_PORT)
+
+func auto_connect_to_address(address_port: String) -> void:
+	"""Auto-connect to a specific address:port"""
 	await get_tree().create_timer(0.1).timeout
 
-	ip_input.text = "127.0.0.1"
-	port_input.text = str(NetworkManager.DEFAULT_PORT)
+	var parts = address_port.split(":")
+	if parts.size() >= 2:
+		ip_input.text = parts[0]
+		port_input.text = parts[1]
+	else:
+		ip_input.text = address_port
+		port_input.text = str(NetworkManager.DEFAULT_PORT)
+
+	print("[Client] Auto-connecting to %s:%s" % [ip_input.text, port_input.text])
 	_on_connect_button_pressed()
+
+## Connect to server with a custom multiplayer API (for singleplayer mode)
+func connect_with_multiplayer(address: String, port: int, custom_multiplayer: SceneMultiplayer) -> void:
+	print("[Client] Connecting to %s:%d with custom multiplayer..." % [address, port])
+
+	# Create ENet client peer
+	var peer := ENetMultiplayerPeer.new()
+	var error := peer.create_client(address, port)
+
+	if error != OK:
+		push_error("[Client] Failed to connect to %s:%d: %s" % [address, port, error_string(error)])
+		return
+
+	# Set up the custom multiplayer
+	custom_multiplayer.multiplayer_peer = peer
+
+	# Connect multiplayer signals
+	custom_multiplayer.connected_to_server.connect(_on_client_connected)
+	custom_multiplayer.connection_failed.connect(_on_connection_failed)
+	custom_multiplayer.server_disconnected.connect(_on_server_disconnected)
+
+	# Hide connection UI since we're auto-connecting
+	connection_ui.visible = false
+
+	print("[Client] Waiting for connection...")
 
 func _on_connect_button_pressed() -> void:
 	var address := ip_input.text

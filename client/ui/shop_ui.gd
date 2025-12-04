@@ -493,10 +493,7 @@ func _on_buy_item(item_id: String, price: int) -> void:
 
 	# Request buy from server
 	print("[ShopUI] Requesting to buy %s for %d gold" % [item_id, price])
-
-	# Use direct call in singleplayer, RPC in multiplayer
-	if not NetworkManager.call_server_method("handle_shop_buy", [item_id, price]):
-		NetworkManager.rpc_request_shop_buy.rpc_id(1, item_id, price)
+	NetworkManager.rpc_request_shop_buy.rpc_id(1, item_id, price)
 
 	# Special handling for boss summon items
 	if item_id == "glowing_medallion":
@@ -520,10 +517,7 @@ func _on_sell_item(slot_index: int, amount: int, total_price: int) -> void:
 
 	# Request sell from server
 	print("[ShopUI] Requesting to sell %d items from slot %d for %d gold" % [amount, slot_index, total_price])
-
-	# Use direct call in singleplayer, RPC in multiplayer
-	if not NetworkManager.call_server_method("handle_shop_sell", [slot_index, amount, total_price]):
-		NetworkManager.rpc_request_shop_sell.rpc_id(1, slot_index, amount, total_price)
+	NetworkManager.rpc_request_shop_sell.rpc_id(1, slot_index, amount, total_price)
 
 	# Snarky sell dialogue
 	var snark_lines = [
@@ -550,10 +544,7 @@ func _on_upgrade_item(slot: int, cost: int) -> void:
 
 	# Request upgrade from server
 	print("[ShopUI] Requesting to upgrade armor in slot %d for %d gold" % [slot, cost])
-
-	# Use direct call in singleplayer, RPC in multiplayer
-	if not NetworkManager.call_server_method("handle_shop_upgrade", [slot, cost]):
-		NetworkManager.rpc_request_shop_upgrade.rpc_id(1, slot, cost)
+	NetworkManager.rpc_request_shop_upgrade.rpc_id(1, slot, cost)
 
 	# Upgrade dialogue
 	dialogue_label.text = "[i][color=lime]\"There... I've enhanced your armor. Try not to get it ruined immediately.\"[/color][/i]"
