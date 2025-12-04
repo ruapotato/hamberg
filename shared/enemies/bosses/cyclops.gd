@@ -54,17 +54,13 @@ var cyclops_state: CyclopsState = CyclopsState.SPAWNING
 var stomp_timer: float = 0.0
 var boulder_timer: float = 0.0
 var eye_beam_timer: float = 0.0
-var state_timer: float = 0.0
+# Note: state_timer inherited from Enemy
 var attack_recovery_time: float = 1.5
 
-# Visual components
+# Visual components (arms/legs inherited from AnimatedCharacter)
 var eye_mesh: MeshInstance3D = null
 var eye_light: OmniLight3D = null
 var eye_beam_area: Area3D = null
-var left_arm: Node3D = null
-var right_arm: Node3D = null
-var left_leg: Node3D = null
-var right_leg: Node3D = null
 
 # Attack state
 var is_eye_beam_active: bool = false

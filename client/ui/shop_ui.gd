@@ -500,7 +500,7 @@ func _on_buy_item(item_id: String, price: int) -> void:
 		dialogue_label.text = "[i][color=red]\"Hehehehe... you FOOL! You've doomed yourself!\"[/color][/i]"
 		# Close shop after brief delay, boss spawns via server
 		await get_tree().create_timer(1.5).timeout
-		close_shop()
+		hide_ui()
 		return
 
 	# Optimistically update UI (server will correct if wrong)
