@@ -61,7 +61,7 @@ const REPORT_INTERVAL: float = 0.1
 @export var move_speed: float = 2.5
 @export var charge_speed: float = 4.5
 @export var strafe_speed: float = 1.6
-@export var attack_range: float = 1.2
+@export var attack_range: float = 0.9  # Close range - hitbox extends ~1.3 units forward
 @export var attack_cooldown_time: float = 1.2
 @export var windup_time: float = 0.5  # Telegraph before attack - gives player time to block/parry
 @export var detection_range: float = 18.0
@@ -185,6 +185,10 @@ func _physics_process(delta: float) -> void:
 		_send_position_report(delta)
 	else:
 		_run_follower_interpolation(delta)
+
+	# Continuous attack hitbox overlap check (more reliable than timers)
+	if attack_hitbox_active:
+		_check_attack_hitbox_overlap()
 
 	update_animations(delta)
 
@@ -1184,38 +1188,19 @@ func _setup_attack_hitbox() -> void:
 
 	# Create sphere hitbox in front of enemy (fist/punch range)
 	var collision_shape = CollisionShape3D.new()
+	collision_shape.name = "CollisionShape3D"  # Explicit name for lookup
 	var shape = SphereShape3D.new()
-	shape.radius = 0.5  # Moderate hitbox size
+	shape.radius = 0.7  # Slightly larger for reliable hit detection
 	collision_shape.shape = shape
 	collision_shape.disabled = true
 
 	attack_hitbox.add_child(collision_shape)
 
-	# Attach to right_arm so it moves with punch animation
-	# The hitbox will swing forward when the arm animates
-	if right_arm:
-		# Find the elbow node to attach further down the arm
-		var elbow = right_arm.get_node_or_null("Elbow")
-		if elbow:
-			elbow.add_child(attack_hitbox)
-			# Position at the fist (end of forearm, extending forward)
-			attack_hitbox.position = Vector3(0, -0.2, 0.6)
-		else:
-			right_arm.add_child(attack_hitbox)
-			attack_hitbox.position = Vector3(0, -0.3, 0.6)
-	elif body_container:
-		# Fallback to body_container if no right_arm
-		body_container.add_child(attack_hitbox)
-		attack_hitbox.position = Vector3(0, 0.8, 1.0)
-	else:
-		add_child(attack_hitbox)
-		attack_hitbox.position = Vector3(0, 0.8, -1.0)
-
-	# DEBUG: Add visual mesh for attack hitbox
+	# DEBUG: Add visual mesh as CHILD of CollisionShape3D so it always matches exactly
 	var debug_mesh = MeshInstance3D.new()
 	debug_mesh.name = "DebugMesh"
 	var sphere_mesh = SphereMesh.new()
-	sphere_mesh.radius = 0.5
+	sphere_mesh.radius = shape.radius  # Use SAME radius as collision shape
 	debug_mesh.mesh = sphere_mesh
 	var mat = StandardMaterial3D.new()
 	mat.albedo_color = Color(1.0, 0.0, 0.0, 0.5)  # Red, more visible
@@ -1226,7 +1211,28 @@ func _setup_attack_hitbox() -> void:
 	debug_mesh.material_override = mat
 	debug_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	debug_mesh.visible = DebugSettings.show_hitboxes  # Respect current toggle state
-	attack_hitbox.add_child(debug_mesh)
+	collision_shape.add_child(debug_mesh)  # Child of collision shape, not Area3D
+
+	# Attach to right_arm so it moves with punch animation
+	# The hitbox will swing forward when the arm animates
+	if right_arm:
+		# Find the elbow node to attach further down the arm
+		var elbow = right_arm.get_node_or_null("Elbow")
+		if elbow:
+			elbow.add_child(attack_hitbox)
+			# Position at fist level but raised to hit player's body (not feet)
+			# Y=0.4 brings it up to chest/torso height relative to elbow
+			attack_hitbox.position = Vector3(0, 0.4, 0.6)
+		else:
+			right_arm.add_child(attack_hitbox)
+			attack_hitbox.position = Vector3(0, 0.3, 0.6)
+	elif body_container:
+		# Fallback to body_container if no right_arm
+		body_container.add_child(attack_hitbox)
+		attack_hitbox.position = Vector3(0, 0.8, 1.0)
+	else:
+		add_child(attack_hitbox)
+		attack_hitbox.position = Vector3(0, 0.8, -1.0)
 
 	# Connect signal for collision detection
 	attack_hitbox.body_entered.connect(_on_attack_hitbox_body_entered)
@@ -1294,13 +1300,14 @@ func _check_attack_hitbox_overlap() -> void:
 			_disable_attack_hitbox()
 			return
 
-## Disable attack hitbox
+## Disable attack hitbox (uses deferred calls to avoid errors during signal callbacks)
 func _disable_attack_hitbox() -> void:
 	if not attack_hitbox:
 		return
 
 	attack_hitbox_active = false
-	attack_hitbox.monitoring = false
+	# Use set_deferred to avoid "Function blocked during in/out signal" errors
+	attack_hitbox.set_deferred("monitoring", false)
 	var collision_shape = attack_hitbox.get_node_or_null("CollisionShape3D")
 	if collision_shape:
-		collision_shape.disabled = true
+		collision_shape.set_deferred("disabled", true)

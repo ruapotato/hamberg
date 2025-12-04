@@ -497,15 +497,12 @@ func _toggle_hitbox_visuals(enabled: bool) -> void:
 	# Toggle enemy attack hitbox and body collision debug meshes
 	var enemies = get_tree().get_nodes_in_group("enemies")
 	for enemy in enemies:
-		# Attack hitbox
-		if enemy.has_node("AttackHitbox") or (enemy.body_container and enemy.body_container.has_node("AttackHitbox")):
-			var attack_hitbox = enemy.get_node_or_null("AttackHitbox")
-			if not attack_hitbox and enemy.body_container:
-				attack_hitbox = enemy.body_container.get_node_or_null("AttackHitbox")
-			if attack_hitbox:
-				var debug_mesh = attack_hitbox.get_node_or_null("DebugMesh")
-				if debug_mesh:
-					debug_mesh.visible = enabled
+		# Attack hitbox - use the member variable directly (hitbox is on right_arm.Elbow)
+		if "attack_hitbox" in enemy and enemy.attack_hitbox:
+			# Debug mesh is child of CollisionShape3D
+			var debug_mesh = enemy.attack_hitbox.get_node_or_null("CollisionShape3D/DebugMesh")
+			if debug_mesh:
+				debug_mesh.visible = enabled
 		# Body collision mesh
 		if "collision_box_mesh" in enemy and enemy.collision_box_mesh:
 			enemy.collision_box_mesh.visible = enabled
@@ -513,14 +510,12 @@ func _toggle_hitbox_visuals(enabled: bool) -> void:
 	# Same for animals
 	var animals = get_tree().get_nodes_in_group("animals")
 	for animal in animals:
-		if animal.has_node("AttackHitbox") or (animal.body_container and animal.body_container.has_node("AttackHitbox")):
-			var attack_hitbox = animal.get_node_or_null("AttackHitbox")
-			if not attack_hitbox and animal.body_container:
-				attack_hitbox = animal.body_container.get_node_or_null("AttackHitbox")
-			if attack_hitbox:
-				var debug_mesh = attack_hitbox.get_node_or_null("DebugMesh")
-				if debug_mesh:
-					debug_mesh.visible = enabled
+		# Attack hitbox - use the member variable directly
+		if "attack_hitbox" in animal and animal.attack_hitbox:
+			# Debug mesh is child of CollisionShape3D
+			var debug_mesh = animal.attack_hitbox.get_node_or_null("CollisionShape3D/DebugMesh")
+			if debug_mesh:
+				debug_mesh.visible = enabled
 		if "collision_box_mesh" in animal and animal.collision_box_mesh:
 			animal.collision_box_mesh.visible = enabled
 

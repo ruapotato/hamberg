@@ -2596,9 +2596,10 @@ func take_damage(damage: float, attacker_id: int = -1, knockback_dir: Vector3 = 
 	if is_dead:
 		return
 
-	# God mode: ignore all damage
+	# God mode: ignore damage but still play hit effects for debugging
 	if god_mode:
 		print("[Player] God mode - ignoring %d damage" % damage)
+		_spawn_hit_effect()
 		return
 
 	var final_damage = damage
