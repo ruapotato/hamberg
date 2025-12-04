@@ -2321,6 +2321,7 @@ func handle_debug_spawn_entity(peer_id: int, entity_type: String, count: int) ->
 
 	# Map entity type to scene path
 	var scene_path = ""
+	var is_boss = false
 	match entity_type.to_lower():
 		"gahnome":
 			scene_path = "res://shared/enemies/gahnome.tscn"
@@ -2332,15 +2333,23 @@ func handle_debug_spawn_entity(peer_id: int, entity_type: String, count: int) ->
 			scene_path = "res://shared/animals/pig.tscn"
 		"sheep":
 			scene_path = "res://shared/animals/sheep.tscn"
+		"cyclops":
+			is_boss = true
 		_:
 			print("[Server] DEBUG: Unknown entity type: %s" % entity_type)
 			return
 
-	# Spawn enemies near player
+	# Spawn entities near player
 	for i in range(count):
 		var offset = Vector3(randf_range(-5, 5), 0, randf_range(-5, 5))
+		if is_boss:
+			offset = Vector3(0, 0, 15)  # Spawn boss in front
 		var spawn_pos = player_pos + offset
-		enemy_spawner.spawn_enemy_at_position(scene_path, spawn_pos, peer_id)
+
+		if is_boss:
+			enemy_spawner.spawn_boss(entity_type.to_lower(), spawn_pos, peer_id)
+		else:
+			enemy_spawner.spawn_enemy_at_position(scene_path, spawn_pos, peer_id)
 
 	print("[Server] DEBUG: Spawned %d x %s" % [count, entity_type])
 
@@ -2452,6 +2461,20 @@ func handle_debug_kill_nearby(peer_id: int) -> void:
 			killed_count += 1
 
 	print("[Server] DEBUG: Killed %d enemies near player %d" % [killed_count, peer_id])
+
+## Debug: Give gold to player
+func handle_debug_give_gold(peer_id: int, amount: int) -> void:
+	print("[Server] DEBUG: Give %d gold to player %d" % [amount, peer_id])
+
+	if not spawned_players.has(peer_id):
+		return
+
+	var player = spawned_players[peer_id]
+	if not player or not is_instance_valid(player):
+		return
+
+	player.gold += amount
+	NetworkManager.rpc_sync_gold.rpc_id(peer_id, player.gold)
 
 # ============================================================================
 # GRAPHICS SETTINGS

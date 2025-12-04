@@ -23,7 +23,7 @@ var god_mode: bool = false
 var browsing_history: bool = false
 
 # Autocomplete data
-var all_commands: Array[String] = ["/give", "/spawn", "/tp", "/heal", "/god", "/clear", "/kill", "/pos", "/items", "/enemies", "/time", "/help", "/perf", "/toggle"]
+var all_commands: Array[String] = ["/give", "/spawn", "/tp", "/heal", "/god", "/gold", "/clear", "/kill", "/pos", "/items", "/enemies", "/time", "/help", "/perf", "/toggle"]
 
 # Performance toggle states
 var perf_toggles: Dictionary = {
@@ -36,12 +36,14 @@ var perf_toggles: Dictionary = {
 	"hitboxes": false,  # Debug hitbox visualization (off by default)
 }
 var all_items: Array[String] = []
-var all_enemies: Array[String] = ["gahnome", "sporeling", "deer", "pig", "sheep"]
+var all_enemies: Array[String] = ["gahnome", "sporeling", "deer", "pig", "sheep", "cyclops"]
 
 # Reference to client for accessing player and inventory
 var client_ref: Node = null
 
 func _ready() -> void:
+	add_to_group("debug_console")
+
 	input_field.text_submitted.connect(_on_command_submitted)
 	input_field.text_changed.connect(_on_text_changed)
 	close_button.pressed.connect(hide_console)
@@ -204,6 +206,8 @@ func _execute_command(text: String) -> void:
 			_cmd_heal()
 		"/god", "god":
 			_cmd_god()
+		"/gold", "gold":
+			_cmd_gold(args)
 		"/clear", "clear":
 			_cmd_clear()
 		"/help", "help", "?":
@@ -264,7 +268,7 @@ func _cmd_give(args: Array) -> void:
 func _cmd_spawn(args: Array) -> void:
 	if args.is_empty():
 		_add_output("[color=yellow]Usage: /spawn <enemy_type> [count][/color]")
-		_add_output("Types: gahnome, sporeling, deer, pig, sheep")
+		_add_output("Types: gahnome, sporeling, deer, pig, sheep, cyclops")
 		return
 
 	var enemy_type = args[0].to_lower()
@@ -304,6 +308,14 @@ func _cmd_god() -> void:
 		_add_output("[color=gold]God mode ENABLED[/color]")
 	else:
 		_add_output("[color=gray]God mode disabled[/color]")
+
+func _cmd_gold(args: Array) -> void:
+	var amount = 100
+	if args.size() > 0 and args[0].is_valid_int():
+		amount = int(args[0])
+
+	NetworkManager.rpc_debug_give_gold.rpc_id(1, amount)
+	_add_output("[color=gold]Added %d gold[/color]" % amount)
 
 func _cmd_clear() -> void:
 	NetworkManager.rpc_debug_clear_inventory.rpc_id(1)
@@ -367,14 +379,16 @@ func _cmd_list_items() -> void:
 func _cmd_list_enemies() -> void:
 	_add_output("[color=cyan]Enemy types:[/color] gahnome, sporeling")
 	_add_output("[color=cyan]Animal types:[/color] deer, pig, sheep")
+	_add_output("[color=red]Boss types:[/color] cyclops")
 
 func _cmd_help() -> void:
 	_add_output("[color=cyan]Commands:[/color]")
 	_add_output("  /give <item> [amount] - Spawn items (e.g. /give 10 wood)")
-	_add_output("  /spawn <type> [count] - Spawn enemies/animals")
+	_add_output("  /spawn <type> [count] - Spawn enemies/animals/bosses")
 	_add_output("  /tp <x> <y> <z> - Teleport")
 	_add_output("  /heal - Heal to full")
 	_add_output("  /god - Toggle invincibility")
+	_add_output("  /gold [amount] - Give gold (default 100)")
 	_add_output("  /clear - Clear inventory")
 	_add_output("  /kill - Kill nearby enemies")
 	_add_output("  /pos - Show position")

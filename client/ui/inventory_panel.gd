@@ -92,8 +92,12 @@ func _create_stats_panel() -> void:
 	stats_panel.add_child(stats_label)
 
 func _process(_delta: float) -> void:
-	# Toggle inventory with Tab key
+	# Toggle inventory with Tab key (unless debug console is open)
 	if Input.is_action_just_pressed("toggle_inventory"):
+		# Don't toggle inventory if debug console is handling Tab for autocomplete
+		var debug_console = get_tree().get_first_node_in_group("debug_console")
+		if debug_console and debug_console.visible:
+			return
 		toggle_inventory()
 
 	# Close inventory with ESC

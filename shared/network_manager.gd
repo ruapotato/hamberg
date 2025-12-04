@@ -1170,6 +1170,16 @@ func rpc_debug_kill_nearby() -> void:
 	if server_node and server_node.has_method("handle_debug_kill_nearby"):
 		server_node.handle_debug_kill_nearby(peer_id)
 
+## CLIENT -> SERVER: Debug give gold
+@rpc("any_peer", "call_remote", "reliable")
+func rpc_debug_give_gold(amount: int) -> void:
+	if not is_server:
+		return
+	var peer_id := multiplayer.get_remote_sender_id()
+	var server_node := get_node_or_null("/root/Main/Server")
+	if server_node and server_node.has_method("handle_debug_give_gold"):
+		server_node.handle_debug_give_gold(peer_id, amount)
+
 # ============================================================================
 # GRAPHICS SETTINGS
 # ============================================================================
