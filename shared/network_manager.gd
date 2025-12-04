@@ -135,7 +135,7 @@ func disconnect_network() -> void:
 
 ## Register a player (server-side)
 func register_player(peer_id: int, player_name: String) -> void:
-	if not is_server:
+	if not multiplayer.is_server():
 		push_error("[NetworkManager] Only server can register players")
 		return
 
@@ -149,7 +149,7 @@ func register_player(peer_id: int, player_name: String) -> void:
 
 ## Unregister a player (server-side)
 func unregister_player(peer_id: int) -> void:
-	if not is_server:
+	if not multiplayer.is_server():
 		push_error("[NetworkManager] Only server can unregister players")
 		return
 
@@ -231,7 +231,7 @@ func _on_server_disconnected() -> void:
 ## CLIENT -> SERVER: Register player name
 @rpc("any_peer", "call_remote", "reliable")
 func rpc_register_player(player_name: String) -> void:
-	if not is_server:
+	if not multiplayer.is_server():
 		return
 
 	var peer_id := multiplayer.get_remote_sender_id()
@@ -241,7 +241,7 @@ func rpc_register_player(player_name: String) -> void:
 ## CLIENT -> SERVER: Send player input (deprecated - use rpc_send_player_position)
 @rpc("any_peer", "call_remote", "unreliable_ordered")
 func rpc_send_player_input(input_data: Dictionary) -> void:
-	if not is_server:
+	if not multiplayer.is_server():
 		return
 
 	var peer_id := multiplayer.get_remote_sender_id()
@@ -253,7 +253,7 @@ func rpc_send_player_input(input_data: Dictionary) -> void:
 ## CLIENT -> SERVER: Send player position (client-authoritative)
 @rpc("any_peer", "call_remote", "unreliable_ordered")
 func rpc_send_player_position(position_data: Dictionary) -> void:
-	if not is_server:
+	if not multiplayer.is_server():
 		return
 
 	var peer_id := multiplayer.get_remote_sender_id()
@@ -265,7 +265,7 @@ func rpc_send_player_position(position_data: Dictionary) -> void:
 ## CLIENT -> SERVER: Report hit (trust-based)
 @rpc("any_peer", "call_remote", "reliable")
 func rpc_report_hit(target_id: int, damage: float, hit_position: Vector3) -> void:
-	if not is_server:
+	if not multiplayer.is_server():
 		return
 
 	var peer_id := multiplayer.get_remote_sender_id()
@@ -276,7 +276,7 @@ func rpc_report_hit(target_id: int, damage: float, hit_position: Vector3) -> voi
 ## CLIENT -> SERVER: Damage environmental object
 @rpc("any_peer", "call_remote", "reliable")
 func rpc_damage_environmental_object(chunk_pos: Array, object_id: int, damage: float, hit_position: Vector3) -> void:
-	if not is_server:
+	if not multiplayer.is_server():
 		return
 
 	var peer_id := multiplayer.get_remote_sender_id()
@@ -288,7 +288,7 @@ func rpc_damage_environmental_object(chunk_pos: Array, object_id: int, damage: f
 ## CLIENT -> SERVER: Damage a dynamic spawned object (fallen logs, split logs, etc.)
 @rpc("any_peer", "call_remote", "reliable")
 func rpc_damage_dynamic_object(object_name: String, damage: float, hit_position: Vector3) -> void:
-	if not is_server:
+	if not multiplayer.is_server():
 		return
 
 	var peer_id := multiplayer.get_remote_sender_id()
@@ -301,7 +301,7 @@ func rpc_damage_dynamic_object(object_name: String, damage: float, hit_position:
 @rpc("any_peer", "call_remote", "reliable")
 func rpc_damage_enemy(enemy_network_id: int, damage: float, knockback: float, direction: Array, damage_type: int = -1) -> void:
 	print("[NetworkManager] rpc_damage_enemy received: net_id=%d, damage=%.1f, type=%d, is_server=%s" % [enemy_network_id, damage, damage_type, is_server])
-	if not is_server:
+	if not multiplayer.is_server():
 		return
 
 	var peer_id := multiplayer.get_remote_sender_id()
@@ -320,7 +320,7 @@ func rpc_damage_enemy(enemy_network_id: int, damage: float, knockback: float, di
 ## CLIENT -> SERVER: Place a buildable object
 @rpc("any_peer", "call_remote", "reliable")
 func rpc_place_buildable(piece_name: String, position: Array, rotation_y: float) -> void:
-	if not is_server:
+	if not multiplayer.is_server():
 		return
 
 	var peer_id := multiplayer.get_remote_sender_id()
@@ -331,7 +331,7 @@ func rpc_place_buildable(piece_name: String, position: Array, rotation_y: float)
 
 @rpc("any_peer", "call_remote", "reliable")
 func rpc_destroy_buildable(network_id: String) -> void:
-	if not is_server:
+	if not multiplayer.is_server():
 		return
 
 	var peer_id := multiplayer.get_remote_sender_id()
@@ -342,7 +342,7 @@ func rpc_destroy_buildable(network_id: String) -> void:
 ## CLIENT -> SERVER: Modify terrain (dig, place, level)
 @rpc("any_peer", "call_remote", "reliable")
 func rpc_modify_terrain(operation: String, position: Array, data: Dictionary) -> void:
-	if not is_server:
+	if not multiplayer.is_server():
 		return
 
 	var peer_id := multiplayer.get_remote_sender_id()
@@ -604,7 +604,7 @@ func rpc_spawn_buildable(piece_name: String, position: Array, rotation_y: float,
 ## CLIENT -> SERVER: Request list of available characters for this world
 @rpc("any_peer", "call_remote", "reliable")
 func rpc_request_character_list() -> void:
-	if not is_server:
+	if not multiplayer.is_server():
 		return
 
 	var peer_id := multiplayer.get_remote_sender_id()
@@ -624,7 +624,7 @@ func rpc_receive_character_list(characters: Array) -> void:
 ## CLIENT -> SERVER: Load a character (or create new)
 @rpc("any_peer", "call_remote", "reliable")
 func rpc_load_character(character_id: String, character_name: String, is_new: bool) -> void:
-	if not is_server:
+	if not multiplayer.is_server():
 		return
 
 	var peer_id := multiplayer.get_remote_sender_id()
@@ -678,7 +678,7 @@ func rpc_sync_gold(gold_amount: int) -> void:
 ## CLIENT -> SERVER: Request to pick up an item (server validates and updates inventory)
 @rpc("any_peer", "call_remote", "reliable")
 func rpc_request_pickup_item(item_name: String, amount: int, network_id: String) -> void:
-	if not is_server:
+	if not multiplayer.is_server():
 		return
 
 	var peer_id := multiplayer.get_remote_sender_id()
@@ -689,7 +689,7 @@ func rpc_request_pickup_item(item_name: String, amount: int, network_id: String)
 ## CLIENT -> SERVER: Request to craft an item (server validates and updates inventory)
 @rpc("any_peer", "call_remote", "reliable")
 func rpc_request_craft(recipe_name: String) -> void:
-	if not is_server:
+	if not multiplayer.is_server():
 		return
 
 	var peer_id := multiplayer.get_remote_sender_id()
@@ -700,7 +700,7 @@ func rpc_request_craft(recipe_name: String) -> void:
 ## CLIENT -> SERVER: Request manual save
 @rpc("any_peer", "call_remote", "reliable")
 func rpc_request_save() -> void:
-	if not is_server:
+	if not multiplayer.is_server():
 		return
 
 	var peer_id := multiplayer.get_remote_sender_id()
@@ -733,7 +733,7 @@ func rpc_sync_terrain_chunk(chunk_x: int, chunk_z: int, chunk_data: Dictionary) 
 ## CLIENT -> SERVER: Request to equip an item
 @rpc("any_peer", "call_remote", "reliable")
 func rpc_request_equip_item(slot: int, item_id: String) -> void:
-	if not is_server:
+	if not multiplayer.is_server():
 		return
 
 	var peer_id := multiplayer.get_remote_sender_id()
@@ -744,7 +744,7 @@ func rpc_request_equip_item(slot: int, item_id: String) -> void:
 ## CLIENT -> SERVER: Request to unequip a slot
 @rpc("any_peer", "call_remote", "reliable")
 func rpc_request_unequip_slot(slot: int) -> void:
-	if not is_server:
+	if not multiplayer.is_server():
 		return
 
 	var peer_id := multiplayer.get_remote_sender_id()
@@ -755,7 +755,7 @@ func rpc_request_unequip_slot(slot: int) -> void:
 ## CLIENT -> SERVER: Request to eat food (server-authoritative)
 @rpc("any_peer", "call_remote", "reliable")
 func rpc_request_eat_food(food_id: String, inventory_slot: int) -> void:
-	if not is_server:
+	if not multiplayer.is_server():
 		return
 
 	var peer_id := multiplayer.get_remote_sender_id()
@@ -767,7 +767,7 @@ func rpc_request_eat_food(food_id: String, inventory_slot: int) -> void:
 ## Client runs the cooking simulation, tells server what cooked item to give
 @rpc("any_peer", "call_remote", "reliable")
 func rpc_request_cooking_station_take(item_id: String) -> void:
-	if not is_server:
+	if not multiplayer.is_server():
 		return
 
 	var peer_id := multiplayer.get_remote_sender_id()
@@ -779,7 +779,7 @@ func rpc_request_cooking_station_take(item_id: String) -> void:
 ## Server removes item from inventory, client handles the cooking simulation
 @rpc("any_peer", "call_remote", "reliable")
 func rpc_request_cooking_station_add(item_id: String) -> void:
-	if not is_server:
+	if not multiplayer.is_server():
 		return
 
 	var peer_id := multiplayer.get_remote_sender_id()
@@ -790,7 +790,7 @@ func rpc_request_cooking_station_add(item_id: String) -> void:
 ## CLIENT -> SERVER: Request to swap two inventory slots
 @rpc("any_peer", "call_remote", "reliable")
 func rpc_request_swap_slots(slot_a: int, slot_b: int) -> void:
-	if not is_server:
+	if not multiplayer.is_server():
 		return
 
 	var peer_id := multiplayer.get_remote_sender_id()
@@ -801,7 +801,7 @@ func rpc_request_swap_slots(slot_a: int, slot_b: int) -> void:
 ## CLIENT -> SERVER: Request to drop item from inventory
 @rpc("any_peer", "call_remote", "reliable")
 func rpc_request_drop_item(slot: int, amount: int) -> void:
-	if not is_server:
+	if not multiplayer.is_server():
 		return
 
 	var peer_id := multiplayer.get_remote_sender_id()
@@ -812,7 +812,7 @@ func rpc_request_drop_item(slot: int, amount: int) -> void:
 ## CLIENT -> SERVER: Request to transfer item from chest to player inventory
 @rpc("any_peer", "call_remote", "reliable")
 func rpc_request_chest_to_player(chest_slot: int, player_slot: int) -> void:
-	if not is_server:
+	if not multiplayer.is_server():
 		return
 
 	var peer_id := multiplayer.get_remote_sender_id()
@@ -823,7 +823,7 @@ func rpc_request_chest_to_player(chest_slot: int, player_slot: int) -> void:
 ## CLIENT -> SERVER: Request to transfer item from player inventory to chest
 @rpc("any_peer", "call_remote", "reliable")
 func rpc_request_player_to_chest(player_slot: int, chest_slot: int) -> void:
-	if not is_server:
+	if not multiplayer.is_server():
 		return
 
 	var peer_id := multiplayer.get_remote_sender_id()
@@ -834,7 +834,7 @@ func rpc_request_player_to_chest(player_slot: int, chest_slot: int) -> void:
 ## CLIENT -> SERVER: Request to swap two slots within chest
 @rpc("any_peer", "call_remote", "reliable")
 func rpc_request_chest_swap(slot_a: int, slot_b: int) -> void:
-	if not is_server:
+	if not multiplayer.is_server():
 		return
 
 	var peer_id := multiplayer.get_remote_sender_id()
@@ -845,7 +845,7 @@ func rpc_request_chest_swap(slot_a: int, slot_b: int) -> void:
 ## CLIENT -> SERVER: Request quick-deposit (auto-deposit matching items)
 @rpc("any_peer", "call_remote", "reliable")
 func rpc_request_quick_deposit(player_slot: int) -> void:
-	if not is_server:
+	if not multiplayer.is_server():
 		return
 
 	var peer_id := multiplayer.get_remote_sender_id()
@@ -856,7 +856,7 @@ func rpc_request_quick_deposit(player_slot: int) -> void:
 ## CLIENT -> SERVER: Open chest (track which chest player is using)
 @rpc("any_peer", "call_remote", "reliable")
 func rpc_open_chest(chest_network_id: String) -> void:
-	if not is_server:
+	if not multiplayer.is_server():
 		return
 
 	var peer_id := multiplayer.get_remote_sender_id()
@@ -867,7 +867,7 @@ func rpc_open_chest(chest_network_id: String) -> void:
 ## CLIENT -> SERVER: Close chest
 @rpc("any_peer", "call_remote", "reliable")
 func rpc_close_chest() -> void:
-	if not is_server:
+	if not multiplayer.is_server():
 		return
 
 	var peer_id := multiplayer.get_remote_sender_id()
@@ -888,7 +888,7 @@ func rpc_sync_chest_inventory(chest_network_id: String, inventory_data: Array) -
 ## CLIENT -> SERVER: Player died
 @rpc("any_peer", "call_remote", "reliable")
 func rpc_player_died() -> void:
-	if not is_server:
+	if not multiplayer.is_server():
 		return
 
 	var peer_id := multiplayer.get_remote_sender_id()
@@ -899,7 +899,7 @@ func rpc_player_died() -> void:
 ## CLIENT -> SERVER: Request respawn
 @rpc("any_peer", "call_remote", "reliable")
 func rpc_request_respawn() -> void:
-	if not is_server:
+	if not multiplayer.is_server():
 		return
 
 	var peer_id := multiplayer.get_remote_sender_id()
@@ -958,7 +958,7 @@ func rpc_update_enemy_states(states: Dictionary) -> void:
 func rpc_notify_enemy_died(enemy_network_id: int) -> void:
 	var sender_id := multiplayer.get_remote_sender_id()
 
-	if not is_server:
+	if not multiplayer.is_server():
 		return
 
 	var server_node := get_node_or_null("/root/Main/Server")
@@ -1067,7 +1067,7 @@ func rpc_sync_terrain_modifications(modifications: Array) -> void:
 ## Server relays this to all other clients for Valheim-style sync
 @rpc("any_peer", "call_remote", "unreliable_ordered")
 func rpc_report_enemy_position(enemy_network_id: int, position: Array, rotation_y: float, ai_state: int, target_peer: int = 0) -> void:
-	if not is_server:
+	if not multiplayer.is_server():
 		return
 
 	var peer_id := multiplayer.get_remote_sender_id()
@@ -1125,7 +1125,7 @@ func rpc_update_enemy_host(enemy_network_id: int, new_host_peer_id: int) -> void
 ## CLIENT -> SERVER: Debug give item
 @rpc("any_peer", "call_remote", "reliable")
 func rpc_debug_give_item(item_name: String, amount: int) -> void:
-	if not is_server:
+	if not multiplayer.is_server():
 		return
 	var peer_id := multiplayer.get_remote_sender_id()
 	var server_node := get_node_or_null("/root/Main/Server")
@@ -1135,7 +1135,7 @@ func rpc_debug_give_item(item_name: String, amount: int) -> void:
 ## CLIENT -> SERVER: Debug spawn entity
 @rpc("any_peer", "call_remote", "reliable")
 func rpc_debug_spawn_entity(entity_type: String, count: int) -> void:
-	if not is_server:
+	if not multiplayer.is_server():
 		return
 	var peer_id := multiplayer.get_remote_sender_id()
 	var server_node := get_node_or_null("/root/Main/Server")
@@ -1145,7 +1145,7 @@ func rpc_debug_spawn_entity(entity_type: String, count: int) -> void:
 ## CLIENT -> SERVER: Debug teleport
 @rpc("any_peer", "call_remote", "reliable")
 func rpc_debug_teleport(position: Vector3) -> void:
-	if not is_server:
+	if not multiplayer.is_server():
 		return
 	var peer_id := multiplayer.get_remote_sender_id()
 	var server_node := get_node_or_null("/root/Main/Server")
@@ -1155,7 +1155,7 @@ func rpc_debug_teleport(position: Vector3) -> void:
 ## CLIENT -> SERVER: Debug heal
 @rpc("any_peer", "call_remote", "reliable")
 func rpc_debug_heal() -> void:
-	if not is_server:
+	if not multiplayer.is_server():
 		return
 	var peer_id := multiplayer.get_remote_sender_id()
 	var server_node := get_node_or_null("/root/Main/Server")
@@ -1165,7 +1165,7 @@ func rpc_debug_heal() -> void:
 ## CLIENT -> SERVER: Debug god mode
 @rpc("any_peer", "call_remote", "reliable")
 func rpc_debug_god_mode(enabled: bool) -> void:
-	if not is_server:
+	if not multiplayer.is_server():
 		return
 	var peer_id := multiplayer.get_remote_sender_id()
 	var server_node := get_node_or_null("/root/Main/Server")
@@ -1175,7 +1175,7 @@ func rpc_debug_god_mode(enabled: bool) -> void:
 ## CLIENT -> SERVER: Debug clear inventory
 @rpc("any_peer", "call_remote", "reliable")
 func rpc_debug_clear_inventory() -> void:
-	if not is_server:
+	if not multiplayer.is_server():
 		return
 	var peer_id := multiplayer.get_remote_sender_id()
 	var server_node := get_node_or_null("/root/Main/Server")
@@ -1185,7 +1185,7 @@ func rpc_debug_clear_inventory() -> void:
 ## CLIENT -> SERVER: Debug kill nearby enemies
 @rpc("any_peer", "call_remote", "reliable")
 func rpc_debug_kill_nearby() -> void:
-	if not is_server:
+	if not multiplayer.is_server():
 		return
 	var peer_id := multiplayer.get_remote_sender_id()
 	var server_node := get_node_or_null("/root/Main/Server")
@@ -1195,7 +1195,7 @@ func rpc_debug_kill_nearby() -> void:
 ## CLIENT -> SERVER: Debug give gold
 @rpc("any_peer", "call_remote", "reliable")
 func rpc_debug_give_gold(amount: int) -> void:
-	if not is_server:
+	if not multiplayer.is_server():
 		return
 	var peer_id := multiplayer.get_remote_sender_id()
 	var server_node := get_node_or_null("/root/Main/Server")
@@ -1210,7 +1210,7 @@ func rpc_debug_give_gold(amount: int) -> void:
 ## Server uses this to determine which chunks to load/send for this player
 @rpc("any_peer", "call_remote", "reliable")
 func rpc_set_object_distance(distance: int) -> void:
-	if not is_server:
+	if not multiplayer.is_server():
 		return
 	var peer_id := multiplayer.get_remote_sender_id()
 	var server_node := get_node_or_null("/root/Main/Server")
