@@ -409,6 +409,28 @@ func get_local_player_id() -> int:
 func am_i_server() -> bool:
 	return is_server
 
+## Check if we're in singleplayer mode (server exists in same process)
+## This is useful because RPCs don't work properly in singleplayer
+func is_singleplayer() -> bool:
+	return get_node_or_null("/root/Main/Server") != null
+
+## Get the server node if running in singleplayer mode
+## Returns null if running as dedicated client
+func get_local_server() -> Node:
+	return get_node_or_null("/root/Main/Server")
+
+## Call a server method - handles both singleplayer (direct) and multiplayer (RPC)
+## Returns true if in singleplayer and method was called directly
+## In multiplayer, returns false and you should use RPC instead
+func call_server_method(method_name: String, args: Array = []) -> bool:
+	var server = get_local_server()
+	if server and server.has_method(method_name):
+		# Singleplayer - call directly with peer_id
+		var peer_id = multiplayer.get_unique_id()
+		server.callv(method_name, [peer_id] + args)
+		return true
+	return false
+
 ## Check if we're a client
 func am_i_client() -> bool:
 	return is_client
