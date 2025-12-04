@@ -23,7 +23,7 @@ var god_mode: bool = false
 var browsing_history: bool = false
 
 # Autocomplete data
-var all_commands: Array[String] = ["/give", "/spawn", "/tp", "/heal", "/god", "/gold", "/clear", "/kill", "/pos", "/items", "/enemies", "/time", "/help", "/perf", "/toggle"]
+var all_commands: Array[String] = ["/give", "/spawn", "/tp", "/heal", "/god", "/gold", "/clear", "/kill", "/pos", "/items", "/enemies", "/time", "/help", "/perf", "/toggle", "/eat"]
 
 # Performance toggle states
 var perf_toggles: Dictionary = {
@@ -37,6 +37,7 @@ var perf_toggles: Dictionary = {
 }
 var all_items: Array[String] = []
 var all_enemies: Array[String] = ["gahnome", "sporeling", "deer", "pig", "sheep", "cyclops"]
+var all_foods: Array[String] = ["cooked_venison", "cooked_pork", "cooked_mutton"]
 
 # Reference to client for accessing player and inventory
 var client_ref: Node = null
@@ -160,6 +161,10 @@ func _do_autocomplete() -> void:
 			for enemy in all_enemies:
 				if arg_prefix.is_empty() or enemy.begins_with(arg_prefix):
 					suggestions.append(enemy)
+		elif cmd in ["/eat", "eat"]:
+			for food in all_foods:
+				if arg_prefix.is_empty() or food.begins_with(arg_prefix):
+					suggestions.append(food)
 
 		if suggestions.size() == 1:
 			parts[parts.size() - 1] = suggestions[0]
@@ -226,6 +231,8 @@ func _execute_command(text: String) -> void:
 			_cmd_perf()
 		"/toggle", "toggle":
 			_cmd_toggle(args)
+		"/eat", "eat":
+			_cmd_eat(args)
 		_:
 			_add_output("[color=red]Unknown command: %s[/color]" % cmd)
 
@@ -381,6 +388,40 @@ func _cmd_list_enemies() -> void:
 	_add_output("[color=cyan]Animal types:[/color] deer, pig, sheep")
 	_add_output("[color=red]Boss types:[/color] cyclops")
 
+func _cmd_eat(args: Array) -> void:
+	if args.is_empty():
+		_add_output("[color=yellow]Usage: /eat <food_name>[/color]")
+		_add_output("Foods: cooked_venison, cooked_pork, cooked_mutton")
+		return
+
+	var food_name = args[0].to_lower()
+
+	# Get local player
+	var local_player = get_tree().get_first_node_in_group("local_player")
+	if not local_player:
+		_add_output("[color=red]No player found[/color]")
+		return
+
+	# Find the PlayerFood component
+	var player_food = local_player.get_node_or_null("PlayerFood")
+	if not player_food:
+		_add_output("[color=red]Player has no food system[/color]")
+		return
+
+	# Try to eat the food
+	var food_data = ItemDatabase.get_item(food_name)
+	if not food_data:
+		_add_output("[color=red]Unknown food: %s[/color]" % food_name)
+		_add_output("Foods: cooked_venison, cooked_pork, cooked_mutton")
+		return
+
+	if player_food.eat_food(food_name):
+		_add_output("[color=green]Ate %s![/color]" % food_data.display_name)
+		_add_output("  +%.0f Max Health, +%.0f Max Stamina, +%.0f Max BP" % [food_data.health_bonus, food_data.stamina_bonus, food_data.bp_bonus])
+		_add_output("  +%.1f HP/sec for %.0f seconds" % [food_data.heal_per_second, food_data.duration])
+	else:
+		_add_output("[color=yellow]Couldn't eat %s (already active or full)[/color]" % food_name)
+
 func _cmd_help() -> void:
 	_add_output("[color=cyan]Commands:[/color]")
 	_add_output("  /give <item> [amount] - Spawn items (e.g. /give 10 wood)")
@@ -393,6 +434,7 @@ func _cmd_help() -> void:
 	_add_output("  /kill - Kill nearby enemies")
 	_add_output("  /pos - Show position")
 	_add_output("  /time [hour] - Show/set time (0-24)")
+	_add_output("  /eat <food> - Eat food for stat buffs")
 	_add_output("  /items - List all items")
 	_add_output("  /enemies - List enemy types")
 	_add_output("[color=cyan]Performance:[/color]")

@@ -191,6 +191,8 @@ func _on_slot_right_clicked(slot_index: int) -> void:
 						equip_slot = Equipment.EquipmentSlot.LEGS
 					ArmorData.ArmorSlot.CAPE:
 						equip_slot = Equipment.EquipmentSlot.CAPE
+					ArmorData.ArmorSlot.ACCESSORY:
+						equip_slot = Equipment.EquipmentSlot.ACCESSORY
 					_:
 						print("[InventoryPanel] Unknown armor slot type")
 						return

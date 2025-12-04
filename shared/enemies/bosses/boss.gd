@@ -184,6 +184,7 @@ func _create_boss_health_bar() -> void:
 
 	# Background panel
 	var bg = ColorRect.new()
+	bg.name = "Background"  # Named for reliable path lookup
 	bg.color = Color(0.1, 0.1, 0.1, 0.8)
 	bg.set_anchors_preset(Control.PRESET_TOP_WIDE)
 	bg.offset_top = 20
@@ -233,7 +234,7 @@ func _update_boss_health_bar() -> void:
 	if not boss_health_bar:
 		return
 
-	var bar_fill = boss_health_bar.get_node_or_null("ColorRect/BarBackground/BarFill")
+	var bar_fill = boss_health_bar.get_node_or_null("Background/BarBackground/BarFill")
 	if bar_fill:
 		var health_percent = health / max_health
 		bar_fill.anchor_right = health_percent

@@ -70,6 +70,9 @@ var walk_anim_time: float = 0.0
 var idle_anim_time: float = 0.0
 var breath_scale: float = 1.0
 
+# Body offset to align feet with ground (collision shape compensation)
+const BODY_Y_OFFSET: float = 1.5
+
 # Smooth rotation
 var target_rotation_y: float = 0.0
 var current_rotation_y: float = 0.0
@@ -266,25 +269,45 @@ func _start_stomp() -> void:
 	if current_anim_tween and current_anim_tween.is_valid():
 		current_anim_tween.kill()
 
-	# Raise right leg high for stomp
+	# SIDE STOMP - Lean left, raise right leg out to the side, then slam down
 	current_anim_tween = create_tween()
-	current_anim_tween.set_ease(Tween.EASE_OUT)
-	current_anim_tween.set_trans(Tween.TRANS_BACK)
+	current_anim_tween.set_ease(Tween.EASE_IN_OUT)
+	current_anim_tween.set_trans(Tween.TRANS_SINE)
 
+	# Phase 1: Shift weight, lean RIGHT toward the stomping side (0.0 - 0.6s)
+	if body_container:
+		# Lean body to the RIGHT (positive Z rotation)
+		current_anim_tween.tween_property(body_container, "rotation:z", 0.35, 0.6)
+		# Slight backward lean for balance
+		current_anim_tween.parallel().tween_property(body_container, "rotation:x", -0.1, 0.6)
+
+	# Phase 2: Raise right leg OUT TO THE RIGHT SIDE (0.6 - 1.2s)
 	if right_leg:
-		# Raise leg up and back
-		current_anim_tween.tween_property(right_leg, "rotation:x", -0.8, 0.6)
+		# Rotate leg outward to the RIGHT (positive Z)
+		current_anim_tween.tween_property(right_leg, "rotation:z", 1.0, 0.6)
+		# Slight forward angle
+		current_anim_tween.parallel().tween_property(right_leg, "rotation:x", -0.3, 0.6)
 		var right_knee = right_leg.get_node_or_null("RightKnee")
 		if right_knee:
-			current_anim_tween.parallel().tween_property(right_knee, "rotation:x", 0.6, 0.6)
+			# Bend knee slightly
+			current_anim_tween.parallel().tween_property(right_knee, "rotation:x", 0.4, 0.6)
 
-	# Lean back slightly
+	# Lean RIGHT more to wind up for the stomp
 	if body_container:
-		current_anim_tween.parallel().tween_property(body_container, "rotation:x", -0.1, 0.6)
+		current_anim_tween.parallel().tween_property(body_container, "rotation:z", 0.5, 0.6)
+
+	# Arms for balance - right arm out, left arm up
+	if left_arm:
+		current_anim_tween.parallel().tween_property(left_arm, "rotation:x", -0.8, 0.6)
+		current_anim_tween.parallel().tween_property(left_arm, "rotation:z", -0.4, 0.6)
+	if right_arm:
+		current_anim_tween.parallel().tween_property(right_arm, "rotation:z", 0.8, 0.6)
+		current_anim_tween.parallel().tween_property(right_arm, "rotation:x", -0.3, 0.6)
 
 func _update_stomp_windup(delta: float) -> void:
 	_face_target_smooth()
-	if state_timer >= 0.7:
+	# Longer windup for dramatic effect (matches the 1.2s animation)
+	if state_timer >= 1.3:
 		_execute_stomp()
 
 func _execute_stomp() -> void:
@@ -296,25 +319,42 @@ func _execute_stomp() -> void:
 	if current_anim_tween and current_anim_tween.is_valid():
 		current_anim_tween.kill()
 
-	# Slam leg down fast
+	# SIDE STOMP SLAM - Leg comes down from side, body shifts right with impact
 	current_anim_tween = create_tween()
 	current_anim_tween.set_ease(Tween.EASE_IN)
 	current_anim_tween.set_trans(Tween.TRANS_EXPO)
 
+	# Slam leg down from side position - FAST
 	if right_leg:
-		current_anim_tween.tween_property(right_leg, "rotation:x", 0.3, 0.12)
+		# Bring leg back down (Z rotation back to 0)
+		current_anim_tween.tween_property(right_leg, "rotation:z", 0.0, 0.12)
+		current_anim_tween.parallel().tween_property(right_leg, "rotation:x", 0.2, 0.12)
 		var right_knee = right_leg.get_node_or_null("RightKnee")
 		if right_knee:
 			current_anim_tween.parallel().tween_property(right_knee, "rotation:x", 0.0, 0.12)
 
-	# Lean forward with impact
+	# Body shifts LEFT with impact (opposite direction of windup lean)
 	if body_container:
-		current_anim_tween.parallel().tween_property(body_container, "rotation:x", 0.15, 0.12)
-		# Then recover
-		current_anim_tween.tween_property(body_container, "rotation:x", 0.0, 0.4)
+		# Quick shift to left on impact
+		current_anim_tween.parallel().tween_property(body_container, "rotation:z", -0.15, 0.12)
+		current_anim_tween.parallel().tween_property(body_container, "rotation:x", 0.1, 0.12)
 
+	# After impact, recover to neutral
+	if body_container:
+		current_anim_tween.tween_property(body_container, "rotation:z", 0.0, 0.5)
+		current_anim_tween.parallel().tween_property(body_container, "rotation:x", 0.0, 0.5)
+
+	# Reset leg fully
 	if right_leg:
-		current_anim_tween.tween_property(right_leg, "rotation:x", 0.0, 0.4)
+		current_anim_tween.parallel().tween_property(right_leg, "rotation:x", 0.0, 0.5)
+
+	# Reset arms to neutral
+	if left_arm:
+		current_anim_tween.parallel().tween_property(left_arm, "rotation:x", 0.0, 0.5)
+		current_anim_tween.parallel().tween_property(left_arm, "rotation:z", 0.0, 0.5)
+	if right_arm:
+		current_anim_tween.parallel().tween_property(right_arm, "rotation:x", 0.0, 0.5)
+		current_anim_tween.parallel().tween_property(right_arm, "rotation:z", 0.0, 0.5)
 
 	# Play sound
 	SoundManager.play_sound("tree_fall", global_position)
@@ -458,21 +498,20 @@ func _spawn_boulder() -> void:
 	get_tree().current_scene.add_child(boulder)
 	boulder.global_position = spawn_pos
 
-	# Calculate trajectory toward player
-	var target_pos = target_player.global_position + Vector3(0, 1.0, 0)
+	# Calculate trajectory toward player - aim at player's feet/center
+	# Since we're throwing from high up, aim slightly below center to compensate
+	var target_pos = target_player.global_position + Vector3(0, 0.5, 0)  # Aim at feet/lower body
 	var direction = (target_pos - spawn_pos).normalized()
-	direction.y += 0.3  # Arc upward
-	direction = direction.normalized()
+	# No upward arc since we're already throwing from above - just go straight at target
 
 	var phase_speed_mult = 1.0 + current_phase * 0.15
 	var travel_time = spawn_pos.distance_to(target_pos) / (boulder_speed * phase_speed_mult)
 	travel_time = clamp(travel_time, 0.4, 1.5)
 
-	# Animate boulder flight with spin
+	# Animate boulder flight with spin - tween directly to target
 	var tween = create_tween()
 	tween.set_parallel(true)
-	var end_pos = spawn_pos + direction * boulder_speed * phase_speed_mult * travel_time
-	tween.tween_property(boulder, "global_position", end_pos, travel_time)
+	tween.tween_property(boulder, "global_position", target_pos, travel_time)
 	tween.tween_property(mesh, "rotation:x", TAU * 3, travel_time)  # Spin
 	tween.chain().tween_callback(boulder.queue_free)
 
@@ -494,21 +533,56 @@ func _update_throwing_boulder(delta: float) -> void:
 		state_timer = 0.0
 
 # ============================================================================
-# EYE BEAM ATTACK (Phase 2+)
+# EYE BEAM ATTACK (Phase 2+) - Cyclops sits down and spins!
 # ============================================================================
 func _start_eye_beam() -> void:
 	cyclops_state = CyclopsState.EYE_BEAM_WINDUP
 	state_timer = 0.0
 	velocity = Vector3.ZERO
-	print("[Cyclops] EYE BEAM charging!")
+	print("[Cyclops] EYE BEAM charging - sitting down!")
+
+	# Kill existing animation
+	if current_anim_tween and current_anim_tween.is_valid():
+		current_anim_tween.kill()
+
+	# Cyclops sits down to fire the eye beam at player height
+	current_anim_tween = create_tween()
+	current_anim_tween.set_ease(Tween.EASE_IN_OUT)
+	current_anim_tween.set_trans(Tween.TRANS_SINE)
+
+	# Crouch down - lower the whole body
+	if body_container:
+		# Lower body significantly (from BODY_Y_OFFSET to near ground)
+		current_anim_tween.tween_property(body_container, "position:y", 0.3, 1.0)
+		# Lean FORWARD to aim beam down (model faces +Z, so positive X = lean forward)
+		current_anim_tween.parallel().tween_property(body_container, "rotation:x", 0.5, 1.0)
+
+	# Bend legs to crouch
+	if left_leg:
+		current_anim_tween.parallel().tween_property(left_leg, "rotation:x", -0.6, 1.0)
+		var left_knee = left_leg.get_node_or_null("LeftKnee")
+		if left_knee:
+			current_anim_tween.parallel().tween_property(left_knee, "rotation:x", 1.2, 1.0)
+	if right_leg:
+		current_anim_tween.parallel().tween_property(right_leg, "rotation:x", -0.6, 1.0)
+		var right_knee = right_leg.get_node_or_null("RightKnee")
+		if right_knee:
+			current_anim_tween.parallel().tween_property(right_knee, "rotation:x", 1.2, 1.0)
+
+	# Arms brace on ground
+	if left_arm:
+		current_anim_tween.parallel().tween_property(left_arm, "rotation:x", 0.8, 1.0)
+		current_anim_tween.parallel().tween_property(left_arm, "rotation:z", -0.4, 1.0)
+	if right_arm:
+		current_anim_tween.parallel().tween_property(right_arm, "rotation:x", 0.8, 1.0)
+		current_anim_tween.parallel().tween_property(right_arm, "rotation:z", 0.4, 1.0)
 
 	# Eye glows brighter during charge
 	if eye_light:
-		var tween = create_tween()
-		tween.tween_property(eye_light, "light_energy", 8.0, 1.2)
+		current_anim_tween.parallel().tween_property(eye_light, "light_energy", 8.0, 1.0)
 
 func _update_eye_beam_windup(delta: float) -> void:
-	_face_target_smooth()
+	# Don't turn - stay put while crouching
 	if state_timer >= 1.3:
 		_execute_eye_beam()
 
@@ -516,8 +590,9 @@ func _execute_eye_beam() -> void:
 	cyclops_state = CyclopsState.EYE_BEAM
 	state_timer = 0.0
 	is_eye_beam_active = true
-	beam_sweep_angle = -0.6
-	print("[Cyclops] EYE BEAM FIRING!")
+	# Start from current body facing direction
+	beam_sweep_angle = body_container.rotation.y if body_container else 0.0
+	print("[Cyclops] EYE BEAM FIRING - SPINNING!")
 
 	_create_eye_beam()
 	eye_beam_timer = eye_beam_cooldown / (1.0 + current_phase * 0.1)
@@ -532,12 +607,12 @@ func _create_eye_beam() -> void:
 	eye_beam_area.collision_mask = 2
 	eye_beam_area.monitoring = true
 
-	# Long beam collision
+	# Long beam collision - taller to catch players even with height variations
 	var col = CollisionShape3D.new()
 	var shape = BoxShape3D.new()
-	shape.size = Vector3(1.5, 1.5, 18.0)
+	shape.size = Vector3(2.0, 4.0, 18.0)  # Taller box for better coverage
 	col.shape = shape
-	col.position.z = -9.0
+	col.position.z = 9.0  # Positive Z since model faces +Z
 	eye_beam_area.add_child(col)
 
 	# Beam visual - glowing cylinder
@@ -548,7 +623,7 @@ func _create_eye_beam() -> void:
 	cylinder.height = 18.0
 	beam_mesh.mesh = cylinder
 	beam_mesh.rotation.x = PI / 2
-	beam_mesh.position.z = -9.0
+	beam_mesh.position.z = 9.0  # Positive Z since model faces +Z
 
 	var mat = StandardMaterial3D.new()
 	mat.albedo_color = Color(1.0, 0.8, 0.2, 0.8)
@@ -567,7 +642,7 @@ func _create_eye_beam() -> void:
 	core_cyl.height = 18.0
 	core_mesh.mesh = core_cyl
 	core_mesh.rotation.x = PI / 2
-	core_mesh.position.z = -9.0
+	core_mesh.position.z = 9.0  # Positive Z since model faces +Z
 
 	var core_mat = StandardMaterial3D.new()
 	core_mat.albedo_color = Color(1.0, 1.0, 0.8, 1.0)
@@ -582,16 +657,19 @@ func _create_eye_beam() -> void:
 	beam_light.light_color = Color(1.0, 0.8, 0.3)
 	beam_light.light_energy = 4.0
 	beam_light.omni_range = 10.0
-	beam_light.position.z = -5.0
+	beam_light.position.z = 5.0  # Positive Z since model faces +Z
 	eye_beam_area.add_child(beam_light)
 
-	# Position at eye
+	# Position at eye and tilt downward to hit player height
 	if eye_mesh:
 		eye_mesh.add_child(eye_beam_area)
-		eye_beam_area.position = Vector3(0, 0, -0.3)
+		eye_beam_area.position = Vector3(0, 0, 0.3)  # Positive Z since model faces +Z
+		# Tilt beam DOWN (model faces +Z, so positive X = aim down)
+		eye_beam_area.rotation.x = 0.3
 	else:
 		add_child(eye_beam_area)
 		eye_beam_area.position = Vector3(0, 2.5 * boss_scale, 0)
+		eye_beam_area.rotation.x = 0.3
 
 	eye_beam_area.body_entered.connect(_on_eye_beam_hit)
 
@@ -603,14 +681,16 @@ func _on_eye_beam_hit(body: Node3D) -> void:
 		body.take_damage(damage, get_instance_id(), Vector3.ZERO, -1)
 
 func _update_eye_beam(delta: float) -> void:
-	# Sweep the beam smoothly
-	beam_sweep_angle += delta * 0.6
+	# SPIN THE WHOLE BODY while firing - full 360 degree sweep!
+	var spin_speed = 1.5  # Radians per second (about 1.5 full rotations during 3 second beam)
+	beam_sweep_angle += delta * spin_speed
 
-	if eye_beam_area:
-		eye_beam_area.rotation.y = beam_sweep_angle
+	# Rotate the whole body container to spin in place
+	if body_container:
+		body_container.rotation.y = beam_sweep_angle
 
 	# Continuous damage tick
-	if eye_beam_area and fmod(state_timer, 0.4) < delta:
+	if eye_beam_area and fmod(state_timer, 0.3) < delta:
 		var bodies = eye_beam_area.get_overlapping_bodies()
 		for body in bodies:
 			_on_eye_beam_hit(body)
@@ -628,11 +708,46 @@ func _end_eye_beam() -> void:
 		eye_beam_area.queue_free()
 		eye_beam_area = null
 
-	if eye_light:
-		var tween = create_tween()
-		tween.tween_property(eye_light, "light_energy", 2.5, 0.5)
+	# Kill existing animation
+	if current_anim_tween and current_anim_tween.is_valid():
+		current_anim_tween.kill()
 
-	print("[Cyclops] Eye beam ended")
+	# Stand back up from crouched position
+	current_anim_tween = create_tween()
+	current_anim_tween.set_ease(Tween.EASE_IN_OUT)
+	current_anim_tween.set_trans(Tween.TRANS_SINE)
+
+	# Return body to normal height and rotation
+	if body_container:
+		current_anim_tween.tween_property(body_container, "position:y", BODY_Y_OFFSET, 0.8)
+		current_anim_tween.parallel().tween_property(body_container, "rotation:x", 0.0, 0.8)
+		current_anim_tween.parallel().tween_property(body_container, "rotation:y", 0.0, 0.8)
+
+	# Straighten legs
+	if left_leg:
+		current_anim_tween.parallel().tween_property(left_leg, "rotation:x", 0.0, 0.8)
+		var left_knee = left_leg.get_node_or_null("LeftKnee")
+		if left_knee:
+			current_anim_tween.parallel().tween_property(left_knee, "rotation:x", 0.0, 0.8)
+	if right_leg:
+		current_anim_tween.parallel().tween_property(right_leg, "rotation:x", 0.0, 0.8)
+		var right_knee = right_leg.get_node_or_null("RightKnee")
+		if right_knee:
+			current_anim_tween.parallel().tween_property(right_knee, "rotation:x", 0.0, 0.8)
+
+	# Lower arms
+	if left_arm:
+		current_anim_tween.parallel().tween_property(left_arm, "rotation:x", 0.0, 0.8)
+		current_anim_tween.parallel().tween_property(left_arm, "rotation:z", 0.0, 0.8)
+	if right_arm:
+		current_anim_tween.parallel().tween_property(right_arm, "rotation:x", 0.0, 0.8)
+		current_anim_tween.parallel().tween_property(right_arm, "rotation:z", 0.0, 0.8)
+
+	# Dim eye
+	if eye_light:
+		current_anim_tween.parallel().tween_property(eye_light, "light_energy", 2.5, 0.5)
+
+	print("[Cyclops] Eye beam ended - standing up")
 
 # ============================================================================
 # RECOVERY STATE
@@ -681,6 +796,10 @@ func _setup_cyclops_body() -> void:
 	body_container = Node3D.new()
 	body_container.name = "BodyContainer"
 	add_child(body_container)
+	# Raise body so feet align with collision shape bottom
+	# Legs extend to about y=-0.65 local, scaled by boss_scale (2.5) = -1.625
+	# Offset body up to compensate
+	body_container.position.y = 1.5
 
 	# Color palette
 	var skin_color = Color(0.55, 0.5, 0.45)
@@ -1041,24 +1160,29 @@ func _update_cyclops_animation(delta: float) -> void:
 			pass
 
 func _animate_walk(delta: float) -> void:
-	var walk_speed = 4.0  # Animation speed
+	var walk_speed = 3.5  # Slower animation for heavy creature
 	var t = walk_anim_time * walk_speed
 
-	# Leg swing
-	var leg_swing = sin(t) * 0.35
-	var knee_bend = (1.0 - cos(t)) * 0.25
+	# Reduced leg swing to prevent ground clipping (was 0.35)
+	var leg_swing = sin(t) * 0.25
+	# More knee bend to lift foot when swinging forward
+	var knee_bend_base = 0.35
 
 	if left_leg:
 		left_leg.rotation.x = leg_swing
 		var left_knee = left_leg.get_node_or_null("LeftKnee")
 		if left_knee:
-			left_knee.rotation.x = knee_bend if leg_swing > 0 else 0.0
+			# Bend knee more when leg swings forward to lift the foot
+			var forward_amount = max(0.0, leg_swing)  # Only when swinging forward
+			left_knee.rotation.x = knee_bend_base * forward_amount * 3.0
 
 	if right_leg:
 		right_leg.rotation.x = -leg_swing
 		var right_knee = right_leg.get_node_or_null("RightKnee")
 		if right_knee:
-			right_knee.rotation.x = knee_bend if leg_swing < 0 else 0.0
+			# Bend knee more when leg swings forward to lift the foot
+			var forward_amount = max(0.0, -leg_swing)  # Only when swinging forward (opposite)
+			right_knee.rotation.x = knee_bend_base * forward_amount * 3.0
 
 	# Arm swing (opposite to legs)
 	if left_arm:
@@ -1066,9 +1190,10 @@ func _animate_walk(delta: float) -> void:
 	if right_arm:
 		right_arm.rotation.x = leg_swing * 0.4
 
-	# Body sway and bounce
-	body_container.rotation.z = sin(t) * 0.03
-	body_container.position.y = abs(sin(t * 2)) * 0.03
+	# Body sway and heavier bounce for large creature
+	body_container.rotation.z = sin(t) * 0.04
+	# Larger bounce to account for boss_scale (add to base offset)
+	body_container.position.y = BODY_Y_OFFSET + abs(sin(t * 2)) * 0.08
 
 func _animate_idle(delta: float) -> void:
 	# Breathing
@@ -1079,17 +1204,40 @@ func _animate_idle(delta: float) -> void:
 
 	# Subtle weight shift
 	body_container.rotation.z = sin(idle_anim_time * 0.8) * 0.015
-	body_container.position.y = 0.0
+	body_container.position.y = BODY_Y_OFFSET
 
-	# Reset limbs smoothly
+	# Reset limbs smoothly (including z rotation from side stomp)
 	if left_leg:
 		left_leg.rotation.x = lerp(left_leg.rotation.x, 0.0, delta * 3.0)
+		left_leg.rotation.z = lerp(left_leg.rotation.z, 0.0, delta * 3.0)
 	if right_leg:
 		right_leg.rotation.x = lerp(right_leg.rotation.x, 0.0, delta * 3.0)
+		right_leg.rotation.z = lerp(right_leg.rotation.z, 0.0, delta * 3.0)
 	if left_arm:
 		left_arm.rotation.x = lerp(left_arm.rotation.x, 0.0, delta * 3.0)
+		left_arm.rotation.z = lerp(left_arm.rotation.z, 0.0, delta * 3.0)
 	if right_arm:
 		right_arm.rotation.x = lerp(right_arm.rotation.x, 0.0, delta * 3.0)
+		right_arm.rotation.z = lerp(right_arm.rotation.z, 0.0, delta * 3.0)
+
+## Override spawn animation to use body offset
+func _update_spawn_animation(delta: float) -> void:
+	spawn_timer += delta
+
+	# Rise from ground with body offset
+	var progress = spawn_timer / spawn_duration
+	if body_container:
+		var start_y = -2.0 * boss_scale
+		var end_y = BODY_Y_OFFSET  # Use offset instead of 0
+		body_container.position.y = lerp(start_y, end_y, ease(progress, 0.3))
+
+	# Spawn complete
+	if spawn_timer >= spawn_duration:
+		is_spawning = false
+		if body_container:
+			body_container.position.y = BODY_Y_OFFSET
+		print("[Boss] %s entrance complete!" % boss_name)
+		_on_spawn_complete()
 
 func _on_spawn_complete() -> void:
 	print("[Cyclops] *ROOOAAARRR!*")

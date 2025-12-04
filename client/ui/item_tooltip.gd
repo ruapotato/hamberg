@@ -195,7 +195,8 @@ func _armor_tooltip(data: ArmorData) -> Array[String]:
 	var lines: Array[String] = []
 
 	# Slot
-	var slot_name = ["Head", "Chest", "Legs", "Cape"][data.armor_slot]
+	var slot_names = ["Head", "Chest", "Legs", "Cape", "Accessory"]
+	var slot_name = slot_names[data.armor_slot] if data.armor_slot < slot_names.size() else "Unknown"
 	lines.append("[color=#aaaaaa]Slot:[/color] %s" % slot_name)
 
 	# Per-damage-type armor values
