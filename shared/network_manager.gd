@@ -1202,7 +1202,8 @@ func rpc_set_object_distance(distance: int) -> void:
 ## CLIENT -> SERVER: Request to buy an item from Shnarken shop
 @rpc("any_peer", "call_remote", "reliable")
 func rpc_request_shop_buy(item_id: String, price: int) -> void:
-	if not is_server:
+	# Use multiplayer.is_server() for singleplayer compatibility
+	if not multiplayer.is_server():
 		return
 	var peer_id := multiplayer.get_remote_sender_id()
 	var server_node := get_node_or_null("/root/Main/Server")
@@ -1212,7 +1213,8 @@ func rpc_request_shop_buy(item_id: String, price: int) -> void:
 ## CLIENT -> SERVER: Request to sell items from inventory
 @rpc("any_peer", "call_remote", "reliable")
 func rpc_request_shop_sell(slot_index: int, amount: int, total_price: int) -> void:
-	if not is_server:
+	# Use multiplayer.is_server() for singleplayer compatibility
+	if not multiplayer.is_server():
 		return
 	var peer_id := multiplayer.get_remote_sender_id()
 	var server_node := get_node_or_null("/root/Main/Server")
@@ -1222,7 +1224,8 @@ func rpc_request_shop_sell(slot_index: int, amount: int, total_price: int) -> vo
 ## CLIENT -> SERVER: Request to upgrade armor piece
 @rpc("any_peer", "call_remote", "reliable")
 func rpc_request_shop_upgrade(equipment_slot: int, cost: int) -> void:
-	if not is_server:
+	# Use multiplayer.is_server() for singleplayer compatibility
+	if not multiplayer.is_server():
 		return
 	var peer_id := multiplayer.get_remote_sender_id()
 	var server_node := get_node_or_null("/root/Main/Server")
