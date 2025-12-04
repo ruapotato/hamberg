@@ -642,6 +642,13 @@ func _do_melee_attack() -> void:
 	# The hitbox will detect player collision during the attack animation
 	_enable_attack_hitbox()
 
+	# Schedule multiple hitbox checks during the swing animation
+	# This catches players as the arm moves through the swing arc
+	get_tree().create_timer(0.05).timeout.connect(_check_attack_hitbox_overlap)
+	get_tree().create_timer(0.10).timeout.connect(_check_attack_hitbox_overlap)
+	get_tree().create_timer(0.15).timeout.connect(_check_attack_hitbox_overlap)
+	get_tree().create_timer(0.20).timeout.connect(_check_attack_hitbox_overlap)
+
 	# Disable hitbox after attack animation completes
 	get_tree().create_timer(attack_animation_time).timeout.connect(_disable_attack_hitbox)
 
@@ -651,6 +658,12 @@ func _check_local_melee_damage() -> void:
 	# Enable attack hitbox for collision-based damage (Valheim-style)
 	# Same as host - use hitbox collision instead of distance check
 	_enable_attack_hitbox()
+
+	# Schedule multiple hitbox checks during the swing animation
+	get_tree().create_timer(0.05).timeout.connect(_check_attack_hitbox_overlap)
+	get_tree().create_timer(0.10).timeout.connect(_check_attack_hitbox_overlap)
+	get_tree().create_timer(0.15).timeout.connect(_check_attack_hitbox_overlap)
+	get_tree().create_timer(0.20).timeout.connect(_check_attack_hitbox_overlap)
 
 	# Disable hitbox after attack animation completes
 	get_tree().create_timer(attack_animation_time).timeout.connect(_disable_attack_hitbox)
@@ -1172,7 +1185,7 @@ func _setup_attack_hitbox() -> void:
 	# Create sphere hitbox in front of enemy (fist/punch range)
 	var collision_shape = CollisionShape3D.new()
 	var shape = SphereShape3D.new()
-	shape.radius = 0.8  # Larger hitbox for reliable hits
+	shape.radius = 0.5  # Moderate hitbox size
 	collision_shape.shape = shape
 	collision_shape.disabled = true
 
@@ -1202,7 +1215,7 @@ func _setup_attack_hitbox() -> void:
 	var debug_mesh = MeshInstance3D.new()
 	debug_mesh.name = "DebugMesh"
 	var sphere_mesh = SphereMesh.new()
-	sphere_mesh.radius = 0.8
+	sphere_mesh.radius = 0.5
 	debug_mesh.mesh = sphere_mesh
 	var mat = StandardMaterial3D.new()
 	mat.albedo_color = Color(1.0, 0.0, 0.0, 0.5)  # Red, more visible
@@ -1240,6 +1253,7 @@ func _on_attack_hitbox_body_entered(body: Node3D) -> void:
 ## Enable attack hitbox during attack animation
 func _enable_attack_hitbox() -> void:
 	if not attack_hitbox:
+		print("[Enemy] WARNING: No attack hitbox!")
 		return
 
 	attack_hitbox_active = true
@@ -1247,6 +1261,38 @@ func _enable_attack_hitbox() -> void:
 	var collision_shape = attack_hitbox.get_node_or_null("CollisionShape3D")
 	if collision_shape:
 		collision_shape.disabled = false
+
+	print("[Enemy] Attack hitbox ENABLED - pos: %s, monitoring: %s" % [
+		attack_hitbox.global_position, attack_hitbox.monitoring
+	])
+
+	# Do immediate shape query to catch players already overlapping
+	_check_attack_hitbox_overlap()
+
+## Check for player overlap with attack hitbox using Area3D overlap detection
+func _check_attack_hitbox_overlap() -> void:
+	if not attack_hitbox or not attack_hitbox_active:
+		return
+
+	# Force transform update to get current arm position
+	attack_hitbox.force_update_transform()
+
+	# Use Area3D's built-in overlap detection
+	var overlapping = attack_hitbox.get_overlapping_bodies()
+	for body in overlapping:
+		if body and body.has_method("take_damage") and body.collision_layer & 2:
+			# Found a player - deal damage
+			var knockback_dir = (body.global_position - global_position).normalized()
+			var damage = weapon_data.damage if weapon_data else 10.0
+			var knockback = weapon_data.knockback if weapon_data else 5.0
+			var dmg_type = weapon_data.damage_type if weapon_data else -1
+
+			print("[Enemy] Overlap HIT player! (%.1f damage)" % damage)
+			body.take_damage(damage, get_instance_id(), knockback_dir * knockback, dmg_type)
+
+			# Disable hitbox after hit (one hit per attack)
+			_disable_attack_hitbox()
+			return
 
 ## Disable attack hitbox
 func _disable_attack_hitbox() -> void:
