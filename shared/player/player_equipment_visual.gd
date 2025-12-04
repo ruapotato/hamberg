@@ -18,6 +18,9 @@ const DEFAULT_PANTS_COLOR: Color = Color(0.6, 0.55, 0.5, 1.0)  # Slightly darker
 # Cape visual node reference
 var cape_visual: Node3D = null
 
+# Cyclops Eye light reference
+var cyclops_light: OmniLight3D = null
+
 func _init(p: CharacterBody3D) -> void:
 	player = p
 
@@ -42,6 +45,8 @@ func on_equipment_changed(slot) -> void:
 			update_legs_armor_visual()
 		Equipment.EquipmentSlot.CAPE:
 			update_cape_visual()
+		Equipment.EquipmentSlot.ACCESSORY:
+			update_accessory_visual()
 
 # =============================================================================
 # WEAPON VISUAL
@@ -454,6 +459,42 @@ func update_cape_visual() -> void:
 
 	# Position cape at upper back (between shoulders)
 	cape_visual.position = Vector3(0, 1.35, -0.05)
+
+## Update accessory visual (handles special effects like Cyclops Eye light)
+func update_accessory_visual() -> void:
+	# Remove existing cyclops light if any
+	if cyclops_light:
+		cyclops_light.queue_free()
+		cyclops_light = null
+
+	if not player.body_container:
+		return
+
+	var armor_data = player.equipment.get_equipped_item_data(Equipment.EquipmentSlot.ACCESSORY)
+	if not armor_data is ArmorData:
+		print("[Player] Unequipped accessory")
+		return
+
+	print("[Player] Equipped accessory: %s (set_bonus: %s)" % [armor_data.item_id, armor_data.set_bonus])
+
+	# Check if this accessory provides the Cyclops Light effect
+	if armor_data.set_bonus == ArmorData.SetBonus.CYCLOPS_LIGHT:
+		# Create a glowing light around the player
+		cyclops_light = OmniLight3D.new()
+		cyclops_light.name = "CyclopsLight"
+		player.body_container.add_child(cyclops_light)
+
+		# Configure the light - eerie magical glow
+		cyclops_light.light_color = Color(0.8, 0.6, 1.0)  # Purple-ish magical glow
+		cyclops_light.light_energy = 2.0
+		cyclops_light.omni_range = 12.0  # Large light radius
+		cyclops_light.omni_attenuation = 1.5  # Soft falloff
+		cyclops_light.shadow_enabled = true
+
+		# Position at chest height
+		cyclops_light.position = Vector3(0, 1.2, 0)
+
+		print("[Player] Cyclops Eye light activated!")
 
 ## Initialize all armor visuals to default (unarmored) state
 func initialize_armor_visuals() -> void:

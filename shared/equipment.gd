@@ -19,6 +19,7 @@ enum EquipmentSlot {
 	CHEST,         # Chest armor
 	LEGS,          # Leg armor
 	CAPE,          # Cape/cloak
+	ACCESSORY,     # Special items like Cyclops Eye
 }
 
 # Current equipped items: slot -> item_id
@@ -29,6 +30,7 @@ var equipped_items: Dictionary = {
 	EquipmentSlot.CHEST: "",
 	EquipmentSlot.LEGS: "",
 	EquipmentSlot.CAPE: "",
+	EquipmentSlot.ACCESSORY: "",
 }
 
 var owner_id: int = -1
@@ -112,6 +114,11 @@ func _is_valid_for_slot(item_data, slot: EquipmentSlot) -> bool:  # item_data is
 				}
 				return item_data.armor_slot == armor_slot_map.get(slot, -1)
 			return item_data.item_type == ItemData.ItemType.ARMOR
+		EquipmentSlot.ACCESSORY:
+			# Accessories can be ArmorData with ACCESSORY slot or ACCESSORY item type
+			if item_data is ArmorData:
+				return item_data.armor_slot == ArmorData.ArmorSlot.ACCESSORY
+			return item_data.item_type == ItemData.ItemType.ACCESSORY
 	return false
 
 ## Get equipment data for synchronization
@@ -217,6 +224,17 @@ func has_double_jump_bonus() -> bool:
 ## Check if player has the deer stamina saver set bonus active
 func has_stamina_saver_bonus() -> bool:
 	return get_active_set_bonus() == ArmorData.SetBonus.DEER_STAMINA_SAVER
+
+## Check if player has the cyclops light accessory equipped
+func has_cyclops_light() -> bool:
+	var accessory = get_equipped_item_data(EquipmentSlot.ACCESSORY)
+	if accessory is ArmorData:
+		return accessory.set_bonus == ArmorData.SetBonus.CYCLOPS_LIGHT
+	return false
+
+## Get the equipped accessory (if any)
+func get_equipped_accessory():
+	return get_equipped_item_data(EquipmentSlot.ACCESSORY)
 
 ## Get total speed modifier from all armor pieces (sum of all speed_modifier values)
 ## Returns a value like -0.15 for 15% slower

@@ -26,6 +26,7 @@ var shop_items: Array = [
 	{"item_id": "tank_pants", "price": 150},
 	{"item_id": "tank_cape", "price": 120},
 	{"item_id": "ice_wand", "price": 80},
+	{"item_id": "glowing_medallion", "price": 50},  # Triggers Cyclops boss!
 ]
 
 # Sell prices (50% of buy price for tank items, base prices for other items)
@@ -493,6 +494,14 @@ func _on_buy_item(item_id: String, price: int) -> void:
 	# Request buy from server
 	print("[ShopUI] Requesting to buy %s for %d gold" % [item_id, price])
 	NetworkManager.rpc_request_shop_buy.rpc_id(1, item_id, price)
+
+	# Special handling for boss summon items
+	if item_id == "glowing_medallion":
+		dialogue_label.text = "[i][color=red]\"Hehehehe... you FOOL! You've doomed yourself!\"[/color][/i]"
+		# Close shop after brief delay, boss spawns via server
+		await get_tree().create_timer(1.5).timeout
+		close_shop()
+		return
 
 	# Optimistically update UI (server will correct if wrong)
 	dialogue_label.text = "[i][color=lime]\"Ah yes, excellent choice! That'll be %d gold.\"[/color][/i]" % price

@@ -2516,6 +2516,16 @@ func handle_shop_buy(peer_id: int, item_id: String, price: int) -> void:
 	NetworkManager.rpc_sync_inventory.rpc_id(peer_id, inventory_data)
 	NetworkManager.rpc_sync_gold.rpc_id(peer_id, player.gold)
 
+	# Special handling for boss summon items
+	if item_id == "glowing_medallion":
+		print("[Server] BOSS SUMMON! Player %d awakened the Cyclops!" % peer_id)
+		var enemy_spawner = get_node_or_null("EnemySpawner")
+		if enemy_spawner:
+			# Spawn Cyclops boss 15 units in front of the player
+			var forward_dir = -player.global_transform.basis.z.normalized()
+			var spawn_pos = player.global_position + forward_dir * 15.0 + Vector3(0, 0, 0)
+			enemy_spawner.spawn_boss("cyclops", spawn_pos, peer_id)
+
 ## Handle shop sell request
 func handle_shop_sell(peer_id: int, slot_index: int, amount: int, total_price: int) -> void:
 	print("[Server] Player %d wants to sell %d items from slot %d for %d gold" % [peer_id, amount, slot_index, total_price])

@@ -10,6 +10,7 @@ enum ArmorSlot {
 	CHEST,
 	LEGS,
 	CAPE,
+	ACCESSORY,  # Special items like Cyclops Eye
 }
 
 # Set bonus types
@@ -17,6 +18,7 @@ enum SetBonus {
 	NONE,
 	PIG_DOUBLE_JUMP,      # Full pig set: can double jump
 	DEER_STAMINA_SAVER,   # Full deer set: 50% less stamina for sprinting
+	CYCLOPS_LIGHT,        # Cyclops Eye: provides light around player
 }
 
 const ItemData = preload("res://shared/item_data.gd")

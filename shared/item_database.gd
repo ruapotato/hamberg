@@ -76,6 +76,10 @@ func _initialize_items() -> void:
 	# Buy-only weapons
 	_register_ice_wand()  # Buy-only from Shnarken
 
+	# Boss items
+	_register_glowing_medallion()  # Triggers Cyclops boss fight
+	_register_cyclops_eye()  # Drops from Cyclops, provides light
+
 ## Helper: Register a basic resource item
 func _register_resource(id: String, name: String, desc: String, stack: int, w: float) -> void:
 	var item = ItemData.new()
@@ -572,3 +576,40 @@ func _register_ice_wand() -> void:
 	weapon.stamina_cost = 12.0  # Uses brain power for magic
 	weapon.weight = 1.5
 	items["ice_wand"] = weapon
+
+## Glowing Medallion - Buy from Shnarken to summon the Cyclops boss
+## This is a trap item that triggers a boss fight immediately on purchase!
+func _register_glowing_medallion() -> void:
+	var item = ItemData.new()
+	item.item_id = "glowing_medallion"
+	item.display_name = "Glowing Medallion"
+	item.description = "A mysterious medallion that pulses with an eerie light...\n[color=red]WARNING: SEE IN THE DARK WITH THIS MEDALLION... BUY AT YOUR OWN RISK.[/color]"
+	item.item_type = ItemData.ItemType.BOSS_SUMMON
+	item.max_stack_size = 1
+	item.weight = 0.5
+	items["glowing_medallion"] = item
+
+## Cyclops Eye - Drops from Cyclops boss, equip for light aura
+## Provides permanent light around the player, useful for dark biomes
+func _register_cyclops_eye() -> void:
+	var accessory = ArmorData.new()
+	accessory.item_id = "cyclops_eye"
+	accessory.display_name = "Eye of the Cyclops"
+	accessory.description = "The massive glowing eye of the fallen Cyclops.\nEquip to illuminate the darkness around you.\n[color=yellow]Unlocks access to dark biomes![/color]"
+	accessory.armor_slot = ArmorData.ArmorSlot.ACCESSORY
+	accessory.set_bonus = ArmorData.SetBonus.CYCLOPS_LIGHT
+	accessory.armor_set_id = "cyclops"  # Unique set
+	accessory.weight = 2.0
+	accessory.durability = 9999  # Nearly unbreakable
+	# No armor values - it's a utility item
+	accessory.armor_values = {
+		WeaponData.DamageType.SLASH: 0.0,
+		WeaponData.DamageType.BLUNT: 0.0,
+		WeaponData.DamageType.PIERCE: 0.0,
+		WeaponData.DamageType.FIRE: 0.0,
+		WeaponData.DamageType.ICE: 0.0,
+		WeaponData.DamageType.POISON: 0.0,
+	}
+	accessory.primary_color = Color(1.0, 0.9, 0.3)  # Golden glow
+	accessory.secondary_color = Color(1.0, 0.6, 0.1)  # Orange
+	items["cyclops_eye"] = accessory

@@ -12,6 +12,8 @@ enum ItemType {
 	CONSUMABLE,    # Food, potions
 	TOOL,          # Hammer, hoe, cultivator
 	BUILDABLE,     # Workbench, furniture
+	ACCESSORY,     # Special items like Cyclops Eye (equippable with effects)
+	BOSS_SUMMON,   # Items that summon bosses when used/purchased
 }
 
 @export var item_id: String = ""

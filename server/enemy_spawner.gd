@@ -43,6 +43,9 @@ const DEER_SCENE = preload("res://shared/animals/deer.tscn")
 const PIG_SCENE = preload("res://shared/animals/pig.tscn")
 const SHEEP_SCENE = preload("res://shared/animals/sheep.tscn")
 
+# Boss scenes
+const CYCLOPS_SCENE = preload("res://shared/enemies/bosses/cyclops.tscn")
+
 # Biome-specific enemy types
 const DARK_FOREST_BIOMES = ["dark_forest"]
 
@@ -468,6 +471,85 @@ func spawn_enemy_at(position: Vector3, enemy_type: String = "gahnome") -> void:
 			_spawn_enemy(GAHNOME_SCENE, position)
 		_:
 			print("[EnemySpawner] Unknown enemy type: %s" % enemy_type)
+
+## Spawn a boss at a position near a player
+## Returns the spawned boss or null if spawn failed
+func spawn_boss(boss_type: String, position: Vector3, host_peer_id: int = 0) -> Node:
+	var boss_scene: PackedScene = null
+
+	match boss_type:
+		"cyclops":
+			boss_scene = CYCLOPS_SCENE
+		_:
+			print("[EnemySpawner] Unknown boss type: %s" % boss_type)
+			return null
+
+	if not boss_scene:
+		return null
+
+	var boss = boss_scene.instantiate()
+
+	# Assign network ID BEFORE adding to tree
+	var net_id = next_network_id
+	next_network_id += 1
+	if "network_id" in boss:
+		boss.network_id = net_id
+
+	# Assign host peer ID
+	if "host_peer_id" in boss:
+		boss.host_peer_id = host_peer_id
+
+	# Mark as boss
+	boss.add_to_group("bosses")
+
+	# Add to world container
+	if server_node and server_node.has_node("World"):
+		var world_container = server_node.get_node("World")
+		world_container.add_child(boss)
+
+		# Set position
+		boss.global_position = position
+
+		# Update spawn references
+		if "spawn_y" in boss:
+			boss.spawn_y = position.y
+		if "last_valid_position" in boss:
+			boss.last_valid_position = position
+
+		# Track boss
+		spawned_enemies.append(boss)
+		enemy_paths[boss] = boss.get_path()
+		enemy_network_ids[boss] = net_id
+		network_id_to_enemy[net_id] = boss
+		enemy_host_peers[net_id] = host_peer_id
+		host_position_reports[net_id] = {}
+
+		# Connect death signal
+		if boss.has_signal("died"):
+			boss.died.connect(_on_enemy_died)
+		if boss.has_signal("boss_defeated"):
+			boss.boss_defeated.connect(_on_boss_defeated)
+
+		var boss_name = boss.boss_name if "boss_name" in boss else "Boss"
+		print("[EnemySpawner] BOSS SPAWNED: %s at %s (network_id=%d, host_peer=%d)" % [boss_name, position, net_id, host_peer_id])
+
+		# Broadcast boss spawn to all clients
+		var boss_path = enemy_paths[boss]
+		var boss_type_name = boss_name
+		var pos_array = [position.x, position.y, position.z, net_id, host_peer_id]
+		NetworkManager.rpc_spawn_enemy.rpc(boss_path, boss_type_name, pos_array, boss_name)
+
+		return boss
+	else:
+		print("[EnemySpawner] ERROR: WorldContainer not found!")
+		boss.queue_free()
+		return null
+
+## Handle boss defeat
+func _on_boss_defeated(boss: Node) -> void:
+	var boss_name = boss.boss_name if "boss_name" in boss else "Boss"
+	print("[EnemySpawner] BOSS DEFEATED: %s" % boss_name)
+	# Boss handles its own loot drops and cleanup
 
 # ============================================================================
 # HOST POSITION REPORTS SYSTEM
