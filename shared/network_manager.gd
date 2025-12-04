@@ -1285,22 +1285,29 @@ func rpc_request_shop_upgrade(equipment_slot: int, cost: int) -> void:
 ## CLIENT -> SERVER: Report fire area creation for visual sync
 @rpc("any_peer", "call_remote", "reliable")
 func rpc_spawn_fire_area(position: Array, radius: float, duration: float) -> void:
+	print("[NetworkManager] rpc_spawn_fire_area received: is_server=%s" % multiplayer.is_server())
 	if not multiplayer.is_server():
 		return
 	var from_peer := multiplayer.get_remote_sender_id()
+	var peers = multiplayer.get_peers()
+	print("[NetworkManager] Broadcasting fire area to %d peers (from peer %d)" % [peers.size(), from_peer])
 	# Broadcast to all other clients
-	for peer in multiplayer.get_peers():
+	for peer in peers:
 		if peer != from_peer:
+			print("[NetworkManager] Sending fire area to peer %d" % peer)
 			rpc_broadcast_fire_area.rpc_id(peer, position, radius, duration)
 
 ## SERVER -> CLIENT: Broadcast fire area visual effect
 @rpc("authority", "call_remote", "reliable")
 func rpc_broadcast_fire_area(position: Array, radius: float, duration: float) -> void:
+	print("[NetworkManager] rpc_broadcast_fire_area received: radius=%.1f, duration=%.1f" % [radius, duration])
 	# Create visual-only fire area on receiving client
 	var client_node := get_node_or_null("/root/Main/Client")
 	if client_node and client_node.has_method("spawn_visual_fire_area"):
 		var pos = Vector3(position[0], position[1], position[2])
 		client_node.spawn_visual_fire_area(pos, radius, duration)
+	else:
+		print("[NetworkManager] ERROR: Could not find Client node or spawn_visual_fire_area method")
 
 # ============================================================================
 # PROJECTILE VISUAL EFFECTS SYNC
@@ -1309,23 +1316,30 @@ func rpc_broadcast_fire_area(position: Array, radius: float, duration: float) ->
 ## CLIENT -> SERVER: Report projectile spawn for visual sync
 @rpc("any_peer", "call_remote", "reliable")
 func rpc_spawn_projectile(projectile_type: String, position: Array, direction: Array, speed: float) -> void:
+	print("[NetworkManager] rpc_spawn_projectile received: type=%s, is_server=%s" % [projectile_type, multiplayer.is_server()])
 	if not multiplayer.is_server():
 		return
 	var from_peer := multiplayer.get_remote_sender_id()
+	var peers = multiplayer.get_peers()
+	print("[NetworkManager] Broadcasting projectile to %d peers (from peer %d)" % [peers.size(), from_peer])
 	# Broadcast to all other clients
-	for peer in multiplayer.get_peers():
+	for peer in peers:
 		if peer != from_peer:
+			print("[NetworkManager] Sending projectile to peer %d" % peer)
 			rpc_broadcast_projectile.rpc_id(peer, projectile_type, position, direction, speed)
 
 ## SERVER -> CLIENT: Broadcast projectile visual effect
 @rpc("authority", "call_remote", "reliable")
 func rpc_broadcast_projectile(projectile_type: String, position: Array, direction: Array, speed: float) -> void:
+	print("[NetworkManager] rpc_broadcast_projectile received: type=%s" % projectile_type)
 	# Create visual-only projectile on receiving client
 	var client_node := get_node_or_null("/root/Main/Client")
 	if client_node and client_node.has_method("spawn_visual_projectile"):
 		var pos = Vector3(position[0], position[1], position[2])
 		var dir = Vector3(direction[0], direction[1], direction[2])
 		client_node.spawn_visual_projectile(projectile_type, pos, dir, speed)
+	else:
+		print("[NetworkManager] ERROR: Could not find Client node or spawn_visual_projectile method")
 
 # ============================================================================
 # HIT/PARRY EFFECT SYNC

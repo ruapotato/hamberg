@@ -127,14 +127,16 @@ func get_equipment_data() -> Dictionary:
 
 ## Set equipment from data (when syncing from server)
 func set_equipment_data(data: Dictionary) -> void:
-	print("[Equipment] set_equipment_data received: %s" % data)
+	var has_changes := false
 	for slot in EquipmentSlot.values():
 		# Try enum key, int key, and string key (JSON/RPC may convert to string)
 		var item_id = data.get(slot, data.get(int(slot), data.get(str(slot), "")))
-		print("[Equipment]   Slot %d -> item_id: '%s'" % [slot, item_id])
 		if equipped_items.get(slot, "") != item_id:
 			equipped_items[slot] = item_id
 			equipment_changed.emit(slot)
+			has_changes = true
+	if has_changes:
+		print("[Equipment] Synced: %s" % data)
 
 ## Clear all equipment
 func clear() -> void:
