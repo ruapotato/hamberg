@@ -1436,6 +1436,10 @@ func _special_attack_fire_wand_area(weapon_data: WeaponData, _camera: Camera3D) 
 	get_tree().root.add_child(fire_area)
 	fire_area.global_position = player_ground_pos
 
+	# Sync fire area visual to other clients
+	var pos = player_ground_pos
+	NetworkManager.rpc_spawn_fire_area.rpc_id(1, [pos.x, pos.y, pos.z], area_radius, duration)
+
 ## Default special attack (1.5x damage, same as normal attack otherwise)
 func _special_attack_default(weapon_data: WeaponData, camera: Camera3D) -> void:
 	var resource_cost: float = weapon_data.stamina_cost * 2.0
@@ -1618,6 +1622,15 @@ func _spawn_projectile(weapon_data: WeaponData, camera: Camera3D) -> void:
 	projectile.setup(spawn_pos, direction, speed, weapon_data.damage, get_instance_id())
 
 	print("[Player] Spawned %s projectile toward %s" % [weapon_data.item_id, target_pos])
+
+	# Sync projectile visual to other clients
+	var projectile_type := "fireball"  # Default, expand as more projectiles added
+	if weapon_data.item_id == "fire_wand":
+		projectile_type = "fireball"
+	NetworkManager.rpc_spawn_projectile.rpc_id(1, projectile_type,
+		[spawn_pos.x, spawn_pos.y, spawn_pos.z],
+		[direction.x, direction.y, direction.z],
+		speed)
 
 ## Get the camera for raycasting
 func _get_camera() -> Camera3D:
