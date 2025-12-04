@@ -33,6 +33,7 @@ var perf_toggles: Dictionary = {
 	"physics": true,
 	"ui": true,
 	"daynight": true,
+	"hitboxes": false,  # Debug hitbox visualization (off by default)
 }
 var all_items: Array[String] = []
 var all_enemies: Array[String] = ["gahnome", "sporeling", "deer", "pig", "sheep"]
@@ -399,7 +400,7 @@ func _cmd_perf() -> void:
 func _cmd_toggle(args: Array) -> void:
 	if args.is_empty():
 		_add_output("[color=yellow]Usage: /toggle <system>[/color]")
-		_add_output("Systems: terrain, env, enemies, physics, ui, daynight, all")
+		_add_output("Systems: terrain, env, enemies, physics, ui, daynight, hitboxes, all")
 		return
 
 	var system = args[0].to_lower()
@@ -421,7 +422,7 @@ func _cmd_toggle(args: Array) -> void:
 
 	if system not in perf_toggles:
 		_add_output("[color=red]Unknown system: %s[/color]" % system)
-		_add_output("Systems: terrain, env, enemies, physics, ui, daynight, all")
+		_add_output("Systems: terrain, env, enemies, physics, ui, daynight, hitboxes, all")
 		return
 
 	perf_toggles[system] = not perf_toggles[system]
@@ -478,6 +479,47 @@ func _apply_toggle(system: String, enabled: bool) -> void:
 						day_night_cycles.append(tw.get_node("DayNightCycle"))
 			for dnc in day_night_cycles:
 				dnc.set_process(enabled)
+		"hitboxes":
+			# Toggle debug hitbox visualization for weapons and enemies
+			_toggle_hitbox_visuals(enabled)
+
+func _toggle_hitbox_visuals(enabled: bool) -> void:
+	# Toggle player weapon hitbox debug mesh
+	var local_player = get_tree().get_first_node_in_group("local_player")
+	if local_player and local_player.weapon_hitbox:
+		var debug_mesh = local_player.weapon_hitbox.get_node_or_null("CollisionShape3D/DebugMesh")
+		if debug_mesh:
+			debug_mesh.visible = enabled
+
+	# Toggle enemy attack hitbox and body collision debug meshes
+	var enemies = get_tree().get_nodes_in_group("enemies")
+	for enemy in enemies:
+		# Attack hitbox
+		if enemy.has_node("AttackHitbox") or (enemy.body_container and enemy.body_container.has_node("AttackHitbox")):
+			var attack_hitbox = enemy.get_node_or_null("AttackHitbox")
+			if not attack_hitbox and enemy.body_container:
+				attack_hitbox = enemy.body_container.get_node_or_null("AttackHitbox")
+			if attack_hitbox:
+				var debug_mesh = attack_hitbox.get_node_or_null("DebugMesh")
+				if debug_mesh:
+					debug_mesh.visible = enabled
+		# Body collision mesh
+		if "collision_box_mesh" in enemy and enemy.collision_box_mesh:
+			enemy.collision_box_mesh.visible = enabled
+
+	# Same for animals
+	var animals = get_tree().get_nodes_in_group("animals")
+	for animal in animals:
+		if animal.has_node("AttackHitbox") or (animal.body_container and animal.body_container.has_node("AttackHitbox")):
+			var attack_hitbox = animal.get_node_or_null("AttackHitbox")
+			if not attack_hitbox and animal.body_container:
+				attack_hitbox = animal.body_container.get_node_or_null("AttackHitbox")
+			if attack_hitbox:
+				var debug_mesh = attack_hitbox.get_node_or_null("DebugMesh")
+				if debug_mesh:
+					debug_mesh.visible = enabled
+		if "collision_box_mesh" in animal and animal.collision_box_mesh:
+			animal.collision_box_mesh.visible = enabled
 
 func _add_output(text: String) -> void:
 	output_label.append_text(text + "\n")

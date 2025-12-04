@@ -1130,6 +1130,7 @@ func _setup_collision_box_mesh() -> void:
 
 	# Match the collision shape's transform
 	collision_box_mesh.transform = collision_shape.transform
+	collision_box_mesh.visible = false  # Hidden by default, use /toggle hitboxes to show
 
 	add_child(collision_box_mesh)
 
@@ -1171,7 +1172,7 @@ func _setup_attack_hitbox() -> void:
 	# Create sphere hitbox in front of enemy (fist/punch range)
 	var collision_shape = CollisionShape3D.new()
 	var shape = SphereShape3D.new()
-	shape.radius = 0.4  # Tight hitbox for fist attacks
+	shape.radius = 0.8  # Larger hitbox for reliable hits
 	collision_shape.shape = shape
 	collision_shape.disabled = true
 
@@ -1182,16 +1183,16 @@ func _setup_attack_hitbox() -> void:
 	# So +Z in body_container = where the character visually faces
 	if body_container:
 		body_container.add_child(attack_hitbox)
-		attack_hitbox.position = Vector3(0, 0.6, 0.5)  # In front of body
+		attack_hitbox.position = Vector3(0, 0.8, 1.0)  # Further in front of body
 	else:
 		add_child(attack_hitbox)
-		attack_hitbox.position = Vector3(0, 0.6, -0.5)
+		attack_hitbox.position = Vector3(0, 0.8, -1.0)
 
 	# DEBUG: Add visual mesh for attack hitbox
 	var debug_mesh = MeshInstance3D.new()
 	debug_mesh.name = "DebugMesh"
 	var sphere_mesh = SphereMesh.new()
-	sphere_mesh.radius = 0.4
+	sphere_mesh.radius = 0.8
 	debug_mesh.mesh = sphere_mesh
 	var mat = StandardMaterial3D.new()
 	mat.albedo_color = Color(1.0, 0.0, 0.0, 0.5)  # Red, more visible
@@ -1201,6 +1202,7 @@ func _setup_attack_hitbox() -> void:
 	mat.no_depth_test = true  # Always visible, even through objects
 	debug_mesh.material_override = mat
 	debug_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	debug_mesh.visible = false  # Hidden by default, use /toggle hitboxes to show
 	attack_hitbox.add_child(debug_mesh)
 
 	# Connect signal for collision detection

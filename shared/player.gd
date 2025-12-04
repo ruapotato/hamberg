@@ -3101,7 +3101,7 @@ func _add_weapon_hitbox_debug_visual(hitbox: Area3D, collision_shape: CollisionS
 
 	# Add to collision_shape so it inherits the shape's transform/rotation
 	collision_shape.add_child(debug_mesh)
-	debug_mesh.visible = true
+	debug_mesh.visible = false  # Hidden by default, use /toggle hitboxes to show
 	print("[DEBUG] Weapon hitbox debug mesh added (parent: %s)" % collision_shape.name)
 
 ## Update the off hand shield visual
