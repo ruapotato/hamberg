@@ -66,6 +66,62 @@ func _ready() -> void:
 
 	print("[Boss] %s '%s' spawned! (HP: %.0f, Scale: %.1f)" % [boss_name, boss_title, max_health, boss_scale])
 
+# ============================================================================
+# OVERRIDE ENEMY SETUP METHODS (Bosses create their own bodies)
+# ============================================================================
+
+## Override: Bosses create their own bodies in subclass, don't use enemy body
+func _setup_body() -> void:
+	# Don't overwrite body_container if already created by subclass
+	if body_container:
+		print("[Boss] Skipping _setup_body() - body already created by subclass")
+		return
+	# If no body yet, call parent (shouldn't happen for properly implemented bosses)
+	print("[Boss] WARNING: No body_container found, using default enemy body")
+	super._setup_body()
+
+## Override: Bosses have their own attack systems
+func _setup_attack_hitbox() -> void:
+	# Bosses implement their own attacks (stomp, eye beam, etc.)
+	print("[Boss] Skipping _setup_attack_hitbox() - bosses have custom attacks")
+	pass
+
+## Override: Setup collision box for boss (larger)
+func _setup_collision_box_mesh() -> void:
+	# Find the collision shape to match its size
+	var collision_shape = get_node_or_null("CollisionShape3D")
+	if not collision_shape or not collision_shape.shape:
+		return
+
+	var mesh = MeshInstance3D.new()
+	mesh.name = "CollisionBoxMesh"
+
+	# Create appropriate mesh based on shape
+	if collision_shape.shape is CapsuleShape3D:
+		var capsule = CapsuleMesh.new()
+		capsule.radius = collision_shape.shape.radius
+		capsule.height = collision_shape.shape.height
+		mesh.mesh = capsule
+	elif collision_shape.shape is BoxShape3D:
+		var box = BoxMesh.new()
+		box.size = collision_shape.shape.size
+		mesh.mesh = box
+	elif collision_shape.shape is SphereShape3D:
+		var sphere = SphereMesh.new()
+		sphere.radius = collision_shape.shape.radius
+		mesh.mesh = sphere
+
+	# Blue translucent material
+	var mat = StandardMaterial3D.new()
+	mat.albedo_color = Color(0.2, 0.5, 1.0, 0.3)
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mesh.material_override = mat
+	mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	mesh.visible = false  # Hidden by default, toggle with debug
+
+	collision_shape.add_child(mesh)
+
 func _physics_process(delta: float) -> void:
 	# Handle entrance animation
 	if is_spawning:

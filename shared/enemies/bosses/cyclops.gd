@@ -561,142 +561,557 @@ func _on_phase_change(new_phase: int) -> void:
 			charge_speed *= 1.3
 
 # ============================================================================
-# VISUALS
+# VISUALS - Detailed Cyclops Body with Primitive Meshes
 # ============================================================================
 func _setup_cyclops_body() -> void:
 	body_container = Node3D.new()
 	body_container.name = "BodyContainer"
 	add_child(body_container)
 
-	var skin_color = Color(0.5, 0.45, 0.4)  # Gray-brown
-	var cloth_color = Color(0.3, 0.25, 0.2)  # Dark brown
+	# Color palette for the Cyclops
+	var skin_color = Color(0.55, 0.48, 0.42)  # Gray-brown skin
+	var skin_dark = Color(0.4, 0.35, 0.3)  # Darker skin for shadows/creases
+	var skin_light = Color(0.65, 0.58, 0.52)  # Lighter for highlights
+	var cloth_color = Color(0.35, 0.28, 0.2)  # Dark brown cloth
+	var leather_color = Color(0.45, 0.32, 0.2)  # Leather straps
+	var nail_color = Color(0.25, 0.22, 0.18)  # Dark nails/claws
 
-	# Materials
+	# === MATERIALS ===
 	var skin_mat = StandardMaterial3D.new()
 	skin_mat.albedo_color = skin_color
+
+	var skin_dark_mat = StandardMaterial3D.new()
+	skin_dark_mat.albedo_color = skin_dark
+
+	var skin_light_mat = StandardMaterial3D.new()
+	skin_light_mat.albedo_color = skin_light
 
 	var cloth_mat = StandardMaterial3D.new()
 	cloth_mat.albedo_color = cloth_color
 
-	# === TORSO ===
-	var torso = MeshInstance3D.new()
-	var torso_mesh = CapsuleMesh.new()
-	torso_mesh.radius = 0.5
-	torso_mesh.height = 1.5
-	torso.mesh = torso_mesh
-	torso.material_override = skin_mat
-	torso.position = Vector3(0, 1.2, 0)
-	body_container.add_child(torso)
+	var leather_mat = StandardMaterial3D.new()
+	leather_mat.albedo_color = leather_color
 
-	# === HEAD ===
-	var head = MeshInstance3D.new()
-	var head_mesh = SphereMesh.new()
-	head_mesh.radius = 0.5
-	head.mesh = head_mesh
-	head.material_override = skin_mat
-	head.position = Vector3(0, 2.2, 0)
-	body_container.add_child(head)
-	self.head = head
+	var nail_mat = StandardMaterial3D.new()
+	nail_mat.albedo_color = nail_color
 
-	# === THE EYE (the defining feature!) ===
-	eye_mesh = MeshInstance3D.new()
-	var eye_sphere = SphereMesh.new()
-	eye_sphere.radius = 0.25
-	eye_mesh.mesh = eye_sphere
+	# ==========================================================================
+	# LOWER BODY - HIPS AND LEGS
+	# ==========================================================================
 
-	var eye_mat = StandardMaterial3D.new()
-	eye_mat.albedo_color = Color(1.0, 0.9, 0.3)
-	eye_mat.emission_enabled = true
-	eye_mat.emission = Color(1.0, 0.8, 0.2)
-	eye_mat.emission_energy_multiplier = 1.5
-	eye_mesh.material_override = eye_mat
-	eye_mesh.position = Vector3(0, 0.05, 0.35)
-	head.add_child(eye_mesh)
+	# === HIPS/PELVIS ===
+	var hips = MeshInstance3D.new()
+	var hips_mesh = CapsuleMesh.new()
+	hips_mesh.radius = 0.4
+	hips_mesh.height = 0.6
+	hips.mesh = hips_mesh
+	hips.material_override = cloth_mat
+	hips.position = Vector3(0, 0.6, 0)
+	hips.rotation_degrees.x = 90  # Horizontal
+	body_container.add_child(hips)
 
-	# Pupil
-	var pupil = MeshInstance3D.new()
-	var pupil_mesh = SphereMesh.new()
-	pupil_mesh.radius = 0.08
-	pupil.mesh = pupil_mesh
-	var pupil_mat = StandardMaterial3D.new()
-	pupil_mat.albedo_color = Color(0.1, 0.05, 0.0)
-	pupil.material_override = pupil_mat
-	pupil.position = Vector3(0, 0, 0.18)
-	eye_mesh.add_child(pupil)
-
-	# Eye light
-	eye_light = OmniLight3D.new()
-	eye_light.light_color = Color(1.0, 0.85, 0.4)
-	eye_light.light_energy = 2.0
-	eye_light.omni_range = 10.0
-	eye_mesh.add_child(eye_light)
-
-	# === ARMS ===
-	var arm_mesh = CapsuleMesh.new()
-	arm_mesh.radius = 0.2
-	arm_mesh.height = 1.0
-
-	# Left arm
-	left_arm = Node3D.new()
-	left_arm.name = "LeftArm"
-	left_arm.position = Vector3(-0.7, 1.6, 0)
-	body_container.add_child(left_arm)
-
-	var left_upper = MeshInstance3D.new()
-	left_upper.mesh = arm_mesh
-	left_upper.material_override = skin_mat
-	left_upper.position = Vector3(0, -0.5, 0)
-	left_arm.add_child(left_upper)
-
-	# Right arm
-	right_arm = Node3D.new()
-	right_arm.name = "RightArm"
-	right_arm.position = Vector3(0.7, 1.6, 0)
-	body_container.add_child(right_arm)
-
-	var right_upper = MeshInstance3D.new()
-	right_upper.mesh = arm_mesh
-	right_upper.material_override = skin_mat
-	right_upper.position = Vector3(0, -0.5, 0)
-	right_arm.add_child(right_upper)
-
-	# === LEGS ===
-	var leg_mesh = CapsuleMesh.new()
-	leg_mesh.radius = 0.25
-	leg_mesh.height = 1.2
-
-	# Left leg
+	# === LEFT LEG ===
 	left_leg = Node3D.new()
 	left_leg.name = "LeftLeg"
-	left_leg.position = Vector3(-0.3, 0.5, 0)
+	left_leg.position = Vector3(-0.35, 0.5, 0)
 	body_container.add_child(left_leg)
 
+	# Left thigh (upper leg)
 	var left_thigh = MeshInstance3D.new()
-	left_thigh.mesh = leg_mesh
-	left_thigh.material_override = cloth_mat
-	left_thigh.position = Vector3(0, -0.4, 0)
+	var thigh_mesh = CapsuleMesh.new()
+	thigh_mesh.radius = 0.22
+	thigh_mesh.height = 0.8
+	left_thigh.mesh = thigh_mesh
+	left_thigh.material_override = skin_mat
+	left_thigh.position = Vector3(0, -0.3, 0)
 	left_leg.add_child(left_thigh)
 
-	# Right leg
+	# Left knee joint
+	var left_knee = Node3D.new()
+	left_knee.name = "LeftKnee"
+	left_knee.position = Vector3(0, -0.7, 0)
+	left_leg.add_child(left_knee)
+
+	var left_kneecap = MeshInstance3D.new()
+	var kneecap_mesh = SphereMesh.new()
+	kneecap_mesh.radius = 0.15
+	left_kneecap.mesh = kneecap_mesh
+	left_kneecap.material_override = skin_mat
+	left_kneecap.position = Vector3(0, 0, 0.08)
+	left_knee.add_child(left_kneecap)
+
+	# Left shin (lower leg)
+	var left_shin = MeshInstance3D.new()
+	var shin_mesh = CapsuleMesh.new()
+	shin_mesh.radius = 0.16
+	shin_mesh.height = 0.7
+	left_shin.mesh = shin_mesh
+	left_shin.material_override = skin_mat
+	left_shin.position = Vector3(0, -0.35, 0)
+	left_knee.add_child(left_shin)
+
+	# Left foot
+	var left_foot = MeshInstance3D.new()
+	var foot_mesh = BoxMesh.new()
+	foot_mesh.size = Vector3(0.25, 0.12, 0.4)
+	left_foot.mesh = foot_mesh
+	left_foot.material_override = skin_dark_mat
+	left_foot.position = Vector3(0, -0.72, 0.08)
+	left_knee.add_child(left_foot)
+
+	# Left toes
+	for i in range(3):
+		var toe = MeshInstance3D.new()
+		var toe_mesh = CapsuleMesh.new()
+		toe_mesh.radius = 0.04
+		toe_mesh.height = 0.15
+		toe.mesh = toe_mesh
+		toe.material_override = skin_dark_mat
+		toe.position = Vector3(-0.07 + i * 0.07, -0.72, 0.32)
+		toe.rotation_degrees.x = 90
+		left_knee.add_child(toe)
+
+	# === RIGHT LEG === (mirror of left)
 	right_leg = Node3D.new()
 	right_leg.name = "RightLeg"
-	right_leg.position = Vector3(0.3, 0.5, 0)
+	right_leg.position = Vector3(0.35, 0.5, 0)
 	body_container.add_child(right_leg)
 
 	var right_thigh = MeshInstance3D.new()
-	right_thigh.mesh = leg_mesh
-	right_thigh.material_override = cloth_mat
-	right_thigh.position = Vector3(0, -0.4, 0)
+	right_thigh.mesh = thigh_mesh
+	right_thigh.material_override = skin_mat
+	right_thigh.position = Vector3(0, -0.3, 0)
 	right_leg.add_child(right_thigh)
 
-	# === LOINCLOTH ===
-	var loincloth = MeshInstance3D.new()
+	var right_knee = Node3D.new()
+	right_knee.name = "RightKnee"
+	right_knee.position = Vector3(0, -0.7, 0)
+	right_leg.add_child(right_knee)
+
+	var right_kneecap = MeshInstance3D.new()
+	right_kneecap.mesh = kneecap_mesh
+	right_kneecap.material_override = skin_mat
+	right_kneecap.position = Vector3(0, 0, 0.08)
+	right_knee.add_child(right_kneecap)
+
+	var right_shin = MeshInstance3D.new()
+	right_shin.mesh = shin_mesh
+	right_shin.material_override = skin_mat
+	right_shin.position = Vector3(0, -0.35, 0)
+	right_knee.add_child(right_shin)
+
+	var right_foot = MeshInstance3D.new()
+	right_foot.mesh = foot_mesh
+	right_foot.material_override = skin_dark_mat
+	right_foot.position = Vector3(0, -0.72, 0.08)
+	right_knee.add_child(right_foot)
+
+	for i in range(3):
+		var toe = MeshInstance3D.new()
+		var toe_mesh = CapsuleMesh.new()
+		toe_mesh.radius = 0.04
+		toe_mesh.height = 0.15
+		toe.mesh = toe_mesh
+		toe.material_override = skin_dark_mat
+		toe.position = Vector3(-0.07 + i * 0.07, -0.72, 0.32)
+		toe.rotation_degrees.x = 90
+		right_knee.add_child(toe)
+
+	# ==========================================================================
+	# TORSO - BELLY, CHEST, SHOULDERS
+	# ==========================================================================
+
+	# === BELLY (big gut - classic giant!) ===
+	var belly = MeshInstance3D.new()
+	var belly_mesh = SphereMesh.new()
+	belly_mesh.radius = 0.45
+	belly.mesh = belly_mesh
+	belly.material_override = skin_mat
+	belly.position = Vector3(0, 0.95, 0.1)
+	belly.scale = Vector3(1.0, 0.9, 0.85)
+	body_container.add_child(belly)
+
+	# === CHEST/TORSO ===
+	var torso = MeshInstance3D.new()
+	var torso_mesh = CapsuleMesh.new()
+	torso_mesh.radius = 0.45
+	torso_mesh.height = 0.9
+	torso.mesh = torso_mesh
+	torso.material_override = skin_mat
+	torso.position = Vector3(0, 1.5, 0)
+	body_container.add_child(torso)
+	self.torso = torso
+
+	# === PECTORAL MUSCLES ===
+	var left_pec = MeshInstance3D.new()
+	var pec_mesh = SphereMesh.new()
+	pec_mesh.radius = 0.2
+	left_pec.mesh = pec_mesh
+	left_pec.material_override = skin_light_mat
+	left_pec.position = Vector3(-0.2, 1.65, 0.25)
+	left_pec.scale = Vector3(1.2, 0.8, 0.6)
+	body_container.add_child(left_pec)
+
+	var right_pec = MeshInstance3D.new()
+	right_pec.mesh = pec_mesh
+	right_pec.material_override = skin_light_mat
+	right_pec.position = Vector3(0.2, 1.65, 0.25)
+	right_pec.scale = Vector3(1.2, 0.8, 0.6)
+	body_container.add_child(right_pec)
+
+	# === SHOULDERS ===
+	var left_shoulder = MeshInstance3D.new()
+	var shoulder_mesh = SphereMesh.new()
+	shoulder_mesh.radius = 0.22
+	left_shoulder.mesh = shoulder_mesh
+	left_shoulder.material_override = skin_mat
+	left_shoulder.position = Vector3(-0.55, 1.75, 0)
+	body_container.add_child(left_shoulder)
+
+	var right_shoulder = MeshInstance3D.new()
+	right_shoulder.mesh = shoulder_mesh
+	right_shoulder.material_override = skin_mat
+	right_shoulder.position = Vector3(0.55, 1.75, 0)
+	body_container.add_child(right_shoulder)
+
+	# === LEATHER STRAP (diagonal across chest) ===
+	var strap = MeshInstance3D.new()
+	var strap_mesh = BoxMesh.new()
+	strap_mesh.size = Vector3(0.08, 0.9, 0.06)
+	strap.mesh = strap_mesh
+	strap.material_override = leather_mat
+	strap.position = Vector3(0.15, 1.4, 0.35)
+	strap.rotation_degrees.z = -25
+	body_container.add_child(strap)
+
+	# === BELT ===
+	var belt = MeshInstance3D.new()
+	var belt_mesh = CylinderMesh.new()
+	belt_mesh.top_radius = 0.42
+	belt_mesh.bottom_radius = 0.42
+	belt_mesh.height = 0.12
+	belt.mesh = belt_mesh
+	belt.material_override = leather_mat
+	belt.position = Vector3(0, 0.75, 0)
+	body_container.add_child(belt)
+
+	# Belt buckle
+	var buckle = MeshInstance3D.new()
+	var buckle_mesh = BoxMesh.new()
+	buckle_mesh.size = Vector3(0.15, 0.12, 0.05)
+	buckle.mesh = buckle_mesh
+	buckle.material_override = nail_mat
+	buckle.position = Vector3(0, 0.75, 0.42)
+	body_container.add_child(buckle)
+
+	# === LOINCLOTH (front and back) ===
+	var loincloth_front = MeshInstance3D.new()
 	var loin_mesh = BoxMesh.new()
-	loin_mesh.size = Vector3(0.8, 0.4, 0.3)
-	loincloth.mesh = loin_mesh
-	loincloth.material_override = cloth_mat
-	loincloth.position = Vector3(0, 0.5, 0)
-	body_container.add_child(loincloth)
+	loin_mesh.size = Vector3(0.4, 0.5, 0.08)
+	loincloth_front.mesh = loin_mesh
+	loincloth_front.material_override = cloth_mat
+	loincloth_front.position = Vector3(0, 0.45, 0.25)
+	body_container.add_child(loincloth_front)
+
+	var loincloth_back = MeshInstance3D.new()
+	loincloth_back.mesh = loin_mesh
+	loincloth_back.material_override = cloth_mat
+	loincloth_back.position = Vector3(0, 0.45, -0.25)
+	body_container.add_child(loincloth_back)
+
+	# ==========================================================================
+	# ARMS
+	# ==========================================================================
+
+	# === LEFT ARM ===
+	left_arm = Node3D.new()
+	left_arm.name = "LeftArm"
+	left_arm.position = Vector3(-0.7, 1.7, 0)
+	body_container.add_child(left_arm)
+
+	# Upper arm (bicep)
+	var left_upper_arm = MeshInstance3D.new()
+	var upper_arm_mesh = CapsuleMesh.new()
+	upper_arm_mesh.radius = 0.18
+	upper_arm_mesh.height = 0.7
+	left_upper_arm.mesh = upper_arm_mesh
+	left_upper_arm.material_override = skin_mat
+	left_upper_arm.position = Vector3(-0.15, -0.25, 0)
+	left_upper_arm.rotation_degrees.z = 15
+	left_arm.add_child(left_upper_arm)
+
+	# Elbow joint
+	var left_elbow = Node3D.new()
+	left_elbow.name = "LeftElbow"
+	left_elbow.position = Vector3(-0.25, -0.55, 0)
+	left_arm.add_child(left_elbow)
+
+	var left_elbow_ball = MeshInstance3D.new()
+	var elbow_mesh = SphereMesh.new()
+	elbow_mesh.radius = 0.12
+	left_elbow_ball.mesh = elbow_mesh
+	left_elbow_ball.material_override = skin_mat
+	left_elbow.add_child(left_elbow_ball)
+
+	# Forearm
+	var left_forearm = MeshInstance3D.new()
+	var forearm_mesh = CapsuleMesh.new()
+	forearm_mesh.radius = 0.14
+	forearm_mesh.height = 0.6
+	left_forearm.mesh = forearm_mesh
+	left_forearm.material_override = skin_mat
+	left_forearm.position = Vector3(0, -0.35, 0)
+	left_elbow.add_child(left_forearm)
+
+	# Left hand
+	var left_hand = MeshInstance3D.new()
+	var hand_mesh = BoxMesh.new()
+	hand_mesh.size = Vector3(0.2, 0.15, 0.25)
+	left_hand.mesh = hand_mesh
+	left_hand.material_override = skin_dark_mat
+	left_hand.position = Vector3(0, -0.7, 0)
+	left_elbow.add_child(left_hand)
+
+	# Left fingers
+	for i in range(4):
+		var finger = MeshInstance3D.new()
+		var finger_mesh = CapsuleMesh.new()
+		finger_mesh.radius = 0.03
+		finger_mesh.height = 0.15
+		finger.mesh = finger_mesh
+		finger.material_override = skin_dark_mat
+		finger.position = Vector3(-0.06 + i * 0.04, -0.82, 0.02)
+		left_elbow.add_child(finger)
+
+	# Left thumb
+	var left_thumb = MeshInstance3D.new()
+	var thumb_mesh = CapsuleMesh.new()
+	thumb_mesh.radius = 0.035
+	thumb_mesh.height = 0.12
+	left_thumb.mesh = thumb_mesh
+	left_thumb.material_override = skin_dark_mat
+	left_thumb.position = Vector3(0.12, -0.72, 0.08)
+	left_thumb.rotation_degrees.z = -30
+	left_elbow.add_child(left_thumb)
+
+	# === RIGHT ARM === (main attack arm - slightly larger)
+	right_arm = Node3D.new()
+	right_arm.name = "RightArm"
+	right_arm.position = Vector3(0.7, 1.7, 0)
+	body_container.add_child(right_arm)
+
+	var right_upper_arm = MeshInstance3D.new()
+	right_upper_arm.mesh = upper_arm_mesh
+	right_upper_arm.material_override = skin_mat
+	right_upper_arm.position = Vector3(0.15, -0.25, 0)
+	right_upper_arm.rotation_degrees.z = -15
+	right_arm.add_child(right_upper_arm)
+
+	var right_elbow = Node3D.new()
+	right_elbow.name = "RightElbow"
+	right_elbow.position = Vector3(0.25, -0.55, 0)
+	right_arm.add_child(right_elbow)
+
+	var right_elbow_ball = MeshInstance3D.new()
+	right_elbow_ball.mesh = elbow_mesh
+	right_elbow_ball.material_override = skin_mat
+	right_elbow.add_child(right_elbow_ball)
+
+	var right_forearm = MeshInstance3D.new()
+	right_forearm.mesh = forearm_mesh
+	right_forearm.material_override = skin_mat
+	right_forearm.position = Vector3(0, -0.35, 0)
+	right_elbow.add_child(right_forearm)
+
+	var right_hand = MeshInstance3D.new()
+	right_hand.mesh = hand_mesh
+	right_hand.material_override = skin_dark_mat
+	right_hand.position = Vector3(0, -0.7, 0)
+	right_elbow.add_child(right_hand)
+
+	for i in range(4):
+		var finger = MeshInstance3D.new()
+		var finger_mesh = CapsuleMesh.new()
+		finger_mesh.radius = 0.03
+		finger_mesh.height = 0.15
+		finger.mesh = finger_mesh
+		finger.material_override = skin_dark_mat
+		finger.position = Vector3(-0.06 + i * 0.04, -0.82, 0.02)
+		right_elbow.add_child(finger)
+
+	var right_thumb = MeshInstance3D.new()
+	right_thumb.mesh = thumb_mesh
+	right_thumb.material_override = skin_dark_mat
+	right_thumb.position = Vector3(-0.12, -0.72, 0.08)
+	right_thumb.rotation_degrees.z = 30
+	right_elbow.add_child(right_thumb)
+
+	# ==========================================================================
+	# HEAD
+	# ==========================================================================
+
+	# === NECK ===
+	var neck = MeshInstance3D.new()
+	var neck_mesh = CylinderMesh.new()
+	neck_mesh.top_radius = 0.18
+	neck_mesh.bottom_radius = 0.22
+	neck_mesh.height = 0.25
+	neck.mesh = neck_mesh
+	neck.material_override = skin_mat
+	neck.position = Vector3(0, 1.95, 0)
+	body_container.add_child(neck)
+
+	# === HEAD (main skull) ===
+	var head = MeshInstance3D.new()
+	var head_mesh = SphereMesh.new()
+	head_mesh.radius = 0.42
+	head.mesh = head_mesh
+	head.material_override = skin_mat
+	head.position = Vector3(0, 2.35, 0)
+	head.scale = Vector3(1.0, 1.1, 1.0)  # Slightly tall
+	body_container.add_child(head)
+	self.head = head
+
+	# === BROW RIDGE (heavy, menacing) ===
+	var brow = MeshInstance3D.new()
+	var brow_mesh = CapsuleMesh.new()
+	brow_mesh.radius = 0.12
+	brow_mesh.height = 0.5
+	brow.mesh = brow_mesh
+	brow.material_override = skin_dark_mat
+	brow.position = Vector3(0, 0.15, 0.28)
+	brow.rotation_degrees.z = 90
+	head.add_child(brow)
+
+	# === THE EYE (the defining feature!) ===
+	# Eye socket (darker indent)
+	var eye_socket = MeshInstance3D.new()
+	var socket_mesh = SphereMesh.new()
+	socket_mesh.radius = 0.22
+	eye_socket.mesh = socket_mesh
+	eye_socket.material_override = skin_dark_mat
+	eye_socket.position = Vector3(0, 0.02, 0.32)
+	head.add_child(eye_socket)
+
+	# The glowing eye itself
+	eye_mesh = MeshInstance3D.new()
+	var eye_sphere = SphereMesh.new()
+	eye_sphere.radius = 0.18
+	eye_mesh.mesh = eye_sphere
+
+	var eye_mat = StandardMaterial3D.new()
+	eye_mat.albedo_color = Color(1.0, 0.95, 0.5)
+	eye_mat.emission_enabled = true
+	eye_mat.emission = Color(1.0, 0.85, 0.3)
+	eye_mat.emission_energy_multiplier = 2.0
+	eye_mesh.material_override = eye_mat
+	eye_mesh.position = Vector3(0, 0.02, 0.36)
+	head.add_child(eye_mesh)
+
+	# Iris
+	var iris = MeshInstance3D.new()
+	var iris_mesh = CylinderMesh.new()
+	iris_mesh.top_radius = 0.1
+	iris_mesh.bottom_radius = 0.1
+	iris_mesh.height = 0.02
+	iris.mesh = iris_mesh
+	var iris_mat = StandardMaterial3D.new()
+	iris_mat.albedo_color = Color(0.8, 0.5, 0.1)
+	iris_mat.emission_enabled = true
+	iris_mat.emission = Color(0.9, 0.6, 0.2)
+	iris_mat.emission_energy_multiplier = 1.0
+	iris.material_override = iris_mat
+	iris.position = Vector3(0, 0, 0.15)
+	iris.rotation_degrees.x = 90
+	eye_mesh.add_child(iris)
+
+	# Pupil (vertical slit - menacing!)
+	var pupil = MeshInstance3D.new()
+	var pupil_mesh = BoxMesh.new()
+	pupil_mesh.size = Vector3(0.03, 0.12, 0.02)
+	pupil.mesh = pupil_mesh
+	var pupil_mat = StandardMaterial3D.new()
+	pupil_mat.albedo_color = Color(0.05, 0.02, 0.0)
+	pupil.material_override = pupil_mat
+	pupil.position = Vector3(0, 0, 0.17)
+	eye_mesh.add_child(pupil)
+
+	# Eye light (the glow)
+	eye_light = OmniLight3D.new()
+	eye_light.name = "EyeLight"
+	eye_light.light_color = Color(1.0, 0.9, 0.5)
+	eye_light.light_energy = 2.5
+	eye_light.omni_range = 12.0
+	eye_light.omni_attenuation = 1.2
+	eye_mesh.add_child(eye_light)
+
+	# === NOSE (large, brutish) ===
+	var nose = MeshInstance3D.new()
+	var nose_mesh = CapsuleMesh.new()
+	nose_mesh.radius = 0.08
+	nose_mesh.height = 0.18
+	nose.mesh = nose_mesh
+	nose.material_override = skin_mat
+	nose.position = Vector3(0, -0.12, 0.35)
+	nose.rotation_degrees.x = -20
+	head.add_child(nose)
+
+	# Nostrils
+	for i in [-1, 1]:
+		var nostril = MeshInstance3D.new()
+		var nostril_mesh = SphereMesh.new()
+		nostril_mesh.radius = 0.04
+		nostril.mesh = nostril_mesh
+		nostril.material_override = skin_dark_mat
+		nostril.position = Vector3(i * 0.05, -0.18, 0.38)
+		head.add_child(nostril)
+
+	# === JAW (heavy, underbite) ===
+	var jaw = MeshInstance3D.new()
+	var jaw_mesh = BoxMesh.new()
+	jaw_mesh.size = Vector3(0.35, 0.15, 0.25)
+	jaw.mesh = jaw_mesh
+	jaw.material_override = skin_mat
+	jaw.position = Vector3(0, -0.28, 0.1)
+	head.add_child(jaw)
+
+	# Lower teeth (tusks)
+	for i in [-1, 1]:
+		var tusk = MeshInstance3D.new()
+		var tusk_mesh = CylinderMesh.new()
+		tusk_mesh.top_radius = 0.02
+		tusk_mesh.bottom_radius = 0.04
+		tusk_mesh.height = 0.12
+		tusk.mesh = tusk_mesh
+		tusk.material_override = nail_mat
+		tusk.position = Vector3(i * 0.12, -0.22, 0.22)
+		tusk.rotation_degrees.x = -10
+		head.add_child(tusk)
+
+	# === EAR (one large ear - cyclops style) ===
+	var ear = MeshInstance3D.new()
+	var ear_mesh = SphereMesh.new()
+	ear_mesh.radius = 0.12
+	ear.mesh = ear_mesh
+	ear.material_override = skin_mat
+	ear.position = Vector3(-0.42, 0.0, 0)
+	ear.scale = Vector3(0.4, 1.0, 0.8)
+	head.add_child(ear)
+
+	# === WARTS/BUMPS (texture detail) ===
+	var wart_positions = [
+		Vector3(0.25, 0.2, 0.2),
+		Vector3(-0.3, -0.1, 0.15),
+		Vector3(0.15, -0.25, 0.1),
+	]
+	for pos in wart_positions:
+		var wart = MeshInstance3D.new()
+		var wart_mesh = SphereMesh.new()
+		wart_mesh.radius = 0.04
+		wart.mesh = wart_mesh
+		wart.material_override = skin_dark_mat
+		wart.position = pos
+		head.add_child(wart)
 
 func _update_eye_glow() -> void:
 	if not eye_light:
@@ -717,20 +1132,36 @@ func _update_cyclops_animation(delta: float) -> void:
 	if not body_container:
 		return
 
-	# Walking animation
+	# Walking animation - move hips and legs for heavy giant gait
 	if cyclops_state == CyclopsState.WALKING:
-		var walk_cycle = sin(Time.get_ticks_msec() * 0.005) * 0.3
+		var walk_cycle = sin(Time.get_ticks_msec() * 0.004) * 0.25  # Slower for giant
+		var knee_bend = abs(sin(Time.get_ticks_msec() * 0.004)) * 0.3
+
 		if left_leg:
 			left_leg.rotation.x = walk_cycle
+			# Bend knee when leg is forward
+			var left_knee = left_leg.get_node_or_null("LeftKnee")
+			if left_knee:
+				left_knee.rotation.x = knee_bend if walk_cycle > 0 else 0.0
+
 		if right_leg:
 			right_leg.rotation.x = -walk_cycle
-		if left_arm:
-			left_arm.rotation.x = -walk_cycle * 0.5
-		if right_arm and cyclops_state != CyclopsState.BOULDER_WINDUP:
-			right_arm.rotation.x = walk_cycle * 0.5
+			var right_knee = right_leg.get_node_or_null("RightKnee")
+			if right_knee:
+				right_knee.rotation.x = knee_bend if walk_cycle < 0 else 0.0
 
-		# Body sway
-		body_container.rotation.z = sin(Time.get_ticks_msec() * 0.003) * 0.05
+		# Arms swing opposite to legs
+		if left_arm:
+			left_arm.rotation.x = -walk_cycle * 0.4
+		if right_arm and cyclops_state != CyclopsState.BOULDER_WINDUP:
+			right_arm.rotation.x = walk_cycle * 0.4
+
+		# Heavy body sway - giants lumber!
+		body_container.rotation.z = sin(Time.get_ticks_msec() * 0.003) * 0.04
+		body_container.position.y = abs(sin(Time.get_ticks_msec() * 0.008)) * 0.05  # Bounce
+	else:
+		# Reset bounce when not walking
+		body_container.position.y = 0.0
 
 func _on_spawn_complete() -> void:
 	# Roar!
