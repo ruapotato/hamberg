@@ -219,7 +219,10 @@ func _setup_weapon_hitbox() -> void:
 
 ## DEBUG: Add visual representation of hitbox
 func _add_hitbox_debug_visual(hitbox: Area3D, collision_shape: CollisionShape3D) -> void:
-	if not collision_shape or not collision_shape.shape:
+	print("[DEBUG] _add_hitbox_debug_visual called, hitbox=%s, collision_shape=%s" % [hitbox, collision_shape])
+
+	if not hitbox:
+		print("[DEBUG] No hitbox!")
 		return
 
 	# Remove existing debug mesh if any
@@ -230,31 +233,58 @@ func _add_hitbox_debug_visual(hitbox: Area3D, collision_shape: CollisionShape3D)
 	var debug_mesh = MeshInstance3D.new()
 	debug_mesh.name = "DebugMesh"
 
-	# Create mesh matching the collision shape
-	var shape = collision_shape.shape
-	if shape is CapsuleShape3D:
-		var capsule = CapsuleMesh.new()
-		capsule.radius = shape.radius
-		capsule.height = shape.height
-		debug_mesh.mesh = capsule
-	elif shape is BoxShape3D:
-		var box = BoxMesh.new()
-		box.size = shape.size
-		debug_mesh.mesh = box
-	elif shape is SphereShape3D:
+	# Create mesh matching the collision shape, or default sphere if no shape
+	if collision_shape and collision_shape.shape:
+		var shape = collision_shape.shape
+		print("[DEBUG] Shape type: %s" % shape.get_class())
+		if shape is CapsuleShape3D:
+			var capsule = CapsuleMesh.new()
+			capsule.radius = shape.radius
+			capsule.height = shape.height
+			debug_mesh.mesh = capsule
+			print("[DEBUG] Created capsule mesh r=%s h=%s" % [shape.radius, shape.height])
+		elif shape is BoxShape3D:
+			var box = BoxMesh.new()
+			box.size = shape.size
+			debug_mesh.mesh = box
+			print("[DEBUG] Created box mesh size=%s" % shape.size)
+		elif shape is SphereShape3D:
+			var sphere = SphereMesh.new()
+			sphere.radius = shape.radius
+			debug_mesh.mesh = sphere
+			print("[DEBUG] Created sphere mesh r=%s" % shape.radius)
+		else:
+			# Fallback - create a visible sphere
+			var sphere = SphereMesh.new()
+			sphere.radius = 0.3
+			debug_mesh.mesh = sphere
+			print("[DEBUG] Unknown shape, using fallback sphere")
+	else:
+		# No collision shape - create a visible default sphere anyway
 		var sphere = SphereMesh.new()
-		sphere.radius = shape.radius
+		sphere.radius = 0.3
 		debug_mesh.mesh = sphere
+		print("[DEBUG] No collision shape, using fallback sphere")
 
-	# Create green translucent material
+	# Create green translucent material - VERY VISIBLE
 	var mat = StandardMaterial3D.new()
-	mat.albedo_color = Color(0.0, 1.0, 0.0, 0.3)  # Green, semi-transparent
+	mat.albedo_color = Color(0.0, 1.0, 0.0, 0.7)  # Green, highly visible
 	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	mat.no_depth_test = true  # Always visible, even through objects
 	debug_mesh.material_override = mat
+	debug_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 
+	# Add debug mesh directly to hitbox (it will inherit hitbox's transform)
 	hitbox.add_child(debug_mesh)
+
+	# Force visibility
+	debug_mesh.visible = true
+
+	print("[DEBUG] Debug mesh added to hitbox at global pos: %s" % hitbox.global_position)
+	print("[DEBUG] Debug mesh children now: %s" % hitbox.get_children())
+	print("[DEBUG] Weapon visual transform: %s" % player.equipped_weapon_visual.transform if player.equipped_weapon_visual else "N/A")
 
 ## Called when weapon hitbox collides with a body during attack
 func _on_weapon_hitbox_body_entered(body: Node3D) -> void:

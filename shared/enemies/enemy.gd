@@ -1091,7 +1091,7 @@ func _restore_original_color(mat: StandardMaterial3D) -> void:
 # HIT VISUALIZATION - Collision box mesh and flash effect
 # ============================================================================
 
-## Setup invisible collision box mesh that flashes when hit
+## Setup collision box mesh that shows the enemy's hitbox (DEBUG: always visible blue)
 func _setup_collision_box_mesh() -> void:
 	# Find the collision shape to match its size
 	var collision_shape = get_node_or_null("CollisionShape3D")
@@ -1117,13 +1117,16 @@ func _setup_collision_box_mesh() -> void:
 		sphere_mesh.radius = shape.radius
 		collision_box_mesh.mesh = sphere_mesh
 
-	# Create translucent material (starts invisible)
+	# DEBUG: Create translucent BLUE material - ALWAYS VISIBLE
+	# Blue = enemy body collision shape (what weapons need to hit)
 	var mat = StandardMaterial3D.new()
-	mat.albedo_color = Color(1.0, 1.0, 1.0, 0.0)  # White, fully transparent
+	mat.albedo_color = Color(0.0, 0.5, 1.0, 0.3)  # Blue, semi-transparent
 	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED  # No lighting, pure color
-	mat.cull_mode = BaseMaterial3D.CULL_DISABLED  # Show from all angles
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	mat.no_depth_test = true  # Always visible through objects
 	collision_box_mesh.material_override = mat
+	collision_box_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 
 	# Match the collision shape's transform
 	collision_box_mesh.transform = collision_shape.transform
@@ -1139,11 +1142,11 @@ func flash_hit_effect() -> void:
 	hit_flash_tween = create_tween()
 	hit_flash_tween.set_parallel(true)
 
-	# Flash the collision box mesh (white flash)
+	# Flash the collision box mesh (white flash, then back to blue)
 	if collision_box_mesh and collision_box_mesh.material_override:
 		var mat = collision_box_mesh.material_override as StandardMaterial3D
 		mat.albedo_color = Color(1.0, 1.0, 1.0, 0.7)  # Bright white, visible
-		hit_flash_tween.tween_property(mat, "albedo_color", Color(1.0, 1.0, 1.0, 0.0), 0.15)
+		hit_flash_tween.tween_property(mat, "albedo_color", Color(0.0, 0.5, 1.0, 0.3), 0.15)  # Back to blue
 
 	# Flash the body white
 	_set_body_tint(Color(2.0, 2.0, 2.0, 1.0))  # Bright white (>1 for bloom effect)
@@ -1174,14 +1177,15 @@ func _setup_attack_hitbox() -> void:
 
 	attack_hitbox.add_child(collision_shape)
 
-	# Add to body_container so it rotates with the enemy's facing direction
+	# Add to body_container instead of Enemy
+	# body_container has its own PI rotation, and the mesh faces +Z in body_container space
+	# So +Z in body_container = where the character visually faces
 	if body_container:
 		body_container.add_child(attack_hitbox)
-		# Position in front of enemy at chest height (relative to body_container which faces -Z)
-		attack_hitbox.position = Vector3(0, 0.6, -0.8)  # Negative Z is forward for body
+		attack_hitbox.position = Vector3(0, 0.6, 0.5)  # In front of body
 	else:
 		add_child(attack_hitbox)
-		attack_hitbox.position = Vector3(0, 0.6, 0.6)
+		attack_hitbox.position = Vector3(0, 0.6, -0.5)
 
 	# DEBUG: Add visual mesh for attack hitbox
 	var debug_mesh = MeshInstance3D.new()
@@ -1190,11 +1194,13 @@ func _setup_attack_hitbox() -> void:
 	sphere_mesh.radius = 0.4
 	debug_mesh.mesh = sphere_mesh
 	var mat = StandardMaterial3D.new()
-	mat.albedo_color = Color(1.0, 0.0, 0.0, 0.3)  # Red, semi-transparent
+	mat.albedo_color = Color(1.0, 0.0, 0.0, 0.5)  # Red, more visible
 	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	mat.no_depth_test = true  # Always visible, even through objects
 	debug_mesh.material_override = mat
+	debug_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	attack_hitbox.add_child(debug_mesh)
 
 	# Connect signal for collision detection

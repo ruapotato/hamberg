@@ -2960,6 +2960,9 @@ func _update_weapon_visual() -> void:
 			var rotated_offset = equipped_weapon_visual.basis * mount_point.position
 			equipped_weapon_visual.position = -rotated_offset
 
+		# Setup weapon hitbox for collision-based combat (Valheim-style)
+		_setup_weapon_hitbox()
+
 		print("[Player] Equipped weapon visual: %s (with wrist pivot)" % weapon_id)
 	else:
 		# Fallback: attach to body container
@@ -2968,6 +2971,8 @@ func _update_weapon_visual() -> void:
 			weapon_wrist_pivot.add_child(equipped_weapon_visual)
 			weapon_wrist_pivot.position = Vector3(0.3, 1.2, 0)  # Approximate hand position
 			equipped_weapon_visual.rotation_degrees = Vector3(90, 0, 0)
+			# Setup weapon hitbox for collision-based combat (Valheim-style)
+			_setup_weapon_hitbox()
 			print("[Player] Equipped weapon visual (fallback): %s" % weapon_id)
 		else:
 			weapon_wrist_pivot.queue_free()
@@ -2975,6 +2980,129 @@ func _update_weapon_visual() -> void:
 			equipped_weapon_visual.queue_free()
 			equipped_weapon_visual = null
 			push_warning("[Player] No attachment point for weapon")
+
+## Setup weapon hitbox for collision-based combat (Valheim-style)
+func _setup_weapon_hitbox() -> void:
+	# Clear any previous hitbox reference
+	weapon_hitbox = null
+
+	if not equipped_weapon_visual:
+		print("[Player] _setup_weapon_hitbox: No equipped_weapon_visual!")
+		return
+
+	print("[Player] _setup_weapon_hitbox: Looking for Hitbox in %s" % equipped_weapon_visual.name)
+	print("[Player] Children: %s" % str(equipped_weapon_visual.get_children()))
+
+	# Find the Hitbox Area3D in the weapon scene
+	if equipped_weapon_visual.has_node("Hitbox"):
+		weapon_hitbox = equipped_weapon_visual.get_node("Hitbox")
+		print("[Player] Found Hitbox: %s" % weapon_hitbox)
+
+		# Connect body_entered signal for collision detection
+		if not weapon_hitbox.body_entered.is_connected(_on_weapon_hitbox_body_entered):
+			weapon_hitbox.body_entered.connect(_on_weapon_hitbox_body_entered)
+
+		# Ensure hitbox starts disabled
+		weapon_hitbox.monitoring = false
+		var collision_shape = weapon_hitbox.get_node_or_null("CollisionShape3D")
+		if collision_shape:
+			collision_shape.disabled = true
+			print("[Player] CollisionShape3D found, shape: %s" % collision_shape.shape)
+		else:
+			print("[Player] WARNING: No CollisionShape3D in Hitbox!")
+
+		# DEBUG: Add visual mesh for hitbox (always visible)
+		_add_weapon_hitbox_debug_visual(weapon_hitbox, collision_shape)
+
+		print("[Player] Weapon hitbox connected: %s" % equipped_weapon_visual.name)
+	else:
+		print("[Player] Weapon has no Hitbox node: %s" % equipped_weapon_visual.name)
+		print("[Player] Available nodes: %s" % str(equipped_weapon_visual.get_children()))
+
+## Called when weapon hitbox collides with a body during attack
+func _on_weapon_hitbox_body_entered(body: Node3D) -> void:
+	print("[Hitbox] body_entered signal! body=%s, hitbox_active=%s, is_attacking=%s" % [body.name, hitbox_active, is_attacking])
+
+	if not is_local_player or not hitbox_active:
+		print("[Hitbox] Skipped - local=%s, active=%s" % [is_local_player, hitbox_active])
+		return
+
+	# Only process if we're attacking
+	if not is_attacking and not is_special_attacking:
+		print("[Hitbox] Skipped - not attacking")
+		return
+
+	# Check if it's an enemy
+	if body.has_method("take_damage") and body.collision_layer & 4:
+		var enemy_id = body.get_instance_id()
+
+		# Prevent hitting same enemy twice per swing
+		if enemy_id in hitbox_hit_enemies:
+			print("[Hitbox] Skipped - already hit this enemy")
+			return
+
+		hitbox_hit_enemies.append(enemy_id)
+		print("[Hitbox] HIT ENEMY: %s" % body.name)
+
+		# Get damage from combat module
+		if combat:
+			combat.process_hitbox_hit(body)
+	else:
+		print("[Hitbox] Not an enemy - has_take_damage=%s, layer=%d" % [body.has_method("take_damage"), body.collision_layer])
+
+## DEBUG: Add visual representation of weapon hitbox (always visible)
+func _add_weapon_hitbox_debug_visual(hitbox: Area3D, collision_shape: CollisionShape3D) -> void:
+	if not hitbox or not collision_shape:
+		return
+
+	# Remove existing debug mesh if any
+	var existing = collision_shape.get_node_or_null("DebugMesh")
+	if existing:
+		existing.queue_free()
+
+	var debug_mesh = MeshInstance3D.new()
+	debug_mesh.name = "DebugMesh"
+
+	# Create mesh matching the collision shape
+	if collision_shape.shape:
+		var shape = collision_shape.shape
+		print("[DEBUG] Weapon hitbox shape type: %s" % shape.get_class())
+		if shape is CapsuleShape3D:
+			var capsule = CapsuleMesh.new()
+			capsule.radius = shape.radius
+			capsule.height = shape.height
+			debug_mesh.mesh = capsule
+		elif shape is BoxShape3D:
+			var box = BoxMesh.new()
+			box.size = shape.size
+			debug_mesh.mesh = box
+		elif shape is SphereShape3D:
+			var sphere = SphereMesh.new()
+			sphere.radius = shape.radius
+			debug_mesh.mesh = sphere
+		else:
+			var sphere = SphereMesh.new()
+			sphere.radius = 0.3
+			debug_mesh.mesh = sphere
+	else:
+		var sphere = SphereMesh.new()
+		sphere.radius = 0.3
+		debug_mesh.mesh = sphere
+
+	# Create green translucent material - ALWAYS VISIBLE
+	var mat = StandardMaterial3D.new()
+	mat.albedo_color = Color(0.0, 1.0, 0.0, 0.5)  # Green
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	mat.no_depth_test = true  # Always visible through objects
+	debug_mesh.material_override = mat
+	debug_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+
+	# Add to collision_shape so it inherits the shape's transform/rotation
+	collision_shape.add_child(debug_mesh)
+	debug_mesh.visible = true
+	print("[DEBUG] Weapon hitbox debug mesh added (parent: %s)" % collision_shape.name)
 
 ## Update the off hand shield visual
 func _update_shield_visual() -> void:

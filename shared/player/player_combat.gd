@@ -601,7 +601,15 @@ func enable_weapon_hitbox() -> void:
 	var collision_shape = player.weapon_hitbox.get_node_or_null("CollisionShape3D")
 	if collision_shape:
 		collision_shape.disabled = false
-		print("[Combat] Hitbox ENABLED - pos: %s, monitoring: %s" % [player.weapon_hitbox.global_position, player.weapon_hitbox.monitoring])
+
+	print("[Combat] Hitbox ENABLED - global_pos: %s, shape_global_pos: %s" % [
+		player.weapon_hitbox.global_position,
+		collision_shape.global_position if collision_shape else "N/A"
+	])
+
+	# Immediately do a shape query to catch enemies already in range
+	# (body_entered signal won't fire for bodies already overlapping when monitoring enabled)
+	_check_hitbox_overlaps_immediate()
 
 ## Disable weapon hitbox after attack swing completes
 func disable_weapon_hitbox() -> void:
@@ -700,3 +708,97 @@ func update_hitbox_during_attack() -> void:
 		enable_weapon_hitbox()
 	elif not should_be_active and player.hitbox_active:
 		disable_weapon_hitbox()
+
+	# DEBUG: Periodically check for overlapping bodies during active window
+	if player.hitbox_active and player.weapon_hitbox:
+		# Force physics update to ensure overlaps are detected
+		player.weapon_hitbox.force_update_transform()
+		var overlapping = player.weapon_hitbox.get_overlapping_bodies()
+		if overlapping.size() > 0:
+			print("[Combat] Overlapping bodies during attack: %s" % str(overlapping))
+			for body in overlapping:
+				if body.has_method("take_damage") and body.collision_layer & 4:
+					var enemy_id = body.get_instance_id()
+					if not enemy_id in player.hitbox_hit_enemies:
+						player.hitbox_hit_enemies.append(enemy_id)
+						print("[Combat] Manual overlap hit: %s" % body.name)
+						process_hitbox_hit(body)
+
+		# Also do a manual shape query using the ACTUAL hitbox shape and transform
+		var space_state = player.get_world_3d().direct_space_state
+		if space_state:
+			var collision_shape = player.weapon_hitbox.get_node_or_null("CollisionShape3D")
+			if collision_shape and collision_shape.shape:
+				# Force transform update on collision shape too
+				collision_shape.force_update_transform()
+
+				var query = PhysicsShapeQueryParameters3D.new()
+				# Use the actual shape from the weapon's CollisionShape3D
+				query.shape = collision_shape.shape
+				# Use the CollisionShape3D's GLOBAL transform (includes rotation and position)
+				query.transform = collision_shape.global_transform
+				query.collision_mask = 4  # Enemies layer
+				query.exclude = [player]
+
+				var results = space_state.intersect_shape(query, 8)
+				for result in results:
+					var body = result.collider
+					if body and body.has_method("take_damage"):
+						var enemy_id = body.get_instance_id()
+						if not enemy_id in player.hitbox_hit_enemies:
+							player.hitbox_hit_enemies.append(enemy_id)
+							print("[Combat] Shape query hit: %s" % body.name)
+							process_hitbox_hit(body)
+
+## Immediate shape query when hitbox is first enabled
+## This catches enemies that are already in the hitbox area before Area3D monitoring started
+func _check_hitbox_overlaps_immediate() -> void:
+	if not player.weapon_hitbox:
+		return
+
+	var space_state = player.get_world_3d().direct_space_state
+	if not space_state:
+		return
+
+	var collision_shape = player.weapon_hitbox.get_node_or_null("CollisionShape3D")
+	if not collision_shape or not collision_shape.shape:
+		return
+
+	# Force transform update to get current position after animation
+	player.weapon_hitbox.force_update_transform()
+	collision_shape.force_update_transform()
+
+	# Debug: Check nearest enemies and distances
+	var enemies = EnemyAI._get_cached_enemies(player.get_tree())
+	var shape_pos = collision_shape.global_position
+	for enemy in enemies:
+		if is_instance_valid(enemy):
+			var dist = enemy.global_position.distance_to(shape_pos)
+			if dist < 3.0:  # Only log nearby enemies
+				print("[Combat DEBUG] Nearby enemy %s at dist %.2f, enemy_pos: %s, shape_pos: %s" % [
+					enemy.name, dist, enemy.global_position, shape_pos
+				])
+
+	var query = PhysicsShapeQueryParameters3D.new()
+	query.shape = collision_shape.shape
+	query.transform = collision_shape.global_transform
+	query.collision_mask = 4  # Enemies layer
+	query.exclude = [player]
+
+	var results = space_state.intersect_shape(query, 8)
+	if results.size() == 0:
+		# Debug: no hits - check what the shape actually covers
+		if collision_shape.shape is CapsuleShape3D:
+			var cap = collision_shape.shape as CapsuleShape3D
+			print("[Combat DEBUG] Capsule query: radius=%.2f, height=%.2f, transform=%s" % [
+				cap.radius, cap.height, collision_shape.global_transform
+			])
+
+	for result in results:
+		var body = result.collider
+		if body and body.has_method("take_damage"):
+			var enemy_id = body.get_instance_id()
+			if not enemy_id in player.hitbox_hit_enemies:
+				player.hitbox_hit_enemies.append(enemy_id)
+				print("[Combat] Immediate shape query hit: %s" % body.name)
+				process_hitbox_hit(body)
