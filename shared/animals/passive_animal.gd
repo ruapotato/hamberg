@@ -188,9 +188,9 @@ func _update_flee_direction() -> void:
 			flee_target = Vector3(cos(angle), 0, sin(angle))
 
 ## Override take_damage to trigger fleeing
-func take_damage(damage: float, knockback: float = 0.0, direction: Vector3 = Vector3.ZERO, damage_type: int = -1) -> void:
+func take_damage(damage: float, knockback: float = 0.0, direction: Vector3 = Vector3.ZERO, damage_type: int = -1, attacker_peer_id: int = 0) -> void:
 	# Call parent damage handling
-	super.take_damage(damage, knockback, direction, damage_type)
+	super.take_damage(damage, knockback, direction, damage_type, attacker_peer_id)
 
 	# Start fleeing (run away from damage direction)
 	flee_timer = FLEE_DURATION

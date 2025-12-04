@@ -304,9 +304,9 @@ func _setup_body() -> void:
 	head_base_height = 0.5 * scale_factor
 
 ## Override take_damage to become aggressive when attacked
-func take_damage(damage: float, knockback: float = 0.0, direction: Vector3 = Vector3.ZERO, damage_type: int = -1) -> void:
+func take_damage(damage: float, knockback: float = 0.0, direction: Vector3 = Vector3.ZERO, damage_type: int = -1, attacker_peer_id: int = 0) -> void:
 	# Call parent damage handling
-	super.take_damage(damage, knockback, direction, damage_type)
+	super.take_damage(damage, knockback, direction, damage_type, attacker_peer_id)
 
 	# Become provoked - fight back!
 	if not is_provoked and is_host:

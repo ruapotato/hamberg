@@ -281,9 +281,9 @@ func _physics_process(delta: float) -> void:
 		spore_attack_cooldown -= delta
 
 ## Override take_damage to potentially release spore cloud as defense
-func take_damage(damage: float, knockback: float = 0.0, direction: Vector3 = Vector3.ZERO, damage_type: int = -1) -> void:
+func take_damage(damage: float, knockback: float = 0.0, direction: Vector3 = Vector3.ZERO, damage_type: int = -1, attacker_peer_id: int = 0) -> void:
 	# Call parent damage handling first
-	super.take_damage(damage, knockback, direction, damage_type)
+	super.take_damage(damage, knockback, direction, damage_type, attacker_peer_id)
 
 	# Check if we should release a defensive spore cloud
 	if not is_dead and spore_attack_cooldown <= 0 and randf() < SPORE_ATTACK_CHANCE:
@@ -301,9 +301,12 @@ func _do_spore_attack() -> void:
 	# Spawn the spore cloud immediately at our position
 	if SPORE_CLOUD_SCENE:
 		var spore_cloud = SPORE_CLOUD_SCENE.instantiate()
+		# Pass network info for proper damage sync
+		spore_cloud.is_host = is_host
+		spore_cloud.spawner_network_id = network_id
 		# Add to the world, not to us (so it stays when we move)
 		get_parent().add_child(spore_cloud)
 		spore_cloud.global_position = global_position
 		spore_cloud.global_position.y += 0.5  # Slightly above ground
 
-		print("[Sporeling] Released defensive spore cloud at %s" % global_position)
+		print("[Sporeling] Released defensive spore cloud at %s (is_host: %s)" % [global_position, is_host])

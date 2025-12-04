@@ -2060,14 +2060,27 @@ func spawn_enemy(enemy_path: NodePath, enemy_type: String, position: Vector3, en
 	var role = "HOST" if am_host else "remote"
 	print("[Client] Spawned enemy %s at %s (network_id=%d, %s)" % [enemy_name, position, network_id, role])
 
-## Despawn an enemy
+## Despawn an enemy (with death animation)
 func despawn_enemy(enemy_path: NodePath) -> void:
 	var enemy = spawned_enemies.get(enemy_path)
 	if enemy and is_instance_valid(enemy):
-		enemy.queue_free()
+		# Remove from tracking immediately to prevent duplicate despawns
 		spawned_enemies.erase(enemy_path)
 		spawned_enemies.erase(str(enemy_path))
-		print("[Client] Despawned enemy %s" % enemy_path)
+
+		# If enemy has body_container, play death animation before freeing
+		if enemy.has_node("BodyContainer") and not enemy.is_dead:
+			enemy.is_dead = true
+			var body = enemy.get_node("BodyContainer")
+			SoundManager.play_sound("enemy_death", enemy.global_position)
+			var tween = enemy.create_tween()
+			tween.tween_property(body, "position:y", -1.0, 1.0)
+			tween.parallel().tween_property(body, "rotation:x", PI / 2, 1.0)
+			tween.tween_callback(enemy.queue_free)
+			print("[Client] Despawned enemy %s (with death animation)" % enemy_path)
+		else:
+			enemy.queue_free()
+			print("[Client] Despawned enemy %s" % enemy_path)
 
 ## Update enemy states from server (called at 10Hz)
 ## Compact format: { "path_string": [px, py, pz, rot_y, state, hp, target_peer], ... }
@@ -2096,8 +2109,8 @@ func update_enemy_states(states: Dictionary) -> void:
 ## Apply enemy damage forwarded from server (for HOST client)
 ## Called when another player hits an enemy that this client hosts
 ## damage_type: WeaponData.DamageType enum (-1 = unspecified)
-func apply_enemy_damage(enemy_network_id: int, damage: float, knockback: float, direction: Vector3, damage_type: int = -1) -> void:
-	print("[Client] apply_enemy_damage: net_id=%d, damage=%.1f, type=%d" % [enemy_network_id, damage, damage_type])
+func apply_enemy_damage(enemy_network_id: int, damage: float, knockback: float, direction: Vector3, damage_type: int = -1, attacker_peer_id: int = 0) -> void:
+	print("[Client] apply_enemy_damage: net_id=%d, damage=%.1f, type=%d, attacker=%d" % [enemy_network_id, damage, damage_type, attacker_peer_id])
 
 	# Find enemy by network_id
 	var enemy: Node = null
@@ -2119,7 +2132,7 @@ func apply_enemy_damage(enemy_network_id: int, damage: float, knockback: float, 
 	# Apply damage to the enemy (with damage type for resistance calculations)
 	if enemy.has_method("take_damage"):
 		print("[Client] Applying %.1f damage (type=%d) to hosted enemy %d" % [damage, damage_type, enemy_network_id])
-		enemy.take_damage(damage, knockback, direction, damage_type)
+		enemy.take_damage(damage, knockback, direction, damage_type, attacker_peer_id)
 	else:
 		print("[Client] ERROR: Enemy %d has no take_damage method!" % enemy_network_id)
 
@@ -2150,6 +2163,104 @@ func update_enemy_host(enemy_network_id: int, new_host_peer_id: int) -> void:
 		enemy.is_host = (new_host_peer_id == my_peer_id)
 		if enemy.is_host and not was_host:
 			print("[Client] We are now the host for enemy %d!" % enemy_network_id)
+
+## Receive boss action broadcast from server
+func receive_boss_action(enemy_network_id: int, action_data: Dictionary) -> void:
+	# Find enemy by network_id
+	var enemy: Node = null
+	for key in spawned_enemies.keys():
+		var e = spawned_enemies[key]
+		if e and is_instance_valid(e) and "network_id" in e and e.network_id == enemy_network_id:
+			enemy = e
+			break
+
+	if not enemy:
+		return
+
+	# Don't process if we're the host (we already did the action)
+	if "is_host" in enemy and enemy.is_host:
+		return
+
+	# Pass to enemy's action handler
+	if enemy.has_method("receive_action"):
+		enemy.receive_action(action_data)
+
+## Spawn a visual-only fire area (synced from another player)
+func spawn_visual_fire_area(position: Vector3, radius: float, duration: float) -> void:
+	print("[Client] Spawning visual fire area at %s (radius=%.1f, duration=%.1fs)" % [position, radius, duration])
+
+	var fire_area_scene = load("res://shared/effects/fire_area.tscn")
+	if not fire_area_scene:
+		print("[Client] ERROR: Could not load fire_area.tscn")
+		return
+
+	var fire_area = fire_area_scene.instantiate()
+	fire_area.radius = radius
+	fire_area.damage = 0.0  # Visual only - no damage (damage handled by originating client)
+	fire_area.duration = duration
+	get_tree().root.add_child(fire_area)
+	fire_area.global_position = position
+
+## Spawn a visual-only projectile (synced from another player)
+func spawn_visual_projectile(projectile_type: String, position: Vector3, direction: Vector3, speed: float) -> void:
+	print("[Client] Spawning visual projectile: %s at %s" % [projectile_type, position])
+
+	# Map projectile type to scene
+	var projectile_scene: PackedScene = null
+	match projectile_type:
+		"fireball":
+			projectile_scene = load("res://shared/projectiles/fireball.tscn")
+		_:
+			print("[Client] Unknown projectile type: %s" % projectile_type)
+			return
+
+	if not projectile_scene:
+		print("[Client] ERROR: Could not load projectile scene for %s" % projectile_type)
+		return
+
+	var projectile = projectile_scene.instantiate()
+	get_tree().root.add_child(projectile)
+
+	# Setup with 0 damage (visual only - damage handled by originating client)
+	projectile.setup(position, direction, speed, 0.0, -1, -1)
+
+## Spawn visual hit effect at position (called by NetworkManager when another player is hit)
+func spawn_visual_hit_effect(position: Vector3) -> void:
+	print("[Client] Spawning visual hit effect at %s" % position)
+
+	var HitEffectScene = preload("res://shared/effects/hit_effect.tscn")
+	var effect = HitEffectScene.instantiate()
+	get_tree().current_scene.add_child(effect)
+	effect.global_position = position
+
+	# Play hit sound
+	SoundManager.play_sound_varied("player_hurt", position)
+
+## Spawn visual parry effect at position (called by NetworkManager when another player parries)
+func spawn_visual_parry_effect(position: Vector3) -> void:
+	print("[Client] Spawning visual parry effect at %s" % position)
+
+	var ParryEffectScene = preload("res://shared/effects/parry_effect.tscn")
+	var effect = ParryEffectScene.instantiate()
+	get_tree().current_scene.add_child(effect)
+	effect.global_position = position
+
+	# Play parry sound
+	SoundManager.play_sound("parry", position)
+
+## Spawn visual thrown rock (called by NetworkManager when an enemy throws a rock)
+func spawn_visual_thrown_rock(position: Vector3, direction: Vector3, speed: float, damage: float, thrower_network_id: int) -> void:
+	print("[Client] Spawning visual thrown rock from %s toward %s" % [position, direction])
+
+	var ThrownRock = preload("res://shared/enemies/thrown_rock.gd")
+	var rock = ThrownRock.new()
+	rock.damage = damage
+	rock.speed = speed
+	rock.direction = direction
+	rock.thrower_network_id = thrower_network_id
+
+	get_tree().current_scene.add_child(rock)
+	rock.global_position = position
 
 ## Request server to perform a manual save (triggered by F5 key)
 func _request_server_save() -> void:

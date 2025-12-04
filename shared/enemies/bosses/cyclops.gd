@@ -81,6 +81,12 @@ const ROTATION_SPEED: float = 3.0
 # Tweens for attack animations
 var current_anim_tween: Tween = null
 
+# Threat tracking for smart targeting
+var threat_table: Dictionary = {}  # peer_id -> total damage dealt
+var last_damage_time: float = 0.0
+const THREAT_DECAY_TIME: float = 5.0  # Seconds before threat decays
+const RECENT_DAMAGE_WINDOW: float = 3.0  # If damaged within this time, prioritize threat
+
 func _ready() -> void:
 	# Set Cyclops-specific stats before super._ready()
 	boss_name = "Cyclops"
@@ -132,9 +138,6 @@ func _physics_process(delta: float) -> void:
 		_update_spawn_animation(delta)
 		return
 
-	# Smooth rotation
-	_update_smooth_rotation(delta)
-
 	# Handle stagger
 	if is_staggered:
 		cyclops_state = CyclopsState.STAGGERED
@@ -152,6 +155,15 @@ func _physics_process(delta: float) -> void:
 		_send_position_report(delta)
 	else:
 		_run_follower_interpolation(delta)
+		# Non-host: sync cyclops state from ai_state and update boss health bar
+		_sync_cyclops_state_from_ai()
+		_sync_boss_health_bar()
+		# Non-host: update eye beam if active (spin and damage)
+		if cyclops_state == CyclopsState.EYE_BEAM and is_eye_beam_active:
+			_update_eye_beam_follower(delta)
+
+	# Smooth rotation (AFTER follower interpolation so it overrides base class rotation)
+	_update_smooth_rotation(delta)
 
 	# Always update visuals locally
 	_update_eye_glow(delta)
@@ -161,6 +173,10 @@ func _physics_process(delta: float) -> void:
 # SMOOTH ROTATION
 # ============================================================================
 func _update_smooth_rotation(delta: float) -> void:
+	# Non-host clients get rotation from sync data
+	if not is_host:
+		target_rotation_y = sync_rotation_y
+
 	# Smoothly rotate toward target rotation
 	var diff = target_rotation_y - current_rotation_y
 	# Handle wrap-around
@@ -185,12 +201,18 @@ func _face_target_smooth() -> void:
 func _run_cyclops_ai(delta: float) -> void:
 	state_timer += delta
 
-	# Find target if none
+	# Re-evaluate target periodically or if none
 	if not target_player or not is_instance_valid(target_player):
-		target_player = _find_nearest_player()
+		target_player = _find_best_target()
 		if not target_player:
 			cyclops_state = CyclopsState.IDLE
 			return
+	else:
+		# Re-check target every second to potentially switch to higher threat
+		if fmod(state_timer, 1.0) < delta:
+			var new_target = _find_best_target()
+			if new_target and new_target != target_player:
+				target_player = new_target
 
 	var distance = global_position.distance_to(target_player.global_position)
 
@@ -241,7 +263,7 @@ func _update_combat_ai(delta: float, distance: float) -> void:
 	# Move toward target
 	if distance > attack_range:
 		cyclops_state = CyclopsState.WALKING
-		walk_anim_time += delta
+		# walk_anim_time is now incremented in _animate_walk() for all clients
 
 		var direction = (target_player.global_position - global_position).normalized()
 		direction.y = 0
@@ -264,6 +286,10 @@ func _start_stomp() -> void:
 	state_timer = 0.0
 	velocity = Vector3.ZERO
 	print("[Cyclops] STOMP windup!")
+
+	# Broadcast to other clients
+	if is_host:
+		_broadcast_action({"type": "stomp_windup"})
 
 	# Kill any existing animation
 	if current_anim_tween and current_anim_tween.is_valid():
@@ -314,6 +340,10 @@ func _execute_stomp() -> void:
 	cyclops_state = CyclopsState.STOMPING
 	state_timer = 0.0
 	print("[Cyclops] STOMP!")
+
+	# Broadcast to other clients
+	if is_host:
+		_broadcast_action({"type": "stomp", "pos": [global_position.x, global_position.y, global_position.z]})
 
 	# Kill existing animation
 	if current_anim_tween and current_anim_tween.is_valid():
@@ -417,6 +447,10 @@ func _start_boulder_throw() -> void:
 	velocity = Vector3.ZERO
 	print("[Cyclops] Boulder throw windup!")
 
+	# Broadcast to other clients
+	if is_host:
+		_broadcast_action({"type": "boulder_windup"})
+
 	if current_anim_tween and current_anim_tween.is_valid():
 		current_anim_tween.kill()
 
@@ -438,7 +472,7 @@ func _update_boulder_windup(delta: float) -> void:
 	if state_timer >= 0.8:
 		_execute_boulder_throw()
 
-func _execute_boulder_throw() -> void:
+func _execute_boulder_throw(target_pos: Vector3 = Vector3.ZERO) -> void:
 	cyclops_state = CyclopsState.THROWING_BOULDER
 	state_timer = 0.0
 	print("[Cyclops] Boulder THROWN!")
@@ -461,13 +495,22 @@ func _execute_boulder_throw() -> void:
 	if body_container:
 		current_anim_tween.parallel().tween_property(body_container, "rotation:y", 0.0, 0.3)
 
+	# Determine target position
+	var actual_target = target_pos
+	if target_pos == Vector3.ZERO and target_player and is_instance_valid(target_player):
+		actual_target = target_player.global_position + Vector3(0, 0.5, 0)
+
+	# Broadcast to other clients (with target position)
+	if is_host and actual_target != Vector3.ZERO:
+		_broadcast_action({"type": "boulder", "target": [actual_target.x, actual_target.y, actual_target.z]})
+
 	# Create boulder projectile
-	if target_player:
-		_spawn_boulder()
+	if actual_target != Vector3.ZERO:
+		_spawn_boulder_at_target(actual_target)
 
 	boulder_timer = boulder_cooldown / (1.0 + current_phase * 0.15)
 
-func _spawn_boulder() -> void:
+func _spawn_boulder_at_target(target_pos: Vector3) -> void:
 	var boulder = Area3D.new()
 	boulder.name = "CyclopsBoulder"
 	boulder.collision_layer = 0
@@ -498,12 +541,6 @@ func _spawn_boulder() -> void:
 	get_tree().current_scene.add_child(boulder)
 	boulder.global_position = spawn_pos
 
-	# Calculate trajectory toward player - aim at player's feet/center
-	# Since we're throwing from high up, aim slightly below center to compensate
-	var target_pos = target_player.global_position + Vector3(0, 0.5, 0)  # Aim at feet/lower body
-	var direction = (target_pos - spawn_pos).normalized()
-	# No upward arc since we're already throwing from above - just go straight at target
-
 	var phase_speed_mult = 1.0 + current_phase * 0.15
 	var travel_time = spawn_pos.distance_to(target_pos) / (boulder_speed * phase_speed_mult)
 	travel_time = clamp(travel_time, 0.4, 1.5)
@@ -515,16 +552,17 @@ func _spawn_boulder() -> void:
 	tween.tween_property(mesh, "rotation:x", TAU * 3, travel_time)  # Spin
 	tween.chain().tween_callback(boulder.queue_free)
 
-	# Damage on hit
-	boulder.body_entered.connect(func(body):
-		if body.has_method("take_damage"):
-			var phase_damage_mult = 1.0 + (current_phase * 0.25)
-			var damage = boulder_damage * phase_damage_mult
-			var kb_dir = (body.global_position - boulder.global_position).normalized()
-			print("[Cyclops] Boulder hit player! (%.1f damage)" % damage)
-			body.take_damage(damage, get_instance_id(), kb_dir * 10.0, -1)
-			boulder.queue_free()
-	)
+	# Damage on hit - only apply on host to prevent double damage
+	if is_host:
+		boulder.body_entered.connect(func(body):
+			if body.has_method("take_damage"):
+				var phase_damage_mult = 1.0 + (current_phase * 0.25)
+				var damage = boulder_damage * phase_damage_mult
+				var kb_dir = (body.global_position - boulder.global_position).normalized()
+				print("[Cyclops] Boulder hit player! (%.1f damage)" % damage)
+				body.take_damage(damage, get_instance_id(), kb_dir * 10.0, -1)
+				boulder.queue_free()
+		)
 	boulder.monitoring = true
 
 func _update_throwing_boulder(delta: float) -> void:
@@ -540,6 +578,10 @@ func _start_eye_beam() -> void:
 	state_timer = 0.0
 	velocity = Vector3.ZERO
 	print("[Cyclops] EYE BEAM charging - sitting down!")
+
+	# Broadcast to other clients
+	if is_host:
+		_broadcast_action({"type": "eye_beam_windup"})
 
 	# Kill existing animation
 	if current_anim_tween and current_anim_tween.is_valid():
@@ -593,6 +635,10 @@ func _execute_eye_beam() -> void:
 	# Start from current body facing direction
 	beam_sweep_angle = body_container.rotation.y if body_container else 0.0
 	print("[Cyclops] EYE BEAM FIRING - SPINNING!")
+
+	# Broadcast to other clients
+	if is_host:
+		_broadcast_action({"type": "eye_beam", "angle": beam_sweep_angle})
 
 	_create_eye_beam()
 	eye_beam_timer = eye_beam_cooldown / (1.0 + current_phase * 0.1)
@@ -758,6 +804,396 @@ func _update_recovering(delta: float) -> void:
 	if state_timer >= attack_recovery_time * phase_recovery_mult:
 		cyclops_state = CyclopsState.IDLE
 		state_timer = 0.0
+
+# ============================================================================
+# THREAT-BASED TARGETING
+# ============================================================================
+
+## Track damage from player for threat-based targeting
+func _on_damaged_by_player(attacker_peer_id: int, damage: float) -> void:
+	last_damage_time = Time.get_ticks_msec() / 1000.0
+
+	if threat_table.has(attacker_peer_id):
+		threat_table[attacker_peer_id] += damage
+	else:
+		threat_table[attacker_peer_id] = damage
+
+	print("[Cyclops] Threat updated: peer %d now has %.1f threat" % [attacker_peer_id, threat_table[attacker_peer_id]])
+
+## Find best target based on threat (if recently damaged) or distance (if not)
+func _find_best_target() -> CharacterBody3D:
+	var current_time = Time.get_ticks_msec() / 1000.0
+	var time_since_damage = current_time - last_damage_time
+
+	# Decay threat over time
+	if time_since_damage > THREAT_DECAY_TIME:
+		threat_table.clear()
+
+	# Get all players in range
+	var players := EnemyAI._get_cached_players(get_tree())
+	var valid_targets: Array = []
+
+	for player in players:
+		if player == self or player.is_in_group("enemies"):
+			continue
+		if player is CharacterBody3D:
+			var dist = global_position.distance_to(player.global_position)
+			if dist <= detection_range:
+				valid_targets.append(player)
+
+	if valid_targets.is_empty():
+		return null
+
+	# If damaged recently, prioritize highest threat
+	if time_since_damage < RECENT_DAMAGE_WINDOW and not threat_table.is_empty():
+		var highest_threat_player: CharacterBody3D = null
+		var highest_threat: float = 0.0
+
+		for player in valid_targets:
+			# Get peer_id from player name (e.g., "Player_12345")
+			var peer_id = 0
+			if player.name.begins_with("Player_"):
+				peer_id = player.name.substr(7).to_int()
+
+			if threat_table.has(peer_id) and threat_table[peer_id] > highest_threat:
+				highest_threat = threat_table[peer_id]
+				highest_threat_player = player
+
+		if highest_threat_player:
+			return highest_threat_player
+
+	# Default: find nearest player
+	var nearest: CharacterBody3D = null
+	var nearest_dist: float = INF
+
+	for player in valid_targets:
+		var dist = global_position.distance_to(player.global_position)
+		if dist < nearest_dist:
+			nearest_dist = dist
+			nearest = player
+
+	return nearest
+
+# ============================================================================
+# NON-HOST SYNC HELPERS
+# ============================================================================
+
+## Sync cyclops_state from ai_state for non-host clients (for animations)
+func _sync_cyclops_state_from_ai() -> void:
+	# Map Enemy AIState to CyclopsState for basic movement animations
+	match sync_ai_state:
+		AIState.IDLE:
+			if cyclops_state == CyclopsState.WALKING:
+				cyclops_state = CyclopsState.IDLE
+		AIState.STALKING, AIState.CIRCLING, AIState.CHARGING:
+			if cyclops_state == CyclopsState.IDLE:
+				cyclops_state = CyclopsState.WALKING
+		AIState.RETREATING:
+			cyclops_state = CyclopsState.WALKING
+	# Attack states are handled by receive_action
+
+## Update boss health bar on non-host clients when sync_health changes
+func _sync_boss_health_bar() -> void:
+	if health != sync_health:
+		health = sync_health
+		_update_boss_health_bar()
+		# Check for phase transitions
+		_check_phase_transition()
+
+# ============================================================================
+# NETWORK SYNC - Boss action broadcasting and receiving
+# ============================================================================
+
+## Broadcast boss action to other clients via server
+func _broadcast_action(action_data: Dictionary) -> void:
+	NetworkManager.rpc_report_boss_action.rpc_id(1, network_id, action_data)
+
+## Receive boss action from server (non-host clients)
+func receive_action(action_data: Dictionary) -> void:
+	var action_type = action_data.get("type", "")
+
+	match action_type:
+		"stomp_windup":
+			_start_stomp_animation()
+		"stomp":
+			_execute_stomp_animation()
+			# Check if local player is in stomp range
+			_check_local_stomp_damage(action_data)
+		"boulder_windup":
+			_start_boulder_animation()
+		"boulder":
+			var target = action_data.get("target", [0, 0, 0])
+			var target_pos = Vector3(target[0], target[1], target[2])
+			_execute_boulder_animation(target_pos)
+		"eye_beam_windup":
+			_start_eye_beam_animation()
+		"eye_beam":
+			var angle = action_data.get("angle", 0.0)
+			_execute_eye_beam_animation(angle)
+
+## Start stomp animation only (no AI logic)
+func _start_stomp_animation() -> void:
+	cyclops_state = CyclopsState.STOMP_WINDUP
+	state_timer = 0.0
+	velocity = Vector3.ZERO
+	print("[Cyclops] STOMP windup!")
+
+	if current_anim_tween and current_anim_tween.is_valid():
+		current_anim_tween.kill()
+
+	current_anim_tween = create_tween()
+	current_anim_tween.set_ease(Tween.EASE_IN_OUT)
+	current_anim_tween.set_trans(Tween.TRANS_SINE)
+
+	if body_container:
+		current_anim_tween.tween_property(body_container, "rotation:z", 0.35, 0.6)
+		current_anim_tween.parallel().tween_property(body_container, "rotation:x", -0.1, 0.6)
+
+	if right_leg:
+		current_anim_tween.tween_property(right_leg, "rotation:z", 1.0, 0.6)
+		current_anim_tween.parallel().tween_property(right_leg, "rotation:x", -0.3, 0.6)
+		var right_knee = right_leg.get_node_or_null("RightKnee")
+		if right_knee:
+			current_anim_tween.parallel().tween_property(right_knee, "rotation:x", 0.4, 0.6)
+
+	if body_container:
+		current_anim_tween.parallel().tween_property(body_container, "rotation:z", 0.5, 0.6)
+
+	if left_arm:
+		current_anim_tween.parallel().tween_property(left_arm, "rotation:x", -0.8, 0.6)
+		current_anim_tween.parallel().tween_property(left_arm, "rotation:z", -0.4, 0.6)
+	if right_arm:
+		current_anim_tween.parallel().tween_property(right_arm, "rotation:z", 0.8, 0.6)
+		current_anim_tween.parallel().tween_property(right_arm, "rotation:x", -0.3, 0.6)
+
+## Execute stomp animation only (no damage on non-host)
+func _execute_stomp_animation() -> void:
+	cyclops_state = CyclopsState.STOMPING
+	state_timer = 0.0
+	print("[Cyclops] STOMP!")
+
+	if current_anim_tween and current_anim_tween.is_valid():
+		current_anim_tween.kill()
+
+	current_anim_tween = create_tween()
+	current_anim_tween.set_ease(Tween.EASE_IN)
+	current_anim_tween.set_trans(Tween.TRANS_EXPO)
+
+	if right_leg:
+		current_anim_tween.tween_property(right_leg, "rotation:z", 0.0, 0.12)
+		current_anim_tween.parallel().tween_property(right_leg, "rotation:x", 0.2, 0.12)
+		var right_knee = right_leg.get_node_or_null("RightKnee")
+		if right_knee:
+			current_anim_tween.parallel().tween_property(right_knee, "rotation:x", 0.0, 0.12)
+
+	if body_container:
+		current_anim_tween.parallel().tween_property(body_container, "rotation:z", -0.15, 0.12)
+		current_anim_tween.parallel().tween_property(body_container, "rotation:x", 0.1, 0.12)
+
+	if body_container:
+		current_anim_tween.tween_property(body_container, "rotation:z", 0.0, 0.5)
+		current_anim_tween.parallel().tween_property(body_container, "rotation:x", 0.0, 0.5)
+
+	if right_leg:
+		current_anim_tween.parallel().tween_property(right_leg, "rotation:x", 0.0, 0.5)
+
+	if left_arm:
+		current_anim_tween.parallel().tween_property(left_arm, "rotation:x", 0.0, 0.5)
+		current_anim_tween.parallel().tween_property(left_arm, "rotation:z", 0.0, 0.5)
+	if right_arm:
+		current_anim_tween.parallel().tween_property(right_arm, "rotation:x", 0.0, 0.5)
+		current_anim_tween.parallel().tween_property(right_arm, "rotation:z", 0.0, 0.5)
+
+	SoundManager.play_sound("tree_fall", global_position)
+	_create_stomp_effect()
+
+## Check if local player is hit by stomp (non-host clients)
+func _check_local_stomp_damage(action_data: Dictionary) -> void:
+	var local_player = _get_local_player()
+	if not local_player:
+		return
+
+	var stomp_pos_arr = action_data.get("pos", [global_position.x, global_position.y, global_position.z])
+	var stomp_pos = Vector3(stomp_pos_arr[0], stomp_pos_arr[1], stomp_pos_arr[2])
+	var dist = local_player.global_position.distance_to(stomp_pos)
+
+	if dist < stomp_radius * boss_scale:
+		var phase_damage_mult = 1.0 + (current_phase * 0.25)
+		var damage = stomp_damage * phase_damage_mult
+		var knockback_dir = (local_player.global_position - stomp_pos).normalized()
+		knockback_dir.y = 0.5
+		print("[Cyclops] Stomp hit player! (%.1f damage)" % damage)
+		local_player.take_damage(damage, get_instance_id(), knockback_dir * 12.0, -1)
+
+## Start boulder throw animation only
+func _start_boulder_animation() -> void:
+	cyclops_state = CyclopsState.BOULDER_WINDUP
+	state_timer = 0.0
+	velocity = Vector3.ZERO
+	print("[Cyclops] Boulder throw windup!")
+
+	if current_anim_tween and current_anim_tween.is_valid():
+		current_anim_tween.kill()
+
+	current_anim_tween = create_tween()
+	current_anim_tween.set_ease(Tween.EASE_OUT)
+	current_anim_tween.set_trans(Tween.TRANS_BACK)
+
+	if right_arm:
+		current_anim_tween.tween_property(right_arm, "rotation:x", -1.8, 0.7)
+		current_anim_tween.parallel().tween_property(right_arm, "rotation:z", 0.3, 0.7)
+
+	if body_container:
+		current_anim_tween.parallel().tween_property(body_container, "rotation:y", 0.4, 0.7)
+
+## Execute boulder throw animation and spawn visual boulder
+func _execute_boulder_animation(target_pos: Vector3) -> void:
+	cyclops_state = CyclopsState.THROWING_BOULDER
+	state_timer = 0.0
+	print("[Cyclops] Boulder THROWN!")
+
+	if current_anim_tween and current_anim_tween.is_valid():
+		current_anim_tween.kill()
+
+	current_anim_tween = create_tween()
+	current_anim_tween.set_ease(Tween.EASE_OUT)
+	current_anim_tween.set_trans(Tween.TRANS_EXPO)
+
+	if right_arm:
+		current_anim_tween.tween_property(right_arm, "rotation:x", 0.8, 0.15)
+		current_anim_tween.parallel().tween_property(right_arm, "rotation:z", -0.2, 0.15)
+		current_anim_tween.tween_property(right_arm, "rotation:x", 0.0, 0.4)
+		current_anim_tween.parallel().tween_property(right_arm, "rotation:z", 0.0, 0.4)
+
+	if body_container:
+		current_anim_tween.parallel().tween_property(body_container, "rotation:y", 0.0, 0.3)
+
+	# Spawn visual boulder (no collision damage on non-host)
+	_spawn_boulder_at_target(target_pos)
+
+	# Schedule local damage check when boulder arrives
+	var spawn_pos = global_position + Vector3(0, 2.5 * boss_scale, 0)
+	var phase_speed_mult = 1.0 + current_phase * 0.15
+	var travel_time = spawn_pos.distance_to(target_pos) / (boulder_speed * phase_speed_mult)
+	travel_time = clamp(travel_time, 0.4, 1.5)
+
+	# Check for local damage when boulder would arrive
+	get_tree().create_timer(travel_time).timeout.connect(func():
+		_check_local_boulder_damage(target_pos)
+	)
+
+## Check if local player is hit by boulder (non-host clients)
+func _check_local_boulder_damage(target_pos: Vector3) -> void:
+	var local_player = _get_local_player()
+	if not local_player:
+		return
+
+	var dist = local_player.global_position.distance_to(target_pos)
+	var boulder_hit_radius = 2.0  # Impact radius
+
+	if dist < boulder_hit_radius:
+		var phase_damage_mult = 1.0 + (current_phase * 0.25)
+		var damage = boulder_damage * phase_damage_mult
+		var kb_dir = (local_player.global_position - target_pos).normalized()
+		print("[Cyclops] Boulder hit player! (%.1f damage)" % damage)
+		local_player.take_damage(damage, get_instance_id(), kb_dir * 10.0, -1)
+
+## Start eye beam animation only
+func _start_eye_beam_animation() -> void:
+	cyclops_state = CyclopsState.EYE_BEAM_WINDUP
+	state_timer = 0.0
+	velocity = Vector3.ZERO
+	print("[Cyclops] EYE BEAM charging - sitting down!")
+
+	if current_anim_tween and current_anim_tween.is_valid():
+		current_anim_tween.kill()
+
+	current_anim_tween = create_tween()
+	current_anim_tween.set_ease(Tween.EASE_IN_OUT)
+	current_anim_tween.set_trans(Tween.TRANS_SINE)
+
+	if body_container:
+		current_anim_tween.tween_property(body_container, "position:y", 0.3, 1.0)
+		current_anim_tween.parallel().tween_property(body_container, "rotation:x", 0.5, 1.0)
+
+	if left_leg:
+		current_anim_tween.parallel().tween_property(left_leg, "rotation:x", -0.6, 1.0)
+		var left_knee = left_leg.get_node_or_null("LeftKnee")
+		if left_knee:
+			current_anim_tween.parallel().tween_property(left_knee, "rotation:x", 1.2, 1.0)
+	if right_leg:
+		current_anim_tween.parallel().tween_property(right_leg, "rotation:x", -0.6, 1.0)
+		var right_knee = right_leg.get_node_or_null("RightKnee")
+		if right_knee:
+			current_anim_tween.parallel().tween_property(right_knee, "rotation:x", 1.2, 1.0)
+
+	if left_arm:
+		current_anim_tween.parallel().tween_property(left_arm, "rotation:x", 0.8, 1.0)
+		current_anim_tween.parallel().tween_property(left_arm, "rotation:z", -0.4, 1.0)
+	if right_arm:
+		current_anim_tween.parallel().tween_property(right_arm, "rotation:x", 0.8, 1.0)
+		current_anim_tween.parallel().tween_property(right_arm, "rotation:z", 0.4, 1.0)
+
+	if eye_light:
+		current_anim_tween.parallel().tween_property(eye_light, "light_energy", 8.0, 1.0)
+
+## Execute eye beam animation
+func _execute_eye_beam_animation(start_angle: float) -> void:
+	cyclops_state = CyclopsState.EYE_BEAM
+	state_timer = 0.0
+	is_eye_beam_active = true
+	beam_sweep_angle = start_angle
+	print("[Cyclops] EYE BEAM FIRING - SPINNING!")
+
+	_create_eye_beam()
+
+	# Schedule eye beam end for non-host clients
+	var phase_duration_mult = 1.0 + current_phase * 0.15
+	var beam_duration = eye_beam_duration * phase_duration_mult
+	get_tree().create_timer(beam_duration).timeout.connect(func():
+		if not is_host:
+			_end_eye_beam()
+	)
+
+## Update eye beam for non-host clients (spinning and damage)
+func _update_eye_beam_follower(delta: float) -> void:
+	state_timer += delta
+
+	# Spin the body
+	var spin_speed = 1.5
+	beam_sweep_angle += delta * spin_speed
+	if body_container:
+		body_container.rotation.y = beam_sweep_angle
+
+	# Check damage to local player
+	if fmod(state_timer, 0.3) < delta:
+		_check_local_eye_beam_damage()
+
+## Check if local player is hit by eye beam (non-host clients)
+func _check_local_eye_beam_damage() -> void:
+	var local_player = _get_local_player()
+	if not local_player:
+		return
+
+	if not eye_beam_area:
+		return
+
+	# Check if local player overlaps with beam
+	var bodies = eye_beam_area.get_overlapping_bodies()
+	for body in bodies:
+		if body == local_player:
+			var phase_damage_mult = 1.0 + (current_phase * 0.3)
+			var damage = eye_beam_damage * phase_damage_mult
+			print("[Cyclops] Eye beam hit player! (%.1f damage)" % damage)
+			local_player.take_damage(damage, get_instance_id(), Vector3.ZERO, -1)
+			break
+
+## Get local player for damage checks
+func _get_local_player() -> CharacterBody3D:
+	for player in get_tree().get_nodes_in_group("players"):
+		if player is CharacterBody3D and "is_local_player" in player and player.is_local_player:
+			return player
+	return null
 
 # ============================================================================
 # STAGGER ANIMATION
@@ -1160,6 +1596,8 @@ func _update_cyclops_animation(delta: float) -> void:
 			pass
 
 func _animate_walk(delta: float) -> void:
+	# Increment walk_anim_time here so both host and non-host clients animate
+	walk_anim_time += delta
 	var walk_speed = 3.5  # Slower animation for heavy creature
 	var t = walk_anim_time * walk_speed
 

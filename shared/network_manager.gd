@@ -1092,19 +1092,20 @@ func rpc_broadcast_enemy_consensus(states: Dictionary) -> void:
 ## SERVER -> HOST CLIENT: Apply damage to enemy (forwarded from attacking player)
 ## This is called by server to tell the HOST client to damage their authoritative enemy copy
 ## damage_type: WeaponData.DamageType enum (-1 = unspecified)
+## attacker_peer_id: The peer ID of the player who dealt the damage (for threat tracking)
 @rpc("authority", "call_remote", "reliable")
-func rpc_apply_enemy_damage(enemy_network_id: int, damage: float, knockback: float, direction: Array, damage_type: int = -1) -> void:
+func rpc_apply_enemy_damage(enemy_network_id: int, damage: float, knockback: float, direction: Array, damage_type: int = -1, attacker_peer_id: int = 0) -> void:
 	if is_server:
 		return
 
-	print("[NetworkManager] rpc_apply_enemy_damage received: net_id=%d, damage=%.1f, type=%d" % [enemy_network_id, damage, damage_type])
+	print("[NetworkManager] rpc_apply_enemy_damage received: net_id=%d, damage=%.1f, type=%d, attacker=%d" % [enemy_network_id, damage, damage_type, attacker_peer_id])
 
 	var client_node := get_node_or_null("/root/Main/Client")
 	if client_node and client_node.has_method("apply_enemy_damage"):
 		var dir_v3 := Vector3.FORWARD
 		if direction.size() >= 3:
 			dir_v3 = Vector3(direction[0], direction[1], direction[2])
-		client_node.apply_enemy_damage(enemy_network_id, damage, knockback, dir_v3, damage_type)
+		client_node.apply_enemy_damage(enemy_network_id, damage, knockback, dir_v3, damage_type, attacker_peer_id)
 
 ## SERVER -> ALL CLIENTS: Update enemy host (when original host disconnects)
 @rpc("authority", "call_remote", "reliable")
@@ -1117,6 +1118,29 @@ func rpc_update_enemy_host(enemy_network_id: int, new_host_peer_id: int) -> void
 	var client_node := get_node_or_null("/root/Main/Client")
 	if client_node and client_node.has_method("update_enemy_host"):
 		client_node.update_enemy_host(enemy_network_id, new_host_peer_id)
+
+# ============================================================================
+# BOSS ACTION RPCs
+# ============================================================================
+
+## HOST CLIENT -> SERVER: Report boss action (stomp, boulder, eye beam, etc.)
+## action_data: { "type": "stomp"|"boulder"|"eye_beam", "target_pos": [x,y,z], ... }
+@rpc("any_peer", "call_remote", "reliable")
+func rpc_report_boss_action(enemy_network_id: int, action_data: Dictionary) -> void:
+	if not multiplayer.is_server():
+		return
+	# Server broadcasts to all clients
+	rpc_broadcast_boss_action.rpc(enemy_network_id, action_data)
+
+## SERVER -> ALL CLIENTS: Broadcast boss action to all clients
+@rpc("authority", "call_remote", "reliable")
+func rpc_broadcast_boss_action(enemy_network_id: int, action_data: Dictionary) -> void:
+	if is_server:
+		return
+
+	var client_node := get_node_or_null("/root/Main/Client")
+	if client_node and client_node.has_method("receive_boss_action"):
+		client_node.receive_boss_action(enemy_network_id, action_data)
 
 # ============================================================================
 # DEBUG CONSOLE RPCs
@@ -1253,3 +1277,106 @@ func rpc_request_shop_upgrade(equipment_slot: int, cost: int) -> void:
 	var server_node := get_node_or_null("/root/Main/Server")
 	if server_node and server_node.has_method("handle_shop_upgrade"):
 		server_node.handle_shop_upgrade(peer_id, equipment_slot, cost)
+
+# ============================================================================
+# FIRE AREA VISUAL EFFECTS SYNC
+# ============================================================================
+
+## CLIENT -> SERVER: Report fire area creation for visual sync
+@rpc("any_peer", "call_remote", "reliable")
+func rpc_spawn_fire_area(position: Array, radius: float, duration: float) -> void:
+	if not multiplayer.is_server():
+		return
+	var from_peer := multiplayer.get_remote_sender_id()
+	# Broadcast to all other clients
+	for peer in multiplayer.get_peers():
+		if peer != from_peer:
+			rpc_broadcast_fire_area.rpc_id(peer, position, radius, duration)
+
+## SERVER -> CLIENT: Broadcast fire area visual effect
+@rpc("authority", "call_remote", "reliable")
+func rpc_broadcast_fire_area(position: Array, radius: float, duration: float) -> void:
+	# Create visual-only fire area on receiving client
+	var client_node := get_node_or_null("/root/Main/Client")
+	if client_node and client_node.has_method("spawn_visual_fire_area"):
+		var pos = Vector3(position[0], position[1], position[2])
+		client_node.spawn_visual_fire_area(pos, radius, duration)
+
+# ============================================================================
+# PROJECTILE VISUAL EFFECTS SYNC
+# ============================================================================
+
+## CLIENT -> SERVER: Report projectile spawn for visual sync
+@rpc("any_peer", "call_remote", "reliable")
+func rpc_spawn_projectile(projectile_type: String, position: Array, direction: Array, speed: float) -> void:
+	if not multiplayer.is_server():
+		return
+	var from_peer := multiplayer.get_remote_sender_id()
+	# Broadcast to all other clients
+	for peer in multiplayer.get_peers():
+		if peer != from_peer:
+			rpc_broadcast_projectile.rpc_id(peer, projectile_type, position, direction, speed)
+
+## SERVER -> CLIENT: Broadcast projectile visual effect
+@rpc("authority", "call_remote", "reliable")
+func rpc_broadcast_projectile(projectile_type: String, position: Array, direction: Array, speed: float) -> void:
+	# Create visual-only projectile on receiving client
+	var client_node := get_node_or_null("/root/Main/Client")
+	if client_node and client_node.has_method("spawn_visual_projectile"):
+		var pos = Vector3(position[0], position[1], position[2])
+		var dir = Vector3(direction[0], direction[1], direction[2])
+		client_node.spawn_visual_projectile(projectile_type, pos, dir, speed)
+
+# ============================================================================
+# HIT/PARRY EFFECT SYNC
+# ============================================================================
+
+## CLIENT -> SERVER: Report hit effect at position
+@rpc("any_peer", "call_remote", "reliable")
+func rpc_spawn_hit_effect(position: Array) -> void:
+	# Server broadcasts to all other clients
+	rpc_broadcast_hit_effect.rpc([position[0], position[1], position[2]])
+
+## SERVER -> CLIENT: Broadcast hit effect to all clients
+@rpc("authority", "call_remote", "reliable")
+func rpc_broadcast_hit_effect(position: Array) -> void:
+	var client_node := get_node_or_null("/root/Main/Client")
+	if client_node and client_node.has_method("spawn_visual_hit_effect"):
+		var pos = Vector3(position[0], position[1], position[2])
+		client_node.spawn_visual_hit_effect(pos)
+
+## CLIENT -> SERVER: Report parry effect at position
+@rpc("any_peer", "call_remote", "reliable")
+func rpc_spawn_parry_effect(position: Array) -> void:
+	# Server broadcasts to all other clients
+	rpc_broadcast_parry_effect.rpc([position[0], position[1], position[2]])
+
+## SERVER -> CLIENT: Broadcast parry effect to all clients
+@rpc("authority", "call_remote", "reliable")
+func rpc_broadcast_parry_effect(position: Array) -> void:
+	var client_node := get_node_or_null("/root/Main/Client")
+	if client_node and client_node.has_method("spawn_visual_parry_effect"):
+		var pos = Vector3(position[0], position[1], position[2])
+		client_node.spawn_visual_parry_effect(pos)
+
+# ============================================================================
+# THROWN ROCK SYNC
+# ============================================================================
+
+## CLIENT -> SERVER: Report thrown rock for sync
+@rpc("any_peer", "call_remote", "reliable")
+func rpc_spawn_thrown_rock(position: Array, direction: Array, speed: float, damage: float, thrower_network_id: int) -> void:
+	# Server broadcasts to all other clients
+	var from_peer = multiplayer.get_remote_sender_id()
+	for peer in multiplayer.get_peers():
+		if peer != from_peer:
+			rpc_broadcast_thrown_rock.rpc_id(peer, position, direction, speed, damage, thrower_network_id)
+
+## SERVER -> CLIENT: Broadcast thrown rock to all clients
+@rpc("authority", "call_remote", "reliable")
+func rpc_broadcast_thrown_rock(position: Array, direction: Array, speed: float, damage: float, thrower_network_id: int) -> void:
+	var client_node := get_node_or_null("/root/Main/Client")
+	if client_node and client_node.has_method("spawn_visual_thrown_rock"):
+		var pos = Vector3(position[0], position[1], position[2])
+		var dir = Vector3(direction[0], direction[1], direction[2])
+		client_node.spawn_visual_thrown_rock(pos, dir, speed, damage, thrower_network_id)

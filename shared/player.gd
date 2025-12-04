@@ -125,6 +125,9 @@ var stun_timer: float = 0.0
 const STUN_DURATION: float = 1.5  # How long the stun lasts
 const STUN_DAMAGE_MULTIPLIER: float = 1.5  # Extra damage taken while stunned
 
+# Equipment sync for remote players (server stores latest equipment data here)
+var synced_equipment: Dictionary = {}
+
 # Viewmodel (first-person arms)
 var viewmodel_arms: Node3D = null
 
@@ -192,6 +195,9 @@ var _previous_max_health: float = 0.0  # Tracks max health for percentage scalin
 
 # Fall death system (for falling out of world)
 var fall_time_below_ground: float = 0.0
+
+# Remote player animation time (for walk cycles on other clients)
+var remote_anim_time: float = 0.0
 
 # Blocking start time (for shield parry timing)
 var block_start_time: float = 0.0
@@ -353,7 +359,22 @@ func _physics_process(delta: float) -> void:
 				"position": global_position,
 				"rotation": rotation.y,
 				"velocity": velocity,
-				"animation_state": current_animation_state
+				"animation_state": current_animation_state,
+				# Combat state for other clients to see attacks/blocking
+				"is_attacking": is_attacking,
+				"is_blocking": is_blocking,
+				"is_stunned": is_stunned,
+				"is_dead": is_dead,
+				"attack_timer": attack_timer,
+				"current_attack_animation_time": current_attack_animation_time,
+				"is_special_attacking": is_special_attacking,
+				"special_attack_timer": special_attack_timer,
+				"current_special_attack_animation_time": current_special_attack_animation_time,
+				"is_lunging": is_lunging,
+				"is_spinning": is_spinning,
+				"combo_count": combo_count,
+				# Equipment for visual sync (weapon, shield, armor)
+				"equipment": equipment.get_equipment_data() if equipment else {}
 			}
 			NetworkManager.rpc_send_player_position.rpc_id(1, position_data)
 
@@ -789,6 +810,238 @@ func _interpolate_remote_player(delta: float) -> void:
 
 	# Update animation state
 	current_animation_state = latest_state.get("animation_state", "idle")
+
+	# Apply combat states from server for attack/block animations
+	is_attacking = latest_state.get("is_attacking", false)
+	is_blocking = latest_state.get("is_blocking", false)
+	is_stunned = latest_state.get("is_stunned", false)
+	is_dead = latest_state.get("is_dead", false)
+	attack_timer = latest_state.get("attack_timer", 0.0)
+	current_attack_animation_time = latest_state.get("current_attack_animation_time", 0.3)
+	is_special_attacking = latest_state.get("is_special_attacking", false)
+	special_attack_timer = latest_state.get("special_attack_timer", 0.0)
+	current_special_attack_animation_time = latest_state.get("current_special_attack_animation_time", 0.5)
+	is_lunging = latest_state.get("is_lunging", false)
+	is_spinning = latest_state.get("is_spinning", false)
+	combo_count = latest_state.get("combo_count", 0)
+
+	# Apply equipment visuals from synced data
+	var synced_equipment = latest_state.get("equipment", {})
+	if equipment and synced_equipment and synced_equipment.size() > 0:
+		equipment.set_equipment_data(synced_equipment)
+
+	# Apply rotation to body_container for visual (remote players don't run _physics_process)
+	if body_container:
+		# Smooth rotation sync - add PI to match local player mesh facing
+		body_container.rotation.y = lerp_angle(body_container.rotation.y, target_rot + PI, 0.3)
+
+	# Apply animations for remote players (including combat animations)
+	_update_remote_player_animations(delta)
+
+func _update_remote_player_animations(delta: float) -> void:
+	"""Animations for remote players based on synced combat and movement state"""
+	if not body_container:
+		return
+
+	var left_leg = body_container.get_node_or_null("LeftLeg")
+	var right_leg = body_container.get_node_or_null("RightLeg")
+	var left_arm = body_container.get_node_or_null("LeftArm")
+	var right_arm = body_container.get_node_or_null("RightArm")
+	var left_knee = left_leg.get_node_or_null("Knee") if left_leg else null
+	var right_knee = right_leg.get_node_or_null("Knee") if right_leg else null
+	var left_elbow = left_arm.get_node_or_null("Elbow") if left_arm else null
+	var right_elbow = right_arm.get_node_or_null("Elbow") if right_arm else null
+
+	if not left_leg or not right_leg:
+		return
+
+	# ==== COMBAT STATE ANIMATIONS (HIGHEST PRIORITY) ====
+
+	# Death animation - fall over (highest priority)
+	if is_dead:
+		# Smoothly fall forward
+		body_container.rotation.x = lerp(body_container.rotation.x, PI / 2, delta * 2.0)
+		body_container.position.y = lerp(body_container.position.y, -0.5, delta * 2.0)
+		return
+
+	# Stun animation overrides everything - wobble the whole body
+	if is_stunned:
+		remote_anim_time += delta
+		var wobble_speed = 15.0
+		var wobble_intensity = 0.25
+		var time = remote_anim_time * wobble_speed
+		var wobble_x = sin(time) * wobble_intensity
+		var wobble_z = cos(time * 1.3) * wobble_intensity
+
+		body_container.rotation.x = wobble_x
+		body_container.rotation.z = wobble_z
+
+		# Arms flail
+		if left_arm:
+			left_arm.rotation.x = sin(time * 2.0) * 0.5
+		if right_arm:
+			right_arm.rotation.x = cos(time * 2.0) * 0.5
+
+		# Legs wobble
+		if left_leg:
+			left_leg.rotation.x = sin(time * 1.5) * 0.3
+		if right_leg:
+			right_leg.rotation.x = -sin(time * 1.5) * 0.3
+		return
+
+	# Reset body rotation if not stunned
+	body_container.rotation.x = lerp(body_container.rotation.x, 0.0, delta * 10.0)
+	body_container.rotation.z = lerp(body_container.rotation.z, 0.0, delta * 10.0)
+
+	# Track if arms are controlled by combat (to skip arm movement in walk/run)
+	var arms_controlled := false
+
+	# Blocking animation - left arm raised for shield defense
+	if is_blocking:
+		arms_controlled = true
+		if left_arm:
+			left_arm.rotation.x = lerp(left_arm.rotation.x, -1.2, delta * 25.0)
+			left_arm.rotation.z = lerp(left_arm.rotation.z, 0.3, delta * 25.0)
+		if right_arm:
+			right_arm.rotation.x = lerp(right_arm.rotation.x, -0.3, delta * 15.0)
+			right_arm.rotation.z = lerp(right_arm.rotation.z, -0.2, delta * 15.0)
+
+	# Special attack animations (spinning, lunging, etc.)
+	elif is_special_attacking:
+		arms_controlled = true
+		var attack_progress = attack_timer / current_special_attack_animation_time if current_special_attack_animation_time > 0 else 0.0
+		attack_progress = clamp(attack_progress, 0.0, 1.0)
+
+		if is_spinning:
+			# Axe spin - arms extended horizontally
+			if right_arm:
+				right_arm.rotation.x = -0.3
+				right_arm.rotation.z = -1.5
+			if left_arm:
+				left_arm.rotation.x = -0.3
+				left_arm.rotation.z = 1.5
+			if right_elbow:
+				right_elbow.rotation.x = -0.1
+			if left_elbow:
+				left_elbow.rotation.x = -0.1
+		elif is_lunging:
+			# Knife lunge - arm thrust forward
+			if right_arm:
+				right_arm.rotation.x = lerp(-0.5, -1.8, attack_progress)
+				right_arm.rotation.z = 0.0
+			if right_elbow:
+				right_elbow.rotation.x = lerp(-0.3, 0.0, attack_progress)
+		else:
+			# Default special attack - powerful swing
+			var swing_x = -sin(attack_progress * PI) * 2.0
+			var swing_z = sin(attack_progress * PI) * -0.5
+			if right_arm:
+				right_arm.rotation.x = swing_x
+				right_arm.rotation.z = swing_z
+			if right_elbow:
+				right_elbow.rotation.x = -sin(attack_progress * PI) * 0.8
+
+	# Normal attack animations
+	elif is_attacking and right_arm:
+		arms_controlled = true
+		var attack_progress = attack_timer / current_attack_animation_time if current_attack_animation_time > 0 else 0.0
+		attack_progress = clamp(attack_progress, 0.0, 1.0)
+
+		# Default slash animation (works for sword, fists, etc.)
+		var start_z = -1.0
+		var end_z = 0.5
+		var horizontal_angle = lerp(start_z, end_z, attack_progress)
+		right_arm.rotation.z = horizontal_angle
+		var forward_angle = -sin(attack_progress * PI) * 0.8
+		right_arm.rotation.x = forward_angle
+
+		if right_elbow:
+			var elbow_bend = -sin(attack_progress * PI) * 0.6
+			right_elbow.rotation.x = elbow_bend
+
+	# ==== MOVEMENT ANIMATIONS ====
+	match current_animation_state:
+		"walk":
+			remote_anim_time += delta
+			var walk_speed = 6.0
+			var t = remote_anim_time * walk_speed
+
+			# Leg swing
+			var leg_swing = sin(t) * 0.4
+			left_leg.rotation.x = leg_swing
+			right_leg.rotation.x = -leg_swing
+
+			# Knee bend when leg swings forward
+			if left_knee:
+				left_knee.rotation.x = max(0.0, leg_swing) * 0.8
+			if right_knee:
+				right_knee.rotation.x = max(0.0, -leg_swing) * 0.8
+
+			# Arm swing opposite to legs (only if not controlled by combat)
+			if not arms_controlled:
+				if left_arm:
+					left_arm.rotation.x = -leg_swing * 0.5
+				if right_arm:
+					right_arm.rotation.x = leg_swing * 0.5
+
+		"run":
+			remote_anim_time += delta
+			var run_speed = 10.0
+			var t = remote_anim_time * run_speed
+
+			# More pronounced leg swing for running
+			var leg_swing = sin(t) * 0.6
+			left_leg.rotation.x = leg_swing
+			right_leg.rotation.x = -leg_swing
+
+			# More knee bend for running
+			if left_knee:
+				left_knee.rotation.x = max(0.0, leg_swing) * 1.2
+			if right_knee:
+				right_knee.rotation.x = max(0.0, -leg_swing) * 1.2
+
+			# More arm swing for running (only if not controlled by combat)
+			if not arms_controlled:
+				if left_arm:
+					left_arm.rotation.x = -leg_swing * 0.7
+				if right_arm:
+					right_arm.rotation.x = leg_swing * 0.7
+
+		"jump", "falling":
+			# Legs in jumping pose
+			if left_leg:
+				left_leg.rotation.x = lerp(left_leg.rotation.x, 0.4, delta * 10.0)
+			if right_leg:
+				right_leg.rotation.x = lerp(right_leg.rotation.x, -0.3, delta * 10.0)
+
+			# Arms out for balance (only if not controlled by combat)
+			if not arms_controlled:
+				if left_arm:
+					left_arm.rotation.x = lerp(left_arm.rotation.x, -0.2, delta * 10.0)
+					left_arm.rotation.z = lerp(left_arm.rotation.z, -0.4, delta * 10.0)
+				if right_arm:
+					right_arm.rotation.x = lerp(right_arm.rotation.x, -0.2, delta * 10.0)
+					right_arm.rotation.z = lerp(right_arm.rotation.z, 0.4, delta * 10.0)
+
+		"idle", _:
+			# Legs return to neutral
+			if left_leg:
+				left_leg.rotation.x = lerp(left_leg.rotation.x, 0.0, delta * 8.0)
+			if right_leg:
+				right_leg.rotation.x = lerp(right_leg.rotation.x, 0.0, delta * 8.0)
+			if left_knee:
+				left_knee.rotation.x = lerp(left_knee.rotation.x, 0.0, delta * 8.0)
+			if right_knee:
+				right_knee.rotation.x = lerp(right_knee.rotation.x, 0.0, delta * 8.0)
+
+			# Arms return to neutral (only if not controlled by combat)
+			if not arms_controlled:
+				if left_arm:
+					left_arm.rotation.x = lerp(left_arm.rotation.x, 0.0, delta * 8.0)
+					left_arm.rotation.z = lerp(left_arm.rotation.z, 0.0, delta * 8.0)
+				if right_arm:
+					right_arm.rotation.x = lerp(right_arm.rotation.x, 0.0, delta * 8.0)
+					right_arm.rotation.z = lerp(right_arm.rotation.z, 0.0, delta * 8.0)
 
 # ============================================================================
 # ATTACK/RESOURCE GATHERING
@@ -2704,6 +2957,10 @@ func _spawn_hit_effect() -> void:
 	# Play player hurt sound
 	SoundManager.play_sound_varied("player_hurt", pos)
 
+	# Sync hit effect to other clients
+	if is_local_player:
+		NetworkManager.rpc_spawn_hit_effect.rpc_id(1, [pos.x, pos.y, pos.z])
+
 ## Spawn parry particle effect at player position
 func _spawn_parry_effect() -> void:
 	var pos = global_position + Vector3(0, 1.2, 0)  # Shield height
@@ -2713,6 +2970,10 @@ func _spawn_parry_effect() -> void:
 
 	# Play parry sound
 	SoundManager.play_sound("parry", pos)
+
+	# Sync parry effect to other clients
+	if is_local_player:
+		NetworkManager.rpc_spawn_parry_effect.rpc_id(1, [pos.x, pos.y, pos.z])
 
 ## Animate stun wobble effect
 func _animate_stun(delta: float, left_arm: Node3D, right_arm: Node3D, left_leg: Node3D, right_leg: Node3D) -> void:

@@ -230,8 +230,23 @@ func _broadcast_player_states() -> void:
 				"peer_id": peer_id,
 				"position": pos,
 				"rotation": player.rotation.y,
-				"velocity": player.get("velocity") if player.has_method("get") else Vector3.ZERO,
-				"animation_state": player.get("current_animation_state") if player.has_method("get") else "idle"
+				"velocity": player.velocity if "velocity" in player else Vector3.ZERO,
+				"animation_state": player.current_animation_state if "current_animation_state" in player else "idle",
+				# Combat states for other clients to animate attacks/blocking
+				"is_attacking": player.is_attacking if "is_attacking" in player else false,
+				"is_blocking": player.is_blocking if "is_blocking" in player else false,
+				"is_stunned": player.is_stunned if "is_stunned" in player else false,
+				"is_dead": player.is_dead if "is_dead" in player else false,
+				"attack_timer": player.attack_timer if "attack_timer" in player else 0.0,
+				"current_attack_animation_time": player.current_attack_animation_time if "current_attack_animation_time" in player else 0.3,
+				"is_special_attacking": player.is_special_attacking if "is_special_attacking" in player else false,
+				"special_attack_timer": player.special_attack_timer if "special_attack_timer" in player else 0.0,
+				"current_special_attack_animation_time": player.current_special_attack_animation_time if "current_special_attack_animation_time" in player else 0.5,
+				"is_lunging": player.is_lunging if "is_lunging" in player else false,
+				"is_spinning": player.is_spinning if "is_spinning" in player else false,
+				"combo_count": player.combo_count if "combo_count" in player else 0,
+				# Equipment for visual sync
+				"equipment": player.synced_equipment if "synced_equipment" in player else {}
 			})
 
 
@@ -666,10 +681,24 @@ func receive_player_position(peer_id: int, position_data: Dictionary) -> void:
 	player.global_position = new_position
 	player.rotation.y = position_data.get("rotation", player.rotation.y)
 
-	# Store velocity and animation state for broadcasting
-	if player.has_method("set"):
-		player.set("velocity", position_data.get("velocity", Vector3.ZERO))
-		player.set("current_animation_state", position_data.get("animation_state", "idle"))
+	# Store velocity, animation state, and combat state for broadcasting to other clients
+	player.velocity = position_data.get("velocity", Vector3.ZERO)
+	player.current_animation_state = position_data.get("animation_state", "idle")
+	# Combat states for other clients to see attacks/blocking
+	player.is_attacking = position_data.get("is_attacking", false)
+	player.is_blocking = position_data.get("is_blocking", false)
+	player.is_stunned = position_data.get("is_stunned", false)
+	player.is_dead = position_data.get("is_dead", false)
+	player.attack_timer = position_data.get("attack_timer", 0.0)
+	player.current_attack_animation_time = position_data.get("current_attack_animation_time", 0.3)
+	player.is_special_attacking = position_data.get("is_special_attacking", false)
+	player.special_attack_timer = position_data.get("special_attack_timer", 0.0)
+	player.current_special_attack_animation_time = position_data.get("current_special_attack_animation_time", 0.5)
+	player.is_lunging = position_data.get("is_lunging", false)
+	player.is_spinning = position_data.get("is_spinning", false)
+	player.combo_count = position_data.get("combo_count", 0)
+	# Equipment for visual sync
+	player.synced_equipment = position_data.get("equipment", {})
 
 ## Handle hit report from NetworkManager (already has peer_id)
 func handle_hit_report(peer_id: int, target_id: int, damage: float, hit_position: Vector3) -> void:
@@ -1776,7 +1805,7 @@ func handle_enemy_damage(peer_id: int, enemy_network_id: int, damage: float, kno
 	# Forward damage to the HOST client so they can apply it to their authoritative copy
 	if host_peer_id > 0 and spawned_players.has(host_peer_id):
 		var dir_array = [direction.x, direction.y, direction.z]
-		NetworkManager.rpc_apply_enemy_damage.rpc_id(host_peer_id, enemy_network_id, damage, knockback, dir_array, damage_type)
+		NetworkManager.rpc_apply_enemy_damage.rpc_id(host_peer_id, enemy_network_id, damage, knockback, dir_array, damage_type, peer_id)
 
 ## Handle enemy death notification from host client (host has already dropped loot)
 func handle_enemy_died(peer_id: int, enemy_network_id: int) -> void:
@@ -2517,7 +2546,21 @@ func handle_shop_buy(peer_id: int, item_id: String, price: int) -> void:
 		print("[Server] ERROR: Unknown item %s" % item_id)
 		return
 
-	# Check if player has inventory space
+	# Boss summon items - consume immediately, don't go to inventory
+	if item_id == "glowing_medallion":
+		player.gold -= price
+		print("[Server] Player %d now has %d gold (spent %d)" % [peer_id, player.gold, price])
+		NetworkManager.rpc_sync_gold.rpc_id(peer_id, player.gold)
+
+		print("[Server] BOSS SUMMON! Player %d awakened the Cyclops!" % peer_id)
+		var enemy_spawner = get_node_or_null("EnemySpawner")
+		if enemy_spawner:
+			var forward_dir = -player.global_transform.basis.z.normalized()
+			var spawn_pos = player.global_position + forward_dir * 15.0 + Vector3(0, 0, 0)
+			enemy_spawner.spawn_boss("cyclops", spawn_pos, peer_id)
+		return
+
+	# Regular items need inventory space
 	var inventory = player.get_node_or_null("Inventory")
 	if not inventory:
 		return
@@ -2538,16 +2581,6 @@ func handle_shop_buy(peer_id: int, item_id: String, price: int) -> void:
 	var inventory_data = inventory.get_inventory_data()
 	NetworkManager.rpc_sync_inventory.rpc_id(peer_id, inventory_data)
 	NetworkManager.rpc_sync_gold.rpc_id(peer_id, player.gold)
-
-	# Special handling for boss summon items
-	if item_id == "glowing_medallion":
-		print("[Server] BOSS SUMMON! Player %d awakened the Cyclops!" % peer_id)
-		var enemy_spawner = get_node_or_null("EnemySpawner")
-		if enemy_spawner:
-			# Spawn Cyclops boss 15 units in front of the player
-			var forward_dir = -player.global_transform.basis.z.normalized()
-			var spawn_pos = player.global_position + forward_dir * 15.0 + Vector3(0, 0, 0)
-			enemy_spawner.spawn_boss("cyclops", spawn_pos, peer_id)
 
 ## Handle shop sell request
 func handle_shop_sell(peer_id: int, slot_index: int, amount: int, total_price: int) -> void:

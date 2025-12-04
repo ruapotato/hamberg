@@ -11,6 +11,7 @@ class_name ThrownRock
 
 var direction: Vector3 = Vector3.FORWARD
 var thrower: Node = null  # Reference to the enemy that threw this
+var thrower_network_id: int = 0  # Network ID for damage attribution
 var velocity: Vector3 = Vector3.ZERO
 var time_alive: float = 0.0
 
@@ -102,17 +103,14 @@ func _on_body_entered(body: Node3D) -> void:
 
 		# LOCAL-FIRST DAMAGE: Only apply damage if this is MY local player
 		# Check if the hit player is the local player
-		var my_peer_id = multiplayer.get_unique_id()
-		var local_player_name = "Player_" + str(my_peer_id)
-
-		if body.name == local_player_name:
+		if "is_local_player" in body and body.is_local_player:
 			# This is MY player - apply damage locally
 			if body.has_method("take_damage"):
 				var knockback_dir = velocity.normalized()
 				knockback_dir.y = 0.2  # Slight upward knockback
 				knockback_dir = knockback_dir.normalized()
 				print("[ThrownRock] Dealing %.1f damage to local player" % damage)
-				body.take_damage(damage, 0, knockback_dir * 5.0)  # knockback strength
+				body.take_damage(damage, thrower_network_id, knockback_dir * 5.0)  # Use network ID
 
 		# Destroy the rock
 		queue_free()

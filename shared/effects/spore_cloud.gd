@@ -8,6 +8,10 @@ extends Node3D
 @export var tick_rate: float = 0.8  # Damage every 0.8 seconds
 @export var duration: float = 4.0  # How long the cloud lasts
 
+# Network sync - only the host deals damage
+var is_host: bool = false
+var spawner_network_id: int = 0  # Network ID of the spawning enemy for damage attribution
+
 var tick_timer: float = 0.0
 var players_in_area: Array = []
 
@@ -67,13 +71,25 @@ func _on_area_body_exited(body: Node3D) -> void:
 		print("[SporeCloud] Player left spore cloud: %s" % body.name)
 
 func _deal_damage_to_players() -> void:
+	# Only the host deals damage to avoid duplicate damage
+	if not is_host:
+		return
+
 	# Deal damage to all players in area
 	for player in players_in_area:
 		if is_instance_valid(player) and player.has_method("take_damage"):
 			var direction = (player.global_position - global_position).normalized()
-			# Apply damage with slight knockback
-			player.take_damage(damage, 1.0, direction)
-			print("[SporeCloud] Dealt %.1f damage to %s" % [damage, player.name])
+
+			# Check if this is the local player (we deal damage through network RPC)
+			if player.is_local_player:
+				# For local player, apply damage directly (we're the host)
+				player.take_damage(damage, spawner_network_id, direction * 1.0)
+				print("[SporeCloud] Dealt %.1f damage to local player" % damage)
+			else:
+				# For remote players, send damage through network
+				var knockback_array = [direction.x, direction.y, direction.z]
+				NetworkManager.rpc_enemy_damage_player.rpc_id(1, spawner_network_id, damage, knockback_array)
+				print("[SporeCloud] Sent %.1f damage to remote player via network" % damage)
 
 func _on_timer_timeout() -> void:
 	# Cloud expired, clean up

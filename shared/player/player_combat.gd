@@ -258,6 +258,10 @@ func _special_attack_fire_wand_area(weapon_data) -> void:
 	player.get_tree().root.add_child(fire_area)
 	fire_area.global_position = player.global_position
 
+	# Sync fire area visual to other clients
+	var pos = player.global_position
+	NetworkManager.rpc_spawn_fire_area.rpc_id(1, [pos.x, pos.y, pos.z], area_radius, duration)
+
 ## Default special attack (1.5x damage)
 func _special_attack_default(weapon_data, camera: Camera3D) -> void:
 	var resource_cost: float = weapon_data.stamina_cost * 2.0
@@ -507,6 +511,15 @@ func spawn_projectile(weapon_data, camera: Camera3D) -> void:
 	var damage_type: int = weapon_data.damage_type if "damage_type" in weapon_data else -1
 	projectile.setup(spawn_pos, direction, speed, weapon_data.damage, player.get_instance_id(), damage_type)
 
+	# Sync projectile visual to other clients
+	var projectile_type := "fireball"  # Default to fireball, expand as more projectiles are added
+	if weapon_data.item_id == "fire_wand":
+		projectile_type = "fireball"
+	NetworkManager.rpc_spawn_projectile.rpc_id(1, projectile_type,
+		[spawn_pos.x, spawn_pos.y, spawn_pos.z],
+		[direction.x, direction.y, direction.z],
+		speed)
+
 # =============================================================================
 # NETWORK DAMAGE
 # =============================================================================
@@ -521,6 +534,7 @@ func send_dynamic_damage_request(object_name: String, damage: float, hit_positio
 
 ## Send enemy damage request to server (includes damage type for resistance calculations)
 func send_enemy_damage_request(enemy_network_id: int, damage: float, knockback: float, direction: Vector3, damage_type: int = -1) -> void:
+	print("[Combat] Sending damage RPC to server: net_id=%d, damage=%.1f, type=%d" % [enemy_network_id, damage, damage_type])
 	var dir_array = [direction.x, direction.y, direction.z]
 	NetworkManager.rpc_damage_enemy.rpc_id(1, enemy_network_id, damage, knockback, dir_array, damage_type)
 

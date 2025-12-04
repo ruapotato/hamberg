@@ -127,6 +127,7 @@ func _deal_damage_to_enemies() -> void:
 			var direction = (enemy.global_position - global_position).normalized()
 			var enemy_network_id = enemy.network_id if "network_id" in enemy else 0
 			if enemy_network_id > 0:
+				print("[FireArea] Sending fire damage RPC: net_id=%d, damage=%.1f" % [enemy_network_id, damage])
 				var dir_array = [direction.x, direction.y, direction.z]
 				# Fire area deals FIRE damage type
 				NetworkManager.rpc_damage_enemy.rpc_id(1, enemy_network_id, damage, 0.5, dir_array, DAMAGE_TYPE)

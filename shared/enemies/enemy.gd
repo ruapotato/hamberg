@@ -287,6 +287,10 @@ func _run_follower_interpolation(delta: float) -> void:
 	if health != sync_health:
 		var old_health = health
 		health = sync_health
+		# Flash effect when taking damage (non-host clients see sync'd damage)
+		if health < old_health and not is_host:
+			flash_hit_effect()
+			SoundManager.play_sound_varied("enemy_hurt", global_position)
 		if health_bar:
 			health_bar.update_health(health, max_health)
 		if health <= 0 and not is_dead:
@@ -684,6 +688,7 @@ func _throw_rock() -> void:
 	rock.damage = rock_damage
 	rock.speed = rock_speed
 	rock.thrower = self
+	rock.thrower_network_id = network_id
 
 	var spawn_pos = global_position + Vector3(0, 0.8, 0)
 	var target_pos = target_player.global_position + Vector3(0, 0.8, 0)
@@ -695,6 +700,12 @@ func _throw_rock() -> void:
 
 	get_tree().current_scene.add_child(rock)
 	rock.global_position = spawn_pos
+
+	# Sync rock to other clients
+	NetworkManager.rpc_spawn_thrown_rock.rpc_id(1,
+		[spawn_pos.x, spawn_pos.y, spawn_pos.z],
+		[direction.x, direction.y, direction.z],
+		rock_speed, rock_damage, network_id)
 
 func _get_local_player() -> CharacterBody3D:
 	var my_peer_id = multiplayer.get_unique_id()
@@ -728,7 +739,7 @@ func _is_wall_blocking(target: Node3D) -> bool:
 # ============================================================================
 # DAMAGE AND DEATH
 # ============================================================================
-func take_damage(damage: float, knockback: float = 0.0, direction: Vector3 = Vector3.ZERO, damage_type: int = -1) -> void:
+func take_damage(damage: float, knockback: float = 0.0, direction: Vector3 = Vector3.ZERO, damage_type: int = -1, attacker_peer_id: int = 0) -> void:
 	if is_dead:
 		return
 
@@ -742,6 +753,10 @@ func take_damage(damage: float, knockback: float = 0.0, direction: Vector3 = Vec
 		final_damage *= STUN_DAMAGE_MULTIPLIER
 
 	health -= final_damage
+
+	# Track attacker for threat-based targeting (override in subclasses)
+	if attacker_peer_id > 0:
+		_on_damaged_by_player(attacker_peer_id, final_damage)
 
 	# Log with damage type info
 	var type_name := _get_damage_type_name(damage_type)
@@ -779,6 +794,10 @@ func take_damage(damage: float, knockback: float = 0.0, direction: Vector3 = Vec
 		# Server and non-host clients just track health = 0
 		if is_host:
 			_die()
+
+## Virtual function for tracking attacker threat (override in subclasses like bosses)
+func _on_damaged_by_player(attacker_peer_id: int, damage: float) -> void:
+	pass  # Base implementation does nothing
 
 ## Get human-readable damage type name
 func _get_damage_type_name(damage_type: int) -> String:

@@ -253,7 +253,7 @@ func _update_boss_health_bar() -> void:
 # ============================================================================
 # DAMAGE AND PHASES
 # ============================================================================
-func take_damage(damage: float, knockback: float = 0.0, direction: Vector3 = Vector3.ZERO, damage_type: int = -1) -> void:
+func take_damage(damage: float, knockback: float = 0.0, direction: Vector3 = Vector3.ZERO, damage_type: int = -1, attacker_peer_id: int = 0) -> void:
 	if is_dead or is_spawning:
 		return
 
@@ -266,7 +266,7 @@ func take_damage(damage: float, knockback: float = 0.0, direction: Vector3 = Vec
 		damage_since_last_stagger = 0.0
 
 	# Apply damage
-	super.take_damage(damage, knockback, direction, damage_type)
+	super.take_damage(damage, knockback, direction, damage_type, attacker_peer_id)
 
 	# Update boss health bar
 	_update_boss_health_bar()
