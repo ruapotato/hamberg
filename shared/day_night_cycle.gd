@@ -4,6 +4,9 @@ class_name DayNightCycle
 ## DayNightCycle - Manages time of day, sun position, and lighting
 ## Attach to TerrainWorld or add as autoload
 
+const Equipment = preload("res://shared/equipment.gd")
+const ArmorData = preload("res://shared/armor_data.gd")
+
 signal time_changed(hour: float)
 signal period_changed(period: String)  # "dawn", "day", "dusk", "night"
 
@@ -34,6 +37,11 @@ const DARK_FOREST_AMBIENT_MULTIPLIER: float = 0.1  # 90% reduction - very dark!
 const DARK_FOREST_SUN_MULTIPLIER: float = 0.15  # Sun is mostly blocked by trees
 const DARK_FOREST_BIOMES: Array[String] = ["dark_forest"]
 const BIOME_TRANSITION_SPEED: float = 1.5  # How fast to lerp (higher = faster)
+
+# Cyclops Eye reduces the darkness effect in dark forest
+const CYCLOPS_EYE_AMBIENT_MULTIPLIER: float = 0.5  # Only 50% reduction with Cyclops Eye
+const CYCLOPS_EYE_SUN_MULTIPLIER: float = 0.4  # More sun visible
+const CYCLOPS_EYE_AMBIENT_ENERGY: float = 0.15  # Better ambient light
 
 # PERFORMANCE: Cached references to avoid get_tree() calls every frame
 var _cached_player: Node3D = null
@@ -162,19 +170,44 @@ func _update_player_biome() -> void:
 	var pos = _cached_player.global_position
 	var new_biome = _cached_terrain_world.get_biome_at(Vector2(pos.x, pos.z))
 
-	if new_biome != current_biome:
-		current_biome = new_biome
-		# Set target multipliers based on biome (will lerp toward these)
-		if current_biome in DARK_FOREST_BIOMES:
+	# Check if player has Cyclops Eye equipped (reduces dark forest darkness)
+	var has_cyclops_eye = _player_has_cyclops_eye()
+
+	# Always update (not just on biome change) so equipment changes take effect
+	current_biome = new_biome
+	# Set target multipliers based on biome (will lerp toward these)
+	if current_biome in DARK_FOREST_BIOMES:
+		if has_cyclops_eye:
+			# Cyclops Eye lets you see better in dark forest
+			target_ambient_multiplier = CYCLOPS_EYE_AMBIENT_MULTIPLIER
+			target_sun_multiplier = CYCLOPS_EYE_SUN_MULTIPLIER
+			target_ambient_energy = CYCLOPS_EYE_AMBIENT_ENERGY
+			target_sky_contribution = 0.1
+		else:
 			target_ambient_multiplier = DARK_FOREST_AMBIENT_MULTIPLIER
 			target_sun_multiplier = DARK_FOREST_SUN_MULTIPLIER
 			target_ambient_energy = 0.05
 			target_sky_contribution = 0.0
-		else:
-			target_ambient_multiplier = 1.0
-			target_sun_multiplier = 1.0
-			target_ambient_energy = 0.3
-			target_sky_contribution = 0.5
+	else:
+		target_ambient_multiplier = 1.0
+		target_sun_multiplier = 1.0
+		target_ambient_energy = 0.3
+		target_sky_contribution = 0.5
+
+## Check if the local player has the Cyclops Eye accessory equipped
+func _player_has_cyclops_eye() -> bool:
+	if not is_instance_valid(_cached_player):
+		return false
+
+	var equipment_node = _cached_player.get_node_or_null("Equipment")
+	if not equipment_node:
+		return false
+
+	var accessory_data = equipment_node.get_equipped_item_data(Equipment.EquipmentSlot.ACCESSORY)
+	if accessory_data and accessory_data is ArmorData:
+		return accessory_data.set_bonus == ArmorData.SetBonus.CYCLOPS_LIGHT
+
+	return false
 
 func _update_lighting() -> void:
 	if sun_light:
