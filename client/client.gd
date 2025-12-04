@@ -25,6 +25,9 @@ var build_controls_hint_scene := preload("res://client/ui/build_controls_hint.ts
 var gahnome_scene := preload("res://shared/enemies/gahnome.tscn")
 var sporeling_scene := preload("res://shared/enemies/sporeling.tscn")
 
+# Boss scenes
+var cyclops_scene := preload("res://shared/enemies/bosses/cyclops.tscn")
+
 # Animal scenes
 var deer_scene := preload("res://shared/animals/deer.tscn")
 var pig_scene := preload("res://shared/animals/pig.tscn")
@@ -2006,6 +2009,8 @@ func spawn_enemy(enemy_path: NodePath, enemy_type: String, position: Vector3, en
 			enemy_scene = gahnome_scene
 		"Sporeling":
 			enemy_scene = sporeling_scene
+		"Cyclops":
+			enemy_scene = cyclops_scene
 		"Deer":
 			enemy_scene = deer_scene
 		"Pig", "Flying Pig":
