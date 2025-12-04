@@ -484,6 +484,9 @@ func _apply_toggle(system: String, enabled: bool) -> void:
 			_toggle_hitbox_visuals(enabled)
 
 func _toggle_hitbox_visuals(enabled: bool) -> void:
+	# Store in global singleton so new spawns can check this
+	DebugSettings.show_hitboxes = enabled
+
 	# Toggle player weapon hitbox debug mesh
 	var local_player = get_tree().get_first_node_in_group("local_player")
 	if local_player and local_player.weapon_hitbox:

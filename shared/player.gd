@@ -2596,6 +2596,11 @@ func take_damage(damage: float, attacker_id: int = -1, knockback_dir: Vector3 = 
 	if is_dead:
 		return
 
+	# God mode: ignore all damage
+	if god_mode:
+		print("[Player] God mode - ignoring %d damage" % damage)
+		return
+
 	var final_damage = damage
 	var was_parried = false
 
@@ -3101,7 +3106,7 @@ func _add_weapon_hitbox_debug_visual(hitbox: Area3D, collision_shape: CollisionS
 
 	# Add to collision_shape so it inherits the shape's transform/rotation
 	collision_shape.add_child(debug_mesh)
-	debug_mesh.visible = false  # Hidden by default, use /toggle hitboxes to show
+	debug_mesh.visible = DebugSettings.show_hitboxes  # Respect current toggle state
 	print("[DEBUG] Weapon hitbox debug mesh added (parent: %s)" % collision_shape.name)
 
 ## Update the off hand shield visual

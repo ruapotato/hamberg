@@ -1130,7 +1130,7 @@ func _setup_collision_box_mesh() -> void:
 
 	# Match the collision shape's transform
 	collision_box_mesh.transform = collision_shape.transform
-	collision_box_mesh.visible = false  # Hidden by default, use /toggle hitboxes to show
+	collision_box_mesh.visible = DebugSettings.show_hitboxes  # Respect current toggle state
 
 	add_child(collision_box_mesh)
 
@@ -1178,12 +1178,22 @@ func _setup_attack_hitbox() -> void:
 
 	attack_hitbox.add_child(collision_shape)
 
-	# Add to body_container instead of Enemy
-	# body_container has its own PI rotation, and the mesh faces +Z in body_container space
-	# So +Z in body_container = where the character visually faces
-	if body_container:
+	# Attach to right_arm so it moves with punch animation
+	# The hitbox will swing forward when the arm animates
+	if right_arm:
+		# Find the elbow node to attach further down the arm
+		var elbow = right_arm.get_node_or_null("Elbow")
+		if elbow:
+			elbow.add_child(attack_hitbox)
+			# Position at the fist (end of forearm, extending forward)
+			attack_hitbox.position = Vector3(0, -0.2, 0.6)
+		else:
+			right_arm.add_child(attack_hitbox)
+			attack_hitbox.position = Vector3(0, -0.3, 0.6)
+	elif body_container:
+		# Fallback to body_container if no right_arm
 		body_container.add_child(attack_hitbox)
-		attack_hitbox.position = Vector3(0, 0.8, 1.0)  # Further in front of body
+		attack_hitbox.position = Vector3(0, 0.8, 1.0)
 	else:
 		add_child(attack_hitbox)
 		attack_hitbox.position = Vector3(0, 0.8, -1.0)
@@ -1202,7 +1212,7 @@ func _setup_attack_hitbox() -> void:
 	mat.no_depth_test = true  # Always visible, even through objects
 	debug_mesh.material_override = mat
 	debug_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	debug_mesh.visible = false  # Hidden by default, use /toggle hitboxes to show
+	debug_mesh.visible = DebugSettings.show_hitboxes  # Respect current toggle state
 	attack_hitbox.add_child(debug_mesh)
 
 	# Connect signal for collision detection
