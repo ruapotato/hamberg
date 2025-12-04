@@ -156,49 +156,6 @@ func start_server(port: int = 7777, max_players: int = 10) -> void:
 	else:
 		push_error("[Server] Failed to start server")
 
-## Start server with a custom multiplayer API (for singleplayer mode)
-func start_server_with_multiplayer(port: int, max_players: int, custom_multiplayer: SceneMultiplayer) -> void:
-	if is_running:
-		push_warning("[Server] Server already running")
-		return
-
-	# Load or create world configuration
-	_load_or_create_world()
-
-	# Initialize persistence managers
-	player_data_manager = PlayerDataManager.new()
-	player_data_manager.initialize(world_config.world_name)
-
-	world_state_manager = WorldStateManager.new()
-	world_state_manager.initialize(world_config.world_name)
-
-	# Load world state (buildables, etc.)
-	_load_world_state()
-
-	# Create ENet server peer
-	var peer := ENetMultiplayerPeer.new()
-	var error := peer.create_server(port, max_players)
-
-	if error != OK:
-		push_error("[Server] Failed to create server on port %d: %s" % [port, error_string(error)])
-		return
-
-	# Set up the custom multiplayer
-	custom_multiplayer.multiplayer_peer = peer
-
-	# Connect multiplayer signals
-	custom_multiplayer.peer_connected.connect(_on_peer_connected)
-	custom_multiplayer.peer_disconnected.connect(_on_peer_disconnected)
-
-	is_running = true
-	print("[Server] ===========================================")
-	print("[Server] Server is now running (singleplayer mode)!")
-	print("[Server] Port: %d" % port)
-	print("[Server] Max players: %d" % max_players)
-	print("[Server] World: %s (seed: %d)" % [world_config.world_name, world_config.seed])
-	print("[Server] Loaded %d buildables from save" % placed_buildables.size())
-	print("[Server] ===========================================")
-
 func stop_server() -> void:
 	if not is_running:
 		return
