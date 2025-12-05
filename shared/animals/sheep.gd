@@ -269,27 +269,27 @@ func _setup_body() -> void:
 	fr_leg_mesh.position = Vector3(0, -0.125 * scale_factor, 0)
 	right_leg.add_child(fr_leg_mesh)
 
-	# Back left leg
-	var bl_leg = Node3D.new()
-	bl_leg.position = Vector3(-0.1 * scale_factor, 0.25 * scale_factor, -0.15 * scale_factor)
-	body_container.add_child(bl_leg)
+	# Back left leg (stored in class variable for animation)
+	back_left_leg = Node3D.new()
+	back_left_leg.position = Vector3(-0.1 * scale_factor, 0.25 * scale_factor, -0.15 * scale_factor)
+	body_container.add_child(back_left_leg)
 
 	var bl_leg_mesh = MeshInstance3D.new()
 	bl_leg_mesh.mesh = leg_mesh
 	bl_leg_mesh.material_override = skin_mat
 	bl_leg_mesh.position = Vector3(0, -0.125 * scale_factor, 0)
-	bl_leg.add_child(bl_leg_mesh)
+	back_left_leg.add_child(bl_leg_mesh)
 
-	# Back right leg
-	var br_leg = Node3D.new()
-	br_leg.position = Vector3(0.1 * scale_factor, 0.25 * scale_factor, -0.15 * scale_factor)
-	body_container.add_child(br_leg)
+	# Back right leg (stored in class variable for animation)
+	back_right_leg = Node3D.new()
+	back_right_leg.position = Vector3(0.1 * scale_factor, 0.25 * scale_factor, -0.15 * scale_factor)
+	body_container.add_child(back_right_leg)
 
 	var br_leg_mesh = MeshInstance3D.new()
 	br_leg_mesh.mesh = leg_mesh
 	br_leg_mesh.material_override = skin_mat
 	br_leg_mesh.position = Vector3(0, -0.125 * scale_factor, 0)
-	br_leg.add_child(br_leg_mesh)
+	back_right_leg.add_child(br_leg_mesh)
 
 	# Small tail (wool puff)
 	var tail = MeshInstance3D.new()

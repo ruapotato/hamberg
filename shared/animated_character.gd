@@ -36,6 +36,8 @@ const STUN_DAMAGE_MULTIPLIER: float = 1.5  # Extra damage taken while stunned
 var body_container: Node3D = null
 var left_leg: Node3D = null
 var right_leg: Node3D = null
+var back_left_leg: Node3D = null  # For quadrupeds (deer, pig, etc.)
+var back_right_leg: Node3D = null
 var left_arm: Node3D = null
 var right_arm: Node3D = null
 var torso: Node3D = null
@@ -160,6 +162,12 @@ func _animate_walking(delta: float, horizontal_speed: float, use_detailed: bool 
 	left_leg.rotation.x = leg_angle
 	right_leg.rotation.x = -leg_angle
 
+	# Back legs for quadrupeds (opposite phase from front legs for natural gait)
+	if back_left_leg:
+		back_left_leg.rotation.x = -leg_angle
+	if back_right_leg:
+		back_right_leg.rotation.x = leg_angle
+
 	# PERFORMANCE: Skip detailed knee/elbow animations when far away
 	if use_detailed:
 		# Add natural knee bend - knees bend more when leg is forward
@@ -208,6 +216,11 @@ func _animate_idle(delta: float) -> void:
 		right_leg.rotation.x = lerp(right_leg.rotation.x, 0.0, delta * 5.0)
 		if _right_knee:
 			_right_knee.rotation.x = lerp(_right_knee.rotation.x, 0.0, delta * 5.0)
+	# Back legs for quadrupeds
+	if back_left_leg:
+		back_left_leg.rotation.x = lerp(back_left_leg.rotation.x, 0.0, delta * 5.0)
+	if back_right_leg:
+		back_right_leg.rotation.x = lerp(back_right_leg.rotation.x, 0.0, delta * 5.0)
 	if left_arm:
 		left_arm.rotation.x = lerp(left_arm.rotation.x, 0.0, delta * 5.0)
 		if _left_elbow:
@@ -310,6 +323,11 @@ func _animate_stun(delta: float) -> void:
 		left_leg.rotation.x = sin(time * 1.5) * 0.3
 	if right_leg:
 		right_leg.rotation.x = -sin(time * 1.5) * 0.3
+	# Back legs for quadrupeds
+	if back_left_leg:
+		back_left_leg.rotation.x = -sin(time * 1.5) * 0.3
+	if back_right_leg:
+		back_right_leg.rotation.x = sin(time * 1.5) * 0.3
 
 ## Apply stun to this character
 func apply_stun(duration: float = STUN_DURATION) -> void:

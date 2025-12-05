@@ -1,22 +1,29 @@
 extends "res://shared/animals/passive_animal.gd"
 
-## Flying Pig - Whimsical winged pig that flies around
-## Found floating in meadow biomes
+## Flying Pig - Whimsical winged pig that walks normally but flies when threatened
+## Found in meadow biomes
 ## Drops raw pork when killed
 
 # Wing references for animation
 var left_wing: Node3D = null
 var right_wing: Node3D = null
 
-# Flying parameters
-var fly_height: float = 4.0  # Target height above ground
+# Flying state
+var is_flying: bool = false
+var fly_timer: float = 0.0
+const MAX_FLY_TIME: float = 8.0  # Max seconds in air before must land
+const FLY_COOLDOWN: float = 3.0  # Seconds on ground before can fly again
+var fly_cooldown_timer: float = 0.0
+var target_altitude: float = 5.0
+
+# Animation timers
 var bob_timer: float = 0.0
-var bob_speed: float = 2.0  # How fast to bob up and down
-var bob_amount: float = 0.3  # How much to bob
-var wing_flap_speed: float = 8.0  # Wing flapping speed
-var current_fly_direction: Vector3 = Vector3.ZERO
-var fly_direction_timer: float = 0.0
-var target_altitude: float = 4.0
+var bob_speed: float = 2.0
+var bob_amount: float = 0.3
+var wing_flap_speed: float = 8.0
+
+# Ground movement
+var ground_move_speed: float = 2.0
 
 func _ready() -> void:
 	# Call parent ready first to set defaults
@@ -25,17 +32,9 @@ func _ready() -> void:
 	# Then override with pig-specific values
 	enemy_name = "Flying Pig"
 	max_health = 35.0
-	move_speed = 3.5  # Faster in the air
-	strafe_speed = 3.0
+	move_speed = ground_move_speed  # Normal ground speed
+	strafe_speed = 2.0
 	loot_table = {"raw_pork": 3, "pig_leather": 2}
-
-	# Randomize starting direction
-	var angle = randf() * TAU
-	current_fly_direction = Vector3(cos(angle), 0, sin(angle))
-	fly_direction_timer = randf_range(3.0, 6.0)
-
-	# Randomize target altitude
-	target_altitude = randf_range(3.0, 6.0)
 
 	print("[Pig] Flying pig ready (network_id=%d)" % network_id)
 
@@ -189,27 +188,27 @@ func _setup_body() -> void:
 	fr_leg_mesh.position = Vector3(0, -0.1 * scale_factor, 0)
 	right_leg.add_child(fr_leg_mesh)
 
-	# Back left leg
-	var bl_leg = Node3D.new()
-	bl_leg.position = Vector3(-0.12 * scale_factor, 0.2 * scale_factor, -0.18 * scale_factor)
-	body_container.add_child(bl_leg)
+	# Back left leg (stored in class variable for animation)
+	back_left_leg = Node3D.new()
+	back_left_leg.position = Vector3(-0.12 * scale_factor, 0.2 * scale_factor, -0.18 * scale_factor)
+	body_container.add_child(back_left_leg)
 
 	var bl_leg_mesh = MeshInstance3D.new()
 	bl_leg_mesh.mesh = leg_mesh
 	bl_leg_mesh.material_override = skin_mat
 	bl_leg_mesh.position = Vector3(0, -0.1 * scale_factor, 0)
-	bl_leg.add_child(bl_leg_mesh)
+	back_left_leg.add_child(bl_leg_mesh)
 
-	# Back right leg
-	var br_leg = Node3D.new()
-	br_leg.position = Vector3(0.12 * scale_factor, 0.2 * scale_factor, -0.18 * scale_factor)
-	body_container.add_child(br_leg)
+	# Back right leg (stored in class variable for animation)
+	back_right_leg = Node3D.new()
+	back_right_leg.position = Vector3(0.12 * scale_factor, 0.2 * scale_factor, -0.18 * scale_factor)
+	body_container.add_child(back_right_leg)
 
 	var br_leg_mesh = MeshInstance3D.new()
 	br_leg_mesh.mesh = leg_mesh
 	br_leg_mesh.material_override = skin_mat
 	br_leg_mesh.position = Vector3(0, -0.1 * scale_factor, 0)
-	br_leg.add_child(br_leg_mesh)
+	back_right_leg.add_child(br_leg_mesh)
 
 	# Curly tail
 	var tail = MeshInstance3D.new()
@@ -277,57 +276,107 @@ func _setup_body() -> void:
 
 	head_base_height = 0.4 * scale_factor
 
-## Override physics process for flying and wing animation
+## Override physics process for flying state and wing animation
 func _physics_process(delta: float) -> void:
-	# Call parent physics first
+	# Update flying state timers
+	if is_flying:
+		fly_timer += delta
+		# Must land after max fly time
+		if fly_timer >= MAX_FLY_TIME:
+			_start_landing()
+	else:
+		# Cooldown before can fly again
+		if fly_cooldown_timer > 0:
+			fly_cooldown_timer -= delta
+
+	# Call parent physics
 	super._physics_process(delta)
 
-	# Animate wings (flapping)
+	# Animate wings based on flying state
 	bob_timer += delta * wing_flap_speed
 	if left_wing and right_wing:
-		var flap_angle = sin(bob_timer) * 0.5  # Flap up and down
-		left_wing.rotation.z = flap_angle + 0.3  # Slight upward angle
-		right_wing.rotation.z = -flap_angle - 0.3
+		if is_flying:
+			# Fast flapping when flying
+			var flap_angle = sin(bob_timer) * 0.6
+			left_wing.rotation.z = flap_angle + 0.3
+			right_wing.rotation.z = -flap_angle - 0.3
+		else:
+			# Wings folded when on ground
+			left_wing.rotation.z = 0.8  # Folded up
+			right_wing.rotation.z = -0.8
 
-## Override idle behavior to fly around instead of walking
+## Start flying (called when hit)
+func _start_flying() -> void:
+	if is_flying or fly_cooldown_timer > 0:
+		return
+	is_flying = true
+	fly_timer = 0.0
+	target_altitude = global_position.y + randf_range(4.0, 7.0)
+	move_speed = 4.5  # Faster when flying
+	print("[Pig] Taking flight!")
+
+## Start landing (called when fly time expires)
+func _start_landing() -> void:
+	is_flying = false
+	fly_cooldown_timer = FLY_COOLDOWN
+	move_speed = ground_move_speed
+	print("[Pig] Landing...")
+
+## Override take_damage to trigger flight
+func take_damage(damage: float, attacker = null, knockback_direction: Vector3 = Vector3.ZERO, damage_type: int = -1) -> void:
+	super.take_damage(damage, attacker, knockback_direction, damage_type)
+	# Take flight when hit!
+	if not is_dead:
+		_start_flying()
+
+## Override idle behavior - walk on ground normally
 func _update_idle(delta: float) -> void:
-	# Update flight direction timer
-	fly_direction_timer -= delta
-	if fly_direction_timer <= 0:
-		fly_direction_timer = randf_range(3.0, 7.0)
-		# Pick a new random direction
+	if is_flying:
+		_update_flying_idle(delta)
+	else:
+		# Normal ground wandering (from parent passive_animal)
+		super._update_idle(delta)
+
+## Flying idle - hover around
+func _update_flying_idle(delta: float) -> void:
+	# Gentle random movement while hovering
+	if wander_timer <= 0:
 		var angle = randf() * TAU
-		current_fly_direction = Vector3(cos(angle), 0, sin(angle))
-		# Also occasionally change altitude
-		target_altitude = randf_range(3.0, 6.0)
+		wander_direction = Vector3(cos(angle), 0, sin(angle))
+		wander_timer = randf_range(2.0, 4.0)
+	else:
+		wander_timer -= delta
 
-	# Fly in current direction
-	velocity.x = current_fly_direction.x * move_speed
-	velocity.z = current_fly_direction.z * move_speed
+	velocity.x = wander_direction.x * move_speed * 0.5
+	velocity.z = wander_direction.z * move_speed * 0.5
 
-	# Maintain altitude with gentle bobbing
+	# Maintain altitude with bobbing
 	var bob_offset = sin(bob_timer * bob_speed * 0.3) * bob_amount
-	var current_height = global_position.y
-	var height_diff = (target_altitude + bob_offset) - current_height
-	velocity.y = height_diff * 2.0  # Smooth altitude adjustment
+	var height_diff = (target_altitude + bob_offset) - global_position.y
+	velocity.y = height_diff * 2.0
 
-	# Face movement direction
 	if velocity.length() > 0.1:
 		_face_movement()
 
-	# Set AI state for animation sync
 	ai_state = AIState.IDLE
 
-## Override fleeing to fly away
+## Override fleeing to fly away when hit
 func _update_fleeing(delta: float) -> void:
+	if is_flying:
+		_update_flying_flee(delta)
+	else:
+		# Ground fleeing
+		super._update_fleeing(delta)
+
+## Flying flee - fly away fast and high
+func _update_flying_flee(delta: float) -> void:
 	# Update direction change timer
 	direction_change_timer -= delta
 
-	# Periodically change direction for erratic flee behavior
 	if direction_change_timer <= 0:
 		direction_change_timer = randf_range(MIN_DIRECTION_CHANGE_TIME, MAX_DIRECTION_CHANGE_TIME)
 
-		# Start with away-from-player direction, then add random offset
+		# Fly away from player
 		if flee_from_player and is_instance_valid(flee_from_player):
 			var away_dir = global_position - flee_from_player.global_position
 			away_dir.y = 0
@@ -337,27 +386,24 @@ func _update_fleeing(delta: float) -> void:
 				var angle = randf() * TAU
 				flee_target = Vector3(cos(angle), 0, sin(angle))
 
-		# Add random angle offset (can veer left or right significantly)
+		# Add random angle offset
 		var angle_offset = randf_range(-DIRECTION_CHANGE_ANGLE, DIRECTION_CHANGE_ANGLE)
 		flee_target = flee_target.rotated(Vector3.UP, angle_offset)
 
 		# Fly higher when fleeing!
-		target_altitude = randf_range(6.0, 10.0)
+		target_altitude = global_position.y + randf_range(2.0, 4.0)
+		target_altitude = min(target_altitude, 12.0)  # Cap max altitude
 
-	# Run in flee direction
-	var flee_dir = flee_target.normalized()
+	# Fly in flee direction
 	var flee_speed = move_speed * FLEE_SPEED_MULTIPLIER
+	velocity.x = flee_target.x * flee_speed
+	velocity.z = flee_target.z * flee_speed
 
-	velocity.x = flee_dir.x * flee_speed
-	velocity.z = flee_dir.z * flee_speed
-
-	# Maintain higher altitude when fleeing with bobbing
+	# Maintain altitude with bobbing
 	var bob_offset = sin(bob_timer * bob_speed * 0.3) * bob_amount
-	var current_height = global_position.y
-	var height_diff = (target_altitude + bob_offset) - current_height
-	velocity.y = height_diff * 3.0  # Faster altitude adjustment when fleeing
+	var height_diff = (target_altitude + bob_offset) - global_position.y
+	velocity.y = height_diff * 3.0
 
 	_face_movement()
 
-	# Use RETREATING state for animation sync (existing state in Enemy)
 	ai_state = AIState.RETREATING

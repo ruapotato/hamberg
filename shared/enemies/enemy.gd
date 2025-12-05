@@ -873,6 +873,7 @@ func _setup_body() -> void:
 	body_container = Node3D.new()
 	body_container.name = "BodyContainer"
 	body_container.rotation.y = PI
+	body_container.position.y = -0.15  # Lower body to align feet with ground (collision shape compensation)
 	add_child(body_container)
 
 	var scale_factor: float = 0.79  # 20% bigger than original 0.66
