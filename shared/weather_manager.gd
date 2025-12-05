@@ -49,11 +49,11 @@ var max_snow_coverage: float = 1.0  # Maximum snow coverage (can be set by comma
 # Footprint system
 var footprint_texture: ImageTexture
 var footprint_image: Image
-const FOOTPRINT_TEXTURE_SIZE: int = 256  # Higher resolution for visible footprints
+const FOOTPRINT_TEXTURE_SIZE: int = 512  # High resolution for small footprints
 const FOOTPRINT_WORLD_SIZE: float = 64.0  # World units covered by texture
 var footprint_center: Vector2 = Vector2.ZERO  # Center position in world
 var last_footprint_pos: Vector2 = Vector2.ZERO  # Last position a footprint was placed
-const FOOTPRINT_SPACING: float = 0.6  # Distance between footprints (closer together)
+const FOOTPRINT_SPACING: float = 0.5  # Distance between footprints
 const FOOTPRINT_FADE_RATE: float = 0.3  # How fast footprints fill back in with snow
 var footprint_update_timer: float = 0.0
 const FOOTPRINT_UPDATE_INTERVAL: float = 0.1  # Update footprint texture every 0.1s
@@ -406,13 +406,14 @@ func _add_footprint(world_pos: Vector2) -> void:
 	var px = int(uv.x * FOOTPRINT_TEXTURE_SIZE)
 	var py = int(uv.y * FOOTPRINT_TEXTURE_SIZE)
 
-	# Draw footprint as elliptical foot shape (larger and more visible)
-	# Foot is longer than wide
-	var foot_length = 5  # pixels in Y direction
-	var foot_width = 3   # pixels in X direction
+	# Draw footprint as elliptical foot shape
+	# With 512px texture covering 64 world units, each pixel = 0.125 world units
+	# A foot is roughly 0.3 units long, 0.15 wide
+	var foot_length = 2  # pixels in Y direction (~0.25 world units)
+	var foot_width = 1   # pixels in X direction (~0.125 world units)
 
-	for dx in range(-foot_width - 1, foot_width + 2):
-		for dy in range(-foot_length - 1, foot_length + 2):
+	for dx in range(-foot_width, foot_width + 1):
+		for dy in range(-foot_length, foot_length + 1):
 			var fx = px + dx
 			var fy = py + dy
 			if fx >= 0 and fx < FOOTPRINT_TEXTURE_SIZE and fy >= 0 and fy < FOOTPRINT_TEXTURE_SIZE:
