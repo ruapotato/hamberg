@@ -221,27 +221,39 @@ func _update_lighting() -> void:
 		_update_sky()
 
 func _update_sun_position() -> void:
-	# Calculate sun angle based on time
-	# At sunrise (6:00), sun is at horizon (0 degrees from horizontal)
-	# At noon (12:00), sun is highest (90 degrees elevation, pointing down)
-	# At sunset (20:00), sun is at horizon again
+	# Sun completes a full 360° orbit over 24 hours
+	# Midnight (0:00) = sun directly below (nadir)
+	# Noon (12:00) = sun directly above (zenith)
+	# The orbit plane is tilted to create east-west movement
 
-	var day_progress: float
-	if current_hour >= SUNRISE_HOUR and current_hour <= SUNSET_HOUR:
-		# Daytime: sun moves from east to west
-		day_progress = (current_hour - SUNRISE_HOUR) / (SUNSET_HOUR - SUNRISE_HOUR)
-	else:
-		# Nighttime: sun is below horizon
-		day_progress = -0.2  # Below horizon
+	# Hour to orbit angle: 0h = 0°, 12h = 180°, 24h = 360°
+	var orbit_angle = (current_hour / 24.0) * TAU  # TAU = 2*PI
 
-	# Sun elevation: 0 at sunrise/sunset, peaks at noon
-	var elevation = sin(day_progress * PI) * 70.0  # Max 70 degrees elevation
+	# The sun orbits in a plane tilted ~60° from vertical
+	# This creates an arc that goes: east horizon -> high south -> west horizon
+	var orbit_tilt = deg_to_rad(60.0)  # How tilted the orbit plane is
 
-	# Sun azimuth: rotates from east (90) through south (180) to west (270)
-	var azimuth = 90.0 + day_progress * 180.0
+	# Calculate sun position on the tilted orbit circle
+	# Y = vertical (up positive)
+	# X = east-west (east positive)
+	# Z = north-south (north positive)
+	var y = -cos(orbit_angle)  # -1 at midnight, +1 at noon
+	var orbit_horizontal = sin(orbit_angle)  # 0 at midnight/noon, ±1 at 6am/6pm
 
-	# Apply rotation to sun
-	sun_light.rotation_degrees = Vector3(-elevation, azimuth, 0)
+	# Project horizontal component onto tilted plane
+	var x = orbit_horizontal * cos(orbit_tilt)  # East-west movement
+	var z = -orbit_horizontal * sin(orbit_tilt)  # North-south bias (sun arcs to south)
+
+	# Sun direction vector (pointing from sun toward ground)
+	var sun_dir = Vector3(x, y, z).normalized()
+
+	# Point the directional light in the sun's direction
+	# Godot's DirectionalLight3D shines along its -Z axis
+	if sun_dir.length() > 0.001:
+		# Use look_at to point the light
+		# We need to find a position "behind" the sun direction and look at origin
+		var sun_pos = -sun_dir * 100.0  # Position sun far away in opposite direction
+		sun_light.look_at_from_position(sun_pos, Vector3.ZERO, Vector3.UP)
 
 func _update_sun_color() -> void:
 	var hour = current_hour
@@ -267,13 +279,13 @@ func _update_sun_color() -> void:
 		var t = (hour - 18.0) / 2.0
 		color = COLOR_DAY.lerp(COLOR_DUSK, t)
 		energy = lerpf(ENERGY_DAY, ENERGY_DUSK, t)
-	elif hour >= 20.0 and hour < 21.0:
-		# Dusk to night (20-21)
-		var t = (hour - 20.0) / 1.0
+	elif hour >= 20.0 and hour < 22.0:
+		# Dusk to night (20-22) - extended to 2 hours for smoother transition
+		var t = (hour - 20.0) / 2.0
 		color = COLOR_DUSK.lerp(COLOR_NIGHT, t)
 		energy = lerpf(ENERGY_DUSK, ENERGY_NIGHT, t)
 	else:
-		# Night (21-5)
+		# Night (22-5)
 		color = COLOR_NIGHT
 		energy = ENERGY_NIGHT
 
@@ -299,8 +311,9 @@ func _update_environment() -> void:
 	elif hour >= 18.0 and hour < 20.0:
 		var t = (hour - 18.0) / 2.0
 		ambient_color = AMBIENT_DAY.lerp(AMBIENT_DUSK, t)
-	elif hour >= 20.0 and hour < 21.0:
-		var t = (hour - 20.0) / 1.0
+	elif hour >= 20.0 and hour < 22.0:
+		# Extended to 2 hours for smoother night transition
+		var t = (hour - 20.0) / 2.0
 		ambient_color = AMBIENT_DUSK.lerp(AMBIENT_NIGHT, t)
 	else:
 		ambient_color = AMBIENT_NIGHT
@@ -315,14 +328,31 @@ func _update_environment() -> void:
 	env.reflected_light_source = 0 if biome_sky_contribution < 0.1 else 2
 
 	# Fog settings - match fog to sky horizon color for seamless fade
-	var is_dark = hour < 6.0 or hour >= 20.0
-
-	# Get sky horizon color to match fog (from _update_sky logic)
+	# Use smooth lerping instead of hard cut
 	var sky_horizon: Color
-	if is_dark:
-		sky_horizon = Color(0.1, 0.1, 0.15)  # Night sky horizon
+
+	if hour >= 5.0 and hour < 7.0:
+		# Dawn: night -> dawn horizon
+		var t = (hour - 5.0) / 2.0
+		sky_horizon = SKY_HORIZON_NIGHT.lerp(SKY_HORIZON_DAWN, t)
+	elif hour >= 7.0 and hour < 9.0:
+		# Morning: dawn -> day horizon
+		var t = (hour - 7.0) / 2.0
+		sky_horizon = SKY_HORIZON_DAWN.lerp(SKY_HORIZON_DAY, t)
+	elif hour >= 9.0 and hour < 18.0:
+		# Day
+		sky_horizon = SKY_HORIZON_DAY
+	elif hour >= 18.0 and hour < 20.0:
+		# Evening: day -> dusk horizon
+		var t = (hour - 18.0) / 2.0
+		sky_horizon = SKY_HORIZON_DAY.lerp(SKY_HORIZON_DUSK, t)
+	elif hour >= 20.0 and hour < 22.0:
+		# Dusk to night: dusk -> night (extended to 2 hours for smoother transition)
+		var t = (hour - 20.0) / 2.0
+		sky_horizon = SKY_HORIZON_DUSK.lerp(SKY_HORIZON_NIGHT, t)
 	else:
-		sky_horizon = Color(0.55, 0.7, 0.9)  # Day sky horizon
+		# Night
+		sky_horizon = SKY_HORIZON_NIGHT
 
 	# Update fog wall manager colors (client only)
 	var client_node := get_node_or_null("/root/Main/Client")
@@ -363,15 +393,15 @@ func _update_sky() -> void:
 		sky_horizon = SKY_HORIZON_DAY.lerp(SKY_HORIZON_DUSK, t)
 		ground = GROUND_DAY.lerp(GROUND_NIGHT, t)
 		star_brightness = 0.0
-	elif hour >= 20.0 and hour < 21.0:
-		# Dusk to night
-		var t = (hour - 20.0) / 1.0
+	elif hour >= 20.0 and hour < 22.0:
+		# Dusk to night - extended to 2 hours for smoother transition
+		var t = (hour - 20.0) / 2.0
 		sky_top = SKY_TOP_DUSK.lerp(SKY_TOP_NIGHT, t)
 		sky_horizon = SKY_HORIZON_DUSK.lerp(SKY_HORIZON_NIGHT, t)
 		ground = GROUND_NIGHT
 		star_brightness = t  # Stars fade in at dusk
 	else:
-		# Night
+		# Night (22-5)
 		sky_top = SKY_TOP_NIGHT
 		sky_horizon = SKY_HORIZON_NIGHT
 		ground = GROUND_NIGHT
@@ -387,16 +417,16 @@ func _update_sky() -> void:
 func get_current_period() -> String:
 	if current_hour >= 5.0 and current_hour < 7.0:
 		return "dawn"
-	elif current_hour >= 7.0 and current_hour < 19.0:
+	elif current_hour >= 7.0 and current_hour < 18.0:
 		return "day"
-	elif current_hour >= 19.0 and current_hour < 21.0:
+	elif current_hour >= 18.0 and current_hour < 22.0:
 		return "dusk"
 	else:
 		return "night"
 
 ## Check if it's currently night (for gameplay effects)
 func is_night() -> bool:
-	return current_hour < 5.0 or current_hour >= 21.0
+	return current_hour < 5.0 or current_hour >= 22.0
 
 ## Check if it's dark (dusk or night - enemies are stronger)
 func is_dark() -> bool:
