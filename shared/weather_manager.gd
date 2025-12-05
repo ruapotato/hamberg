@@ -49,11 +49,11 @@ var max_snow_coverage: float = 1.0  # Maximum snow coverage (can be set by comma
 # Footprint system
 var footprint_texture: ImageTexture
 var footprint_image: Image
-const FOOTPRINT_TEXTURE_SIZE: int = 128  # Resolution of footprint texture
+const FOOTPRINT_TEXTURE_SIZE: int = 256  # Higher resolution for visible footprints
 const FOOTPRINT_WORLD_SIZE: float = 64.0  # World units covered by texture
 var footprint_center: Vector2 = Vector2.ZERO  # Center position in world
 var last_footprint_pos: Vector2 = Vector2.ZERO  # Last position a footprint was placed
-const FOOTPRINT_SPACING: float = 0.8  # Distance between footprints
+const FOOTPRINT_SPACING: float = 0.6  # Distance between footprints (closer together)
 const FOOTPRINT_FADE_RATE: float = 0.3  # How fast footprints fill back in with snow
 var footprint_update_timer: float = 0.0
 const FOOTPRINT_UPDATE_INTERVAL: float = 0.1  # Update footprint texture every 0.1s
@@ -406,17 +406,24 @@ func _add_footprint(world_pos: Vector2) -> void:
 	var px = int(uv.x * FOOTPRINT_TEXTURE_SIZE)
 	var py = int(uv.y * FOOTPRINT_TEXTURE_SIZE)
 
-	# Draw footprint as a small dark area (0 = footprint, 1 = no footprint)
-	var footprint_radius = 2  # pixels
-	for dx in range(-footprint_radius, footprint_radius + 1):
-		for dy in range(-footprint_radius, footprint_radius + 1):
+	# Draw footprint as elliptical foot shape (larger and more visible)
+	# Foot is longer than wide
+	var foot_length = 5  # pixels in Y direction
+	var foot_width = 3   # pixels in X direction
+
+	for dx in range(-foot_width - 1, foot_width + 2):
+		for dy in range(-foot_length - 1, foot_length + 2):
 			var fx = px + dx
 			var fy = py + dy
 			if fx >= 0 and fx < FOOTPRINT_TEXTURE_SIZE and fy >= 0 and fy < FOOTPRINT_TEXTURE_SIZE:
-				var dist = sqrt(dx * dx + dy * dy)
-				if dist <= footprint_radius:
-					# Darker in center, lighter at edges
-					var intensity = 0.2 + 0.3 * (dist / footprint_radius)
+				# Elliptical distance
+				var norm_x = float(dx) / float(foot_width) if foot_width > 0 else 0.0
+				var norm_y = float(dy) / float(foot_length) if foot_length > 0 else 0.0
+				var dist = sqrt(norm_x * norm_x + norm_y * norm_y)
+
+				if dist <= 1.0:
+					# Darker in center (0.05), lighter at edges (0.4)
+					var intensity = 0.05 + 0.35 * dist
 					var current = footprint_image.get_pixel(fx, fy).r
 					footprint_image.set_pixel(fx, fy, Color(min(current, intensity), 0, 0, 1))
 

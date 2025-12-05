@@ -2391,7 +2391,14 @@ func _update_body_animations(delta: float) -> void:
 			var current_step = int(animation_phase / PI)
 			var last_step = int(_last_footstep_phase / PI)
 			if current_step != last_step:
-				SoundManager.play_sound_varied("footstep_grass", global_position, -8.0, 0.15)
+				# Check if walking on snow
+				var footstep_sound = "footstep_grass"
+				var weather_managers = get_tree().get_nodes_in_group("weather_manager")
+				if weather_managers.size() > 0:
+					var weather_mgr = weather_managers[0]
+					if weather_mgr.get_snowpack() > 0.2:  # More than 20% snow coverage
+						footstep_sound = "footstep_snow"
+				SoundManager.play_sound_varied(footstep_sound, global_position, -8.0, 0.15)
 		_last_footstep_phase = animation_phase
 
 		# Skip walk animation during spin - legs stay neutral, body spins

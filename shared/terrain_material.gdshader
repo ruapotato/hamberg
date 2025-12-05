@@ -939,18 +939,32 @@ void fragment() {
 		float snow_noise = value_noise_simple(xz_pos * 0.5);
 		snow_noise = smoothstep(0.3, 0.7, snow_noise);
 
-		// Snow blends in based on coverage, noise, and footprints
-		float final_snow = snow_factor * (0.7 + snow_noise * 0.3) * footprint_value;
+		// Snow blends in based on coverage and noise
+		float final_snow = snow_factor * (0.7 + snow_noise * 0.3);
 
-		// Footprint areas show darker ground through
-		vec3 footprint_color = mix(color * 0.7, snow_color, footprint_value * 0.3);
-
-		// Blend color towards snow
+		// Blend base color towards snow
 		color = mix(color, snow_color, final_snow);
 
-		// Darken footprint areas slightly
-		if (footprint_value < 0.9) {
-			color = mix(footprint_color, color, footprint_value);
+		// === FOOTPRINT RENDERING ===
+		if (footprint_value < 0.95) {
+			// Footprint detected - show compressed snow/ground
+			// The lower the footprint_value, the deeper the footprint
+
+			// Darker compressed snow color in footprint
+			vec3 compressed_snow = snow_color * 0.7;  // Darker snow in footprint
+			vec3 ground_showing = color * 0.5;  // Ground visible in deep parts
+
+			// Mix between compressed snow and ground based on depth
+			float depth = 1.0 - footprint_value;  // 0 = shallow, 1 = deep
+			vec3 footprint_color = mix(compressed_snow, ground_showing, depth * 0.6);
+
+			// Add shadow on the edges of footprint (rim shadow)
+			float rim = smoothstep(0.3, 0.7, footprint_value) * (1.0 - smoothstep(0.7, 0.95, footprint_value));
+			footprint_color *= (1.0 - rim * 0.2);  // Darken rim
+
+			// Apply footprint
+			float footprint_blend = smoothstep(0.95, 0.5, footprint_value);  // Stronger blend for deeper prints
+			color = mix(color, footprint_color, footprint_blend * snow_factor);
 		}
 	}
 

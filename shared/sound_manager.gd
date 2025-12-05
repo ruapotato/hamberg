@@ -26,6 +26,7 @@ var sounds := {
 	"footstep_grass": "res://audio/generated/footstep_grass.wav",
 	"footstep_stone": "res://audio/generated/footstep_stone.wav",
 	"footstep_wood": "res://audio/generated/footstep_wood.wav",
+	"footstep_snow": "res://audio/generated/footstep_snow.wav",
 	"jump": "res://audio/generated/jump.wav",
 	"land": "res://audio/generated/land.wav",
 	"dodge": "res://audio/generated/dodge.wav",
