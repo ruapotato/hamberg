@@ -3763,13 +3763,17 @@ func _apply_cyclops_glow() -> void:
 	var glow_color = Color(1.0, 0.9, 0.5)  # Warm yellow glow
 	var emission_strength = 1.5
 
-	# Apply to all visible body meshes
-	var body_parts = ["Head", "Neck", "Torso", "LeftUpperArm", "LeftLowerArm", "LeftHand",
-					  "RightUpperArm", "RightLowerArm", "RightHand", "LeftUpperLeg",
-					  "LeftLowerLeg", "LeftFoot", "RightUpperLeg", "RightLowerLeg", "RightFoot"]
+	# Apply to all visible body meshes (using correct node paths from player_body.tscn)
+	var body_parts = [
+		"Head", "Neck", "Torso", "Hips",
+		"LeftArm/UpperArmMesh", "LeftArm/Elbow/ForearmMesh",
+		"RightArm/UpperArmMesh", "RightArm/Elbow/ForearmMesh",
+		"LeftLeg/ThighMesh", "LeftLeg/Knee/ShinMesh", "LeftLeg/Knee/Foot",
+		"RightLeg/ThighMesh", "RightLeg/Knee/ShinMesh", "RightLeg/Knee/Foot"
+	]
 
-	for part_name in body_parts:
-		var mesh = body_container.get_node_or_null(part_name)
+	for part_path in body_parts:
+		var mesh = body_container.get_node_or_null(part_path)
 		if mesh and mesh is MeshInstance3D:
 			var mat = mesh.material_override
 			if mat and mat is StandardMaterial3D:
@@ -3782,17 +3786,23 @@ func _remove_cyclops_glow() -> void:
 	if not body_container:
 		return
 
-	# Remove emission from body parts
-	var body_parts = ["Head", "Neck", "Torso", "LeftUpperArm", "LeftLowerArm", "LeftHand",
-					  "RightUpperArm", "RightLowerArm", "RightHand", "LeftUpperLeg",
-					  "LeftLowerLeg", "LeftFoot", "RightUpperLeg", "RightLowerLeg", "RightFoot"]
+	# Remove emission from body parts (using correct node paths from player_body.tscn)
+	var body_parts = [
+		"Head", "Neck", "Torso", "Hips",
+		"LeftArm/UpperArmMesh", "LeftArm/Elbow/ForearmMesh",
+		"RightArm/UpperArmMesh", "RightArm/Elbow/ForearmMesh",
+		"LeftLeg/ThighMesh", "LeftLeg/Knee/ShinMesh", "LeftLeg/Knee/Foot",
+		"RightLeg/ThighMesh", "RightLeg/Knee/ShinMesh", "RightLeg/Knee/Foot"
+	]
 
-	for part_name in body_parts:
-		var mesh = body_container.get_node_or_null(part_name)
+	for part_path in body_parts:
+		var mesh = body_container.get_node_or_null(part_path)
 		if mesh and mesh is MeshInstance3D:
 			var mat = mesh.material_override
 			if mat and mat is StandardMaterial3D:
 				mat.emission_enabled = false
+				mat.emission = Color.BLACK
+				mat.emission_energy_multiplier = 0.0
 
 ## Initialize all armor visuals to default (unarmored) state
 func _initialize_armor_visuals() -> void:
