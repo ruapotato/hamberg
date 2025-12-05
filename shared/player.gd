@@ -357,7 +357,7 @@ func _physics_process(delta: float) -> void:
 			last_synced_position = global_position
 			var position_data := {
 				"position": global_position,
-				"rotation": body_container.rotation.y if body_container else rotation.y,
+				"rotation": global_rotation.y,
 				"velocity": velocity,
 				"animation_state": current_animation_state,
 				# Combat state for other clients to see attacks/blocking
@@ -834,8 +834,8 @@ func _interpolate_remote_player(delta: float) -> void:
 
 	# Apply rotation to body_container for visual (remote players don't run _physics_process)
 	if body_container:
-		# Smooth rotation sync - add PI to flip mesh to face correct direction for other clients
-		body_container.rotation.y = lerp_angle(body_container.rotation.y, target_rot + PI, 0.3)
+		# Smooth rotation sync - rotation is now sent from body_container directly
+		body_container.rotation.y = lerp_angle(body_container.rotation.y, target_rot, 0.3)
 
 	# Apply animations for remote players (including combat animations)
 	_update_remote_player_animations(delta)
