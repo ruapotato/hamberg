@@ -23,7 +23,7 @@ var god_mode: bool = false
 var browsing_history: bool = false
 
 # Autocomplete data
-var all_commands: Array[String] = ["/give", "/spawn", "/tp", "/heal", "/god", "/gold", "/clear", "/kill", "/pos", "/items", "/enemies", "/time", "/weather", "/snowpack", "/help", "/perf", "/toggle", "/eat"]
+var all_commands: Array[String] = ["/give", "/spawn", "/tp", "/heal", "/god", "/gold", "/clear", "/kill", "/pos", "/items", "/enemies", "/time", "/weather", "/snowpack", "/help", "/perf", "/toggle", "/eat", "/unequip"]
 
 # Performance toggle states
 var perf_toggles: Dictionary = {
@@ -242,6 +242,8 @@ func _execute_command(text: String) -> void:
 			_cmd_weather(args)
 		"/snowpack", "snowpack":
 			_cmd_snowpack(args)
+		"/unequip", "unequip":
+			_cmd_unequip(args)
 		_:
 			_add_output("[color=red]Unknown command: %s[/color]" % cmd)
 
@@ -443,22 +445,55 @@ func _cmd_weather(args: Array) -> void:
 		return
 
 	if args.is_empty():
-		# Show current weather and list options
+		# Show current weather status
 		var current = weather_manager.get_weather_name() if weather_manager.has_method("get_weather_name") else "unknown"
-		_add_output("Current weather: [color=cyan]%s[/color]" % current)
-		_add_output("[color=gray]Usage: /weather <type>[/color]")
+		var temp = weather_manager.get_temperature() if weather_manager.has_method("get_temperature") else 0.5
+		var is_freezing = weather_manager.is_freezing() if weather_manager.has_method("is_freezing") else false
+		var cycling = weather_manager.weather_cycle_enabled if "weather_cycle_enabled" in weather_manager else false
+		var next_change = weather_manager.next_weather_change - weather_manager.weather_timer if "weather_timer" in weather_manager else 0
+
+		_add_output("[color=cyan]Weather Status:[/color]")
+		_add_output("  Current: [color=yellow]%s[/color]" % current)
+		var temp_color = "cyan" if is_freezing else ("yellow" if temp > 0.6 else "white")
+		var temp_desc = "Freezing" if is_freezing else ("Warm" if temp > 0.6 else "Mild")
+		_add_output("  Temperature: [color=%s]%.0f%% (%s)[/color]" % [temp_color, temp * 100, temp_desc])
+		var cycle_status = "[color=green]ON[/color]" if cycling else "[color=red]OFF[/color]"
+		_add_output("  Auto-cycling: %s" % cycle_status)
+		if cycling and next_change > 0:
+			_add_output("  Next change in: %.0f seconds" % next_change)
+		_add_output("[color=gray]Usage: /weather <type> or /weather cycle[/color]")
 		_add_output("Types: clear, partly_cloudy, cloudy, overcast")
 		_add_output("       light_rain, rain, heavy_rain, storm")
 		_add_output("       fog, light_snow, snow, blizzard")
 		return
 
-	# Set weather
-	var weather_name = args[0].to_lower()
+	var arg = args[0].to_lower()
+
+	# Toggle cycling
+	if arg == "cycle" or arg == "auto":
+		if weather_manager.has_method("set_weather_cycle_enabled"):
+			var new_state = not weather_manager.weather_cycle_enabled
+			weather_manager.set_weather_cycle_enabled(new_state)
+			var status = "[color=green]enabled[/color]" if new_state else "[color=red]disabled[/color]"
+			_add_output("Weather auto-cycling %s" % status)
+		return
+
+	# Force next weather change immediately
+	if arg == "next" or arg == "skip":
+		if "weather_timer" in weather_manager and "next_weather_change" in weather_manager:
+			weather_manager.weather_timer = weather_manager.next_weather_change
+			_add_output("[color=green]Forcing next weather change...[/color]")
+		return
+
+	# Set weather manually (disables cycling temporarily)
 	if weather_manager.has_method("set_weather_by_name"):
-		if weather_manager.set_weather_by_name(weather_name):
-			_add_output("[color=green]Weather set to: %s[/color]" % weather_name)
+		if weather_manager.set_weather_by_name(arg):
+			_add_output("[color=green]Weather set to: %s[/color]" % arg)
+			# Reset the timer so manual weather lasts a while
+			if "weather_timer" in weather_manager:
+				weather_manager.weather_timer = 0.0
 		else:
-			_add_output("[color=red]Unknown weather type: %s[/color]" % weather_name)
+			_add_output("[color=red]Unknown weather type: %s[/color]" % arg)
 			_add_output("Types: clear, partly_cloudy, cloudy, overcast, light_rain, rain, heavy_rain, storm, fog, light_snow, snow, blizzard")
 
 func _cmd_snowpack(args: Array) -> void:
@@ -494,6 +529,87 @@ func _cmd_snowpack(args: Array) -> void:
 	else:
 		_add_output("[color=red]set_snowpack method not found![/color]")
 
+func _cmd_unequip(args: Array) -> void:
+	const Equipment = preload("res://shared/equipment.gd")
+
+	# Get local player's equipment
+	var local_player = get_tree().get_first_node_in_group("local_player")
+	if not local_player:
+		_add_output("[color=red]No player found[/color]")
+		return
+
+	var equipment = local_player.get_node_or_null("Equipment")
+	if not equipment:
+		_add_output("[color=red]Player has no equipment[/color]")
+		return
+
+	# Map slot names to slot enum values
+	var slot_names = {
+		"main": Equipment.EquipmentSlot.MAIN_HAND,
+		"main_hand": Equipment.EquipmentSlot.MAIN_HAND,
+		"weapon": Equipment.EquipmentSlot.MAIN_HAND,
+		"off": Equipment.EquipmentSlot.OFF_HAND,
+		"off_hand": Equipment.EquipmentSlot.OFF_HAND,
+		"shield": Equipment.EquipmentSlot.OFF_HAND,
+		"head": Equipment.EquipmentSlot.HEAD,
+		"helmet": Equipment.EquipmentSlot.HEAD,
+		"chest": Equipment.EquipmentSlot.CHEST,
+		"legs": Equipment.EquipmentSlot.LEGS,
+		"pants": Equipment.EquipmentSlot.LEGS,
+		"cape": Equipment.EquipmentSlot.CAPE,
+		"cloak": Equipment.EquipmentSlot.CAPE,
+		"accessory": Equipment.EquipmentSlot.ACCESSORY,
+		"acc": Equipment.EquipmentSlot.ACCESSORY,
+		"all": -1,  # Special: unequip everything
+	}
+
+	if args.is_empty():
+		# Show what's equipped and usage
+		_add_output("[color=cyan]Currently equipped:[/color]")
+		var slots_info = {
+			Equipment.EquipmentSlot.MAIN_HAND: "Main Hand",
+			Equipment.EquipmentSlot.OFF_HAND: "Off Hand",
+			Equipment.EquipmentSlot.HEAD: "Head",
+			Equipment.EquipmentSlot.CHEST: "Chest",
+			Equipment.EquipmentSlot.LEGS: "Legs",
+			Equipment.EquipmentSlot.CAPE: "Cape",
+			Equipment.EquipmentSlot.ACCESSORY: "Accessory",
+		}
+		for slot in slots_info:
+			var item_id = equipment.get_equipped_item(slot)
+			var slot_name = slots_info[slot]
+			if item_id.is_empty():
+				_add_output("  %s: [color=gray]empty[/color]" % slot_name)
+			else:
+				_add_output("  %s: [color=yellow]%s[/color]" % [slot_name, item_id])
+		_add_output("[color=gray]Usage: /unequip <slot> or /unequip all[/color]")
+		_add_output("Slots: main, off, head, chest, legs, cape, accessory, all")
+		return
+
+	var slot_arg = args[0].to_lower()
+
+	if slot_arg not in slot_names:
+		_add_output("[color=red]Unknown slot: %s[/color]" % slot_arg)
+		_add_output("Slots: main, off, head, chest, legs, cape, accessory, all")
+		return
+
+	var slot = slot_names[slot_arg]
+
+	if slot == -1:
+		# Unequip all
+		for s in Equipment.EquipmentSlot.values():
+			var item_id = equipment.get_equipped_item(s)
+			if not item_id.is_empty():
+				NetworkManager.rpc_request_unequip_slot.rpc_id(1, s)
+		_add_output("[color=green]Unequipped all items[/color]")
+	else:
+		var item_id = equipment.get_equipped_item(slot)
+		if item_id.is_empty():
+			_add_output("[color=yellow]Nothing equipped in that slot[/color]")
+		else:
+			NetworkManager.rpc_request_unequip_slot.rpc_id(1, slot)
+			_add_output("[color=green]Unequipped %s[/color]" % item_id)
+
 func _cmd_help() -> void:
 	_add_output("[color=cyan]Commands:[/color]")
 	_add_output("  /give <item> [amount] - Spawn items (e.g. /give 10 wood)")
@@ -506,9 +622,13 @@ func _cmd_help() -> void:
 	_add_output("  /kill - Kill nearby enemies")
 	_add_output("  /pos - Show position")
 	_add_output("  /time [hour] - Show/set time (0-24)")
-	_add_output("  /weather <type> - Change weather")
+	_add_output("  /weather - Show weather status (temp, cycling)")
+	_add_output("  /weather <type> - Set weather type")
+	_add_output("  /weather cycle - Toggle auto-cycling")
+	_add_output("  /weather next - Skip to next weather")
 	_add_output("  /snowpack <0-100> - Set snow ground coverage")
 	_add_output("  /eat <food> - Eat food for stat buffs")
+	_add_output("  /unequip <slot> - Unequip item (slot: main, off, head, chest, legs, cape, accessory, all)")
 	_add_output("  /items - List all items")
 	_add_output("  /enemies - List enemy types")
 	_add_output("[color=cyan]Performance:[/color]")

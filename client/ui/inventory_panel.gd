@@ -343,6 +343,21 @@ func _update_stats_display() -> void:
 				var display_name = item_data.display_name if item_data else item_id
 				text += "  %s: %s\n" % [slot_name, display_name]
 
+		# Show equipped accessory
+		text += "\n[b][color=magenta]ACCESSORY[/color][/b]\n"
+		var accessory_id = equipment.get_equipped_item(Equipment.EquipmentSlot.ACCESSORY)
+		if accessory_id.is_empty():
+			text += "  [color=gray]None[/color]\n"
+		else:
+			var accessory_data = ItemDatabase.get_item(accessory_id)
+			var accessory_name = accessory_data.display_name if accessory_data else accessory_id
+			text += "  %s\n" % accessory_name
+			# Show accessory effect if available
+			if accessory_data is ArmorData:
+				match accessory_data.set_bonus:
+					ArmorData.SetBonus.CYCLOPS_LIGHT:
+						text += "  [color=yellow]Effect: Glowing Body[/color]\n"
+
 		# Set bonus
 		var set_bonus = equipment.get_active_set_bonus()
 		text += "\n[b][color=lime]SET BONUS[/color][/b]\n"

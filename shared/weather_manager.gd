@@ -30,6 +30,83 @@ var weather_intensity: float = 0.0  # 0.0 to 1.0
 var target_intensity: float = 0.0
 var transition_speed: float = 0.3  # How fast weather changes
 
+# Weather cycling system
+var weather_cycle_enabled: bool = true
+var weather_timer: float = 0.0
+var next_weather_change: float = 300.0  # Seconds until next change (5 min default)
+const MIN_WEATHER_DURATION: float = 300.0  # 5 minutes minimum
+const MAX_WEATHER_DURATION: float = 900.0  # 15 minutes maximum
+const STORM_MIN_DURATION: float = 120.0  # Storms last at least 2 minutes
+const STORM_MAX_DURATION: float = 480.0  # Storms last at most 8 minutes
+
+# Temperature affects rain vs snow (0.0 = freezing, 1.0 = hot)
+var temperature: float = 0.6  # Default mild temperature
+var target_temperature: float = 0.6
+const FREEZING_THRESHOLD: float = 0.35  # Below this, precipitation is snow
+
+# Weather transition rules - which weather can transition to which
+# Format: source_weather -> [possible_targets with weights]
+var weather_transitions: Dictionary = {
+	WeatherType.CLEAR: {
+		WeatherType.PARTLY_CLOUDY: 0.7,
+		WeatherType.FOG: 0.3,  # Fog more likely in morning
+	},
+	WeatherType.PARTLY_CLOUDY: {
+		WeatherType.CLEAR: 0.4,
+		WeatherType.CLOUDY: 0.6,
+	},
+	WeatherType.CLOUDY: {
+		WeatherType.PARTLY_CLOUDY: 0.3,
+		WeatherType.OVERCAST: 0.4,
+		WeatherType.LIGHT_RAIN: 0.2,  # Will become snow if cold
+		WeatherType.FOG: 0.1,
+	},
+	WeatherType.OVERCAST: {
+		WeatherType.CLOUDY: 0.3,
+		WeatherType.LIGHT_RAIN: 0.4,  # Will become snow if cold
+		WeatherType.RAIN: 0.2,
+		WeatherType.FOG: 0.1,
+	},
+	WeatherType.LIGHT_RAIN: {
+		WeatherType.CLOUDY: 0.3,
+		WeatherType.RAIN: 0.5,
+		WeatherType.OVERCAST: 0.2,
+	},
+	WeatherType.RAIN: {
+		WeatherType.LIGHT_RAIN: 0.4,
+		WeatherType.HEAVY_RAIN: 0.4,
+		WeatherType.OVERCAST: 0.2,
+	},
+	WeatherType.HEAVY_RAIN: {
+		WeatherType.RAIN: 0.5,
+		WeatherType.STORM: 0.3,
+		WeatherType.OVERCAST: 0.2,
+	},
+	WeatherType.STORM: {
+		WeatherType.HEAVY_RAIN: 0.6,
+		WeatherType.RAIN: 0.4,
+	},
+	WeatherType.FOG: {
+		WeatherType.CLEAR: 0.5,
+		WeatherType.PARTLY_CLOUDY: 0.3,
+		WeatherType.CLOUDY: 0.2,
+	},
+	WeatherType.LIGHT_SNOW: {
+		WeatherType.CLOUDY: 0.3,
+		WeatherType.SNOW: 0.5,
+		WeatherType.OVERCAST: 0.2,
+	},
+	WeatherType.SNOW: {
+		WeatherType.LIGHT_SNOW: 0.4,
+		WeatherType.BLIZZARD: 0.3,
+		WeatherType.OVERCAST: 0.3,
+	},
+	WeatherType.BLIZZARD: {
+		WeatherType.SNOW: 0.7,
+		WeatherType.HEAVY_RAIN: 0.3,  # Warming up
+	},
+}
+
 # Cloud parameters (sent to sky shader)
 var cloud_coverage: float = 0.0  # 0.0 = clear, 1.0 = fully overcast
 var cloud_darkness: float = 0.0  # 0.0 = white fluffy, 1.0 = dark storm clouds
@@ -238,6 +315,10 @@ func _process(delta: float) -> void:
 	cloud_darkness = lerpf(cloud_darkness, target_cloud_darkness, delta * transition_speed)
 	fog_density = lerpf(fog_density, target_fog_density, delta * transition_speed)
 	weather_intensity = lerpf(weather_intensity, target_intensity, delta * transition_speed)
+	temperature = lerpf(temperature, target_temperature, delta * 0.1)  # Temperature changes slowly
+
+	# Update weather cycling
+	_update_weather_cycle(delta)
 
 	# Update visuals
 	_update_sky_shader()
@@ -260,6 +341,191 @@ func _follow_player() -> void:
 		rain_particles.global_position = Vector3(pos.x, pos.y + 20, pos.z)
 		# Snow emitter positioned so snow falls through player level to ground
 		snow_particles.global_position = Vector3(pos.x, pos.y + 15, pos.z)
+
+## Weather cycling system
+func _update_weather_cycle(delta: float) -> void:
+	if not weather_cycle_enabled:
+		return
+
+	# Update temperature based on time of day
+	_update_temperature()
+
+	# Update weather timer
+	weather_timer += delta
+	if weather_timer >= next_weather_change:
+		weather_timer = 0.0
+		_pick_next_weather()
+
+## Update temperature based on time of day
+## Coldest at 4am, warmest at 2pm
+func _update_temperature() -> void:
+	if not day_night_cycle:
+		return
+
+	var hour = day_night_cycle.current_hour
+
+	# Temperature curve: coldest at 4am (0.2), warmest at 2pm (0.8)
+	# Use cosine wave offset to peak at 14:00 (2pm)
+	var temp_hour = (hour - 14.0) / 24.0 * TAU  # Offset so peak is at 14:00
+	var base_temp = 0.5 + 0.3 * cos(temp_hour)  # Range 0.2 to 0.8
+
+	# Add some random variation (weather fronts)
+	var weather_variation = 0.0
+	if current_weather in [WeatherType.STORM, WeatherType.HEAVY_RAIN, WeatherType.BLIZZARD]:
+		weather_variation = -0.15  # Storms are colder
+	elif current_weather == WeatherType.CLEAR:
+		weather_variation = 0.1  # Clear skies warmer in day, colder at night
+		if hour < 6 or hour > 20:
+			weather_variation = -0.1
+
+	target_temperature = clampf(base_temp + weather_variation, 0.0, 1.0)
+
+## Pick the next weather based on transition rules and time of day
+func _pick_next_weather() -> void:
+	var transitions = weather_transitions.get(current_weather, {})
+	if transitions.is_empty():
+		# Fallback: go to partly cloudy
+		set_weather(WeatherType.PARTLY_CLOUDY)
+		next_weather_change = randf_range(MIN_WEATHER_DURATION, MAX_WEATHER_DURATION)
+		return
+
+	# Get time-of-day modifiers
+	var time_modifiers = _get_time_of_day_modifiers()
+
+	# Build weighted list with modifiers applied
+	var weighted_options: Array = []
+	var total_weight: float = 0.0
+
+	for weather_type in transitions:
+		var base_weight: float = transitions[weather_type]
+		var modifier: float = time_modifiers.get(weather_type, 1.0)
+
+		# Convert rain to snow (or vice versa) based on temperature
+		var final_weather = weather_type
+		if temperature < FREEZING_THRESHOLD:
+			# Cold: convert rain to snow
+			final_weather = _rain_to_snow(weather_type)
+		elif temperature > FREEZING_THRESHOLD + 0.1:
+			# Warm: convert snow to rain
+			final_weather = _snow_to_rain(weather_type)
+
+		var final_weight = base_weight * modifier
+		if final_weight > 0:
+			weighted_options.append({"weather": final_weather, "weight": final_weight})
+			total_weight += final_weight
+
+	# Pick random weather based on weights
+	var roll = randf() * total_weight
+	var cumulative: float = 0.0
+	var chosen_weather = WeatherType.PARTLY_CLOUDY
+
+	for option in weighted_options:
+		cumulative += option.weight
+		if roll <= cumulative:
+			chosen_weather = option.weather
+			break
+
+	# Set the new weather
+	set_weather(chosen_weather)
+
+	# Determine duration based on weather type
+	if chosen_weather in [WeatherType.STORM, WeatherType.BLIZZARD]:
+		next_weather_change = randf_range(STORM_MIN_DURATION, STORM_MAX_DURATION)
+	elif chosen_weather in [WeatherType.CLEAR, WeatherType.PARTLY_CLOUDY]:
+		# Good weather can last longer
+		next_weather_change = randf_range(MIN_WEATHER_DURATION, MAX_WEATHER_DURATION * 1.5)
+	else:
+		next_weather_change = randf_range(MIN_WEATHER_DURATION, MAX_WEATHER_DURATION)
+
+	print("[WeatherManager] Next weather change in %.0f seconds" % next_weather_change)
+
+## Get weight modifiers based on time of day
+func _get_time_of_day_modifiers() -> Dictionary:
+	var modifiers: Dictionary = {}
+
+	if not day_night_cycle:
+		return modifiers
+
+	var hour = day_night_cycle.current_hour
+
+	# Early morning (5-8am): Fog is much more likely, storms unlikely
+	if hour >= 5 and hour < 8:
+		modifiers[WeatherType.FOG] = 3.0
+		modifiers[WeatherType.STORM] = 0.2
+		modifiers[WeatherType.BLIZZARD] = 0.2
+		modifiers[WeatherType.CLEAR] = 0.7  # Morning often starts clear
+
+	# Morning (8-11am): Fog fades, weather stabilizing
+	elif hour >= 8 and hour < 11:
+		modifiers[WeatherType.FOG] = 1.5
+		modifiers[WeatherType.CLEAR] = 1.3
+		modifiers[WeatherType.PARTLY_CLOUDY] = 1.3
+
+	# Midday (11am-2pm): Generally stable, less extreme weather
+	elif hour >= 11 and hour < 14:
+		modifiers[WeatherType.CLEAR] = 1.2
+		modifiers[WeatherType.PARTLY_CLOUDY] = 1.2
+		modifiers[WeatherType.STORM] = 0.5
+		modifiers[WeatherType.BLIZZARD] = 0.5
+
+	# Afternoon (2-6pm): Storm chance increases (convective storms)
+	elif hour >= 14 and hour < 18:
+		modifiers[WeatherType.STORM] = 2.0
+		modifiers[WeatherType.HEAVY_RAIN] = 1.5
+		modifiers[WeatherType.BLIZZARD] = 1.5
+		modifiers[WeatherType.FOG] = 0.3
+
+	# Evening (6-9pm): Weather tends to calm down
+	elif hour >= 18 and hour < 21:
+		modifiers[WeatherType.CLEAR] = 1.5
+		modifiers[WeatherType.PARTLY_CLOUDY] = 1.3
+		modifiers[WeatherType.STORM] = 0.5
+		modifiers[WeatherType.HEAVY_RAIN] = 0.7
+
+	# Night (9pm-5am): Can have any weather, slight storm reduction
+	else:
+		modifiers[WeatherType.STORM] = 0.7
+		modifiers[WeatherType.FOG] = 1.3  # Night fog
+		modifiers[WeatherType.CLEAR] = 1.2  # Clear nights
+
+	return modifiers
+
+## Convert rain weather to equivalent snow weather
+func _rain_to_snow(weather: WeatherType) -> WeatherType:
+	match weather:
+		WeatherType.LIGHT_RAIN:
+			return WeatherType.LIGHT_SNOW
+		WeatherType.RAIN:
+			return WeatherType.SNOW
+		WeatherType.HEAVY_RAIN:
+			return WeatherType.SNOW
+		WeatherType.STORM:
+			return WeatherType.BLIZZARD
+	return weather
+
+## Convert snow weather to equivalent rain weather
+func _snow_to_rain(weather: WeatherType) -> WeatherType:
+	match weather:
+		WeatherType.LIGHT_SNOW:
+			return WeatherType.LIGHT_RAIN
+		WeatherType.SNOW:
+			return WeatherType.RAIN
+		WeatherType.BLIZZARD:
+			return WeatherType.STORM
+	return weather
+
+## Enable or disable weather cycling
+func set_weather_cycle_enabled(enabled: bool) -> void:
+	weather_cycle_enabled = enabled
+	print("[WeatherManager] Weather cycling %s" % ("enabled" if enabled else "disabled"))
+
+## Get current temperature (0.0 = freezing, 1.0 = hot)
+func get_temperature() -> float:
+	return temperature
+
+## Check if it's currently freezing
+func is_freezing() -> bool:
+	return temperature < FREEZING_THRESHOLD
 
 func _update_sky_shader() -> void:
 	if not sky_material:
