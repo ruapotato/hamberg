@@ -357,7 +357,7 @@ func _physics_process(delta: float) -> void:
 			last_synced_position = global_position
 			var position_data := {
 				"position": global_position,
-				"rotation": rotation.y,
+				"rotation": global_rotation.y,
 				"velocity": velocity,
 				"animation_state": current_animation_state,
 				# Combat state for other clients to see attacks/blocking
@@ -627,13 +627,15 @@ func _apply_movement(input_data: Dictionary, delta: float) -> void:
 		if weapon_wrist_pivot:
 			weapon_wrist_pivot.rotation_degrees = Vector3.ZERO
 
-	# Rotate VISUAL body to face movement direction (not the CharacterBody3D!)
+	# Rotate body to face movement direction
 	# UNLESS blocking, lunging, or spinning - those animations control body rotation
 	if direction and body_container and not is_blocking and not is_lunging and not is_spinning:
 		var horizontal_speed_check = Vector2(velocity.x, velocity.z).length()
 		if horizontal_speed_check > 0.1:
 			var target_rotation = atan2(direction.x, direction.z)
 			body_container.rotation.y = lerp_angle(body_container.rotation.y, target_rotation, delta * 10.0)
+			# Also update global rotation for network sync
+			global_rotation.y = body_container.rotation.y
 
 func _handle_step_up(_delta: float) -> void:
 	"""Handle stepping up small ledges like floor boards and stairs - smooth version"""
@@ -832,8 +834,8 @@ func _interpolate_remote_player(delta: float) -> void:
 
 	# Apply rotation to body_container for visual (remote players don't run _physics_process)
 	if body_container:
-		# Smooth rotation sync - add PI to match local player mesh facing
-		body_container.rotation.y = lerp_angle(body_container.rotation.y, target_rot + PI, 0.3)
+		# Smooth rotation sync - rotation is now sent from body_container directly
+		body_container.rotation.y = lerp_angle(body_container.rotation.y, target_rot, 0.3)
 
 	# Apply animations for remote players (including combat animations)
 	_update_remote_player_animations(delta)
@@ -1185,6 +1187,7 @@ func _handle_attack() -> void:
 		if camera_controller and "camera_rotation" in camera_controller:
 			var camera_yaw = camera_controller.camera_rotation.x  # Independent yaw
 			body_container.rotation.y = camera_yaw + PI  # Add PI to account for mesh facing +Z (needs 180° flip)
+			global_rotation.y = body_container.rotation.y
 
 	# Check if this is a ranged weapon (magic or ranged)
 	var is_ranged = weapon_data.weapon_type == WeaponData.WeaponType.MAGIC or weapon_data.weapon_type == WeaponData.WeaponType.RANGED
@@ -1326,6 +1329,7 @@ func _special_attack_knife_lunge(weapon_data: WeaponData, camera: Camera3D) -> v
 		if camera_controller and "camera_rotation" in camera_controller:
 			var camera_yaw = camera_controller.camera_rotation.x
 			body_container.rotation.y = camera_yaw + PI  # Instant snap to face lunge direction
+			global_rotation.y = body_container.rotation.y
 			print("[Player] Snapped mesh to face lunge direction: %.2f radians" % body_container.rotation.y)
 
 	# Rotate knife to 0 degrees (straight/horizontal) for lunge
@@ -1359,6 +1363,7 @@ func _special_attack_sword_stab(weapon_data: WeaponData, camera: Camera3D) -> vo
 		if camera_controller and "camera_rotation" in camera_controller:
 			var camera_yaw = camera_controller.camera_rotation.x
 			body_container.rotation.y = camera_yaw + PI
+			global_rotation.y = body_container.rotation.y
 
 	# Rotate sword to 0 degrees (straight/horizontal) for jab
 	if equipped_weapon_visual:
@@ -1399,6 +1404,7 @@ func _special_attack_axe_spin(weapon_data: WeaponData, camera: Camera3D) -> void
 		if camera_controller and "camera_rotation" in camera_controller:
 			var camera_yaw = camera_controller.camera_rotation.x
 			body_container.rotation.y = camera_yaw + PI
+			global_rotation.y = body_container.rotation.y
 
 	SoundManager.play_sound_varied("sword_swing", global_position)
 
@@ -1474,6 +1480,7 @@ func _special_attack_default(weapon_data: WeaponData, camera: Camera3D) -> void:
 		if camera_controller and "camera_rotation" in camera_controller:
 			var camera_yaw = camera_controller.camera_rotation.x
 			body_container.rotation.y = camera_yaw + PI
+			global_rotation.y = body_container.rotation.y
 
 	# Check if ranged weapon
 	var is_ranged = weapon_data.weapon_type == WeaponData.WeaponType.MAGIC or weapon_data.weapon_type == WeaponData.WeaponType.RANGED
