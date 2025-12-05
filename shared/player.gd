@@ -1250,6 +1250,10 @@ func _handle_special_attack() -> void:
 	if is_blocking:
 		return
 
+	# Prevent lunge spam - can't start a new lunge until landed
+	if is_lunging or was_in_air_lunging:
+		return
+
 	# Get equipped weapon (or default to fists)
 	var weapon_data = null  # WeaponData
 
@@ -2415,84 +2419,151 @@ func _update_body_animations(delta: float) -> void:
 			# Right arm (weapon) stays relaxed (already set above)
 			# No arm swinging during defensive movement
 
-			# Less torso sway when defending
+			# Less torso sway when defending, reset scales
 			if torso:
 				var sway = sin(animation_phase) * 0.02
 				torso.rotation.z = sway
+				torso.rotation.y = lerp(torso.rotation.y, 0.0, delta * 10.0)
+				torso.scale.x = lerp(torso.scale.x, 1.0, delta * 10.0)
+				torso.scale.z = lerp(torso.scale.z, 1.0, delta * 10.0)
 
-			# Minimal head bob
+			# Reset hips from walking
+			if hips:
+				hips.rotation.y = lerp(hips.rotation.y, 0.0, delta * 10.0)
+				hips.rotation.z = lerp(hips.rotation.z, 0.0, delta * 10.0)
+
+			# Head stays stable when blocking
 			if head:
-				var bob = sin(animation_phase * 2.0) * 0.008
-				head.position.y = head_height + bob
+				head.position.y = lerp(head.position.y, head_height, delta * 10.0)
+				head.rotation.y = lerp(head.rotation.y, 0.0, delta * 8.0)
 		else:
-			# Normal walking animation
-			var leg_angle = sin(animation_phase) * 0.3
-			var arm_angle = sin(animation_phase) * 0.2
+			# Enhanced walking animation - smooth and refined
+			var leg_angle = sin(animation_phase) * 0.35  # Slightly more leg swing
+			var arm_angle = sin(animation_phase + 0.2) * 0.25  # Arms slightly ahead of legs, more swing
 
 			# Legs swing opposite with knee articulation
 			left_leg.rotation.x = leg_angle
 			right_leg.rotation.x = -leg_angle
 
-			# Add natural knee bend - knees bend more when leg is forward
-			var knee_angle = sin(animation_phase) * 0.5
+			# Enhanced knee bend - more natural flex during stride
+			var knee_phase = animation_phase + 0.5  # Knees bend slightly after leg moves forward
+			var left_knee_bend = max(0.0, sin(knee_phase) * 0.6)  # Bend when leg forward
+			var right_knee_bend = max(0.0, -sin(knee_phase) * 0.6)
 			if left_knee:
-				left_knee.rotation.x = max(0.0, knee_angle)  # Only bend forward
+				left_knee.rotation.x = left_knee_bend
 			if right_knee:
-				right_knee.rotation.x = max(0.0, -knee_angle)  # Only bend forward
+				right_knee.rotation.x = right_knee_bend
 
-			# Arms swing opposite to legs with elbow articulation (natural walking motion)
+			# Arms swing opposite to legs with natural elbow articulation
 			if left_arm and not is_blocking:
-				left_arm.rotation.x = -arm_angle  # Left arm swings opposite to left leg
+				left_arm.rotation.x = -arm_angle
+				left_arm.rotation.z = sin(animation_phase) * 0.03  # Subtle sideways motion
 				if left_elbow:
-					# Elbow bends slightly when arm is back
-					left_elbow.rotation.x = max(0.0, arm_angle * 0.8)
+					# Elbow bends when arm swings back (arm_angle negative = arm back)
+					# Elbow stays straight when arm forward
+					left_elbow.rotation.x = max(0.0, -arm_angle * 0.7)
 			if right_arm and not is_attacking and not is_special_attacking and not is_blocking:
-				right_arm.rotation.x = arm_angle   # Right arm swings opposite to right leg
+				right_arm.rotation.x = arm_angle
+				right_arm.rotation.z = -sin(animation_phase) * 0.03
 				if right_elbow:
-					# Elbow bends slightly when arm is back
-					right_elbow.rotation.x = max(0.0, -arm_angle * 0.8)
+					# Elbow bends when arm swings back (arm_angle positive = arm back)
+					right_elbow.rotation.x = max(0.0, arm_angle * 0.7)
 
-			# Add subtle torso sway
+			# Hip rotation - hips twist with stride (key to natural walk)
+			if hips:
+				var hip_twist = sin(animation_phase) * 0.08  # Rotate around Y axis
+				hips.rotation.y = hip_twist
+				# Slight hip tilt (weight shift side to side)
+				hips.rotation.z = sin(animation_phase) * 0.03
+
+			# Torso counter-rotation (shoulders twist opposite to hips)
 			if torso:
-				var sway = sin(animation_phase) * 0.05
-				torso.rotation.z = sway
+				var torso_twist = -sin(animation_phase) * 0.06  # Counter to hips
+				torso.rotation.y = torso_twist
+				# Subtle side sway
+				torso.rotation.z = sin(animation_phase) * 0.04
+				# Reset breathing scale from idle
+				torso.scale.x = lerp(torso.scale.x, 1.0, delta * 10.0)
+				torso.scale.z = lerp(torso.scale.z, 1.0, delta * 10.0)
 
-			# Add subtle head bob
+			# Vertical body bob - whole body moves up/down with steps
+			if body_container:
+				var step_bob = abs(sin(animation_phase)) * 0.02  # Bob up at each step
+				body_container.position.y = step_bob
+
+			# Head stays stable (humans naturally stabilize head while walking)
 			if head:
-				var bob = sin(animation_phase * 2.0) * 0.015
-				head.position.y = head_height + bob
+				# Keep head at fixed height - no bobbing
+				head.position.y = lerp(head.position.y, head_height, delta * 10.0)
+				# Reset idle head look
+				head.rotation.y = lerp(head.rotation.y, 0.0, delta * 8.0)
+			# Neck counter-rotates to keep head level despite torso sway
+			if neck:
+				neck.rotation.z = lerp(neck.rotation.z, -sin(animation_phase) * 0.03, delta * 10.0)
 	else:
-		# Standing still - return to neutral and reset animation phase
+		# Enhanced idle animation - breathing and subtle life
+		# Use time-based animation for idle (not phase-based)
+		var idle_time = Time.get_ticks_msec() / 1000.0
+
+		# Breathing cycle (slow, natural rhythm ~4 seconds per breath)
+		var breath_cycle = sin(idle_time * 1.6) * 0.5 + 0.5  # 0 to 1, smooth
+		var breath_intensity = 0.015  # Subtle chest expansion
+
+		# Reset walking phase
 		animation_phase = 0.0
 
-		left_leg.rotation.x = lerp(left_leg.rotation.x, 0.0, delta * 5.0)
-		right_leg.rotation.x = lerp(right_leg.rotation.x, 0.0, delta * 5.0)
+		# Legs return to natural stance with slight asymmetry
+		var stance_offset = sin(idle_time * 0.3) * 0.02  # Very slow weight shift
+		left_leg.rotation.x = lerp(left_leg.rotation.x, stance_offset, delta * 5.0)
+		right_leg.rotation.x = lerp(right_leg.rotation.x, -stance_offset * 0.5, delta * 5.0)
 
-		# Reset knee joints
+		# Knees slightly relaxed (not locked straight)
 		if left_knee:
-			left_knee.rotation.x = lerp(left_knee.rotation.x, 0.0, delta * 5.0)
+			left_knee.rotation.x = lerp(left_knee.rotation.x, 0.05, delta * 5.0)
 		if right_knee:
-			right_knee.rotation.x = lerp(right_knee.rotation.x, 0.0, delta * 5.0)
+			right_knee.rotation.x = lerp(right_knee.rotation.x, 0.05, delta * 5.0)
 
-		# Don't reset arms if blocking, attacking, or special attacking
-		# Left arm: reset unless blocking (shield raised)
+		# Arms hang naturally with subtle sway
 		if left_arm and not is_blocking:
-			left_arm.rotation.x = lerp(left_arm.rotation.x, 0.0, delta * 5.0)
-			left_arm.rotation.z = lerp(left_arm.rotation.z, 0.0, delta * 5.0)
+			var left_sway = sin(idle_time * 0.7) * 0.02
+			left_arm.rotation.x = lerp(left_arm.rotation.x, 0.05 + left_sway, delta * 5.0)  # Slightly forward
+			left_arm.rotation.z = lerp(left_arm.rotation.z, -0.08, delta * 5.0)  # Slightly out from body
 			if left_elbow:
-				left_elbow.rotation.x = lerp(left_elbow.rotation.x, 0.0, delta * 5.0)
-		# Right arm: reset unless attacking or special attacking (weapon swinging)
+				left_elbow.rotation.x = lerp(left_elbow.rotation.x, 0.1, delta * 5.0)  # Slight natural bend
 		if right_arm and not is_attacking and not is_special_attacking:
-			right_arm.rotation.x = lerp(right_arm.rotation.x, 0.0, delta * 5.0)
-			right_arm.rotation.z = lerp(right_arm.rotation.z, 0.0, delta * 5.0)
+			var right_sway = sin(idle_time * 0.7 + 1.0) * 0.02  # Offset from left
+			right_arm.rotation.x = lerp(right_arm.rotation.x, 0.05 + right_sway, delta * 5.0)
+			right_arm.rotation.z = lerp(right_arm.rotation.z, 0.08, delta * 5.0)
 			if right_elbow:
-				right_elbow.rotation.x = lerp(right_elbow.rotation.x, 0.0, delta * 5.0)
+				right_elbow.rotation.x = lerp(right_elbow.rotation.x, 0.1, delta * 5.0)
 
+		# Torso breathing - chest expands/contracts
 		if torso:
+			var chest_expand = breath_cycle * breath_intensity
+			torso.scale.z = lerp(torso.scale.z, 1.0 + chest_expand, delta * 8.0)
+			torso.scale.x = lerp(torso.scale.x, 1.0 + chest_expand * 0.5, delta * 8.0)
+			# Reset any rotation from walking
+			torso.rotation.y = lerp(torso.rotation.y, 0.0, delta * 5.0)
 			torso.rotation.z = lerp(torso.rotation.z, 0.0, delta * 5.0)
 
+		# Hips reset from walking
+		if hips:
+			hips.rotation.y = lerp(hips.rotation.y, 0.0, delta * 5.0)
+			hips.rotation.z = lerp(hips.rotation.z, 0.0, delta * 5.0)
+
+		# Shoulders rise slightly with breath
+		if body_container:
+			var shoulder_rise = breath_cycle * 0.008
+			body_container.position.y = lerp(body_container.position.y, shoulder_rise, delta * 8.0)
+
+		# Head stays stable at rest
 		if head:
+			head.rotation.y = lerp(head.rotation.y, 0.0, delta * 3.0)
 			head.position.y = lerp(head.position.y, head_height, delta * 5.0)
+
+		# Neck resets
+		if neck:
+			neck.rotation.z = lerp(neck.rotation.z, 0.0, delta * 5.0)
 
 ## Called after camera controller is attached
 func setup_viewmodel() -> void:
