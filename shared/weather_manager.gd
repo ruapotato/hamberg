@@ -408,19 +408,19 @@ func _add_footprint(world_pos: Vector2) -> void:
 
 	# Draw footprint as simple circle
 	# With 512px texture covering 64 world units, each pixel = 0.125 world units
-	var radius = 2  # pixels (~0.25 world units diameter)
+	var radius: float = 1.5  # pixels (~0.2 world units diameter)
 
-	for dx in range(-radius, radius + 1):
-		for dy in range(-radius, radius + 1):
+	for dx in range(-2, 3):
+		for dy in range(-2, 3):
 			var fx = px + dx
 			var fy = py + dy
 			if fx >= 0 and fx < FOOTPRINT_TEXTURE_SIZE and fy >= 0 and fy < FOOTPRINT_TEXTURE_SIZE:
 				var dist = sqrt(float(dx * dx + dy * dy))
 				if dist <= radius:
-					# Darker in center (0.05), lighter at edges (0.4)
-					var intensity = 0.05 + 0.35 * (dist / radius)
+					# Darker in center (0.1), lighter at edges (0.5)
+					var intensity = 0.1 + 0.4 * (dist / radius)
 					var current = footprint_image.get_pixel(fx, fy).r
-					footprint_image.set_pixel(fx, fy, Color(min(current, intensity), 0, 0, 1))
+					footprint_image.set_pixel(fx, fy, Color(minf(current, intensity), 0, 0, 1))
 
 func _fade_footprints(delta: float) -> void:
 	# Gradually fill footprints back in with snow
