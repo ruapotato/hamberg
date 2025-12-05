@@ -13,6 +13,11 @@ uniform float sun_size : hint_range(0.0, 1.0) = 0.05;
 uniform float star_brightness : hint_range(0.0, 1.0) = 0.0;
 uniform float star_density : hint_range(0.0, 1.0) = 0.5;
 
+// Cloud parameters (set by WeatherManager)
+uniform float cloud_coverage : hint_range(0.0, 1.0) = 0.0;
+uniform float cloud_darkness : hint_range(0.0, 1.0) = 0.0;
+uniform float cloud_speed : hint_range(0.0, 1.0) = 0.02;
+
 // Hash functions for star generation
 float hash(vec3 p) {
 	p = fract(p * vec3(443.897, 441.423, 437.195));
@@ -22,6 +27,82 @@ float hash(vec3 p) {
 
 float hash2(vec2 p) {
 	return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+}
+
+// Smooth noise for clouds
+float noise2D(vec2 p) {
+	vec2 i = floor(p);
+	vec2 f = fract(p);
+	f = f * f * (3.0 - 2.0 * f);  // Smoothstep
+
+	float a = hash2(i);
+	float b = hash2(i + vec2(1.0, 0.0));
+	float c = hash2(i + vec2(0.0, 1.0));
+	float d = hash2(i + vec2(1.0, 1.0));
+
+	return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+}
+
+// Fractal Brownian Motion for cloud detail
+float fbm(vec2 p, int octaves) {
+	float value = 0.0;
+	float amplitude = 0.5;
+	float frequency = 1.0;
+	float total_amplitude = 0.0;
+
+	for (int i = 0; i < octaves; i++) {
+		value += amplitude * noise2D(p * frequency);
+		total_amplitude += amplitude;
+		amplitude *= 0.5;
+		frequency *= 2.0;
+	}
+
+	return value / total_amplitude;
+}
+
+// Generate volumetric-looking clouds with realistic movement
+float clouds(vec3 dir, float time) {
+	// Only render clouds above horizon
+	if (dir.y < 0.02) return 0.0;
+
+	// Project direction onto a plane for 2D cloud sampling
+	float cloud_height = 1.0 / max(dir.y, 0.08);
+	vec2 cloud_pos = dir.xz * cloud_height * 1.5;
+
+	// Multiple cloud layers moving at different speeds (parallax effect)
+	// Base layer - large slow-moving clouds
+	vec2 layer1_pos = cloud_pos * 0.5 + vec2(time * cloud_speed * 0.3, time * cloud_speed * 0.1);
+	float layer1 = fbm(layer1_pos, 4);
+
+	// Middle layer - medium clouds, slightly faster
+	vec2 layer2_pos = cloud_pos * 0.8 + vec2(time * cloud_speed * 0.5, time * cloud_speed * 0.15);
+	layer2_pos += vec2(sin(time * 0.1) * 0.2, cos(time * 0.08) * 0.15);  // Gentle drift
+	float layer2 = fbm(layer2_pos, 5);
+
+	// Detail layer - small wisps, fastest movement
+	vec2 layer3_pos = cloud_pos * 2.0 + vec2(time * cloud_speed * 0.8, time * cloud_speed * 0.3);
+	float layer3 = fbm(layer3_pos, 3);
+
+	// Combine layers with weighting
+	float cloud_noise = layer1 * 0.5 + layer2 * 0.35 + layer3 * 0.15;
+
+	// Shape clouds based on coverage
+	float cloud_threshold = 1.0 - cloud_coverage * 1.1;  // Slightly more coverage
+	float cloud_value = smoothstep(cloud_threshold, cloud_threshold + 0.25, cloud_noise);
+
+	// Add billowy detail at edges
+	float edge_detail = fbm(cloud_pos * 4.0 + vec2(time * cloud_speed * 0.6, 0.0), 3);
+	cloud_value = cloud_value * (0.75 + edge_detail * 0.25);
+
+	// Soft fade near horizon for atmospheric perspective
+	float horizon_fade = smoothstep(0.02, 0.25, dir.y);
+	cloud_value *= horizon_fade;
+
+	// Add subtle variation to prevent tiling look
+	float variation = fbm(cloud_pos * 0.2 + vec2(time * 0.01, 0.0), 2);
+	cloud_value *= 0.9 + variation * 0.1;
+
+	return clamp(cloud_value, 0.0, 1.0);
 }
 
 // Generate stars using 3D grid for stable positions regardless of camera rotation
@@ -100,10 +181,39 @@ void sky() {
 		sky += sun_color * (sun + sun_glow) * LIGHT0_ENERGY;
 	}
 
-	// Stars (only visible at night, above horizon)
+	// Stars (only visible at night, above horizon, reduced by clouds)
 	if (star_brightness > 0.0 && dir.y > 0.0) {
 		float star_value = stars(dir, TIME) * star_brightness;
-		sky += vec3(star_value);
+		// Clouds block stars
+		float star_cloud_block = 1.0 - cloud_coverage * 0.9;
+		sky += vec3(star_value * star_cloud_block);
+	}
+
+	// Clouds (only above horizon)
+	if (cloud_coverage > 0.01 && dir.y > 0.0) {
+		float cloud_value = clouds(dir, TIME);
+
+		// Cloud color: white when lit, darker with cloud_darkness
+		vec3 cloud_lit_color = vec3(1.0, 1.0, 1.0);  // Bright white clouds
+		vec3 cloud_dark_color = vec3(0.4, 0.42, 0.45);  // Dark storm clouds
+
+		// Mix based on darkness parameter
+		vec3 cloud_base_color = mix(cloud_lit_color, cloud_dark_color, cloud_darkness);
+
+		// Clouds are lit by sun - brighter on sun side
+		float sun_illumination = max(0.0, dot(dir, LIGHT0_DIRECTION));
+		vec3 cloud_color = cloud_base_color * (0.7 + sun_illumination * 0.3);
+
+		// At night, clouds are darker and slightly blue-tinted
+		float night_factor = 1.0 - clamp(LIGHT0_ENERGY, 0.0, 1.0);
+		cloud_color = mix(cloud_color, vec3(0.15, 0.17, 0.25), night_factor * 0.7);
+
+		// Blend clouds over sky
+		sky = mix(sky, cloud_color, cloud_value * 0.9);
+
+		// Cloud shadows on sun - sun is dimmer behind thick clouds
+		float cloud_sun_occlusion = cloud_value * cloud_coverage;
+		// Already handled by mixing, but reduce sun glow through clouds
 	}
 
 	COLOR = sky;

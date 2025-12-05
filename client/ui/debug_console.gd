@@ -23,7 +23,7 @@ var god_mode: bool = false
 var browsing_history: bool = false
 
 # Autocomplete data
-var all_commands: Array[String] = ["/give", "/spawn", "/tp", "/heal", "/god", "/gold", "/clear", "/kill", "/pos", "/items", "/enemies", "/time", "/help", "/perf", "/toggle", "/eat"]
+var all_commands: Array[String] = ["/give", "/spawn", "/tp", "/heal", "/god", "/gold", "/clear", "/kill", "/pos", "/items", "/enemies", "/time", "/weather", "/help", "/perf", "/toggle", "/eat"]
 
 # Performance toggle states
 var perf_toggles: Dictionary = {
@@ -38,6 +38,7 @@ var perf_toggles: Dictionary = {
 var all_items: Array[String] = []
 var all_enemies: Array[String] = ["gahnome", "sporeling", "deer", "pig", "sheep", "cyclops"]
 var all_foods: Array[String] = ["cooked_venison", "cooked_pork", "cooked_mutton"]
+var all_weather: Array[String] = ["clear", "partly_cloudy", "cloudy", "overcast", "light_rain", "rain", "heavy_rain", "storm", "fog", "light_snow", "snow", "blizzard"]
 
 # Reference to client for accessing player and inventory
 var client_ref: Node = null
@@ -165,6 +166,10 @@ func _do_autocomplete() -> void:
 			for food in all_foods:
 				if arg_prefix.is_empty() or food.begins_with(arg_prefix):
 					suggestions.append(food)
+		elif cmd in ["/weather", "weather"]:
+			for weather in all_weather:
+				if arg_prefix.is_empty() or weather.begins_with(arg_prefix):
+					suggestions.append(weather)
 
 		if suggestions.size() == 1:
 			parts[parts.size() - 1] = suggestions[0]
@@ -233,6 +238,8 @@ func _execute_command(text: String) -> void:
 			_cmd_toggle(args)
 		"/eat", "eat":
 			_cmd_eat(args)
+		"/weather", "weather":
+			_cmd_weather(args)
 		_:
 			_add_output("[color=red]Unknown command: %s[/color]" % cmd)
 
@@ -422,6 +429,36 @@ func _cmd_eat(args: Array) -> void:
 	else:
 		_add_output("[color=yellow]Couldn't eat %s (already active or full)[/color]" % food_name)
 
+func _cmd_weather(args: Array) -> void:
+	# Find weather manager
+	var weather_managers = get_tree().get_nodes_in_group("weather_manager")
+	var weather_manager: Node = null
+	if weather_managers.size() > 0:
+		weather_manager = weather_managers[0]
+
+	if not weather_manager:
+		_add_output("[color=red]WeatherManager not found![/color]")
+		return
+
+	if args.is_empty():
+		# Show current weather and list options
+		var current = weather_manager.get_weather_name() if weather_manager.has_method("get_weather_name") else "unknown"
+		_add_output("Current weather: [color=cyan]%s[/color]" % current)
+		_add_output("[color=gray]Usage: /weather <type>[/color]")
+		_add_output("Types: clear, partly_cloudy, cloudy, overcast")
+		_add_output("       light_rain, rain, heavy_rain, storm")
+		_add_output("       fog, light_snow, snow, blizzard")
+		return
+
+	# Set weather
+	var weather_name = args[0].to_lower()
+	if weather_manager.has_method("set_weather_by_name"):
+		if weather_manager.set_weather_by_name(weather_name):
+			_add_output("[color=green]Weather set to: %s[/color]" % weather_name)
+		else:
+			_add_output("[color=red]Unknown weather type: %s[/color]" % weather_name)
+			_add_output("Types: clear, partly_cloudy, cloudy, overcast, light_rain, rain, heavy_rain, storm, fog, light_snow, snow, blizzard")
+
 func _cmd_help() -> void:
 	_add_output("[color=cyan]Commands:[/color]")
 	_add_output("  /give <item> [amount] - Spawn items (e.g. /give 10 wood)")
@@ -434,6 +471,7 @@ func _cmd_help() -> void:
 	_add_output("  /kill - Kill nearby enemies")
 	_add_output("  /pos - Show position")
 	_add_output("  /time [hour] - Show/set time (0-24)")
+	_add_output("  /weather <type> - Change weather")
 	_add_output("  /eat <food> - Eat food for stat buffs")
 	_add_output("  /items - List all items")
 	_add_output("  /enemies - List enemy types")

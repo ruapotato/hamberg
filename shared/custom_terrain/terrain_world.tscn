@@ -1,8 +1,9 @@
-[gd_scene load_steps=8 format=3 uid="uid://custom_terrain_world"]
+[gd_scene load_steps=9 format=3 uid="uid://custom_terrain_world"]
 
 [ext_resource type="Script" path="res://shared/custom_terrain/terrain_world.gd" id="1"]
 [ext_resource type="Script" path="res://shared/day_night_cycle.gd" id="2"]
 [ext_resource type="Shader" path="res://shared/custom_terrain/night_sky.gdshader" id="3"]
+[ext_resource type="Script" path="res://shared/weather_manager.gd" id="4"]
 
 [sub_resource type="ShaderMaterial" id="SkyShaderMaterial_1"]
 shader = ExtResource("3")
@@ -13,6 +14,9 @@ shader_parameter/sun_color = Vector3(1.0, 0.95, 0.8)
 shader_parameter/sun_size = 0.04
 shader_parameter/star_brightness = 0.0
 shader_parameter/star_density = 0.5
+shader_parameter/cloud_coverage = 0.0
+shader_parameter/cloud_darkness = 0.0
+shader_parameter/cloud_speed = 0.04
 
 [sub_resource type="Sky" id="Sky_1"]
 sky_material = SubResource("SkyShaderMaterial_1")
@@ -60,3 +64,6 @@ environment = SubResource("Environment_1")
 script = ExtResource("2")
 day_length_minutes = 20.0
 start_hour = 8.0
+
+[node name="WeatherManager" type="Node" parent="."]
+script = ExtResource("4")
