@@ -53,7 +53,10 @@ const FOOTPRINT_TEXTURE_SIZE: int = 512  # High resolution for small footprints
 const FOOTPRINT_WORLD_SIZE: float = 64.0  # World units covered by texture
 var footprint_center: Vector2 = Vector2.ZERO  # Center position in world
 var last_footprint_pos: Vector2 = Vector2.ZERO  # Last position a footprint was placed
+var last_footprint_dir: Vector2 = Vector2.ZERO  # Direction player was moving
+var is_left_foot: bool = false  # Alternate left/right foot
 const FOOTPRINT_SPACING: float = 0.5  # Distance between footprints
+const FOOTPRINT_STRIDE_WIDTH: float = 0.15  # How far left/right feet are offset
 const FOOTPRINT_FADE_RATE: float = 0.3  # How fast footprints fill back in with snow
 var footprint_update_timer: float = 0.0
 const FOOTPRINT_UPDATE_INTERVAL: float = 0.1  # Update footprint texture every 0.1s
@@ -372,8 +375,18 @@ func _update_footprints(delta: float) -> void:
 	if player_on_ground:
 		var move_dist = last_footprint_pos.distance_to(player_pos_2d)
 		if move_dist >= FOOTPRINT_SPACING:
-			_add_footprint(player_pos_2d)
+			# Calculate movement direction
+			var move_dir = (player_pos_2d - last_footprint_pos).normalized()
+			if move_dir.length() > 0.1:
+				last_footprint_dir = move_dir
+
+			# Calculate perpendicular offset for left/right foot
+			var perp = Vector2(-last_footprint_dir.y, last_footprint_dir.x)  # Perpendicular to movement
+			var foot_offset = perp * FOOTPRINT_STRIDE_WIDTH * (1.0 if is_left_foot else -1.0)
+
+			_add_footprint(player_pos_2d + foot_offset)
 			last_footprint_pos = player_pos_2d
+			is_left_foot = not is_left_foot  # Alternate feet
 
 	# Periodically fade footprints (snow fills them in) and update texture
 	footprint_update_timer += delta
