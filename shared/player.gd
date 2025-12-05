@@ -2370,6 +2370,7 @@ func _update_body_animations(delta: float) -> void:
 			var camera_yaw = camera_controller.camera_rotation.x
 			var target_rotation = camera_yaw + PI  # Add PI to account for mesh facing +Z (needs 180° flip)
 			body_container.rotation.y = lerp_angle(body_container.rotation.y, target_rotation, delta * 10.0)
+			global_rotation.y = body_container.rotation.y
 
 	# Movement animations (walking or defensive shuffle)
 	var horizontal_speed = Vector2(velocity.x, velocity.z).length()
