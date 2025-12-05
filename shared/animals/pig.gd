@@ -323,8 +323,8 @@ func _start_landing() -> void:
 	print("[Pig] Landing...")
 
 ## Override take_damage to trigger flight
-func take_damage(damage: float, attacker = null, knockback_direction: Vector3 = Vector3.ZERO, damage_type: int = -1) -> void:
-	super.take_damage(damage, attacker, knockback_direction, damage_type)
+func take_damage(damage: float, knockback: float = 0.0, direction: Vector3 = Vector3.ZERO, damage_type: int = -1, attacker_peer_id: int = 0) -> void:
+	super.take_damage(damage, knockback, direction, damage_type, attacker_peer_id)
 	# Take flight when hit!
 	if not is_dead:
 		_start_flying()

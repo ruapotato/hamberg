@@ -1296,9 +1296,15 @@ func _special_attack_knife_lunge(weapon_data: WeaponData, camera: Camera3D) -> v
 		print("[Player] Not enough stamina for knife lunge!")
 		return
 
-	# LEAP forward in camera direction (powerful lunge)
-	var camera_forward = -camera.global_transform.basis.z  # Camera facing direction
-	var horizontal_direction = Vector3(camera_forward.x, 0, camera_forward.z).normalized()
+	# LEAP forward in mesh facing direction (not camera - lunge where player is looking)
+	var mesh_forward = Vector3.ZERO
+	if body_container:
+		# Get the direction the mesh is facing (body_container has PI rotation offset, so use +Z)
+		mesh_forward = body_container.global_transform.basis.z
+	else:
+		# Fallback to camera if no body_container
+		mesh_forward = -camera.global_transform.basis.z
+	var horizontal_direction = Vector3(mesh_forward.x, 0, mesh_forward.z).normalized()
 
 	# Store lunge direction for continuous momentum
 	lunge_direction = horizontal_direction
@@ -1312,7 +1318,7 @@ func _special_attack_knife_lunge(weapon_data: WeaponData, camera: Camera3D) -> v
 	velocity = horizontal_direction * 5.0  # Reduced forward momentum for tighter control
 	velocity.y = 9.0  # Reduced upward component for shorter, tighter arc
 
-	print("[Player] Knife LUNGE LEAP attack! is_on_floor: %s" % is_on_floor())
+	print("[Player] Knife LUNGE LEAP attack! is_on_floor: %s, direction: %s" % [is_on_floor(), horizontal_direction])
 
 	# Trigger special attack animation (faster for knife)
 	is_special_attacking = true
@@ -1323,14 +1329,9 @@ func _special_attack_knife_lunge(weapon_data: WeaponData, camera: Camera3D) -> v
 
 	print("[Player] Lunge state set: is_lunging=%s, was_in_air_lunging=%s" % [is_lunging, was_in_air_lunging])
 
-	# IMMEDIATELY snap player mesh to face lunge direction (no lerp - prevents tangled mesh)
+	# Sync rotation for network (mesh direction doesn't change, just record current facing)
 	if is_local_player and body_container:
-		var camera_controller = get_node_or_null("CameraController")
-		if camera_controller and "camera_rotation" in camera_controller:
-			var camera_yaw = camera_controller.camera_rotation.x
-			body_container.rotation.y = camera_yaw + PI  # Instant snap to face lunge direction
-			synced_rotation_y = body_container.global_rotation.y
-			print("[Player] Snapped mesh to face lunge direction: %.2f radians" % body_container.rotation.y)
+		synced_rotation_y = body_container.global_rotation.y
 
 	# Rotate knife to 0 degrees (straight/horizontal) for lunge
 	if equipped_weapon_visual:

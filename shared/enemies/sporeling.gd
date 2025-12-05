@@ -174,13 +174,27 @@ func _setup_body() -> void:
 	right_tendril.position = Vector3(0, -0.175 * scale_factor, 0)
 	right_leg.add_child(right_tendril)
 
-	# Back tendrils (non-animated)
-	for i in range(2, 4):
-		var back_leg = MeshInstance3D.new()
-		back_leg.mesh = tendril_mesh
-		back_leg.material_override = tendril_mat
-		back_leg.position = leg_positions[i] + Vector3(0, -0.175 * scale_factor, 0)
-		body_container.add_child(back_leg)
+	# Back left tendril (animated)
+	back_left_leg = Node3D.new()
+	back_left_leg.position = leg_positions[2]
+	body_container.add_child(back_left_leg)
+
+	var back_left_tendril = MeshInstance3D.new()
+	back_left_tendril.mesh = tendril_mesh
+	back_left_tendril.material_override = tendril_mat
+	back_left_tendril.position = Vector3(0, -0.175 * scale_factor, 0)
+	back_left_leg.add_child(back_left_tendril)
+
+	# Back right tendril (animated)
+	back_right_leg = Node3D.new()
+	back_right_leg.position = leg_positions[3]
+	body_container.add_child(back_right_leg)
+
+	var back_right_tendril = MeshInstance3D.new()
+	back_right_tendril.mesh = tendril_mesh
+	back_right_tendril.material_override = tendril_mat
+	back_right_tendril.position = Vector3(0, -0.175 * scale_factor, 0)
+	back_right_leg.add_child(back_right_tendril)
 
 	# Tendril arms (longer, whip-like)
 	var arm_mesh = CapsuleMesh.new()
