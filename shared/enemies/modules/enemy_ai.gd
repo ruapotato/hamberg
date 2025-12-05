@@ -314,19 +314,21 @@ func find_nearest_player() -> Node:
 	return nearest
 
 ## Face toward target (add PI since Godot's -Z is forward)
+## Sets target_rotation_y for smooth lerping
 func face_target() -> void:
 	if not is_instance_valid(target_player):
 		return
 
 	var dir = (target_player.global_position - enemy.global_position).normalized()
 	if dir.length() > 0.1:
-		enemy.rotation.y = atan2(dir.x, dir.z) + PI
+		enemy.target_rotation_y = atan2(dir.x, dir.z) + PI
 
 ## Face movement direction (add PI since Godot's -Z is forward)
+## Sets target_rotation_y for smooth lerping
 func face_movement() -> void:
 	var horizontal_vel = Vector3(enemy.velocity.x, 0, enemy.velocity.z)
 	if horizontal_vel.length() > 0.1:
-		enemy.rotation.y = atan2(horizontal_vel.x, horizontal_vel.z) + PI
+		enemy.target_rotation_y = atan2(horizontal_vel.x, horizontal_vel.z) + PI
 
 ## Get current state as string
 func get_state_string() -> String:

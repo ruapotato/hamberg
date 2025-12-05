@@ -1181,17 +1181,16 @@ func _handle_attack() -> void:
 		print("[Player] No camera found for attack")
 		return
 
-	# Rotate player mesh to face attack direction (one-time rotation at attack start)
-	if is_local_player and body_container:
-		# Get camera controller's independent yaw (not affected by player rotation)
-		var camera_controller = get_node_or_null("CameraController")
-		if camera_controller and "camera_rotation" in camera_controller:
-			var camera_yaw = camera_controller.camera_rotation.x  # Independent yaw
-			body_container.rotation.y = camera_yaw + PI  # Add PI to account for mesh facing +Z (needs 180° flip)
-			synced_rotation_y = body_container.global_rotation.y
-
 	# Check if this is a ranged weapon (magic or ranged)
 	var is_ranged = weapon_data.weapon_type == WeaponData.WeaponType.MAGIC or weapon_data.weapon_type == WeaponData.WeaponType.RANGED
+
+	# Only snap to camera direction for ranged weapons (melee attacks in mesh facing direction)
+	if is_ranged and is_local_player and body_container:
+		var camera_controller = get_node_or_null("CameraController")
+		if camera_controller and "camera_rotation" in camera_controller:
+			var camera_yaw = camera_controller.camera_rotation.x
+			body_container.rotation.y = camera_yaw + PI
+			synced_rotation_y = body_container.global_rotation.y
 
 	if is_ranged:
 		# RANGED ATTACK: Spawn projectile

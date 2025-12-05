@@ -49,6 +49,10 @@ var last_sync_time: float = 0.0
 const INTERPOLATION_SPEED: float = 12.0
 const SNAP_DISTANCE: float = 5.0
 
+# Smooth rotation (host-side)
+var target_rotation_y: float = 0.0
+const ROTATION_LERP_SPEED: float = 10.0  # How fast enemies turn
+
 # Host reporting (10Hz)
 var report_timer: float = 0.0
 const REPORT_INTERVAL: float = 0.1
@@ -210,6 +214,9 @@ func _run_host_ai(delta: float) -> void:
 
 	# Run AI state machine
 	_update_ai(delta)
+
+	# Smooth rotation towards target
+	_update_rotation(delta)
 
 	# Move
 	move_and_slide()
@@ -403,18 +410,23 @@ func _change_state(new_state: AIState) -> void:
 
 ## PERFORMANCE: Use direct atan2 instead of expensive look_at() matrix operations
 ## Note: Godot's -Z is forward, so we add PI to match look_at() behavior
+## These now set target_rotation_y for smooth lerping instead of snapping
 func _face_target() -> void:
 	if not target_player:
 		return
 	var direction = target_player.global_position - global_position
 	direction.y = 0
 	if direction.length() > 0.1:
-		rotation.y = atan2(direction.x, direction.z) + PI
+		target_rotation_y = atan2(direction.x, direction.z) + PI
 
 func _face_movement() -> void:
 	var horizontal_velocity = Vector3(velocity.x, 0, velocity.z)
 	if horizontal_velocity.length() > 0.1:
-		rotation.y = atan2(horizontal_velocity.x, horizontal_velocity.z) + PI
+		target_rotation_y = atan2(horizontal_velocity.x, horizontal_velocity.z) + PI
+
+## Smoothly interpolate rotation towards target (called each frame)
+func _update_rotation(delta: float) -> void:
+	rotation.y = lerp_angle(rotation.y, target_rotation_y, ROTATION_LERP_SPEED * delta)
 
 func _update_idle(delta: float) -> void:
 	if is_wander_paused:
@@ -538,7 +550,7 @@ func _update_charging(delta: float, distance: float) -> void:
 		direction = direction.normalized()
 		velocity.x = direction.x * charge_speed
 		velocity.z = direction.z * charge_speed
-		rotation.y = atan2(direction.x, direction.z) + PI
+		target_rotation_y = atan2(direction.x, direction.z) + PI
 	else:
 		if distance > attack_range * 2:
 			_change_state(AIState.STALKING)
@@ -610,7 +622,7 @@ func _update_retreating(delta: float, distance: float) -> void:
 		direction = direction.normalized()
 		velocity.x = direction.x * move_speed
 		velocity.z = direction.z * move_speed
-		rotation.y = atan2(direction.x, direction.z) + PI
+		target_rotation_y = atan2(direction.x, direction.z) + PI
 
 	if distance > preferred_distance * 1.2 or state_timer > 2.0:
 		_change_state(AIState.STALKING)
