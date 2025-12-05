@@ -73,10 +73,9 @@ var breath_scale: float = 1.0
 # Body offset to align feet with ground (collision shape compensation)
 const BODY_Y_OFFSET: float = 1.5
 
-# Smooth rotation
-var target_rotation_y: float = 0.0
+# Smooth rotation (target_rotation_y inherited from Enemy)
 var current_rotation_y: float = 0.0
-const ROTATION_SPEED: float = 3.0
+const CYCLOPS_ROTATION_SPEED: float = 3.0  # Slower rotation for big boss
 
 # Tweens for attack animations
 var current_anim_tween: Tween = null
@@ -185,7 +184,7 @@ func _update_smooth_rotation(delta: float) -> void:
 	while diff < -PI:
 		diff += TAU
 
-	current_rotation_y += diff * ROTATION_SPEED * delta
+	current_rotation_y += diff * CYCLOPS_ROTATION_SPEED * delta
 	rotation.y = current_rotation_y
 
 func _face_target_smooth() -> void:
