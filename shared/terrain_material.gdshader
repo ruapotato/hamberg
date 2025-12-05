@@ -12,7 +12,7 @@ uniform vec3 camera_position = vec3(0.0, 0.0, 0.0);  // Camera position for LOD
 
 // Snow coverage (set by WeatherManager)
 uniform float snow_coverage : hint_range(0.0, 1.0) = 0.0;  // 0.0 = no snow, 1.0 = full snow
-uniform float snow_height : hint_range(0.0, 1.0) = 0.3;  // Max height of snow layer in world units
+uniform float snow_height : hint_range(0.0, 0.5) = 0.15;  // Max height of snow layer in world units
 
 // Footprint system
 uniform sampler2D footprint_texture : hint_default_white, filter_linear, repeat_disable;
@@ -666,23 +666,16 @@ void vertex() {
 	world_normal = normalize(mat3(MODEL_MATRIX) * NORMAL);
 
 	// Snow height displacement - only on flat surfaces
+	// Note: Footprints only affect color, not vertex height (terrain mesh too sparse for small details)
 	if (snow_coverage > 0.01) {
 		float flatness = world_normal.y;  // 1.0 = flat, 0.0 = vertical
 		float snow_factor = snow_coverage * smoothstep(0.5, 0.9, flatness);
 
-		// Sample footprint texture to reduce snow where footprints exist
-		vec2 footprint_offset = world_pos.xz - footprint_texture_center;
-		vec2 footprint_uv = (footprint_offset / footprint_texture_size) + 0.5;
-		float footprint_value = 1.0;  // Default: no footprint
-		if (footprint_uv.x >= 0.0 && footprint_uv.x <= 1.0 && footprint_uv.y >= 0.0 && footprint_uv.y <= 1.0) {
-			footprint_value = texture(footprint_texture, footprint_uv).r;  // 0 = footprint, 1 = no footprint
-		}
-
 		// Add noise for natural snow surface variation
 		float snow_noise = simple_rand(floor(world_pos.xz * 2.0)) * 0.3 + 0.7;
 
-		// Calculate final snow height
-		float displacement = snow_height * snow_factor * snow_noise * footprint_value;
+		// Calculate final snow height (no footprint displacement - handled in fragment shader)
+		float displacement = snow_height * snow_factor * snow_noise;
 
 		// Displace vertex upward along normal
 		VERTEX += NORMAL * displacement;
