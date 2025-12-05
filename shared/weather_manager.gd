@@ -406,25 +406,19 @@ func _add_footprint(world_pos: Vector2) -> void:
 	var px = int(uv.x * FOOTPRINT_TEXTURE_SIZE)
 	var py = int(uv.y * FOOTPRINT_TEXTURE_SIZE)
 
-	# Draw footprint as elliptical foot shape
+	# Draw footprint as simple circle
 	# With 512px texture covering 64 world units, each pixel = 0.125 world units
-	# A foot is roughly 0.3 units long, 0.15 wide
-	var foot_length = 2  # pixels in Y direction (~0.25 world units)
-	var foot_width = 1   # pixels in X direction (~0.125 world units)
+	var radius = 2  # pixels (~0.25 world units diameter)
 
-	for dx in range(-foot_width, foot_width + 1):
-		for dy in range(-foot_length, foot_length + 1):
+	for dx in range(-radius, radius + 1):
+		for dy in range(-radius, radius + 1):
 			var fx = px + dx
 			var fy = py + dy
 			if fx >= 0 and fx < FOOTPRINT_TEXTURE_SIZE and fy >= 0 and fy < FOOTPRINT_TEXTURE_SIZE:
-				# Elliptical distance
-				var norm_x = float(dx) / float(foot_width) if foot_width > 0 else 0.0
-				var norm_y = float(dy) / float(foot_length) if foot_length > 0 else 0.0
-				var dist = sqrt(norm_x * norm_x + norm_y * norm_y)
-
-				if dist <= 1.0:
+				var dist = sqrt(float(dx * dx + dy * dy))
+				if dist <= radius:
 					# Darker in center (0.05), lighter at edges (0.4)
-					var intensity = 0.05 + 0.35 * dist
+					var intensity = 0.05 + 0.35 * (dist / radius)
 					var current = footprint_image.get_pixel(fx, fy).r
 					footprint_image.set_pixel(fx, fy, Color(min(current, intensity), 0, 0, 1))
 
