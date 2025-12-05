@@ -10,6 +10,15 @@ uniform float time = 0.0;  // Time for grass animation (set from GDScript)
 uniform bool enable_grass_detail = true;  // Enable shader-based grass detail
 uniform vec3 camera_position = vec3(0.0, 0.0, 0.0);  // Camera position for LOD
 
+// Snow coverage (set by WeatherManager)
+uniform float snow_coverage : hint_range(0.0, 1.0) = 0.0;  // 0.0 = no snow, 1.0 = full snow
+uniform float snow_height : hint_range(0.0, 1.0) = 0.3;  // Max height of snow layer in world units
+
+// Footprint system
+uniform sampler2D footprint_texture : hint_default_white, filter_linear, repeat_disable;
+uniform vec2 footprint_texture_center = vec2(0.0, 0.0);  // World position of footprint texture center
+uniform float footprint_texture_size = 64.0;  // World units covered by footprint texture
+
 // LOD distance thresholds
 const float LOD_NEAR_DISTANCE = 40.0;    // Full detail
 const float LOD_MID_DISTANCE = 80.0;     // Reduced detail
@@ -655,6 +664,29 @@ void vertex() {
 	world_pos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 	// Transform normal to world space using inverse transpose for correct orientation
 	world_normal = normalize(mat3(MODEL_MATRIX) * NORMAL);
+
+	// Snow height displacement - only on flat surfaces
+	if (snow_coverage > 0.01) {
+		float flatness = world_normal.y;  // 1.0 = flat, 0.0 = vertical
+		float snow_factor = snow_coverage * smoothstep(0.5, 0.9, flatness);
+
+		// Sample footprint texture to reduce snow where footprints exist
+		vec2 footprint_offset = world_pos.xz - footprint_texture_center;
+		vec2 footprint_uv = (footprint_offset / footprint_texture_size) + 0.5;
+		float footprint_value = 1.0;  // Default: no footprint
+		if (footprint_uv.x >= 0.0 && footprint_uv.x <= 1.0 && footprint_uv.y >= 0.0 && footprint_uv.y <= 1.0) {
+			footprint_value = texture(footprint_texture, footprint_uv).r;  // 0 = footprint, 1 = no footprint
+		}
+
+		// Add noise for natural snow surface variation
+		float snow_noise = simple_rand(floor(world_pos.xz * 2.0)) * 0.3 + 0.7;
+
+		// Calculate final snow height
+		float displacement = snow_height * snow_factor * snow_noise * footprint_value;
+
+		// Displace vertex upward along normal
+		VERTEX += NORMAL * displacement;
+	}
 }
 
 // Biome blend info structure
@@ -886,6 +918,42 @@ void fragment() {
 	float ambient = 0.6;
 	float lighting = ambient + (1.0 - ambient) * ndotl;
 
+	// === SNOW COVERAGE ===
+	// Blend terrain towards white based on snow coverage
+	if (snow_coverage > 0.01) {
+		// Snow color - slightly blue-tinted white for realism
+		vec3 snow_color = vec3(0.95, 0.97, 1.0);
+
+		// Snow accumulates more on flat surfaces
+		float snow_factor = snow_coverage * smoothstep(0.5, 0.9, flatness);
+
+		// Sample footprint texture
+		vec2 footprint_offset = xz_pos - footprint_texture_center;
+		vec2 footprint_uv = (footprint_offset / footprint_texture_size) + 0.5;
+		float footprint_value = 1.0;
+		if (footprint_uv.x >= 0.0 && footprint_uv.x <= 1.0 && footprint_uv.y >= 0.0 && footprint_uv.y <= 1.0) {
+			footprint_value = texture(footprint_texture, footprint_uv).r;
+		}
+
+		// Add noise for patchy snow coverage
+		float snow_noise = value_noise_simple(xz_pos * 0.5);
+		snow_noise = smoothstep(0.3, 0.7, snow_noise);
+
+		// Snow blends in based on coverage, noise, and footprints
+		float final_snow = snow_factor * (0.7 + snow_noise * 0.3) * footprint_value;
+
+		// Footprint areas show darker ground through
+		vec3 footprint_color = mix(color * 0.7, snow_color, footprint_value * 0.3);
+
+		// Blend color towards snow
+		color = mix(color, snow_color, final_snow);
+
+		// Darken footprint areas slightly
+		if (footprint_value < 0.9) {
+			color = mix(footprint_color, color, footprint_value);
+		}
+	}
+
 	// Debug mode: directly show the grass color from texture (for troubleshooting)
 	if (debug_biome_colors) {
 		// Show grass color directly - reveals if biome texture is working
@@ -894,8 +962,9 @@ void fragment() {
 		METALLIC = 0.0;
 	} else {
 		ALBEDO = color * lighting;
-		// Rocky areas are slightly rougher
-		ROUGHNESS = mix(0.85, 0.95, rock_blend);
+		// Rocky areas are slightly rougher - snow is smoother
+		float base_roughness = mix(0.85, 0.95, rock_blend);
+		ROUGHNESS = mix(base_roughness, 0.7, snow_coverage * smoothstep(0.5, 0.9, flatness));
 		METALLIC = 0.0;
 	}
 }

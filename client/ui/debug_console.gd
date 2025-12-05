@@ -23,7 +23,7 @@ var god_mode: bool = false
 var browsing_history: bool = false
 
 # Autocomplete data
-var all_commands: Array[String] = ["/give", "/spawn", "/tp", "/heal", "/god", "/gold", "/clear", "/kill", "/pos", "/items", "/enemies", "/time", "/weather", "/help", "/perf", "/toggle", "/eat"]
+var all_commands: Array[String] = ["/give", "/spawn", "/tp", "/heal", "/god", "/gold", "/clear", "/kill", "/pos", "/items", "/enemies", "/time", "/weather", "/snowpack", "/help", "/perf", "/toggle", "/eat"]
 
 # Performance toggle states
 var perf_toggles: Dictionary = {
@@ -240,6 +240,8 @@ func _execute_command(text: String) -> void:
 			_cmd_eat(args)
 		"/weather", "weather":
 			_cmd_weather(args)
+		"/snowpack", "snowpack":
+			_cmd_snowpack(args)
 		_:
 			_add_output("[color=red]Unknown command: %s[/color]" % cmd)
 
@@ -459,6 +461,39 @@ func _cmd_weather(args: Array) -> void:
 			_add_output("[color=red]Unknown weather type: %s[/color]" % weather_name)
 			_add_output("Types: clear, partly_cloudy, cloudy, overcast, light_rain, rain, heavy_rain, storm, fog, light_snow, snow, blizzard")
 
+func _cmd_snowpack(args: Array) -> void:
+	# Find weather manager
+	var weather_managers = get_tree().get_nodes_in_group("weather_manager")
+	var weather_manager: Node = null
+	if weather_managers.size() > 0:
+		weather_manager = weather_managers[0]
+
+	if not weather_manager:
+		_add_output("[color=red]WeatherManager not found![/color]")
+		return
+
+	if args.is_empty():
+		# Show current snowpack
+		var current = weather_manager.get_snowpack() if weather_manager.has_method("get_snowpack") else 0.0
+		_add_output("Current snowpack: [color=cyan]%.0f%%[/color]" % (current * 100))
+		_add_output("[color=gray]Usage: /snowpack <0-100> - Set snow coverage percentage[/color]")
+		return
+
+	# Set snowpack
+	var value_str = args[0]
+	if not value_str.is_valid_float():
+		_add_output("[color=red]Invalid value. Use 0-100[/color]")
+		return
+
+	var value = float(value_str) / 100.0  # Convert percentage to 0-1
+	value = clampf(value, 0.0, 1.0)
+
+	if weather_manager.has_method("set_snowpack"):
+		weather_manager.set_snowpack(value)
+		_add_output("[color=green]Snowpack set to: %.0f%%[/color]" % (value * 100))
+	else:
+		_add_output("[color=red]set_snowpack method not found![/color]")
+
 func _cmd_help() -> void:
 	_add_output("[color=cyan]Commands:[/color]")
 	_add_output("  /give <item> [amount] - Spawn items (e.g. /give 10 wood)")
@@ -472,6 +507,7 @@ func _cmd_help() -> void:
 	_add_output("  /pos - Show position")
 	_add_output("  /time [hour] - Show/set time (0-24)")
 	_add_output("  /weather <type> - Change weather")
+	_add_output("  /snowpack <0-100> - Set snow ground coverage")
 	_add_output("  /eat <food> - Eat food for stat buffs")
 	_add_output("  /items - List all items")
 	_add_output("  /enemies - List enemy types")
