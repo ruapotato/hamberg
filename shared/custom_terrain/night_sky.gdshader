@@ -197,34 +197,80 @@ vec3 twinkle_color_shift(vec3 cell, float time, float base_twinkle) {
 	return mix(vec3(1.0), color_shift, shift_amount * 0.5);
 }
 
-// Generate stars using 3D grid for stable positions regardless of camera rotation
-vec3 stars(vec3 dir, float time) {
-	// Normalize direction to ensure consistent lookup
+// Fast background star field - thousands of tiny dim stars, very cheap
+float background_stars(vec3 dir) {
 	vec3 n = normalize(dir);
 
-	// Altitude above horizon (0 = horizon, 1 = zenith)
+	// Multiple layers of background stars at different scales for depth
+	float stars = 0.0;
+
+	// Layer 1: Very dense tiny stars (scale 400)
+	vec3 p1 = n * 400.0;
+	vec3 cell1 = floor(p1);
+	float h1 = hash(cell1);
+	if (h1 > 0.985) {  // ~1.5% of cells have stars
+		vec3 frac1 = fract(p1);
+		vec3 star_pos = vec3(hash(cell1 + vec3(1.0, 0.0, 0.0)),
+		                     hash(cell1 + vec3(0.0, 1.0, 0.0)),
+		                     hash(cell1 + vec3(0.0, 0.0, 1.0)));
+		float dist = length(frac1 - star_pos);
+		float brightness = hash(cell1 + vec3(2.0, 2.0, 2.0)) * 0.4;
+		stars += smoothstep(0.08, 0.0, dist) * brightness;
+	}
+
+	// Layer 2: Medium density small stars (scale 250)
+	vec3 p2 = n * 250.0;
+	vec3 cell2 = floor(p2);
+	float h2 = hash(cell2 + vec3(100.0, 100.0, 100.0));
+	if (h2 > 0.975) {  // ~2.5% of cells
+		vec3 frac2 = fract(p2);
+		vec3 star_pos = vec3(hash(cell2 + vec3(101.0, 0.0, 0.0)),
+		                     hash(cell2 + vec3(0.0, 101.0, 0.0)),
+		                     hash(cell2 + vec3(0.0, 0.0, 101.0)));
+		float dist = length(frac2 - star_pos);
+		float brightness = hash(cell2 + vec3(102.0, 102.0, 102.0)) * 0.5;
+		stars += smoothstep(0.06, 0.0, dist) * brightness;
+	}
+
+	// Layer 3: Sparse slightly brighter background stars (scale 150)
+	vec3 p3 = n * 150.0;
+	vec3 cell3 = floor(p3);
+	float h3 = hash(cell3 + vec3(200.0, 200.0, 200.0));
+	if (h3 > 0.96) {  // ~4% of cells
+		vec3 frac3 = fract(p3);
+		vec3 star_pos = vec3(hash(cell3 + vec3(201.0, 0.0, 0.0)),
+		                     hash(cell3 + vec3(0.0, 201.0, 0.0)),
+		                     hash(cell3 + vec3(0.0, 0.0, 201.0)));
+		float dist = length(frac3 - star_pos);
+		float brightness = 0.3 + hash(cell3 + vec3(202.0, 202.0, 202.0)) * 0.5;
+		stars += smoothstep(0.055, 0.0, dist) * brightness;
+	}
+
+	return stars;
+}
+
+// Generate bright twinkling stars using 3D grid
+vec3 bright_stars(vec3 dir, float time) {
+	vec3 n = normalize(dir);
 	float altitude = clamp(n.y, 0.0, 1.0);
 
-	// Scale for star density - larger = more smaller cells = more stars
+	// Scale for bright star density
 	float scale = 80.0;
 	vec3 p = n * scale;
-
-	// 3D grid-based stars
 	vec3 grid = floor(p);
 	vec3 frac_p = fract(p);
 
 	vec3 total_star = vec3(0.0);
 
-	// Check nearby cells
-	for (int x = -1; x <= 1; x++) {
-		for (int y = -1; y <= 1; y++) {
-			for (int z = -1; z <= 1; z++) {
+	// Check nearby cells (reduced to 2x2x2 for performance since we have background stars now)
+	for (int x = 0; x <= 1; x++) {
+		for (int y = 0; y <= 1; y++) {
+			for (int z = 0; z <= 1; z++) {
 				vec3 cell = grid + vec3(float(x), float(y), float(z));
 
-				// Deterministic star presence based on cell
+				// Fewer bright stars since we have background layer
 				float has_star = hash(cell);
-				if (has_star > (1.0 - star_density * 0.4)) {
-					// Star position within cell
+				if (has_star > (1.0 - star_density * 0.25)) {
 					vec3 star_pos = vec3(
 						hash(cell + vec3(1.0, 0.0, 0.0)),
 						hash(cell + vec3(0.0, 1.0, 0.0)),
@@ -234,36 +280,42 @@ vec3 stars(vec3 dir, float time) {
 					vec3 diff = frac_p - star_pos - vec3(float(x), float(y), float(z));
 					float dist = length(diff);
 
-					// Star base brightness (some stars are brighter than others)
 					float base_brightness = hash(cell + vec3(2.0, 2.0, 2.0));
 
-					// Brighter stars twinkle slightly less, but still noticeably
-					float twinkle_reduction = base_brightness * 0.2;  // Reduced from 0.4
+					// Full twinkling for bright stars
+					float twinkle_reduction = base_brightness * 0.15;
 					float twinkle = scintillation(cell, time, altitude);
 					twinkle = mix(twinkle, 1.0, twinkle_reduction);
 
-					// Calculate final brightness
 					float brightness = base_brightness * twinkle;
-
-					// Star size (brighter = slightly larger apparent size)
-					float size = 0.05 + base_brightness * 0.08;
-
-					// Star intensity falloff from center
+					float size = 0.06 + base_brightness * 0.1;
 					float star_intensity = smoothstep(size, 0.0, dist);
 
-					// Get star's natural color and any twinkling color shifts
 					vec3 base_color = star_color(cell);
 					vec3 twinkle_shift = twinkle_color_shift(cell, time, twinkle);
 
-					// Combine everything
 					vec3 final_color = base_color * twinkle_shift * brightness;
-					total_star += star_intensity * final_color * (0.5 + base_brightness * 0.5);
+					total_star += star_intensity * final_color * (0.6 + base_brightness * 0.6);
 				}
 			}
 		}
 	}
 
-	return min(total_star, vec3(1.5));  // Allow slight HDR for very bright stars
+	return total_star;
+}
+
+// Combined star field - dense background + bright twinkling stars
+vec3 stars(vec3 dir, float time) {
+	// Dense background star field (cheap, no twinkling)
+	float bg = background_stars(dir);
+
+	// Bright foreground stars with full twinkling
+	vec3 fg = bright_stars(dir, time);
+
+	// Combine: background is white/slightly blue, foreground has colors
+	vec3 bg_color = vec3(0.9, 0.92, 1.0) * bg;
+
+	return min(bg_color + fg, vec3(2.0));
 }
 
 void sky() {
