@@ -304,18 +304,102 @@ vec3 bright_stars(vec3 dir, float time) {
 	return total_star;
 }
 
-// Combined star field - dense background + bright twinkling stars
+// Milky way band - creates a bright band of stars/nebulosity across the sky
+vec3 milky_way(vec3 dir) {
+	vec3 n = normalize(dir);
+
+	// Milky way runs roughly east-west, tilted about 60 degrees from horizon
+	// Create a band using distance from a tilted plane
+	vec3 milky_axis = normalize(vec3(0.2, 0.6, 0.8));  // Axis the milky way circles around
+	float dist_from_band = abs(dot(n, milky_axis));
+
+	// Band intensity - strongest at center, fades at edges
+	float band_width = 0.35;
+	float band = 1.0 - smoothstep(0.0, band_width, dist_from_band);
+	band = band * band;  // More concentrated center
+
+	// Add noise for clumpy structure
+	vec3 p = n * 30.0;
+	float noise1 = fbm(p.xy + p.z * 0.5, 4);
+	float noise2 = fbm(p.yz * 1.5 + p.x * 0.3, 3);
+	float structure = noise1 * 0.6 + noise2 * 0.4;
+
+	// Dark lanes (dust clouds blocking light)
+	float dust = fbm(p.xz * 2.0 + vec2(p.y * 0.5, 0.0), 3);
+	float dark_lanes = smoothstep(0.45, 0.55, dust) * 0.7;
+
+	// Combine
+	float intensity = band * structure * (1.0 - dark_lanes);
+
+	// Color - slightly warm white with hints of color
+	vec3 color = vec3(0.85, 0.82, 0.9) * intensity * 0.15;
+
+	// Add dense star field in milky way region
+	float extra_stars = band * 0.5;
+
+	return color + vec3(extra_stars * structure * 0.1);
+}
+
+// Nebula clouds - subtle colorful patches
+vec3 nebulae(vec3 dir) {
+	vec3 n = normalize(dir);
+	vec3 color = vec3(0.0);
+
+	// Several nebula patches at fixed positions
+	// Nebula 1 - reddish emission nebula
+	vec3 neb1_pos = normalize(vec3(0.5, 0.7, 0.3));
+	float neb1_dist = 1.0 - dot(n, neb1_pos);
+	float neb1 = exp(-neb1_dist * 15.0) * 0.3;
+	vec3 p1 = n * 50.0;
+	neb1 *= 0.5 + fbm(p1.xy, 3) * 0.5;
+	color += vec3(0.4, 0.1, 0.15) * neb1;
+
+	// Nebula 2 - blue reflection nebula
+	vec3 neb2_pos = normalize(vec3(-0.6, 0.5, -0.4));
+	float neb2_dist = 1.0 - dot(n, neb2_pos);
+	float neb2 = exp(-neb2_dist * 12.0) * 0.25;
+	vec3 p2 = n * 40.0;
+	neb2 *= 0.5 + fbm(p2.yz, 3) * 0.5;
+	color += vec3(0.15, 0.2, 0.4) * neb2;
+
+	// Nebula 3 - greenish/teal patch
+	vec3 neb3_pos = normalize(vec3(0.3, 0.8, -0.5));
+	float neb3_dist = 1.0 - dot(n, neb3_pos);
+	float neb3 = exp(-neb3_dist * 18.0) * 0.2;
+	vec3 p3 = n * 60.0;
+	neb3 *= 0.5 + fbm(p3.xz, 3) * 0.5;
+	color += vec3(0.1, 0.25, 0.2) * neb3;
+
+	// Nebula 4 - purple/magenta
+	vec3 neb4_pos = normalize(vec3(-0.4, 0.6, 0.6));
+	float neb4_dist = 1.0 - dot(n, neb4_pos);
+	float neb4 = exp(-neb4_dist * 14.0) * 0.2;
+	vec3 p4 = n * 45.0;
+	neb4 *= 0.5 + fbm(p4.xy + p4.z, 3) * 0.5;
+	color += vec3(0.25, 0.1, 0.3) * neb4;
+
+	return color;
+}
+
+// Combined star field - dense background + bright twinkling stars + milky way + nebulae
 vec3 stars(vec3 dir, float time) {
-	// Dense background star field (cheap, no twinkling)
+	// Base background star field
 	float bg = background_stars(dir);
+	vec3 bg_color = vec3(0.9, 0.92, 1.0) * bg;
+
+	// Milky way adds structure and extra stars
+	vec3 milky = milky_way(dir);
+
+	// Colorful nebulae
+	vec3 neb = nebulae(dir);
 
 	// Bright foreground stars with full twinkling
 	vec3 fg = bright_stars(dir, time);
 
-	// Combine: background is white/slightly blue, foreground has colors
-	vec3 bg_color = vec3(0.9, 0.92, 1.0) * bg;
+	// Combine all layers
+	vec3 result = bg_color + milky + neb + fg;
 
-	return min(bg_color + fg, vec3(2.0));
+	return min(result, vec3(2.0));
 }
 
 void sky() {
