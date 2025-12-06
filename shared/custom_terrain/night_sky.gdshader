@@ -113,36 +113,48 @@ float scintillation(vec3 cell, float time, float altitude) {
 	float phase2 = hash(cell + vec3(4.0, 4.0, 4.0)) * TAU;
 	float phase3 = hash(cell + vec3(5.0, 5.0, 5.0)) * TAU;
 	float phase4 = hash(cell + vec3(6.0, 6.0, 6.0)) * TAU;
+	float phase5 = hash(cell + vec3(9.0, 9.0, 9.0)) * TAU;
 
-	// Different frequencies for each star (some twinkle fast, some slow)
-	float speed1 = 2.0 + hash(cell + vec3(7.0, 0.0, 0.0)) * 4.0;
-	float speed2 = 5.0 + hash(cell + vec3(0.0, 7.0, 0.0)) * 8.0;
-	float speed3 = 12.0 + hash(cell + vec3(0.0, 0.0, 7.0)) * 15.0;
-	float speed4 = 0.5 + hash(cell + vec3(8.0, 8.0, 0.0)) * 1.5;  // Slow variation
+	// Different frequencies for each star - faster for more visible twinkling
+	float speed1 = 3.0 + hash(cell + vec3(7.0, 0.0, 0.0)) * 5.0;
+	float speed2 = 7.0 + hash(cell + vec3(0.0, 7.0, 0.0)) * 10.0;
+	float speed3 = 15.0 + hash(cell + vec3(0.0, 0.0, 7.0)) * 20.0;  // Fast shimmer
+	float speed4 = 1.0 + hash(cell + vec3(8.0, 8.0, 0.0)) * 2.0;    // Slow variation
+	float speed5 = 25.0 + hash(cell + vec3(13.0, 0.0, 0.0)) * 15.0; // Very fast flicker
 
-	// Combine multiple sine waves with different amplitudes
+	// Combine multiple sine waves with STRONGER amplitudes
 	float twinkle = 0.0;
-	twinkle += sin(time * speed1 + phase1) * 0.3;
-	twinkle += sin(time * speed2 + phase2) * 0.25;
-	twinkle += sin(time * speed3 + phase3) * 0.15;  // High frequency shimmer
-	twinkle += sin(time * speed4 + phase4) * 0.2;   // Slow drift
+	twinkle += sin(time * speed1 + phase1) * 0.5;
+	twinkle += sin(time * speed2 + phase2) * 0.4;
+	twinkle += sin(time * speed3 + phase3) * 0.3;   // High frequency shimmer
+	twinkle += sin(time * speed4 + phase4) * 0.3;   // Slow drift
+	twinkle += sin(time * speed5 + phase5) * 0.2;   // Very fast flicker
 
-	// Add occasional bright flashes (atmospheric focusing)
-	float flash_chance = hash(cell + vec3(floor(time * 0.7), 0.0, 0.0));
-	if (flash_chance > 0.92) {
-		float flash_intensity = (flash_chance - 0.92) * 12.5;  // 0 to 1
-		float flash_time = fract(time * 0.7);
-		float flash = exp(-flash_time * 8.0) * flash_intensity;
-		twinkle += flash * 0.5;
+	// Add occasional bright flashes (atmospheric focusing) - more frequent
+	float flash_chance = hash(cell + vec3(floor(time * 1.5), 0.0, 0.0));
+	if (flash_chance > 0.85) {
+		float flash_intensity = (flash_chance - 0.85) * 6.67;  // 0 to 1
+		float flash_time = fract(time * 1.5);
+		float flash = exp(-flash_time * 6.0) * flash_intensity;
+		twinkle += flash * 0.8;
+	}
+
+	// Occasional dimming (star almost disappearing)
+	float dim_chance = hash(cell + vec3(floor(time * 0.8), 1.0, 0.0));
+	if (dim_chance > 0.88) {
+		float dim_time = fract(time * 0.8);
+		float dim = exp(-dim_time * 4.0) * 0.7;
+		twinkle -= dim;
 	}
 
 	// More twinkling near horizon (more atmosphere to look through)
 	// altitude: 0 = horizon, 1 = zenith
-	float horizon_factor = 1.0 - altitude * 0.7;  // 1.0 at horizon, 0.3 at zenith
+	float horizon_factor = 1.0 - altitude * 0.5;  // 1.0 at horizon, 0.5 at zenith
 	twinkle *= horizon_factor;
 
-	// Convert to brightness multiplier (0.4 to 1.4 range, centered at 0.9)
-	return 0.9 + twinkle * 0.5;
+	// Convert to brightness multiplier - WIDER range for more visible effect
+	// Range: ~0.1 to ~1.8 (stars can almost disappear or get very bright)
+	return clamp(0.8 + twinkle * 0.7, 0.1, 2.0);
 }
 
 // Generate star color based on "temperature" - adds realism
@@ -225,8 +237,8 @@ vec3 stars(vec3 dir, float time) {
 					// Star base brightness (some stars are brighter than others)
 					float base_brightness = hash(cell + vec3(2.0, 2.0, 2.0));
 
-					// Brighter stars twinkle LESS (they appear as tiny disks, not points)
-					float twinkle_reduction = base_brightness * 0.4;
+					// Brighter stars twinkle slightly less, but still noticeably
+					float twinkle_reduction = base_brightness * 0.2;  // Reduced from 0.4
 					float twinkle = scintillation(cell, time, altitude);
 					twinkle = mix(twinkle, 1.0, twinkle_reduction);
 
