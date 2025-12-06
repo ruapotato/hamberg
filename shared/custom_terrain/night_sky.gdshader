@@ -105,10 +105,93 @@ float clouds(vec3 dir, float time) {
 	return clamp(cloud_value, 0.0, 1.0);
 }
 
+// Realistic atmospheric scintillation (twinkling)
+// Real twinkling is caused by atmospheric turbulence - it's rapid, irregular, and varies with altitude
+float scintillation(vec3 cell, float time, float altitude) {
+	// Multiple overlapping frequencies create irregular, realistic flicker
+	float phase1 = hash(cell + vec3(3.0, 3.0, 3.0)) * TAU;
+	float phase2 = hash(cell + vec3(4.0, 4.0, 4.0)) * TAU;
+	float phase3 = hash(cell + vec3(5.0, 5.0, 5.0)) * TAU;
+	float phase4 = hash(cell + vec3(6.0, 6.0, 6.0)) * TAU;
+
+	// Different frequencies for each star (some twinkle fast, some slow)
+	float speed1 = 2.0 + hash(cell + vec3(7.0, 0.0, 0.0)) * 4.0;
+	float speed2 = 5.0 + hash(cell + vec3(0.0, 7.0, 0.0)) * 8.0;
+	float speed3 = 12.0 + hash(cell + vec3(0.0, 0.0, 7.0)) * 15.0;
+	float speed4 = 0.5 + hash(cell + vec3(8.0, 8.0, 0.0)) * 1.5;  // Slow variation
+
+	// Combine multiple sine waves with different amplitudes
+	float twinkle = 0.0;
+	twinkle += sin(time * speed1 + phase1) * 0.3;
+	twinkle += sin(time * speed2 + phase2) * 0.25;
+	twinkle += sin(time * speed3 + phase3) * 0.15;  // High frequency shimmer
+	twinkle += sin(time * speed4 + phase4) * 0.2;   // Slow drift
+
+	// Add occasional bright flashes (atmospheric focusing)
+	float flash_chance = hash(cell + vec3(floor(time * 0.7), 0.0, 0.0));
+	if (flash_chance > 0.92) {
+		float flash_intensity = (flash_chance - 0.92) * 12.5;  // 0 to 1
+		float flash_time = fract(time * 0.7);
+		float flash = exp(-flash_time * 8.0) * flash_intensity;
+		twinkle += flash * 0.5;
+	}
+
+	// More twinkling near horizon (more atmosphere to look through)
+	// altitude: 0 = horizon, 1 = zenith
+	float horizon_factor = 1.0 - altitude * 0.7;  // 1.0 at horizon, 0.3 at zenith
+	twinkle *= horizon_factor;
+
+	// Convert to brightness multiplier (0.4 to 1.4 range, centered at 0.9)
+	return 0.9 + twinkle * 0.5;
+}
+
+// Generate star color based on "temperature" - adds realism
+vec3 star_color(vec3 cell) {
+	float temp = hash(cell + vec3(10.0, 10.0, 10.0));
+
+	// Star colors from cool red to hot blue
+	if (temp < 0.15) {
+		return vec3(1.0, 0.6, 0.4);   // Cool red/orange star
+	} else if (temp < 0.35) {
+		return vec3(1.0, 0.85, 0.7);  // Warm yellow star
+	} else if (temp < 0.75) {
+		return vec3(1.0, 1.0, 1.0);   // White star (most common)
+	} else if (temp < 0.9) {
+		return vec3(0.9, 0.95, 1.0);  // Blue-white star
+	} else {
+		return vec3(0.8, 0.85, 1.0);  // Blue star (hottest, rarest)
+	}
+}
+
+// Atmospheric color dispersion during twinkling
+vec3 twinkle_color_shift(vec3 cell, float time, float base_twinkle) {
+	// When twinkling strongly, add subtle color shifts (chromatic scintillation)
+	float shift_phase = hash(cell + vec3(11.0, 11.0, 11.0)) * TAU;
+	float shift_speed = 8.0 + hash(cell + vec3(12.0, 12.0, 12.0)) * 10.0;
+	float shift = sin(time * shift_speed + shift_phase);
+
+	// Only shift color during strong twinkle events
+	float shift_amount = max(0.0, abs(base_twinkle - 0.9) - 0.2) * 2.0;
+
+	vec3 color_shift = vec3(1.0);
+	if (shift > 0.3) {
+		// Brief red flash
+		color_shift = vec3(1.0, 0.9, 0.85);
+	} else if (shift < -0.3) {
+		// Brief blue flash
+		color_shift = vec3(0.85, 0.9, 1.0);
+	}
+
+	return mix(vec3(1.0), color_shift, shift_amount * 0.5);
+}
+
 // Generate stars using 3D grid for stable positions regardless of camera rotation
-float stars(vec3 dir, float time) {
+vec3 stars(vec3 dir, float time) {
 	// Normalize direction to ensure consistent lookup
 	vec3 n = normalize(dir);
+
+	// Altitude above horizon (0 = horizon, 1 = zenith)
+	float altitude = clamp(n.y, 0.0, 1.0);
 
 	// Scale for star density - larger = more smaller cells = more stars
 	float scale = 80.0;
@@ -118,7 +201,7 @@ float stars(vec3 dir, float time) {
 	vec3 grid = floor(p);
 	vec3 frac_p = fract(p);
 
-	float star = 0.0;
+	vec3 total_star = vec3(0.0);
 
 	// Check nearby cells
 	for (int x = -1; x <= 1; x++) {
@@ -126,7 +209,7 @@ float stars(vec3 dir, float time) {
 			for (int z = -1; z <= 1; z++) {
 				vec3 cell = grid + vec3(float(x), float(y), float(z));
 
-				// Deterministic star presence based on cell - more stars!
+				// Deterministic star presence based on cell
 				float has_star = hash(cell);
 				if (has_star > (1.0 - star_density * 0.4)) {
 					// Star position within cell
@@ -139,23 +222,36 @@ float stars(vec3 dir, float time) {
 					vec3 diff = frac_p - star_pos - vec3(float(x), float(y), float(z));
 					float dist = length(diff);
 
-					// Star brightness and size
+					// Star base brightness (some stars are brighter than others)
 					float base_brightness = hash(cell + vec3(2.0, 2.0, 2.0));
 
-					// Sparkle effect tied purely to time and cell position
-					float sparkle_speed = 1.0 + hash(cell + vec3(3.0, 3.0, 3.0)) * 3.0;
-					float sparkle_phase = hash(cell + vec3(4.0, 4.0, 4.0)) * 6.28;
-					float sparkle = 0.6 + 0.4 * sin(time * sparkle_speed + sparkle_phase);
+					// Brighter stars twinkle LESS (they appear as tiny disks, not points)
+					float twinkle_reduction = base_brightness * 0.4;
+					float twinkle = scintillation(cell, time, altitude);
+					twinkle = mix(twinkle, 1.0, twinkle_reduction);
 
-					float brightness = base_brightness * sparkle;
-					float size = 0.06 + base_brightness * 0.1;
-					star += smoothstep(size, 0.0, dist) * (0.4 + brightness * 0.6);
+					// Calculate final brightness
+					float brightness = base_brightness * twinkle;
+
+					// Star size (brighter = slightly larger apparent size)
+					float size = 0.05 + base_brightness * 0.08;
+
+					// Star intensity falloff from center
+					float star_intensity = smoothstep(size, 0.0, dist);
+
+					// Get star's natural color and any twinkling color shifts
+					vec3 base_color = star_color(cell);
+					vec3 twinkle_shift = twinkle_color_shift(cell, time, twinkle);
+
+					// Combine everything
+					vec3 final_color = base_color * twinkle_shift * brightness;
+					total_star += star_intensity * final_color * (0.5 + base_brightness * 0.5);
 				}
 			}
 		}
 	}
 
-	return min(star, 1.0);
+	return min(total_star, vec3(1.5));  // Allow slight HDR for very bright stars
 }
 
 void sky() {
@@ -183,10 +279,10 @@ void sky() {
 
 	// Stars (only visible at night, above horizon, reduced by clouds)
 	if (star_brightness > 0.0 && dir.y > 0.0) {
-		float star_value = stars(dir, TIME) * star_brightness;
+		vec3 star_value = stars(dir, TIME) * star_brightness;
 		// Clouds block stars
 		float star_cloud_block = 1.0 - cloud_coverage * 0.9;
-		sky += vec3(star_value * star_cloud_block);
+		sky += star_value * star_cloud_block;
 	}
 
 	// Clouds (only above horizon)
