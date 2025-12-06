@@ -13,6 +13,11 @@ uniform float sun_size : hint_range(0.0, 1.0) = 0.05;
 uniform float star_brightness : hint_range(0.0, 1.0) = 0.0;
 uniform float star_density : hint_range(0.0, 1.0) = 0.5;
 
+// Moon parameters
+uniform vec3 moon_direction : source_color = vec3(0.5, 0.3, -0.8);
+uniform float moon_size : hint_range(0.0, 0.2) = 0.045;
+uniform float moon_phase : hint_range(0.0, 1.0) = 0.5;  // 0=new, 0.25=first quarter, 0.5=full, 0.75=last quarter
+
 // Cloud parameters (set by WeatherManager)
 uniform float cloud_coverage : hint_range(0.0, 1.0) = 0.0;
 uniform float cloud_darkness : hint_range(0.0, 1.0) = 0.0;
@@ -408,9 +413,12 @@ vec3 milky_way(vec3 dir) {
 	float extra_glow = (band + core * 0.7) * structure * 0.08;
 	color += vec3(0.9, 0.92, 1.0) * extra_glow;
 
-	// Subtle reddish emission nebulae (only a few spots)
-	float emission = smoothstep(0.65, 0.8, noise2D(p3.xy * 1.5)) * band;
-	color += vec3(0.25, 0.06, 0.08) * emission * 0.12;
+	// Subtle reddish emission - use grainy texture, not blobby
+	// Only in specific small regions, with sharp boundaries
+	float emission_grain = grainy_noise(p.xy * 0.3 + p.z * 0.1);
+	float emission_mask = step(0.85, noise2D(p3.xy * 2.0));  // Sharp mask for specific spots
+	float emission = emission_grain * emission_mask * band;
+	color += vec3(0.2, 0.04, 0.05) * emission * 0.15;
 
 	return color;
 }
@@ -671,6 +679,89 @@ vec3 stars(vec3 dir, float time) {
 	return min(result, vec3(2.5));
 }
 
+// Moon rendering with craters and phase
+vec3 render_moon(vec3 dir, vec3 moon_dir, float size, float phase) {
+	vec3 n_moon = normalize(moon_dir);
+	float dist_to_moon = distance(dir, n_moon);
+
+	// Not looking at moon
+	if (dist_to_moon > size * 2.0) return vec3(0.0);
+
+	// Moon disc
+	float moon_disc = smoothstep(size, size * 0.95, dist_to_moon);
+
+	if (moon_disc < 0.01) return vec3(0.0);
+
+	// Calculate position on moon surface for texturing
+	// Create a coordinate system on the moon face
+	vec3 up = vec3(0.0, 1.0, 0.0);
+	vec3 moon_right = normalize(cross(up, n_moon));
+	vec3 moon_up = normalize(cross(n_moon, moon_right));
+
+	// Project view direction onto moon surface
+	vec3 to_point = normalize(dir) - n_moon;
+	float moon_u = dot(to_point, moon_right) / size;
+	float moon_v = dot(to_point, moon_up) / size;
+	vec2 moon_uv = vec2(moon_u, moon_v);
+
+	// Distance from center of moon disc (for limb darkening and phase)
+	float r = length(moon_uv);
+
+	// Base moon color - slightly warm gray
+	vec3 moon_base = vec3(0.85, 0.83, 0.8);
+
+	// Crater texture using multiple noise layers
+	vec2 crater_uv = moon_uv * 8.0;
+	float craters = 0.0;
+
+	// Large maria (dark areas)
+	float maria1 = noise2D(moon_uv * 2.0 + vec2(1.5, 0.8));
+	float maria2 = noise2D(moon_uv * 3.0 + vec2(0.3, 2.1));
+	float maria = smoothstep(0.5, 0.7, maria1) * 0.15 + smoothstep(0.55, 0.75, maria2) * 0.1;
+
+	// Medium craters
+	float c1 = noise2D(crater_uv);
+	float c2 = noise2D(crater_uv * 2.0 + vec2(3.7, 1.2));
+	craters += smoothstep(0.6, 0.65, c1) * 0.12;
+	craters += smoothstep(0.65, 0.7, c2) * 0.08;
+
+	// Small craters
+	float c3 = noise2D(crater_uv * 5.0 + vec2(7.1, 4.3));
+	craters += smoothstep(0.7, 0.75, c3) * 0.05;
+
+	// Apply surface detail
+	float surface = 1.0 - maria - craters;
+	vec3 moon_color = moon_base * surface;
+
+	// Limb darkening - edges of moon are slightly darker
+	float limb = 1.0 - r * r * 0.3;
+	moon_color *= limb;
+
+	// Phase shadow
+	// phase: 0=new (dark), 0.25=first quarter, 0.5=full, 0.75=last quarter
+	float phase_angle = phase * TAU;  // Convert to radians
+	float shadow_x = cos(phase_angle);  // -1 to 1, determines shadow position
+
+	// Shadow edge position based on phase
+	float shadow = smoothstep(shadow_x - 0.1, shadow_x + 0.1, moon_u);
+
+	// At new moon (phase=0), shadow_x = 1, whole moon dark
+	// At full moon (phase=0.5), shadow_x = -1, whole moon lit
+	if (phase < 0.5) {
+		// Waxing: shadow on left (negative u), lit on right
+		moon_color *= shadow;
+	} else {
+		// Waning: shadow on right (positive u), lit on left
+		moon_color *= (1.0 - shadow);
+	}
+
+	// Soft glow around moon
+	float glow = exp(-dist_to_moon * 30.0) * 0.3;
+	vec3 glow_color = vec3(0.9, 0.88, 0.85) * glow;
+
+	return moon_color * moon_disc + glow_color;
+}
+
 void sky() {
 	vec3 dir = EYEDIR;
 
@@ -700,6 +791,15 @@ void sky() {
 		// Clouds block stars
 		float star_cloud_block = 1.0 - cloud_coverage * 0.9;
 		sky += star_value * star_cloud_block;
+	}
+
+	// Moon (visible at night, above horizon)
+	vec3 n_moon_dir = normalize(moon_direction);
+	if (star_brightness > 0.0 && n_moon_dir.y > -0.1 && dir.y > 0.0) {
+		vec3 moon = render_moon(dir, n_moon_dir, moon_size, moon_phase);
+		// Clouds partially block moon
+		float moon_cloud_block = 1.0 - cloud_coverage * 0.7;
+		sky += moon * moon_cloud_block * star_brightness;
 	}
 
 	// Clouds (only above horizon)

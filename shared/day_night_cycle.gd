@@ -88,6 +88,11 @@ const SKY_HORIZON_NIGHT := Color(0.05, 0.05, 0.12)
 const GROUND_DAY := Color(0.25, 0.2, 0.15)
 const GROUND_NIGHT := Color(0.02, 0.02, 0.03)
 
+# Moon settings
+var moon_phase: float = 0.5  # 0=new, 0.25=first quarter, 0.5=full, 0.75=last quarter
+var lunar_day: float = 0.0  # Tracks which day in the lunar cycle
+const LUNAR_CYCLE_DAYS: float = 8.0  # Full lunar cycle in game days (real moon is ~29.5)
+
 func _ready() -> void:
 	current_hour = start_hour
 	_find_scene_nodes()
@@ -125,6 +130,10 @@ func _process(delta: float) -> void:
 	# Wrap around at 24 hours
 	if current_hour >= 24.0:
 		current_hour -= 24.0
+
+	# Advance lunar cycle (one full cycle over LUNAR_CYCLE_DAYS game days)
+	var lunar_advance = delta / (day_length_minutes * 60.0 * LUNAR_CYCLE_DAYS)
+	lunar_day = fmod(lunar_day + lunar_advance, 1.0)
 
 	# PERFORMANCE: Only check player biome periodically instead of every frame
 	_biome_check_timer += delta
@@ -413,6 +422,9 @@ func _update_sky() -> void:
 	sky_material.set_shader_parameter("ground_color", Vector3(ground.r, ground.g, ground.b))
 	sky_material.set_shader_parameter("star_brightness", star_brightness)
 
+	# Update moon position and phase
+	_update_moon()
+
 ## Get the current time period
 func get_current_period() -> String:
 	if current_hour >= 5.0 and current_hour < 7.0:
@@ -459,3 +471,53 @@ func set_time(hour: float) -> void:
 	if current_hour < 0:
 		current_hour += 24.0
 	_update_lighting()
+
+## Update moon position and phase
+func _update_moon() -> void:
+	if not sky_material:
+		return
+
+	# Moon phase based on lunar day (updated in _process)
+	moon_phase = lunar_day
+
+	# Moon position - roughly opposite the sun, but offset by phase
+	# At full moon (phase 0.5), moon rises at sunset and sets at sunrise
+	# At new moon (phase 0), moon is near the sun (invisible)
+	var moon_hour_offset = moon_phase * 12.0  # Phase shifts moon timing
+	var moon_hour = fmod(current_hour + 12.0 - moon_hour_offset, 24.0)
+
+	# Calculate moon position similar to sun but opposite
+	var moon_angle = (moon_hour / 24.0) * TAU
+	var moon_height = -cos(moon_angle)
+	var moon_horizontal = sin(moon_angle)
+
+	# Same tilt as sun orbit
+	var orbit_tilt = deg_to_rad(30.0)
+	var moon_x = moon_horizontal
+	var moon_y = moon_height * cos(orbit_tilt)
+	var moon_z = -moon_height * sin(orbit_tilt)
+
+	var moon_dir = Vector3(moon_x, moon_y, moon_z).normalized()
+
+	# Set shader parameters
+	sky_material.set_shader_parameter("moon_direction", moon_dir)
+	sky_material.set_shader_parameter("moon_phase", moon_phase)
+
+## Get current moon phase name
+func get_moon_phase_name() -> String:
+	if moon_phase < 0.125:
+		return "New Moon"
+	elif moon_phase < 0.25:
+		return "Waxing Crescent"
+	elif moon_phase < 0.375:
+		return "First Quarter"
+	elif moon_phase < 0.5:
+		return "Waxing Gibbous"
+	elif moon_phase < 0.625:
+		return "Full Moon"
+	elif moon_phase < 0.75:
+		return "Waning Gibbous"
+	elif moon_phase < 0.875:
+		return "Last Quarter"
+	else:
+		return "Waning Crescent"
