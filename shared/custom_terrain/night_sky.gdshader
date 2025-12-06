@@ -315,62 +315,104 @@ vec3 bright_stars(vec3 dir, float time) {
 	return total_star;
 }
 
+// Grainy noise for milky way star clouds - creates fine speckled texture
+float grainy_noise(vec2 p) {
+	// Multiple layers of sharp, high-frequency noise
+	float grain = 0.0;
+	float amp = 1.0;
+	float freq = 1.0;
+	for (int i = 0; i < 4; i++) {
+		vec2 cell = floor(p * freq);
+		float h = hash2(cell);
+		// Sharp threshold creates speckles rather than smooth blobs
+		grain += step(0.7, h) * amp * h;
+		amp *= 0.6;
+		freq *= 2.5;
+	}
+	return grain;
+}
+
+// Wispy filament noise - creates elongated structures
+float filament_noise(vec3 p) {
+	// Stretched noise in one direction creates filaments
+	vec2 stretched = vec2(p.x * 3.0 + p.z, p.y * 0.5);
+	float n1 = noise2D(stretched * 8.0);
+	float n2 = noise2D(stretched * 16.0 + vec2(5.3, 2.1));
+	// Sharp edges
+	float filament = smoothstep(0.4, 0.6, n1) * smoothstep(0.3, 0.5, n2);
+	return filament;
+}
+
 // Milky way band - creates a bright band of stars/nebulosity across the sky
 vec3 milky_way(vec3 dir) {
 	vec3 n = normalize(dir);
 
 	// Milky way runs roughly east-west, tilted about 60 degrees from horizon
-	// Create a band using distance from a tilted plane
-	vec3 milky_axis = normalize(vec3(0.2, 0.6, 0.8));  // Axis the milky way circles around
+	vec3 milky_axis = normalize(vec3(0.2, 0.6, 0.8));
 	float dist_from_band = abs(dot(n, milky_axis));
 
 	// Band intensity - strongest at center, fades at edges
-	float band_width = 0.4;
+	float band_width = 0.35;
 	float band = 1.0 - smoothstep(0.0, band_width, dist_from_band);
-	band = band * band;  // More concentrated center
+	band = band * band;
 
 	// Galactic core - a brighter central bulge
-	vec3 core_dir = normalize(vec3(-0.5, 0.4, 0.7));  // Direction to galactic center
+	vec3 core_dir = normalize(vec3(-0.5, 0.4, 0.7));
 	float core_dist = 1.0 - dot(n, core_dir);
-	float core = exp(-core_dist * 8.0) * 0.6;
+	float core = exp(-core_dist * 10.0) * 0.5;
 
-	// Add noise for clumpy structure - multiple octaves for detail
-	vec3 p = n * 40.0;
-	float noise1 = fbm(p.xy + p.z * 0.5, 5);
-	float noise2 = fbm(p.yz * 1.5 + p.x * 0.3, 4);
-	float noise3 = fbm(p.xz * 2.5, 3);  // Fine detail
-	float structure = noise1 * 0.5 + noise2 * 0.3 + noise3 * 0.2;
+	// Fine grainy star texture - this is what makes it look like countless tiny stars
+	vec3 p = n * 100.0;  // High frequency for fine detail
+	float grain1 = grainy_noise(p.xy + p.z * 0.3);
+	float grain2 = grainy_noise(p.yz * 1.1 + p.x * 0.2);
+	float grain3 = grainy_noise(p.xz * 0.9 + vec2(p.y * 0.4, 0.0));
+	float star_grain = (grain1 + grain2 + grain3) * 0.33;
 
-	// Dark lanes (dust clouds blocking light) - more prominent
-	float dust = fbm(p.xz * 2.0 + vec2(p.y * 0.5, 0.0), 4);
-	float dust2 = fbm(p.xy * 1.5 + vec2(0.0, p.z * 0.3), 3);
-	float dark_lanes = smoothstep(0.4, 0.6, dust) * 0.8;
-	dark_lanes += smoothstep(0.5, 0.65, dust2) * 0.4;
-	dark_lanes = min(dark_lanes, 0.9);
+	// Wispy filament structure at larger scale
+	vec3 p2 = n * 25.0;
+	float wisps = filament_noise(p2);
+	float wisps2 = filament_noise(p2 * 1.3 + vec3(3.1, 1.7, 2.3));
 
-	// Combine band and core
-	float intensity = (band + core * 0.5) * structure * (1.0 - dark_lanes);
+	// Very large scale smooth variation (not blobby, just gradual density changes)
+	vec3 p3 = n * 8.0;
+	float large_variation = noise2D(p3.xy + p3.z * 0.5) * 0.3 + 0.7;
+
+	// Dark dust lanes - sharp, wispy, not blobby
+	vec3 p4 = n * 15.0;
+	float dust_base = noise2D(p4.xz + vec2(p4.y * 0.3, 0.0));
+	float dust2 = noise2D(p4.xy * 2.0);
+	// Sharp threshold for defined dark lanes
+	float dark_lanes = smoothstep(0.45, 0.55, dust_base) * 0.7;
+	// Add some thinner lanes
+	dark_lanes += smoothstep(0.6, 0.7, dust2) * 0.3;
+	dark_lanes = min(dark_lanes, 0.85);
+
+	// Combine: grainy stars modulated by wisps and large variation
+	float structure = star_grain * (0.5 + wisps * 0.3 + wisps2 * 0.2) * large_variation;
+
+	// Final intensity
+	float intensity = (band + core * 0.6) * structure * (1.0 - dark_lanes);
 
 	// Color gradient - warmer toward core, cooler at edges
-	vec3 edge_color = vec3(0.7, 0.75, 1.0);    // Cool blue-white at edges
-	vec3 mid_color = vec3(0.9, 0.85, 0.95);    // Pale lavender
-	vec3 core_color = vec3(1.0, 0.9, 0.75);    // Warm golden at core
+	vec3 edge_color = vec3(0.75, 0.8, 1.0);     // Cool blue-white
+	vec3 mid_color = vec3(0.95, 0.9, 0.98);     // Pale white-lavender
+	vec3 core_color = vec3(1.0, 0.92, 0.8);     // Warm golden
 
-	float core_blend = core / (core + 0.3);  // 0 at edges, 1 at core
+	float core_blend = core / (core + 0.2);
 	vec3 base_color = mix(edge_color, mid_color, band);
-	base_color = mix(base_color, core_color, core_blend * 0.6);
+	base_color = mix(base_color, core_color, core_blend * 0.5);
 
-	vec3 color = base_color * intensity * 0.25;
+	vec3 color = base_color * intensity * 0.22;
 
-	// Add dense star field in milky way region - more stars near core
-	float extra_stars = (band + core * 0.8) * 0.6;
+	// Extra dense star glow in milky way
+	float extra_glow = (band + core * 0.7) * structure * 0.08;
+	color += vec3(0.9, 0.92, 1.0) * extra_glow;
 
-	// Faint reddish emission regions scattered through
-	float emission = fbm(p.xy * 0.8, 2);
-	float emission_mask = smoothstep(0.55, 0.7, emission) * band * 0.15;
-	color += vec3(0.3, 0.08, 0.1) * emission_mask;
+	// Subtle reddish emission nebulae (only a few spots)
+	float emission = smoothstep(0.65, 0.8, noise2D(p3.xy * 1.5)) * band;
+	color += vec3(0.25, 0.06, 0.08) * emission * 0.12;
 
-	return color + vec3(extra_stars * structure * 0.12);
+	return color;
 }
 
 // Nebula clouds - colorful patches with realistic structure
@@ -453,9 +495,9 @@ vec3 shooting_stars(vec3 dir, float time) {
 	// Multiple possible meteor trails at different times
 	for (int i = 0; i < 3; i++) {
 		// Each meteor has a different time offset and duration
-		float meteor_period = 8.0 + float(i) * 5.0;  // Different periods
+		float meteor_period = 12.0 + float(i) * 7.0;  // Different periods (less frequent)
 		float meteor_time = mod(time + float(i) * 17.3, meteor_period);
-		float meteor_duration = 0.8;  // How long the streak is visible
+		float meteor_duration = 0.6;  // How long the streak is visible
 
 		// Only show meteor during its active window
 		if (meteor_time < meteor_duration) {
@@ -463,47 +505,64 @@ vec3 shooting_stars(vec3 dir, float time) {
 			float seed = float(i) + floor(time / meteor_period) * 7.13;
 			vec3 meteor_start = normalize(vec3(
 				hash(vec3(seed, 1.0, 0.0)) * 2.0 - 1.0,
-				0.3 + hash(vec3(seed, 2.0, 0.0)) * 0.6,  // Above horizon
+				0.4 + hash(vec3(seed, 2.0, 0.0)) * 0.5,  // Above horizon
 				hash(vec3(seed, 3.0, 0.0)) * 2.0 - 1.0
 			));
 
 			// Meteor direction (downward and slightly random)
 			vec3 meteor_dir = normalize(vec3(
-				hash(vec3(seed, 4.0, 0.0)) * 0.5 - 0.25,
-				-0.5 - hash(vec3(seed, 5.0, 0.0)) * 0.3,
-				hash(vec3(seed, 6.0, 0.0)) * 0.5 - 0.25
+				hash(vec3(seed, 4.0, 0.0)) * 0.6 - 0.3,
+				-0.6 - hash(vec3(seed, 5.0, 0.0)) * 0.3,
+				hash(vec3(seed, 6.0, 0.0)) * 0.6 - 0.3
 			));
 
-			// Current meteor position along its path
+			// Current meteor HEAD position along its path
 			float progress = meteor_time / meteor_duration;
-			vec3 meteor_pos = meteor_start + meteor_dir * progress * 0.4;
-			meteor_pos = normalize(meteor_pos);
+			float trail_length = 0.15;  // Length of visible trail behind head
+			float head_t = progress * 0.5;  // How far head has traveled
+			vec3 head_pos = meteor_start + meteor_dir * head_t;
 
-			// Trail - check if view direction is along the trail
-			// Calculate distance from view ray to meteor trail line
-			float t = dot(n - meteor_start, meteor_dir);
-			t = clamp(t, 0.0, progress * 0.4);
-			vec3 closest_point = meteor_start + meteor_dir * t;
+			// Find closest point on trail to view direction
+			// Trail goes from (head_pos - trail_length * meteor_dir) to head_pos
+			vec3 trail_start = head_pos - meteor_dir * trail_length * progress;  // Trail fades in
+
+			// Project view direction onto trail line
+			float t = dot(n - trail_start, meteor_dir);
+			float max_t = length(head_pos - trail_start);
+			t = clamp(t, 0.0, max_t);
+
+			vec3 closest_point = trail_start + meteor_dir * t;
 			float dist_to_trail = length(n - normalize(closest_point));
 
-			// Trail intensity - brighter at head, fading behind
-			float head_dist = length(n - meteor_pos);
-			float trail_fade = 1.0 - (t / (progress * 0.4 + 0.001));
-			trail_fade = pow(trail_fade, 2.0);
+			// Trail fades from head (bright) to tail (dim)
+			// t=0 is tail, t=max_t is head
+			float fade_along_trail = t / (max_t + 0.001);  // 0 at tail, 1 at head
+			fade_along_trail = pow(fade_along_trail, 1.5);  // Sharper falloff toward tail
 
-			// Sharp core + soft glow
-			float core = exp(-dist_to_trail * 300.0) * trail_fade;
-			float glow = exp(-dist_to_trail * 80.0) * trail_fade * 0.5;
+			// Only show if we're close to the trail
+			if (dist_to_trail < 0.1) {
+				// Sharp bright head
+				float head_dist = length(n - normalize(head_pos));
+				float head_bright = exp(-head_dist * 500.0);
 
-			// Fade in and out
-			float fade = sin(progress * 3.14159) * 1.5;
-			fade = clamp(fade, 0.0, 1.0);
+				// Trail gets thinner toward the tail
+				float trail_width = 200.0 + (1.0 - fade_along_trail) * 300.0;  // Wider falloff at tail
+				float trail = exp(-dist_to_trail * trail_width) * fade_along_trail;
 
-			// Color - white-hot core, orange/yellow tail
-			vec3 core_color = vec3(1.0, 1.0, 0.95);
-			vec3 glow_color = vec3(1.0, 0.7, 0.3);
+				// Soft glow around trail
+				float glow = exp(-dist_to_trail * 60.0) * fade_along_trail * 0.3;
 
-			total += (core * core_color + glow * glow_color) * fade * 0.8;
+				// Fade in at start, fade out at end
+				float time_fade = sin(progress * 3.14159);
+				time_fade = clamp(time_fade * 1.5, 0.0, 1.0);
+
+				// Color - white head, fading to orange/red tail
+				vec3 head_color = vec3(1.0, 1.0, 0.95);
+				vec3 tail_color = vec3(1.0, 0.5, 0.2);
+				vec3 trail_color = mix(tail_color, head_color, fade_along_trail);
+
+				total += (head_bright * head_color + trail * trail_color + glow * tail_color) * time_fade;
+			}
 		}
 	}
 
