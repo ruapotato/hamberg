@@ -224,36 +224,36 @@ func _update_sun_position() -> void:
 	# Sun completes a full 360° orbit over 24 hours
 	# Midnight (0:00) = sun directly below (nadir)
 	# Noon (12:00) = sun directly above (zenith)
-	# The orbit plane is tilted to create east-west movement
+	# 6am = sun rising in east, 6pm = sun setting in west
 
-	# Hour to orbit angle: 0h = 0°, 12h = 180°, 24h = 360°
-	var orbit_angle = (current_hour / 24.0) * TAU  # TAU = 2*PI
+	# Hour to angle: 0h = 0, 12h = PI, 24h = 2*PI
+	var hour_angle = (current_hour / 24.0) * TAU
 
-	# The sun orbits in a plane tilted ~60° from vertical
-	# This creates an arc that goes: east horizon -> high south -> west horizon
-	var orbit_tilt = deg_to_rad(60.0)  # How tilted the orbit plane is
+	# Sun height: highest at noon (+1), lowest at midnight (-1)
+	var sun_height = -cos(hour_angle)
 
-	# Calculate sun position on the tilted orbit circle
-	# Y = vertical (up positive)
-	# X = east-west (east positive)
-	# Z = north-south (north positive)
-	var y = -cos(orbit_angle)  # -1 at midnight, +1 at noon
-	var orbit_horizontal = sin(orbit_angle)  # 0 at midnight/noon, ±1 at 6am/6pm
+	# Horizontal position: +1 at 6am (east), -1 at 6pm (west), 0 at noon/midnight
+	var sun_horizontal = sin(hour_angle)
 
-	# Project horizontal component onto tilted plane
-	var x = orbit_horizontal * cos(orbit_tilt)  # East-west movement
-	var z = -orbit_horizontal * sin(orbit_tilt)  # North-south bias (sun arcs to south)
+	# Tilt the orbit plane so sun arcs through the southern sky
+	var orbit_tilt = deg_to_rad(30.0)  # 30° tilt gives nice arc
 
-	# Sun direction vector (pointing from sun toward ground)
-	var sun_dir = Vector3(x, y, z).normalized()
+	# Calculate sun position
+	# X = east-west (positive = east)
+	# Y = up-down (positive = up)
+	# Z = north-south (negative = south, where sun arcs through)
+	var sun_x = sun_horizontal
+	var sun_y = sun_height * cos(orbit_tilt)
+	var sun_z = -sun_height * sin(orbit_tilt)  # Negative so sun is to the south when high
 
-	# Point the directional light in the sun's direction
-	# Godot's DirectionalLight3D shines along its -Z axis
-	if sun_dir.length() > 0.001:
-		# Use look_at to point the light
-		# We need to find a position "behind" the sun direction and look at origin
-		var sun_pos = -sun_dir * 100.0  # Position sun far away in opposite direction
-		sun_light.look_at_from_position(sun_pos, Vector3.ZERO, Vector3.UP)
+	# Create sun position vector (where the sun actually is in the sky)
+	var sun_pos = Vector3(sun_x, sun_y, sun_z).normalized() * 100.0
+
+	# Point the directional light from sun position toward the world origin
+	if sun_pos.length() > 0.001:
+		# Handle edge case when sun is directly above/below
+		var up_vec = Vector3.FORWARD if abs(sun_pos.normalized().y) > 0.99 else Vector3.UP
+		sun_light.look_at_from_position(sun_pos, Vector3.ZERO, up_vec)
 
 func _update_sun_color() -> void:
 	var hour = current_hour
