@@ -23,8 +23,8 @@ var clearing_noise: FastNoiseLite   # Creates clearings in forests
 var rocky_noise: FastNoiseLite      # Rocky outcrops and boulder fields
 var erosion_noise: FastNoiseLite    # Erosion patterns for natural look
 
-# === 3D CAVE SYSTEM - LIGHTWEIGHT ===
-var cave_noise: FastNoiseLite       # Simple 3D cave noise (single octave for speed)
+# === 3D CAVE SYSTEM - SIMPLE ===
+var cave_noise: FastNoiseLite       # Simple cave noise (single octave)
 
 # Biome difficulty zones (distances from origin) - MUST match shader constants
 # Compact world: 1/4 scale for faster exploration
@@ -147,16 +147,13 @@ func _init(seed_value: int = 42) -> void:
 	erosion_noise.fractal_octaves = 4
 	erosion_noise.fractal_gain = 0.7
 
-	# === 3D CAVE SYSTEM - LIGHTWEIGHT VERSION ===
-	# Single noise layer for performance - called per-voxel during mesh generation
-
-	# Simple cave noise - ONE octave only for speed
+	# === 3D CAVE SYSTEM - SIMPLE ===
+	# Single noise, single octave - fast enough for real-time
 	cave_noise = FastNoiseLite.new()
 	cave_noise.seed = world_seed + 1000
 	cave_noise.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
-	cave_noise.frequency = 0.03  # Medium-scale caves
-	cave_noise.fractal_type = FastNoiseLite.FRACTAL_NONE  # NO fractals for speed
-	# Single octave = single noise sample per call
+	cave_noise.frequency = 0.03
+	cave_noise.fractal_type = FastNoiseLite.FRACTAL_NONE
 
 	print("[TerrainBiomeGenerator] Initialized with seed: %d (FastNoiseLite + Caves)" % world_seed)
 
@@ -710,37 +707,6 @@ func get_height_at_position(xz_pos: Vector2) -> float:
 # 3D CAVE SYSTEM
 # =============================================================================
 
-## FAST cave carving - single noise sample, no height lookup
-## Returns 0.0 = no cave, positive = carve this much from density
-func get_fast_cave_carving(world_pos: Vector3, surface_height: float) -> float:
-	# Only carve underground (below surface)
-	var depth: float = surface_height - world_pos.y
-	if depth < 3.0:
-		return 0.0  # Don't carve near/above surface
-
-	# Single 3D noise sample - this is the ONLY expensive call
-	var cave_val: float = cave_noise.get_noise_3d(world_pos.x, world_pos.y, world_pos.z)
-
-	# Simplex noise returns -1 to 1, we want caves where value is high
-	# Only carve where noise > 0.3 (creates sparse caves)
-	if cave_val < 0.3:
-		return 0.0
-
-	# Scale carving amount (0.3 to 1.0 maps to 0.0 to 1.0)
-	var carve: float = (cave_val - 0.3) / 0.7
-
-	# Fade out caves near surface (depth 3-8)
-	if depth < 8.0:
-		carve *= (depth - 3.0) / 5.0
-
-	return carve
-
-## Check if a position should have crystal formations (for rendering)
-## Returns crystal intensity 0.0 to 1.0
-## NOTE: Simplified - crystals disabled for now, can add back later
-func get_crystal_intensity(_world_pos: Vector3) -> float:
-	return 0.0
-
-## Check if position is in the deep caves biome
-func is_in_cave_zone(xz_pos: Vector2) -> bool:
-	return xz_pos.length() >= MID_ZONE_RADIUS
+## Check if position is in cave zone (for bounds calculation)
+func is_in_cave_zone(_xz_pos: Vector2) -> bool:
+	return true  # Simple caves everywhere
