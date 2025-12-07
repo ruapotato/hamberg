@@ -17,12 +17,12 @@ var biome_warp_z: FastNoiseLite     # Domain warping for Z
 var biome_scale_noise: FastNoiseLite # Controls biome size variation
 
 # Biome difficulty zones (distances from origin - used as weights, not hard boundaries)
-# Evenly distributed across the world - each zone gets ~5000 units
-const SAFE_ZONE_RADIUS := 5000.0      # Starting area - valley/forest only
-const MID_ZONE_RADIUS := 10000.0      # Mid-game biomes (swamp/desert appear)
-const DANGER_ZONE_RADIUS := 15000.0   # Dangerous biomes (mountains/wizardland)
-const EXTREME_ZONE_RADIUS := 20000.0  # Extreme biomes (heavy hell presence)
-# Beyond EXTREME_ZONE_RADIUS (20k-25k): Mostly hell biome
+# Compact world: 1/4 scale for faster exploration
+const SAFE_ZONE_RADIUS := 1250.0      # Starting area - valley/forest only
+const MID_ZONE_RADIUS := 2500.0       # Mid-game biomes (swamp/desert appear)
+const DANGER_ZONE_RADIUS := 3750.0    # Dangerous biomes (mountains/wizardland)
+const EXTREME_ZONE_RADIUS := 5000.0   # Extreme biomes (heavy hell presence)
+# Beyond EXTREME_ZONE_RADIUS (5k+): Mostly hell biome
 
 # Terrain parameters per biome
 var biome_heights := {
@@ -56,7 +56,7 @@ func _init(world_seed: int = 42) -> void:
 	biome_noise = FastNoiseLite.new()
 	biome_noise.seed = world_seed + 100
 	biome_noise.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
-	biome_noise.frequency = 0.0008  # Large-scale biome regions
+	biome_noise.frequency = 0.0032  # 4x frequency for 1/4 scale world
 	biome_noise.fractal_type = FastNoiseLite.FRACTAL_FBM
 	biome_noise.fractal_octaves = 3
 	biome_noise.fractal_lacunarity = 2.0
@@ -66,20 +66,20 @@ func _init(world_seed: int = 42) -> void:
 	biome_warp_x = FastNoiseLite.new()
 	biome_warp_x.seed = world_seed + 200
 	biome_warp_x.noise_type = FastNoiseLite.TYPE_PERLIN
-	biome_warp_x.frequency = 0.0005
+	biome_warp_x.frequency = 0.002  # 4x frequency
 	biome_warp_x.fractal_octaves = 2
 
 	biome_warp_z = FastNoiseLite.new()
 	biome_warp_z.seed = world_seed + 201
 	biome_warp_z.noise_type = FastNoiseLite.TYPE_PERLIN
-	biome_warp_z.frequency = 0.0005
+	biome_warp_z.frequency = 0.002  # 4x frequency
 	biome_warp_z.fractal_octaves = 2
 
 	# NEW: Controls scale/size variation of biome patches
 	biome_scale_noise = FastNoiseLite.new()
 	biome_scale_noise.seed = world_seed + 300
 	biome_scale_noise.noise_type = FastNoiseLite.TYPE_SIMPLEX
-	biome_scale_noise.frequency = 0.001
+	biome_scale_noise.frequency = 0.004  # 4x frequency
 	biome_scale_noise.fractal_octaves = 2
 
 	print("[BiomeGenerator] Initialized with seed: %d (Valheim-style noise biomes)" % world_seed)
@@ -93,7 +93,7 @@ func _get_biome_at_position(xz_pos: Vector2) -> String:
 	var distance := xz_pos.length()
 
 	# Apply domain warping for organic distortion (Valheim-style)
-	var warp_strength := 800.0  # How much to distort coordinates
+	var warp_strength := 200.0  # 1/4 scale warp for compact world
 	var warp_x := biome_warp_x.get_noise_2d(xz_pos.x, xz_pos.y) * warp_strength
 	var warp_z := biome_warp_z.get_noise_2d(xz_pos.x, xz_pos.y) * warp_strength
 
@@ -186,7 +186,7 @@ func _get_blended_height_at_position(xz_pos: Vector2) -> float:
 	var distance := xz_pos.length()
 
 	# Apply domain warping (same as biome selection)
-	var warp_strength := 800.0
+	var warp_strength := 200.0  # 1/4 scale
 	var warp_x := biome_warp_x.get_noise_2d(xz_pos.x, xz_pos.y) * warp_strength
 	var warp_z := biome_warp_z.get_noise_2d(xz_pos.x, xz_pos.y) * warp_strength
 	var warped_pos := xz_pos + Vector2(warp_x, warp_z)

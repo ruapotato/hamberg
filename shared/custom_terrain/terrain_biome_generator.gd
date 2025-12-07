@@ -15,14 +15,26 @@ var biome_warp_x: FastNoiseLite     # Domain warping for X
 var biome_warp_z: FastNoiseLite     # Domain warping for Z
 var biome_scale_noise: FastNoiseLite # Controls biome size variation
 
+# === EPIC TERRAIN FEATURES ===
+var ridge_noise: FastNoiseLite      # Creates mountain ridges and valleys
+var cliff_noise: FastNoiseLite      # Creates cliff faces and plateaus
+var ravine_noise: FastNoiseLite     # Carves ravines/dry riverbeds
+var clearing_noise: FastNoiseLite   # Creates clearings in forests
+var rocky_noise: FastNoiseLite      # Rocky outcrops and boulder fields
+var erosion_noise: FastNoiseLite    # Erosion patterns for natural look
+
+# === 3D CAVE SYSTEM - LIGHTWEIGHT ===
+var cave_noise: FastNoiseLite       # Simple 3D cave noise (single octave for speed)
+
 # Biome difficulty zones (distances from origin) - MUST match shader constants
+# Compact world: 1/4 scale for faster exploration
 const SPAWN_FLAT_RADIUS := 20.0  # Flat terrain near spawn for shoe hut placement
 const SPAWN_FLAT_BLEND := 10.0  # Blend distance from flat to normal terrain
-const SPAWN_VALLEY_RADIUS := 100.0  # Always valley near spawn point (safe starting area)
-const SAFE_ZONE_RADIUS := 5000.0
-const MID_ZONE_RADIUS := 10000.0
-const DANGER_ZONE_RADIUS := 15000.0
-const EXTREME_ZONE_RADIUS := 20000.0
+const SPAWN_VALLEY_RADIUS := 25.0  # Always valley near spawn point (safe starting area)
+const SAFE_ZONE_RADIUS := 1250.0
+const MID_ZONE_RADIUS := 2500.0
+const DANGER_ZONE_RADIUS := 3750.0
+const EXTREME_ZONE_RADIUS := 5000.0
 
 # Terrain parameters per biome
 var biome_heights := {
@@ -60,7 +72,7 @@ func _init(seed_value: int = 42) -> void:
 	biome_noise = FastNoiseLite.new()
 	biome_noise.seed = world_seed + 100
 	biome_noise.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
-	biome_noise.frequency = 0.0008  # Large-scale biome regions
+	biome_noise.frequency = 0.0032  # 4x frequency for 1/4 scale world
 	biome_noise.fractal_type = FastNoiseLite.FRACTAL_FBM
 	biome_noise.fractal_octaves = 3
 	biome_noise.fractal_lacunarity = 2.0
@@ -70,23 +82,83 @@ func _init(seed_value: int = 42) -> void:
 	biome_warp_x = FastNoiseLite.new()
 	biome_warp_x.seed = world_seed + 200
 	biome_warp_x.noise_type = FastNoiseLite.TYPE_PERLIN
-	biome_warp_x.frequency = 0.0005
+	biome_warp_x.frequency = 0.002  # 4x frequency
 	biome_warp_x.fractal_octaves = 2
 
 	biome_warp_z = FastNoiseLite.new()
 	biome_warp_z.seed = world_seed + 201
 	biome_warp_z.noise_type = FastNoiseLite.TYPE_PERLIN
-	biome_warp_z.frequency = 0.0005
+	biome_warp_z.frequency = 0.002  # 4x frequency
 	biome_warp_z.fractal_octaves = 2
 
 	# Controls scale/size variation of biome patches
 	biome_scale_noise = FastNoiseLite.new()
 	biome_scale_noise.seed = world_seed + 300
 	biome_scale_noise.noise_type = FastNoiseLite.TYPE_SIMPLEX
-	biome_scale_noise.frequency = 0.001
+	biome_scale_noise.frequency = 0.004  # 4x frequency
 	biome_scale_noise.fractal_octaves = 2
 
-	print("[TerrainBiomeGenerator] Initialized with seed: %d (FastNoiseLite)" % world_seed)
+	# === EPIC TERRAIN FEATURE NOISES ===
+
+	# Large-scale terrain variation (hills and valleys)
+	ridge_noise = FastNoiseLite.new()
+	ridge_noise.seed = world_seed + 400
+	ridge_noise.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
+	ridge_noise.frequency = 0.002  # Large scale variation
+	ridge_noise.fractal_type = FastNoiseLite.FRACTAL_FBM  # Smooth, not ridged
+	ridge_noise.fractal_octaves = 3
+	ridge_noise.fractal_lacunarity = 2.0
+	ridge_noise.fractal_gain = 0.5
+
+	# Cliff noise - creates plateaus and cliff faces
+	cliff_noise = FastNoiseLite.new()
+	cliff_noise.seed = world_seed + 500
+	cliff_noise.noise_type = FastNoiseLite.TYPE_PERLIN
+	cliff_noise.frequency = 0.006
+	cliff_noise.fractal_octaves = 2
+
+	# Ravine noise - subtle depressions
+	ravine_noise = FastNoiseLite.new()
+	ravine_noise.seed = world_seed + 600
+	ravine_noise.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
+	ravine_noise.frequency = 0.002
+	ravine_noise.fractal_type = FastNoiseLite.FRACTAL_FBM  # Smooth
+	ravine_noise.fractal_octaves = 2
+
+	# Clearing noise - creates open clearings in forests
+	clearing_noise = FastNoiseLite.new()
+	clearing_noise.seed = world_seed + 700
+	clearing_noise.noise_type = FastNoiseLite.TYPE_CELLULAR
+	clearing_noise.frequency = 0.015
+	clearing_noise.cellular_return_type = FastNoiseLite.RETURN_DISTANCE
+
+	# Rocky noise - creates rocky outcrops and boulder fields
+	rocky_noise = FastNoiseLite.new()
+	rocky_noise.seed = world_seed + 800
+	rocky_noise.noise_type = FastNoiseLite.TYPE_CELLULAR
+	rocky_noise.frequency = 0.02
+	rocky_noise.cellular_return_type = FastNoiseLite.RETURN_CELL_VALUE
+
+	# Erosion noise - adds natural weathering patterns
+	erosion_noise = FastNoiseLite.new()
+	erosion_noise.seed = world_seed + 900
+	erosion_noise.noise_type = FastNoiseLite.TYPE_SIMPLEX
+	erosion_noise.frequency = 0.025
+	erosion_noise.fractal_octaves = 4
+	erosion_noise.fractal_gain = 0.7
+
+	# === 3D CAVE SYSTEM - LIGHTWEIGHT VERSION ===
+	# Single noise layer for performance - called per-voxel during mesh generation
+
+	# Simple cave noise - ONE octave only for speed
+	cave_noise = FastNoiseLite.new()
+	cave_noise.seed = world_seed + 1000
+	cave_noise.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
+	cave_noise.frequency = 0.03  # Medium-scale caves
+	cave_noise.fractal_type = FastNoiseLite.FRACTAL_NONE  # NO fractals for speed
+	# Single octave = single noise sample per call
+
+	print("[TerrainBiomeGenerator] Initialized with seed: %d (FastNoiseLite + Caves)" % world_seed)
 
 # ============================================================================
 # BIOME SELECTION - Uses FastNoiseLite like BiomeGenerator
@@ -101,7 +173,7 @@ func _get_biome_index(xz_pos: Vector2) -> int:
 		return 0  # valley
 
 	# Domain warping for organic distortion (Valheim-style)
-	var warp_strength := 800.0
+	var warp_strength := 200.0  # 1/4 scale for compact world
 	var warp_x := biome_warp_x.get_noise_2d(xz_pos.x, xz_pos.y) * warp_strength
 	var warp_z := biome_warp_z.get_noise_2d(xz_pos.x, xz_pos.y) * warp_strength
 
@@ -212,7 +284,7 @@ func _get_biome_blend_weights(xz_pos: Vector2) -> Array:
 		return [[0, 1.0]]  # 100% valley
 
 	# Domain warping for organic distortion (Valheim-style)
-	var warp_strength := 800.0
+	var warp_strength := 200.0  # 1/4 scale for compact world
 	var warp_x := biome_warp_x.get_noise_2d(xz_pos.x, xz_pos.y) * warp_strength
 	var warp_z := biome_warp_z.get_noise_2d(xz_pos.x, xz_pos.y) * warp_strength
 
@@ -320,7 +392,7 @@ func _get_biome_blend_weights(xz_pos: Vector2) -> Array:
 
 	return result
 
-## Calculate height for a specific biome
+## Calculate height for a specific biome with EPIC terrain features
 func _get_biome_height(xz_pos: Vector2, biome_idx: int) -> float:
 	var biome_name := _biome_index_to_name(biome_idx)
 	var params: Dictionary = biome_heights.get(biome_name, biome_heights["valley"])
@@ -328,10 +400,283 @@ func _get_biome_height(xz_pos: Vector2, biome_idx: int) -> float:
 	var amplitude: float = params["amplitude"]
 	var roughness: float = params["roughness"]
 
+	# Base terrain noise
 	var noise_value := noise.get_noise_2d(xz_pos.x, xz_pos.y)
 	var detail_value := detail_noise.get_noise_2d(xz_pos.x, xz_pos.y)
 
-	return base + (noise_value * amplitude) + (detail_value * amplitude * roughness)
+	var height := base + (noise_value * amplitude) + (detail_value * amplitude * roughness)
+
+	# Apply smooth terrain variation per biome
+	match biome_name:
+		"valley":
+			# Gentle extra hills
+			var extra := ridge_noise.get_noise_2d(xz_pos.x, xz_pos.y)
+			height += extra * 5.0
+		"dark_forest":
+			# More hilly
+			var extra := ridge_noise.get_noise_2d(xz_pos.x, xz_pos.y)
+			height += extra * 8.0
+			# Slight bumpiness
+			var bumps := erosion_noise.get_noise_2d(xz_pos.x, xz_pos.y)
+			height += bumps * 2.0
+		"mountain":
+			# Much more dramatic height variation
+			var extra := ridge_noise.get_noise_2d(xz_pos.x, xz_pos.y)
+			height += extra * 20.0
+			# Additional peaks
+			var peaks := cliff_noise.get_noise_2d(xz_pos.x * 0.5, xz_pos.y * 0.5)
+			height += peaks * 15.0
+		"swamp":
+			# Flatten towards water level
+			height = lerpf(-1.0, height, 0.6)
+			# Subtle mounds
+			var mounds := clearing_noise.get_noise_2d(xz_pos.x * 2.0, xz_pos.y * 2.0)
+			height += mounds * 2.0
+		"desert":
+			# Rolling dunes
+			var dunes := ridge_noise.get_noise_2d(xz_pos.x * 1.5, xz_pos.y * 0.5)
+			height += dunes * 6.0
+		"wizardland":
+			# Dramatic but smooth
+			var extra := ridge_noise.get_noise_2d(xz_pos.x, xz_pos.y)
+			height += extra * 15.0
+			var swirl := erosion_noise.get_noise_2d(xz_pos.x + xz_pos.y * 0.1, xz_pos.y)
+			height += swirl * 5.0
+		"hell":
+			# Chaotic terrain
+			var chaos := ridge_noise.get_noise_2d(xz_pos.x * 1.5, xz_pos.y * 1.5)
+			height += chaos * 18.0
+			var pits := ravine_noise.get_noise_2d(xz_pos.x, xz_pos.y)
+			height += pits * 8.0
+
+	return height
+
+# =============================================================================
+# EPIC TERRAIN FEATURE FUNCTIONS
+# =============================================================================
+
+## Valley: Gentle rolling hills with subtle variation
+func _apply_valley_features(xz_pos: Vector2, height: float, amplitude: float) -> float:
+	# Gentle undulation for more interesting hills
+	var ridge := ridge_noise.get_noise_2d(xz_pos.x * 0.3, xz_pos.y * 0.3)
+	height += ridge * amplitude * 0.15  # Very subtle
+
+	# Occasional flatter areas (clearings)
+	var clearing := clearing_noise.get_noise_2d(xz_pos.x, xz_pos.y)
+	if clearing > 0.7:
+		var flatten_amount := (clearing - 0.7) / 0.3
+		height = lerpf(height, 5.0, flatten_amount * 0.3)
+
+	# Very subtle depressions (dry stream beds)
+	var ravine := ravine_noise.get_noise_2d(xz_pos.x, xz_pos.y)
+	if ravine > 0.9:
+		var depth := (ravine - 0.9) / 0.1
+		height -= depth * 2.0
+
+	return height
+
+## Dark Forest: Uneven ground with subtle hills and clearings
+func _apply_forest_features(xz_pos: Vector2, height: float, amplitude: float) -> float:
+	# Gentle hills
+	var ridge := ridge_noise.get_noise_2d(xz_pos.x * 0.5, xz_pos.y * 0.5)
+	height += ridge * amplitude * 0.2
+
+	# Slight rocky bumps
+	var rocky := rocky_noise.get_noise_2d(xz_pos.x, xz_pos.y)
+	if rocky > 0.75:
+		var rock_height := (rocky - 0.75) / 0.25
+		height += rock_height * 3.0
+
+	# Forest clearings
+	var clearing := clearing_noise.get_noise_2d(xz_pos.x * 1.5, xz_pos.y * 1.5)
+	if clearing > 0.7:
+		var flatten := (clearing - 0.7) / 0.3
+		height = lerpf(height, 6.0, flatten * 0.3)
+
+	# Subtle ground variation
+	var erosion := erosion_noise.get_noise_2d(xz_pos.x, xz_pos.y)
+	height += erosion * 1.0
+
+	return height
+
+## Mountains: Dramatic peaks with smooth ridgelines
+func _apply_mountain_features(xz_pos: Vector2, height: float, amplitude: float) -> float:
+	# Ridge lines for mountain ranges (smooth, not sharp)
+	var ridge := ridge_noise.get_noise_2d(xz_pos.x, xz_pos.y)
+	height += ridge * amplitude * 0.5
+
+	# Valleys between peaks
+	var valley: float = 1.0 - abs(ridge_noise.get_noise_2d(xz_pos.x * 0.3, xz_pos.y * 0.3))
+	if valley > 0.75:
+		var valley_depth: float = (valley - 0.75) / 0.25
+		height -= valley_depth * 10.0
+
+	# Rocky detail
+	var rocky := rocky_noise.get_noise_2d(xz_pos.x * 2.0, xz_pos.y * 2.0)
+	height += rocky * 2.0
+
+	return height
+
+## Swamp: Mostly flat with slight undulations
+func _apply_swamp_features(xz_pos: Vector2, height: float, amplitude: float) -> float:
+	# Swamps are mostly flat - reduce existing variation
+	height = lerpf(-2.0, height, 0.5)
+
+	# Slight mounds (tree islands)
+	var mound := clearing_noise.get_noise_2d(xz_pos.x * 2.0, xz_pos.y * 2.0)
+	if mound > 0.6:
+		var mound_height := (mound - 0.6) / 0.4
+		height += mound_height * 2.0
+
+	# Subtle depressions
+	var pool := rocky_noise.get_noise_2d(xz_pos.x * 0.8, xz_pos.y * 0.8)
+	if pool < 0.25:
+		var pool_depth := (0.25 - pool) / 0.25
+		height -= pool_depth * 1.5
+
+	return height
+
+## Desert: Gentle dunes and subtle variation
+func _apply_desert_features(xz_pos: Vector2, height: float, amplitude: float) -> float:
+	# Sand dunes - gentle wave-like shapes
+	var dune := ridge_noise.get_noise_2d(xz_pos.x * 1.0, xz_pos.y * 0.4)
+	height += dune * amplitude * 0.3
+
+	# Occasional higher areas
+	var plateau := cliff_noise.get_noise_2d(xz_pos.x * 0.3, xz_pos.y * 0.3)
+	if plateau > 0.6:
+		var mesa_height := (plateau - 0.6) / 0.4
+		height += mesa_height * 5.0
+
+	# Subtle depressions
+	var canyon := ravine_noise.get_noise_2d(xz_pos.x * 0.4, xz_pos.y * 0.4)
+	if canyon > 0.9:
+		var canyon_depth := (canyon - 0.9) / 0.1
+		height -= canyon_depth * 4.0
+
+	# Wind erosion patterns
+	var erosion := erosion_noise.get_noise_2d(xz_pos.x * 3.0, xz_pos.y * 3.0)
+	height += erosion * 0.8
+
+	return height
+
+## Wizardland: Mystical terrain with unusual formations
+func _apply_wizardland_features(xz_pos: Vector2, height: float, amplitude: float) -> float:
+	# Occasional tall formations
+	var spire := rocky_noise.get_noise_2d(xz_pos.x * 1.2, xz_pos.y * 1.2)
+	if spire > 0.7:
+		var spire_height := (spire - 0.7) / 0.3
+		height += spire_height * 12.0
+
+	# Raised plateaus
+	var plateau := cliff_noise.get_noise_2d(xz_pos.x * 0.5, xz_pos.y * 0.5)
+	if plateau > 0.5:
+		var lift := (plateau - 0.5) / 0.5
+		height += lift * 8.0
+
+	# Mystical valleys
+	var valley: float = ridge_noise.get_noise_2d(xz_pos.x * 0.6, xz_pos.y * 0.6)
+	if valley < -0.5:
+		height += valley * 6.0
+
+	# Swirling patterns
+	var swirl_x := xz_pos.x + sin(xz_pos.y * 0.01) * 15.0
+	var swirl_z := xz_pos.y + cos(xz_pos.x * 0.01) * 15.0
+	var erosion := erosion_noise.get_noise_2d(swirl_x, swirl_z)
+	height += erosion * 2.0
+
+	return height
+
+## Hell: Rough, volcanic terrain
+func _apply_hell_features(xz_pos: Vector2, height: float, amplitude: float) -> float:
+	# Jagged ridges
+	var ridge := ridge_noise.get_noise_2d(xz_pos.x * 1.2, xz_pos.y * 1.2)
+	height += ridge * amplitude * 0.6
+
+	# Volcanic craters
+	var crater := clearing_noise.get_noise_2d(xz_pos.x * 0.8, xz_pos.y * 0.8)
+	if crater > 0.75:
+		var crater_depth := (crater - 0.75) / 0.25
+		height -= crater_depth * 10.0
+
+	# Lava channels
+	var lava := ravine_noise.get_noise_2d(xz_pos.x * 0.6, xz_pos.y * 0.6)
+	if lava > 0.88:
+		var channel_depth := (lava - 0.88) / 0.12
+		height -= channel_depth * 6.0
+
+	# Rocky detail
+	var spike := rocky_noise.get_noise_2d(xz_pos.x * 2.0, xz_pos.y * 2.0)
+	height += spike * 3.0
+
+	# Chaotic variation
+	var erosion := erosion_noise.get_noise_2d(xz_pos.x * 2.0, xz_pos.y * 2.0)
+	height += erosion * 2.0
+
+	return height
+
+## Smoothstep helper function
+func smoothstep(edge0: float, edge1: float, x: float) -> float:
+	var t := clampf((x - edge0) / (edge1 - edge0), 0.0, 1.0)
+	return t * t * (3.0 - 2.0 * t)
+
+# =============================================================================
+# SUB-BIOME FEATURE QUERIES (for object spawning)
+# =============================================================================
+
+## Get sub-biome features at a position
+## Returns: { "clearing": 0.0-1.0, "dense": 0.0-1.0, "rocky": 0.0-1.0, "ravine": 0.0-1.0 }
+func get_sub_biome_features(xz_pos: Vector2) -> Dictionary:
+	var clearing_val: float = clearing_noise.get_noise_2d(xz_pos.x, xz_pos.y)
+	var rocky_val: float = rocky_noise.get_noise_2d(xz_pos.x, xz_pos.y)
+	var ravine_val: float = ravine_noise.get_noise_2d(xz_pos.x, xz_pos.y)
+	var ridge_val: float = abs(ridge_noise.get_noise_2d(xz_pos.x * 0.7, xz_pos.y * 0.7))
+
+	return {
+		"clearing": maxf(0.0, (clearing_val - 0.5) * 2.0),  # 0 = not clearing, 1 = full clearing
+		"dense": maxf(0.0, (0.3 - clearing_val) * 3.0),     # Inverse of clearing = dense
+		"rocky": maxf(0.0, (rocky_val - 0.5) * 2.0),        # 0 = not rocky, 1 = very rocky
+		"ravine": maxf(0.0, (ravine_val - 0.8) * 5.0),      # 0 = not ravine, 1 = deep ravine
+		"ridge": ridge_val                                   # 0 = valley, 1 = ridge top
+	}
+
+## Check if position is in a clearing (no trees should spawn here)
+func is_clearing(xz_pos: Vector2) -> bool:
+	var clearing_val := clearing_noise.get_noise_2d(xz_pos.x, xz_pos.y)
+	return clearing_val > 0.6
+
+## Check if position is in a dense area (more trees/objects)
+func is_dense_area(xz_pos: Vector2) -> bool:
+	var clearing_val := clearing_noise.get_noise_2d(xz_pos.x, xz_pos.y)
+	return clearing_val < 0.3
+
+## Check if position is rocky (rocks spawn, fewer trees)
+func is_rocky(xz_pos: Vector2) -> bool:
+	var rocky_val := rocky_noise.get_noise_2d(xz_pos.x, xz_pos.y)
+	return rocky_val > 0.6
+
+## Check if position is in a ravine/riverbed
+func is_ravine(xz_pos: Vector2) -> bool:
+	var ravine_val := ravine_noise.get_noise_2d(xz_pos.x, xz_pos.y)
+	return ravine_val > 0.85
+
+## Get tree density multiplier for a position (0.0 = no trees, 2.0 = extra dense)
+func get_tree_density_multiplier(xz_pos: Vector2) -> float:
+	var features := get_sub_biome_features(xz_pos)
+
+	# No trees in clearings or ravines
+	if features["clearing"] > 0.5 or features["ravine"] > 0.3:
+		return 0.0
+
+	# Fewer trees in rocky areas
+	if features["rocky"] > 0.5:
+		return 0.3
+
+	# More trees in dense areas
+	if features["dense"] > 0.5:
+		return 1.5 + features["dense"] * 0.5  # Up to 2.0x
+
+	return 1.0  # Normal density
 
 ## Get terrain height with smooth blending between biomes
 func get_height_at_position(xz_pos: Vector2) -> float:
@@ -360,3 +705,42 @@ func get_height_at_position(xz_pos: Vector2) -> float:
 		return lerpf(SPAWN_HEIGHT, final_height, blend_factor)
 
 	return final_height
+
+# =============================================================================
+# 3D CAVE SYSTEM
+# =============================================================================
+
+## FAST cave carving - single noise sample, no height lookup
+## Returns 0.0 = no cave, positive = carve this much from density
+func get_fast_cave_carving(world_pos: Vector3, surface_height: float) -> float:
+	# Only carve underground (below surface)
+	var depth: float = surface_height - world_pos.y
+	if depth < 3.0:
+		return 0.0  # Don't carve near/above surface
+
+	# Single 3D noise sample - this is the ONLY expensive call
+	var cave_val: float = cave_noise.get_noise_3d(world_pos.x, world_pos.y, world_pos.z)
+
+	# Simplex noise returns -1 to 1, we want caves where value is high
+	# Only carve where noise > 0.3 (creates sparse caves)
+	if cave_val < 0.3:
+		return 0.0
+
+	# Scale carving amount (0.3 to 1.0 maps to 0.0 to 1.0)
+	var carve: float = (cave_val - 0.3) / 0.7
+
+	# Fade out caves near surface (depth 3-8)
+	if depth < 8.0:
+		carve *= (depth - 3.0) / 5.0
+
+	return carve
+
+## Check if a position should have crystal formations (for rendering)
+## Returns crystal intensity 0.0 to 1.0
+## NOTE: Simplified - crystals disabled for now, can add back later
+func get_crystal_intensity(_world_pos: Vector3) -> float:
+	return 0.0
+
+## Check if position is in the deep caves biome
+func is_in_cave_zone(xz_pos: Vector2) -> bool:
+	return xz_pos.length() >= MID_ZONE_RADIUS

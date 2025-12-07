@@ -180,6 +180,7 @@ var brain_power_regen_timer: float = 0.0  # Time since last brain power use
 var health: float = PC.BASE_HEALTH
 var is_dead: bool = false
 var god_mode: bool = false  # Debug god mode - unlimited stamina/brain power
+var fly_mode: bool = false  # Debug fly mode - noclip flight for exploring
 
 # Gold currency (separate from inventory, doesn't take a slot)
 var gold: int = 0
@@ -487,6 +488,36 @@ func _apply_movement(input_data: Dictionary, delta: float) -> void:
 	var camera_basis: Basis = input_data.get("camera_basis", Basis())
 	var input_dir := Vector2(move_x, move_z).normalized()
 	var direction := (camera_basis * Vector3(input_dir.x, 0, input_dir.y)).normalized()
+
+	# FLY MODE: Noclip flight for exploring terrain
+	if fly_mode:
+		var fly_speed := 30.0 if is_sprinting else 12.0  # Fast flight for exploring
+		var fly_velocity := Vector3.ZERO
+
+		# Get full 3D camera direction (not just horizontal)
+		var cam_forward := -camera_basis.z  # Camera's forward direction
+		var cam_right := camera_basis.x     # Camera's right direction
+
+		# Movement in camera space (fly where you're looking)
+		if move_z < 0:  # Forward
+			fly_velocity += cam_forward * fly_speed
+		elif move_z > 0:  # Backward
+			fly_velocity -= cam_forward * fly_speed
+		if move_x > 0:  # Right
+			fly_velocity += cam_right * fly_speed
+		elif move_x < 0:  # Left
+			fly_velocity -= cam_right * fly_speed
+
+		# Additional vertical control with Space/Ctrl
+		if jump_pressed:
+			fly_velocity.y += fly_speed  # Fly up
+		if Input.is_key_pressed(KEY_CTRL):
+			fly_velocity.y -= fly_speed  # Fly down
+
+		# Direct position update (noclip - ignores collision)
+		global_position += fly_velocity * delta
+		velocity = Vector3.ZERO  # Clear velocity so we don't slide when exiting fly mode
+		return  # Skip all other movement logic
 
 	# Gravity (only apply if game is loaded)
 	if not is_on_floor() and is_game_loaded:

@@ -32,6 +32,9 @@ var is_modified: bool = false
 var min_surface_y: int = 256
 var max_surface_y: int = -256
 
+# Reference to biome generator for cave calculations (optional)
+var biome_generator = null  # TerrainBiomeGenerator instance
+
 func _init(cx: int = 0, cz: int = 0) -> void:
 	chunk_x = cx
 	chunk_z = cz
@@ -68,6 +71,7 @@ func _pack_coords(x: int, y: int, z: int) -> int:
 
 ## Get voxel density at local chunk coordinates
 ## Uses heightmap for unmodified terrain, sparse dict for modifications
+## Now includes 3D cave carving when biome_generator is set
 func get_voxel(x: int, y_local: int, z: int) -> float:
 	if x < 0 or x >= CHUNK_SIZE_XZ or z < 0 or z >= CHUNK_SIZE_XZ:
 		return 0.0
@@ -84,13 +88,26 @@ func get_voxel(x: int, y_local: int, z: int) -> float:
 	var terrain_height: float = heightmap[_height_index(x, z)]
 	var distance_from_surface: float = float(world_y) - terrain_height
 
+	var base_density: float
 	if distance_from_surface < -2.0:
-		return 1.0  # Deep underground
+		base_density = 1.0  # Deep underground
 	elif distance_from_surface > 2.0:
-		return 0.0  # Air
+		base_density = 0.0  # Air
 	else:
 		# Smooth transition
-		return 1.0 - (distance_from_surface + 2.0) / 4.0
+		base_density = 1.0 - (distance_from_surface + 2.0) / 4.0
+
+	# Fast 3D cave carving - single noise sample per voxel
+	if biome_generator != null and base_density > 0.0:
+		if biome_generator.has_method("get_fast_cave_carving"):
+			var world_x: float = float(chunk_x * CHUNK_SIZE_XZ + x)
+			var world_z: float = float(chunk_z * CHUNK_SIZE_XZ + z)
+			var world_pos := Vector3(world_x, float(world_y), world_z)
+			var cave_carve: float = biome_generator.get_fast_cave_carving(world_pos, terrain_height)
+			if cave_carve > 0.0:
+				base_density = maxf(0.0, base_density - cave_carve)
+
+	return base_density
 
 ## Get voxel using world coordinates
 func get_voxel_world(world_x: int, world_y: int, world_z: int) -> float:
@@ -152,6 +169,12 @@ func fill_from_heights(heights: PackedFloat32Array) -> void:
 			min_surface_y = h - 2
 		if h + 2 > max_surface_y:
 			max_surface_y = h + 2
+
+	# Extend bounds for caves - need extra Y range for underground carving
+	if biome_generator != null:
+		# Extend min_y to allow caves below surface (up to 30 units deep)
+		min_surface_y = mini(min_surface_y, min_surface_y - 30)
+		min_surface_y = maxi(min_surface_y, -128)
 
 	is_dirty = true
 	# Don't mark as modified - this is just procedural generation, not player modification

@@ -699,6 +699,9 @@ func _queue_neighbor_mesh_updates(cx: int, cz: int) -> void:
 func _generate_chunk(cx: int, cz: int):
 	var chunk := ChunkDataClass.new(cx, cz)
 
+	# Set biome generator reference
+	chunk.biome_generator = biome_generator
+
 	# Generate heightmap (much faster - only 256 samples per chunk)
 	var heights := PackedFloat32Array()
 	heights.resize(ChunkDataClass.CHUNK_SIZE_XZ * ChunkDataClass.CHUNK_SIZE_XZ)
@@ -713,7 +716,62 @@ func _generate_chunk(cx: int, cz: int):
 			heights[lx + lz * ChunkDataClass.CHUNK_SIZE_XZ] = terrain_height
 
 	chunk.fill_from_heights(heights)
+
+	# NOTE: Cave pre-calculation disabled for performance
+	# TODO: Implement async/threaded cave generation
+	# _precalculate_caves_for_chunk(chunk)
+
 	return chunk
+
+## Pre-calculate cave carving and store in modified_voxels (runs once during generation)
+func _precalculate_caves_for_chunk(chunk) -> void:
+	if biome_generator == null:
+		return
+	if not biome_generator.has_method("is_in_cave_zone"):
+		return
+
+	# Check if chunk is in cave zone
+	var chunk_center := Vector2(
+		chunk.chunk_x * ChunkDataClass.CHUNK_SIZE_XZ + ChunkDataClass.CHUNK_SIZE_XZ / 2,
+		chunk.chunk_z * ChunkDataClass.CHUNK_SIZE_XZ + ChunkDataClass.CHUNK_SIZE_XZ / 2
+	)
+
+	if not biome_generator.is_in_cave_zone(chunk_center):
+		return  # No caves in this area
+
+	# Get Y range for cave calculation (5-80 units below surface)
+	var y_range: Vector2i = chunk.get_surface_y_range()
+	var min_y: int = maxi(y_range.x - 80, -128)
+	var max_y: int = y_range.y
+
+	# Sample caves at every other voxel for speed, interpolate would be complex
+	# Use step of 2 for a 4x speedup with acceptable quality
+	const STEP: int = 1  # Can increase to 2 for more speed, less accuracy
+
+	for lz in range(0, ChunkDataClass.CHUNK_SIZE_XZ, STEP):
+		for lx in range(0, ChunkDataClass.CHUNK_SIZE_XZ, STEP):
+			var world_x: float = float(chunk.chunk_x * ChunkDataClass.CHUNK_SIZE_XZ + lx)
+			var world_z: float = float(chunk.chunk_z * ChunkDataClass.CHUNK_SIZE_XZ + lz)
+
+			# Get surface height for this column
+			var surface_height: float = chunk.get_height(lx, lz)
+
+			# Only check Y values where caves can exist (5-80 below surface)
+			var cave_min_y: int = int(surface_height) - 80
+			var cave_max_y: int = int(surface_height) - 5
+
+			for world_y in range(maxi(cave_min_y, min_y), mini(cave_max_y, max_y) + 1, STEP):
+				var world_pos := Vector3(world_x, float(world_y), world_z)
+				var cave_carving: float = biome_generator.get_cave_carving(world_pos)
+
+				if cave_carving > 0.1:  # Only store significant caves
+					# Get current density and subtract cave
+					var y_local: int = world_y + 128
+					var current_density: float = chunk.get_voxel(lx, y_local, lz)
+					var new_density: float = maxf(0.0, current_density - cave_carving)
+
+					if new_density < current_density - 0.05:  # Only store if actually carving
+						chunk.set_voxel(lx, y_local, lz, new_density)
 
 ## Update mesh for a chunk
 func _update_chunk_mesh(chunk) -> void:
@@ -916,6 +974,13 @@ func _load_chunk_from_disk(cx: int, cz: int):
 		return null
 
 	var chunk = ChunkDataClass.deserialize(json.data)
+
+	# Set biome generator reference for 3D cave calculations
+	if chunk != null:
+		chunk.biome_generator = biome_generator
+		# Extend bounds for cave depth if in cave zone
+		_extend_chunk_bounds_for_caves(chunk)
+
 	return chunk
 
 # =============================================================================
@@ -1083,6 +1148,29 @@ func get_biome_at(xz_pos: Vector2) -> String:
 		return biome_generator.get_biome_at_position(xz_pos)
 	return "valley"
 
+## Get the biome generator (for cave queries and other systems)
+func get_biome_generator():
+	return biome_generator
+
+## Extend chunk Y bounds for cave depth (for loaded chunks that don't call fill_from_heights)
+func _extend_chunk_bounds_for_caves(chunk) -> void:
+	if biome_generator == null:
+		return
+	if not biome_generator.has_method("is_in_cave_zone"):
+		return
+
+	# Check if chunk center is in a cave zone
+	var chunk_center := Vector2(
+		chunk.chunk_x * ChunkDataClass.CHUNK_SIZE_XZ + ChunkDataClass.CHUNK_SIZE_XZ / 2,
+		chunk.chunk_z * ChunkDataClass.CHUNK_SIZE_XZ + ChunkDataClass.CHUNK_SIZE_XZ / 2
+	)
+
+	if biome_generator.is_in_cave_zone(chunk_center):
+		# Extend min_y to account for cave depth (80 units below min surface)
+		chunk.min_surface_y = mini(chunk.min_surface_y, chunk.min_surface_y - 80)
+		# Clamp to valid range
+		chunk.min_surface_y = maxi(chunk.min_surface_y, -128)
+
 ## Find surface position (for spawning)
 func find_surface_position(xz_pos: Vector2, search_start_y: float = 100.0, search_range: float = 200.0) -> Vector3:
 	# Use raycast for precision
@@ -1191,6 +1279,10 @@ func get_all_modified_chunks() -> Array:
 func apply_received_chunk(chunk_x: int, chunk_z: int, chunk_data: Dictionary) -> void:
 	var key := ChunkDataClass.make_key(chunk_x, chunk_z)
 	var chunk = ChunkDataClass.deserialize(chunk_data)
+
+	# Set biome generator reference for 3D cave calculations
+	chunk.biome_generator = biome_generator
+	_extend_chunk_bounds_for_caves(chunk)
 
 	chunks[key] = chunk
 	chunk.is_dirty = true

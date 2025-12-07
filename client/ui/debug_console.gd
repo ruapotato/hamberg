@@ -23,7 +23,7 @@ var god_mode: bool = false
 var browsing_history: bool = false
 
 # Autocomplete data
-var all_commands: Array[String] = ["/give", "/spawn", "/tp", "/heal", "/god", "/gold", "/clear", "/kill", "/pos", "/items", "/enemies", "/time", "/weather", "/snowpack", "/help", "/perf", "/toggle", "/eat", "/unequip"]
+var all_commands: Array[String] = ["/give", "/spawn", "/tp", "/heal", "/god", "/fly", "/gold", "/clear", "/kill", "/pos", "/items", "/enemies", "/time", "/weather", "/snowpack", "/help", "/perf", "/toggle", "/eat", "/unequip"]
 
 # Performance toggle states
 var perf_toggles: Dictionary = {
@@ -216,6 +216,8 @@ func _execute_command(text: String) -> void:
 			_cmd_heal()
 		"/god", "god":
 			_cmd_god()
+		"/fly", "fly":
+			_cmd_fly()
 		"/gold", "gold":
 			_cmd_gold(args)
 		"/clear", "clear":
@@ -326,6 +328,21 @@ func _cmd_god() -> void:
 		_add_output("[color=gold]God mode ENABLED[/color]")
 	else:
 		_add_output("[color=gray]God mode disabled[/color]")
+
+func _cmd_fly() -> void:
+	var local_player = get_tree().get_first_node_in_group("local_player")
+	if not local_player:
+		_add_output("[color=red]No player found[/color]")
+		return
+
+	if "fly_mode" in local_player:
+		local_player.fly_mode = not local_player.fly_mode
+		if local_player.fly_mode:
+			_add_output("[color=cyan]Fly mode ENABLED[/color] - Space=up, Ctrl=down, Shift=fast")
+		else:
+			_add_output("[color=gray]Fly mode disabled[/color]")
+	else:
+		_add_output("[color=red]Player doesn't support fly mode[/color]")
 
 func _cmd_gold(args: Array) -> void:
 	var amount = 100
@@ -617,6 +634,7 @@ func _cmd_help() -> void:
 	_add_output("  /tp <x> <y> <z> - Teleport")
 	_add_output("  /heal - Heal to full")
 	_add_output("  /god - Toggle invincibility")
+	_add_output("  /fly - Toggle fly mode (Space=up, Ctrl=down)")
 	_add_output("  /gold [amount] - Give gold (default 100)")
 	_add_output("  /clear - Clear inventory")
 	_add_output("  /kill - Kill nearby enemies")

@@ -48,11 +48,12 @@ const vec3 WIZARDLAND_ROCK = vec3(0.55, 0.35, 0.65);    // Purple crystal
 const vec3 HELL_ROCK = vec3(0.3, 0.12, 0.08);           // Dark obsidian
 
 // Biome difficulty zones (match BiomeGenerator constants)
-const float SPAWN_VALLEY_RADIUS = 100.0;  // Always valley near spawn (safe starting area)
-const float SAFE_ZONE_RADIUS = 5000.0;
-const float MID_ZONE_RADIUS = 10000.0;
-const float DANGER_ZONE_RADIUS = 15000.0;
-const float EXTREME_ZONE_RADIUS = 20000.0;
+// Compact world: 1/4 scale for faster exploration
+const float SPAWN_VALLEY_RADIUS = 25.0;  // Always valley near spawn (safe starting area)
+const float SAFE_ZONE_RADIUS = 1250.0;
+const float MID_ZONE_RADIUS = 2500.0;
+const float DANGER_ZONE_RADIUS = 3750.0;
+const float EXTREME_ZONE_RADIUS = 5000.0;
 
 varying vec3 world_pos;
 varying vec3 world_normal;
@@ -147,17 +148,18 @@ int get_biome_index(vec2 xz_pos) {
 	}
 
 	// Domain warping for organic distortion (Valheim-style)
-	float warp_strength = 800.0;
-	float warp_x = fbm(xz_pos, world_seed + 200, 0.0005, 2, 2.0, 0.5) * warp_strength;
-	float warp_z = fbm(xz_pos, world_seed + 201, 0.0005, 2, 2.0, 0.5) * warp_strength;
+	// 1/4 scale for compact world
+	float warp_strength = 200.0;
+	float warp_x = fbm(xz_pos, world_seed + 200, 0.002, 2, 2.0, 0.5) * warp_strength;
+	float warp_z = fbm(xz_pos, world_seed + 201, 0.002, 2, 2.0, 0.5) * warp_strength;
 
 	vec2 warped_pos = xz_pos + vec2(warp_x, warp_z);
 
 	// Sample biome noise at warped position
-	float biome_value = fbm(warped_pos, world_seed + 100, 0.0008, 3, 2.0, 0.5);
+	float biome_value = fbm(warped_pos, world_seed + 100, 0.0032, 3, 2.0, 0.5);
 
 	// Sample scale noise to vary biome patch sizes
-	float scale_value = fbm(xz_pos, world_seed + 300, 0.001, 2, 2.0, 0.5);
+	float scale_value = fbm(xz_pos, world_seed + 300, 0.004, 2, 2.0, 0.5);
 
 	// Combine biome noise with scale for more variation
 	float combined_value = biome_value + (scale_value * 0.3);

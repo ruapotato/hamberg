@@ -247,11 +247,88 @@ func _should_spawn_at_position(xz_pos: Vector2, config: SpawnConfig, voxel_world
 	if slope_check < config.min_slope or slope_check > config.max_slope:
 		return false
 
-	# Random density check
-	if rng.randf() > config.density:
+	# === SUB-BIOME FEATURE CHECKS ===
+	# Get density multiplier from terrain features (clearings, dense areas, etc.)
+	var density_mult := _get_sub_biome_density_multiplier(xz_pos, voxel_world, config)
+	if density_mult <= 0.0:
+		return false  # In a clearing or other no-spawn zone
+
+	# Random density check with sub-biome modifier
+	var effective_density := config.density * density_mult
+	if rng.randf() > effective_density:
 		return false
 
 	return true
+
+## Get density multiplier based on sub-biome features
+func _get_sub_biome_density_multiplier(xz_pos: Vector2, voxel_world: Node3D, config: SpawnConfig) -> float:
+	# Get the biome generator from voxel_world
+	if not voxel_world.has_method("get_biome_generator"):
+		return 1.0
+
+	var biome_gen = voxel_world.get_biome_generator()
+	if biome_gen == null or not biome_gen.has_method("get_sub_biome_features"):
+		return 1.0
+
+	var features: Dictionary = biome_gen.get_sub_biome_features(xz_pos)
+
+	# Determine object category for feature responses
+	var is_tree := config.scene != null and (
+		config.scene == truffula_tree_scene or
+		config.scene == tree_sprout_scene or
+		config.scene == mushroom_tree_scene or
+		config.scene == giant_mushroom_scene
+	)
+	var is_rock := config.scene == rock_scene
+	var is_grass := config.scene == grass_scene
+	var is_mushroom := config.scene == glowing_mushroom_scene or config.scene == spore_cluster_scene
+
+	var multiplier := 1.0
+
+	# === CLEARINGS: No trees, less grass, more visibility ===
+	if features.get("clearing", 0.0) > 0.5:
+		if is_tree:
+			return 0.0  # No trees in clearings!
+		elif is_grass:
+			multiplier *= 0.3  # Much less grass
+		elif is_mushroom:
+			multiplier *= 0.2  # Rare mushrooms in clearings
+
+	# === DENSE AREAS: More trees and vegetation ===
+	if features.get("dense", 0.0) > 0.3:
+		if is_tree:
+			multiplier *= 1.0 + features["dense"]  # Up to 2x trees
+		elif is_grass:
+			multiplier *= 1.0 + features["dense"] * 0.5  # More grass
+		elif is_mushroom:
+			multiplier *= 1.0 + features["dense"] * 0.8  # More mushrooms
+
+	# === ROCKY AREAS: More rocks, fewer trees ===
+	if features.get("rocky", 0.0) > 0.4:
+		if is_rock:
+			multiplier *= 2.0 + features["rocky"]  # Lots more rocks!
+		elif is_tree:
+			multiplier *= 0.3  # Trees struggle in rocky areas
+		elif is_grass:
+			multiplier *= 0.5  # Less grass on rocks
+
+	# === RAVINES: No trees, sparse vegetation ===
+	if features.get("ravine", 0.0) > 0.2:
+		if is_tree:
+			return 0.0  # No trees in ravines
+		elif is_grass:
+			multiplier *= 0.2  # Very sparse
+		elif is_rock:
+			multiplier *= 1.5  # Some rocks in ravines
+
+	# === RIDGES: Exposed, fewer tall objects ===
+	if features.get("ridge", 0.0) > 0.7:
+		if is_tree:
+			multiplier *= 0.5  # Trees on ridges are windswept
+		elif is_rock:
+			multiplier *= 1.3  # More exposed rocks
+
+	return maxf(0.0, multiplier)
 
 ## Estimate slope at position (simplified)
 func _estimate_slope_at(xz_pos: Vector2, voxel_world: Node3D) -> float:
