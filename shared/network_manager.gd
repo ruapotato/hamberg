@@ -213,6 +213,17 @@ func _on_peer_disconnected(peer_id: int) -> void:
 func _on_connected_to_server() -> void:
 	local_player_id = multiplayer.get_unique_id()
 	print("[NetworkManager] Connected to server! Local ID: %d" % local_player_id)
+
+	# Configure timeout for server connection to prevent disconnects during heavy processing
+	var peer := multiplayer.multiplayer_peer as ENetMultiplayerPeer
+	if peer:
+		var server_peer := peer.get_peer(1)  # Server is always peer ID 1
+		if server_peer:
+			# Set timeout values (in milliseconds): limit, minimum, maximum
+			# Match server-side timeout settings for consistency
+			server_peer.set_timeout(10000, 20000, 60000)  # 10s limit, 20s min, 60s max
+			print("[NetworkManager] Configured client timeout for server connection (10s limit, 20s min, 60s max)")
+
 	client_connected.emit()
 
 func _on_connection_failed() -> void:
