@@ -712,12 +712,12 @@ func get_fast_cave_carving(world_pos: Vector3, surface_height: float) -> float:
 
 	# Must be near tunnel depth
 	var y_dist: float = absf(world_pos.y - tunnel_y)
-	if y_dist > 5.0:
+	if y_dist > 7.0:
 		return 0.0
 
 	# Grid spacing for tunnels
 	const GRID_SPACING: float = 50.0
-	const TUNNEL_RADIUS: float = 4.0
+	const TUNNEL_RADIUS: float = 6.0
 
 	# Check distance to nearest X-aligned tunnel (tunnels run along X at regular Z intervals)
 	var z_in_grid: float = fmod(absf(world_pos.z), GRID_SPACING)
