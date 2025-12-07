@@ -23,8 +23,8 @@ var clearing_noise: FastNoiseLite   # Creates clearings in forests
 var rocky_noise: FastNoiseLite      # Rocky outcrops and boulder fields
 var erosion_noise: FastNoiseLite    # Erosion patterns for natural look
 
-# === 3D CAVE SYSTEM - SIMPLE ===
-var cave_noise: FastNoiseLite       # Simple cave noise (single octave)
+# === 3D CAVE SYSTEM - LIGHTWEIGHT ===
+var cave_noise: FastNoiseLite       # Simple 3D cave noise (single octave for speed)
 
 # Biome difficulty zones (distances from origin) - MUST match shader constants
 # Compact world: 1/4 scale for faster exploration
@@ -147,13 +147,9 @@ func _init(seed_value: int = 42) -> void:
 	erosion_noise.fractal_octaves = 4
 	erosion_noise.fractal_gain = 0.7
 
-	# === 3D CAVE SYSTEM - SIMPLE ===
-	# Single noise, single octave - fast enough for real-time
-	cave_noise = FastNoiseLite.new()
-	cave_noise.seed = world_seed + 1000
-	cave_noise.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
-	cave_noise.frequency = 0.03
-	cave_noise.fractal_type = FastNoiseLite.FRACTAL_NONE
+	# === 3D CAVE SYSTEM ===
+	# Grid-based tunnels - no noise, just math
+	# Tunnels run in X and Z directions at regular intervals, creating a connected grid
 
 	print("[TerrainBiomeGenerator] Initialized with seed: %d (FastNoiseLite + Caves)" % world_seed)
 
@@ -707,6 +703,50 @@ func get_height_at_position(xz_pos: Vector2) -> float:
 # 3D CAVE SYSTEM
 # =============================================================================
 
-## Check if position is in cave zone (for bounds calculation)
-func is_in_cave_zone(_xz_pos: Vector2) -> bool:
-	return true  # Simple caves everywhere
+## FAST cave carving - grid-based cylindrical tunnels
+## No noise - pure math for speed and clean tube shapes
+## Returns 0.0 = no cave, positive = carve this much from density
+func get_fast_cave_carving(world_pos: Vector3, surface_height: float) -> float:
+	# Cave depth below surface
+	var tunnel_y: float = surface_height - 12.0
+
+	# Must be near tunnel depth
+	var y_dist: float = absf(world_pos.y - tunnel_y)
+	if y_dist > 5.0:
+		return 0.0
+
+	# Grid spacing for tunnels
+	const GRID_SPACING: float = 50.0
+	const TUNNEL_RADIUS: float = 4.0
+
+	# Check distance to nearest X-aligned tunnel (tunnels run along X at regular Z intervals)
+	var z_in_grid: float = fmod(absf(world_pos.z), GRID_SPACING)
+	var dist_to_x_tunnel: float = minf(z_in_grid, GRID_SPACING - z_in_grid)
+
+	# Check distance to nearest Z-aligned tunnel (tunnels run along Z at regular X intervals)
+	var x_in_grid: float = fmod(absf(world_pos.x), GRID_SPACING)
+	var dist_to_z_tunnel: float = minf(x_in_grid, GRID_SPACING - x_in_grid)
+
+	# Combined distance - are we in either tunnel?
+	# For cylindrical tubes, combine horizontal and vertical distance
+	var in_x_tunnel: float = sqrt(dist_to_x_tunnel * dist_to_x_tunnel + y_dist * y_dist)
+	var in_z_tunnel: float = sqrt(dist_to_z_tunnel * dist_to_z_tunnel + y_dist * y_dist)
+
+	var min_dist: float = minf(in_x_tunnel, in_z_tunnel)
+
+	if min_dist > TUNNEL_RADIUS:
+		return 0.0
+
+	# Smooth carving
+	var carve: float = 1.0 - (min_dist / TUNNEL_RADIUS)
+	return carve
+
+## Check if a position should have crystal formations (for rendering)
+## Returns crystal intensity 0.0 to 1.0
+## NOTE: Simplified - crystals disabled for now, can add back later
+func get_crystal_intensity(_world_pos: Vector3) -> float:
+	return 0.0
+
+## Check if position is in the deep caves biome
+func is_in_cave_zone(xz_pos: Vector2) -> bool:
+	return xz_pos.length() >= MID_ZONE_RADIUS

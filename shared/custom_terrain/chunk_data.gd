@@ -97,14 +97,15 @@ func get_voxel(x: int, y_local: int, z: int) -> float:
 		# Smooth transition
 		base_density = 1.0 - (distance_from_surface + 2.0) / 4.0
 
-	# Simple 3D cave - ONE noise sample only
-	if biome_generator != null and base_density > 0.0 and world_y < int(terrain_height) - 3:
-		var world_x: float = float(chunk_x * CHUNK_SIZE_XZ + x)
-		var world_z: float = float(chunk_z * CHUNK_SIZE_XZ + z)
-		var cave_val: float = biome_generator.cave_noise.get_noise_3d(world_x, float(world_y), world_z)
-		if cave_val > 0.3:
-			var carve: float = (cave_val - 0.3) / 0.7
-			base_density = maxf(0.0, base_density - carve)
+	# Fast 3D cave carving - single noise sample per voxel
+	if biome_generator != null and base_density > 0.0:
+		if biome_generator.has_method("get_fast_cave_carving"):
+			var world_x: float = float(chunk_x * CHUNK_SIZE_XZ + x)
+			var world_z: float = float(chunk_z * CHUNK_SIZE_XZ + z)
+			var world_pos := Vector3(world_x, float(world_y), world_z)
+			var cave_carve: float = biome_generator.get_fast_cave_carving(world_pos, terrain_height)
+			if cave_carve > 0.0:
+				base_density = maxf(0.0, base_density - cave_carve)
 
 	return base_density
 
@@ -169,8 +170,9 @@ func fill_from_heights(heights: PackedFloat32Array) -> void:
 		if h + 2 > max_surface_y:
 			max_surface_y = h + 2
 
-	# Extend bounds for simple caves (30 units deep)
+	# Extend bounds for caves - need extra Y range for underground carving
 	if biome_generator != null:
+		# Extend min_y to allow caves below surface (up to 30 units deep)
 		min_surface_y = mini(min_surface_y, min_surface_y - 30)
 		min_surface_y = maxi(min_surface_y, -128)
 
