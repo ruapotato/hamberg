@@ -1,4 +1,4 @@
-extends "res://shared/animated_character.gd"
+extends AnimatedCharacter
 class_name Enemy
 
 ## Enemy - Gahnome enemy with Valheim-style client-host networking
