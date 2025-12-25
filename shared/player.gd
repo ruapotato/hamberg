@@ -126,6 +126,10 @@ var stun_timer: float = 0.0
 const STUN_DURATION: float = 1.5  # How long the stun lasts
 const STUN_DAMAGE_MULTIPLIER: float = 1.5  # Extra damage taken while stunned
 
+# Hitstop (freeze frame on hit for impact feel)
+var hitstop_timer: float = 0.0
+const HITSTOP_DURATION: float = 0.05  # 50ms freeze on hit
+
 # Equipment sync for remote players (server stores latest equipment data here)
 var synced_equipment: Dictionary = {}
 
@@ -2035,8 +2039,27 @@ func _handle_block_input(delta: float) -> void:
 	var block_pressed = Input.is_action_pressed("block") if InputMap.has_action("block") else false
 
 	# Can't block while stunned
+	# Can cancel attack recovery phase (last 30% of attack) into block for responsive feel
+	var can_cancel_attack = false
+	if is_attacking and current_attack_animation_time > 0:
+		var attack_progress = attack_timer / current_attack_animation_time
+		if attack_progress > 0.7:  # Recovery phase - can cancel into block
+			can_cancel_attack = true
+
 	if block_pressed and stamina > 0 and not is_stunned:
-		if not is_blocking:
+		# Cancel attack recovery into block
+		if can_cancel_attack:
+			is_attacking = false
+			attack_timer = 0.0
+			# Reset weapon rotation
+			if equipped_weapon_visual:
+				equipped_weapon_visual.rotation_degrees = Vector3(90, 0, 0)
+			if weapon_wrist_pivot:
+				weapon_wrist_pivot.rotation_degrees = Vector3.ZERO
+			if combat:
+				combat.disable_weapon_hitbox()
+
+		if not is_blocking and not is_attacking:  # Don't block during attack wind-up/strike
 			is_blocking = true
 			block_timer = 0.0
 			block_start_time = Time.get_ticks_msec() / 1000.0
@@ -2137,6 +2160,12 @@ func _setup_terrain_preview_shapes() -> void:
 func _update_body_animations(delta: float) -> void:
 	"""Animate the legs, arms, and torso based on movement"""
 	if not body_container:
+		return
+
+	# Process hitstop (freeze animations during hitstop for impact feel)
+	if hitstop_timer > 0:
+		hitstop_timer -= delta
+		# During hitstop, skip all animation updates - freeze everything in place
 		return
 
 	var left_leg = body_container.get_node_or_null("LeftLeg")
@@ -2373,7 +2402,9 @@ func _update_body_animations(delta: float) -> void:
 				right_elbow.rotation.x = elbow_bend
 	# Attack animation overrides arm movement (RIGHT arm for weapons)
 	elif is_attacking and right_arm:
-		var attack_progress = attack_timer / current_attack_animation_time
+		var raw_progress = attack_timer / current_attack_animation_time
+		# Apply easing for weighted, impactful feel (slow wind-up, fast strike, slow follow-through)
+		var attack_progress = _ease_attack_progress(raw_progress)
 
 		# Different animations based on weapon type and combo
 		if current_weapon_type == "stone_axe":
@@ -2641,6 +2672,26 @@ func pickup_item(item_name: String, amount: int) -> bool:
 # ============================================================================
 # WEAPON ATTACK ANIMATIONS
 # ============================================================================
+
+## Apply attack easing curve for weighted, impactful feel
+## Creates slow wind-up, fast strike, slow follow-through
+func _ease_attack_progress(progress: float) -> float:
+	# Customized ease-in-out curve that emphasizes the strike phase
+	# Wind-up (0-0.3): slow, builds anticipation
+	# Strike (0.3-0.7): fast, the actual hit
+	# Follow-through (0.7-1.0): slowing down
+	if progress < 0.3:
+		# Ease-in: slow start (quadratic)
+		var t = progress / 0.3
+		return 0.3 * (t * t)
+	elif progress < 0.7:
+		# Linear fast section: quick strike
+		var t = (progress - 0.3) / 0.4
+		return 0.3 + (t * 0.5)
+	else:
+		# Ease-out: slow end (quadratic)
+		var t = (progress - 0.7) / 0.3
+		return 0.8 + (1.0 - (1.0 - t) * (1.0 - t)) * 0.2
 
 ## Animate knife combo attacks
 func _animate_knife_attack(progress: float, right_arm: Node3D, right_elbow: Node3D) -> void:
@@ -3105,6 +3156,20 @@ func _spawn_parry_effect() -> void:
 	# Sync parry effect to other clients
 	if is_local_player:
 		NetworkManager.rpc_spawn_parry_effect.rpc_id(1, [pos.x, pos.y, pos.z])
+
+## Trigger hit feedback effects (hitstop + screen shake) for impactful combat feel
+## Called when player successfully hits an enemy
+func trigger_hit_feedback(intensity: float = 1.0) -> void:
+	# Trigger hitstop (freeze frame)
+	hitstop_timer = HITSTOP_DURATION * intensity
+
+	# Trigger screen shake via camera controller
+	var camera_controller = get_node_or_null("CameraController")
+	if camera_controller and camera_controller.has_method("shake"):
+		# Scale shake intensity based on hit power
+		var shake_intensity = 0.5 + (intensity * 0.5)  # 0.5 to 1.0 range
+		var shake_duration = 0.1 + (intensity * 0.05)  # 0.1 to 0.15 range
+		camera_controller.shake(shake_intensity, shake_duration)
 
 ## Animate stun wobble effect
 func _animate_stun(delta: float, left_arm: Node3D, right_arm: Node3D, left_leg: Node3D, right_leg: Node3D) -> void:

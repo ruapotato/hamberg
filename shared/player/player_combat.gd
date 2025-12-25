@@ -110,6 +110,12 @@ func process_hitbox_hit(enemy: Node3D) -> void:
 		SoundManager.play_sound_varied("sword_hit", enemy.global_position)
 		_spawn_hit_effect(enemy.global_position)
 
+		# Trigger hit feedback (hitstop + screen shake) for satisfying combat feel
+		# Scale intensity based on damage multiplier
+		var hit_intensity = clampf(combo_multiplier, 1.0, 2.0)
+		if player.has_method("trigger_hit_feedback"):
+			player.trigger_hit_feedback(hit_intensity)
+
 ## Spawn hit effect at position
 func _spawn_hit_effect(position: Vector3) -> void:
 	var HitEffectScene = preload("res://shared/effects/hit_effect.tscn")
@@ -135,22 +141,23 @@ func update_hitbox_during_attack() -> void:
 
 	# Define hitbox active window based on weapon type
 	# This is when the weapon is actually swinging through the arc
+	# Widened windows for more forgiving hit detection
 	var active_start: float
 	var active_end: float
 
 	match player.current_weapon_type:
 		"stone_knife":
 			# Knife is fast - active most of swing
-			active_start = 0.15
-			active_end = 0.85
+			active_start = 0.10
+			active_end = 0.90
 		"stone_axe":
 			# Axe has windup then powerful swing
-			active_start = 0.25  # After windup
-			active_end = 0.90
+			active_start = 0.15  # Earlier start for better feel
+			active_end = 0.95
 		_:
 			# Default (sword) - balanced timing
-			active_start = 0.20
-			active_end = 0.80
+			active_start = 0.10
+			active_end = 0.90
 
 	# Enable or disable hitbox based on attack progress
 	var should_be_active = progress >= active_start and progress <= active_end

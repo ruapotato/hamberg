@@ -16,6 +16,11 @@ extends Control
 @onready var food_slot_2: HBoxContainer = $MarginContainer/VBoxContainer/FoodSlotsContainer/FoodSlot2
 @onready var food_slot_3: HBoxContainer = $MarginContainer/VBoxContainer/FoodSlotsContainer/FoodSlot3
 
+# Combo indicator (created dynamically)
+var combo_container: Control = null
+var combo_label: Label = null
+var combo_bar: ProgressBar = null
+
 var player: CharacterBody3D = null
 var flash_timer: float = 0.0
 const FLASH_SPEED: float = 8.0  # Flashes per second
@@ -30,6 +35,7 @@ const FOOD_COLORS: Dictionary = {
 func _ready() -> void:
 	# Start hidden until player is set
 	visible = false
+	_create_combo_indicator()
 
 ## Link this HUD to a player
 func set_player(p: CharacterBody3D) -> void:
@@ -104,6 +110,9 @@ func _update_bars(delta: float = 0.0) -> void:
 	# Update food slots
 	_update_food_slots()
 
+	# Update combo indicator
+	_update_combo_indicator()
+
 ## Update the food slot display
 func _update_food_slots() -> void:
 	if not player or not player.has_node("PlayerFood"):
@@ -164,3 +173,85 @@ func _hide_all_food_slots() -> void:
 		food_slot_2.visible = false
 	if food_slot_3:
 		food_slot_3.visible = false
+
+## Create combo indicator UI (positioned at center-bottom of screen)
+func _create_combo_indicator() -> void:
+	# Container for combo indicator
+	combo_container = Control.new()
+	combo_container.name = "ComboIndicator"
+	combo_container.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+	combo_container.position = Vector2(-60, -80)  # Centered, above bottom
+	combo_container.size = Vector2(120, 40)
+	combo_container.visible = false
+	add_child(combo_container)
+
+	# Combo count label (e.g., "COMBO x2")
+	combo_label = Label.new()
+	combo_label.name = "ComboLabel"
+	combo_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	combo_label.position = Vector2(0, 0)
+	combo_label.size = Vector2(120, 20)
+	combo_label.add_theme_font_size_override("font_size", 16)
+	combo_label.add_theme_color_override("font_color", Color(1.0, 0.8, 0.2))  # Gold
+	combo_label.add_theme_color_override("font_outline_color", Color(0, 0, 0))
+	combo_label.add_theme_constant_override("outline_size", 2)
+	combo_container.add_child(combo_label)
+
+	# Combo timer bar (depletes as window expires)
+	combo_bar = ProgressBar.new()
+	combo_bar.name = "ComboBar"
+	combo_bar.position = Vector2(0, 22)
+	combo_bar.size = Vector2(120, 12)
+	combo_bar.min_value = 0.0
+	combo_bar.max_value = 1.0
+	combo_bar.value = 1.0
+	combo_bar.show_percentage = false
+
+	# Style the combo bar
+	var bar_style = StyleBoxFlat.new()
+	bar_style.bg_color = Color(0.2, 0.2, 0.2, 0.8)
+	bar_style.corner_radius_top_left = 3
+	bar_style.corner_radius_top_right = 3
+	bar_style.corner_radius_bottom_left = 3
+	bar_style.corner_radius_bottom_right = 3
+	combo_bar.add_theme_stylebox_override("background", bar_style)
+
+	var fill_style = StyleBoxFlat.new()
+	fill_style.bg_color = Color(1.0, 0.6, 0.1)  # Orange
+	fill_style.corner_radius_top_left = 3
+	fill_style.corner_radius_top_right = 3
+	fill_style.corner_radius_bottom_left = 3
+	fill_style.corner_radius_bottom_right = 3
+	combo_bar.add_theme_stylebox_override("fill", fill_style)
+
+	combo_container.add_child(combo_bar)
+
+## Update combo indicator display
+func _update_combo_indicator() -> void:
+	if not player or not combo_container:
+		return
+
+	var combo_count = player.combo_count if "combo_count" in player else 0
+	var combo_timer = player.combo_timer if "combo_timer" in player else 0.0
+	var combo_window = player.COMBO_WINDOW if "COMBO_WINDOW" in player else 1.2
+
+	# Show combo indicator when in an active combo (count > 0)
+	if combo_count > 0 and combo_timer > 0:
+		combo_container.visible = true
+		combo_label.text = "COMBO x%d" % (combo_count + 1)
+
+		# Bar depletes as timer counts down
+		var progress = combo_timer / combo_window
+		combo_bar.value = progress
+
+		# Change color based on remaining time
+		var fill_style = combo_bar.get_theme_stylebox("fill") as StyleBoxFlat
+		if fill_style:
+			if progress < 0.3:
+				fill_style.bg_color = Color(1.0, 0.2, 0.2)  # Red when almost expired
+			elif progress < 0.6:
+				fill_style.bg_color = Color(1.0, 0.8, 0.2)  # Yellow when medium
+			else:
+				fill_style.bg_color = Color(1.0, 0.6, 0.1)  # Orange when plenty of time
+	else:
+		combo_container.visible = false

@@ -65,7 +65,7 @@ const STAMINA_REGEN_DELAY: float = 1.0  # Delay after use
 const SPRINT_STAMINA_DRAIN: float = 10.0  # Per second
 const JUMP_STAMINA_COST: float = 10.0
 const EXHAUSTED_RECOVERY_THRESHOLD: float = 0.10  # 10% to recover
-const EXHAUSTED_SPEED_MULTIPLIER: float = 0.6  # 60% speed when exhausted
+const EXHAUSTED_SPEED_MULTIPLIER: float = 0.8  # 80% speed when exhausted (less punishing)
 
 # =============================================================================
 # BRAIN POWER (MAGIC)

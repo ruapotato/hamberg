@@ -25,6 +25,12 @@ var is_mouse_captured: bool = false
 var is_first_person: bool = false
 var lock_rotation: bool = false  # When true, ignores mouse input (for blocking)
 
+# Screen shake for combat feedback
+var shake_intensity: float = 0.0
+var shake_duration: float = 0.0
+var shake_timer: float = 0.0
+var shake_offset: Vector3 = Vector3.ZERO
+
 func _ready() -> void:
 	# Set initial zoom
 	spring_arm.spring_length = target_zoom
@@ -78,9 +84,23 @@ func _process(delta: float) -> void:
 		if abs(look_x) > 0.01 or abs(look_y) > 0.01:
 			_handle_gamepad_look(Vector2(look_x, look_y), delta)
 
-	# Apply camera rotation
+	# Process screen shake
+	if shake_timer > 0:
+		shake_timer -= delta
+		var shake_progress = shake_timer / shake_duration if shake_duration > 0 else 0
+		var current_intensity = shake_intensity * shake_progress  # Fade out
+		shake_offset = Vector3(
+			randf_range(-current_intensity, current_intensity),
+			randf_range(-current_intensity, current_intensity),
+			0
+		)
+	else:
+		shake_offset = Vector3.ZERO
+
+	# Apply camera rotation with shake
 	rotation.y = camera_rotation.x
-	spring_arm.rotation.x = camera_rotation.y
+	spring_arm.rotation.x = camera_rotation.y + shake_offset.y * 0.02
+	spring_arm.position.x = shake_offset.x * 0.05
 
 func _handle_mouse_look(mouse_delta: Vector2) -> void:
 	# Yaw (left/right)
@@ -117,3 +137,11 @@ func get_camera_right() -> Vector3:
 ## Get camera for external access
 func get_camera() -> Camera3D:
 	return camera
+
+## Trigger screen shake for combat feedback
+## intensity: how strong the shake is (0.5 = light hit, 1.0 = heavy hit, 2.0 = massive hit)
+## duration: how long the shake lasts in seconds
+func shake(intensity: float = 1.0, duration: float = 0.15) -> void:
+	shake_intensity = intensity
+	shake_duration = duration
+	shake_timer = duration
