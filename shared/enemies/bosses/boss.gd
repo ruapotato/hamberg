@@ -1,4 +1,4 @@
-extends Enemy
+extends "res://shared/enemies/enemy.gd"
 class_name Boss
 
 ## Boss - Base class for boss enemies

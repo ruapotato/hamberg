@@ -25,6 +25,8 @@ var erosion_noise: FastNoiseLite    # Erosion patterns for natural look
 
 # === 3D CAVE SYSTEM - LIGHTWEIGHT ===
 var cave_noise: FastNoiseLite       # Simple 3D cave noise (single octave for speed)
+var cave_size_noise: FastNoiseLite  # Varies tunnel radius
+var cave_y_noise: FastNoiseLite     # Gentle vertical variation (limited steepness)
 
 # Biome difficulty zones (distances from origin) - MUST match shader constants
 # Compact world: 1/4 scale for faster exploration
@@ -148,8 +150,19 @@ func _init(seed_value: int = 42) -> void:
 	erosion_noise.fractal_gain = 0.7
 
 	# === 3D CAVE SYSTEM ===
-	# Grid-based tunnels - no noise, just math
-	# Tunnels run in X and Z directions at regular intervals, creating a connected grid
+	# Grid-based tunnels with noise for variation
+
+	# Cave size variation - makes some tunnels wider, some narrower
+	cave_size_noise = FastNoiseLite.new()
+	cave_size_noise.seed = world_seed + 1000
+	cave_size_noise.noise_type = FastNoiseLite.TYPE_SIMPLEX
+	cave_size_noise.frequency = 0.02  # Gradual size changes along tunnels
+
+	# Cave Y variation - gentle vertical undulation (limited steepness)
+	cave_y_noise = FastNoiseLite.new()
+	cave_y_noise.seed = world_seed + 1001
+	cave_y_noise.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
+	cave_y_noise.frequency = 0.008  # Very low frequency = gentle slopes, not steep
 
 	print("[TerrainBiomeGenerator] Initialized with seed: %d (FastNoiseLite + Caves)" % world_seed)
 
@@ -703,43 +716,125 @@ func get_height_at_position(xz_pos: Vector2) -> float:
 # 3D CAVE SYSTEM
 # =============================================================================
 
-## FAST cave carving - grid-based cylindrical tunnels
-## No noise - pure math for speed and clean tube shapes
+## FAST cave carving - multi-level grid tunnels with vertical shafts
+## Uses noise for size and gentle vertical undulation within each level
 ## Returns 0.0 = no cave, positive = carve this much from density
 func get_fast_cave_carving(world_pos: Vector3, surface_height: float) -> float:
-	# Cave depth below surface
-	var tunnel_y: float = surface_height - 12.0
-
-	# Must be near tunnel depth
-	var y_dist: float = absf(world_pos.y - tunnel_y)
-	if y_dist > 7.0:
-		return 0.0
-
 	# Grid spacing for tunnels
 	const GRID_SPACING: float = 50.0
-	const TUNNEL_RADIUS: float = 6.0
+	const BASE_TUNNEL_RADIUS: float = 5.0
+	const RADIUS_VARIATION: float = 3.0  # Radius varies from 2 to 8
+	const Y_VARIATION: float = 4.0  # Max vertical undulation (gentle slopes)
 
-	# Check distance to nearest X-aligned tunnel (tunnels run along X at regular Z intervals)
-	var z_in_grid: float = fmod(absf(world_pos.z), GRID_SPACING)
-	var dist_to_x_tunnel: float = minf(z_in_grid, GRID_SPACING - z_in_grid)
+	# Multi-level cave depths (units below surface)
+	const CAVE_LEVELS: Array = [15.0, 40.0, 70.0, 100.0]
+	const LEVEL_SPACING: float = 25.0  # Vertical distance between levels
 
-	# Check distance to nearest Z-aligned tunnel (tunnels run along Z at regular X intervals)
-	var x_in_grid: float = fmod(absf(world_pos.x), GRID_SPACING)
-	var dist_to_z_tunnel: float = minf(x_in_grid, GRID_SPACING - x_in_grid)
+	# Shaft parameters (vertical connections between levels)
+	const SHAFT_GRID_SPACING: float = 100.0  # Shafts at intersections every 100 units
+	const SHAFT_RADIUS: float = 4.0
 
-	# Combined distance - are we in either tunnel?
-	# For cylindrical tubes, combine horizontal and vertical distance
-	var in_x_tunnel: float = sqrt(dist_to_x_tunnel * dist_to_x_tunnel + y_dist * y_dist)
-	var in_z_tunnel: float = sqrt(dist_to_z_tunnel * dist_to_z_tunnel + y_dist * y_dist)
-
-	var min_dist: float = minf(in_x_tunnel, in_z_tunnel)
-
-	if min_dist > TUNNEL_RADIUS:
+	# Early Y check - must be below surface to be in caves
+	if world_pos.y > surface_height - 8.0:
 		return 0.0
 
-	# Smooth carving
-	var carve: float = 1.0 - (min_dist / TUNNEL_RADIUS)
-	return carve
+	# Maximum possible cave depth
+	var max_cave_depth: float = CAVE_LEVELS[CAVE_LEVELS.size() - 1] + Y_VARIATION + BASE_TUNNEL_RADIUS + RADIUS_VARIATION
+	if world_pos.y < surface_height - max_cave_depth - 10.0:
+		return 0.0
+
+	var best_carve: float = 0.0
+
+	# Check vertical shafts first (they connect levels)
+	var shaft_x: float = round(world_pos.x / SHAFT_GRID_SPACING) * SHAFT_GRID_SPACING
+	var shaft_z: float = round(world_pos.z / SHAFT_GRID_SPACING) * SHAFT_GRID_SPACING
+	var shaft_horiz_dist: float = sqrt(
+		(world_pos.x - shaft_x) * (world_pos.x - shaft_x) +
+		(world_pos.z - shaft_z) * (world_pos.z - shaft_z)
+	)
+
+	# Vary shaft radius slightly
+	var shaft_size_noise: float = cave_size_noise.get_noise_2d(shaft_x * 0.1, shaft_z * 0.1)
+	var actual_shaft_radius: float = SHAFT_RADIUS + shaft_size_noise * 2.0
+
+	if shaft_horiz_dist < actual_shaft_radius:
+		# Check if we're within the vertical range of shafts (between first and last level)
+		var shaft_top: float = surface_height - CAVE_LEVELS[0] + Y_VARIATION + 5.0
+		var shaft_bottom: float = surface_height - CAVE_LEVELS[CAVE_LEVELS.size() - 1] - Y_VARIATION - 5.0
+		if world_pos.y <= shaft_top and world_pos.y >= shaft_bottom:
+			var shaft_carve: float = 1.0 - (shaft_horiz_dist / actual_shaft_radius)
+			best_carve = maxf(best_carve, shaft_carve)
+
+	# Check each horizontal tunnel level
+	for level_depth in CAVE_LEVELS:
+		var level_carve: float = _get_tunnel_level_carving(
+			world_pos, surface_height, level_depth,
+			GRID_SPACING, BASE_TUNNEL_RADIUS, RADIUS_VARIATION, Y_VARIATION
+		)
+		best_carve = maxf(best_carve, level_carve)
+
+	return best_carve
+
+## Get carving for a single tunnel level
+func _get_tunnel_level_carving(
+	world_pos: Vector3, surface_height: float, level_depth: float,
+	grid_spacing: float, base_radius: float, radius_var: float, y_var: float
+) -> float:
+	# Quick Y check for this level
+	var level_y: float = surface_height - level_depth
+	var max_radius: float = base_radius + radius_var
+	if absf(world_pos.y - level_y) > max_radius + y_var + 2.0:
+		return 0.0
+
+	# Find which tunnel segments we're near
+	var z_in_grid: float = fmod(absf(world_pos.z), grid_spacing)
+	var dist_to_x_tunnel: float = minf(z_in_grid, grid_spacing - z_in_grid)
+
+	var x_in_grid: float = fmod(absf(world_pos.x), grid_spacing)
+	var dist_to_z_tunnel: float = minf(x_in_grid, grid_spacing - x_in_grid)
+
+	# Determine which tunnel we're closest to (X-aligned or Z-aligned)
+	var in_x_tunnel: bool = dist_to_x_tunnel < dist_to_z_tunnel
+
+	# Get tunnel center position for noise sampling
+	var tunnel_sample_pos: Vector2
+	var horiz_dist: float
+	if in_x_tunnel:
+		var tunnel_z: float = round(world_pos.z / grid_spacing) * grid_spacing
+		tunnel_sample_pos = Vector2(world_pos.x, tunnel_z + level_depth * 7.0)  # Offset by depth for variation
+		horiz_dist = dist_to_x_tunnel
+	else:
+		var tunnel_x: float = round(world_pos.x / grid_spacing) * grid_spacing
+		tunnel_sample_pos = Vector2(tunnel_x + level_depth * 7.0, world_pos.z)
+		horiz_dist = dist_to_z_tunnel
+
+	# Vary tunnel radius along its length
+	var size_noise: float = cave_size_noise.get_noise_2d(tunnel_sample_pos.x, tunnel_sample_pos.y)
+	var tunnel_radius: float = base_radius + size_noise * radius_var
+
+	# Early exit if too far horizontally
+	if horiz_dist > tunnel_radius + 1.0:
+		return 0.0
+
+	# Gentle vertical undulation within this level
+	var y_offset: float = cave_y_noise.get_noise_2d(tunnel_sample_pos.x, tunnel_sample_pos.y) * y_var
+	var tunnel_y: float = level_y + y_offset
+
+	# Vertical distance to tunnel center
+	var y_dist: float = absf(world_pos.y - tunnel_y)
+
+	# Early exit if too far vertically
+	if y_dist > tunnel_radius + 1.0:
+		return 0.0
+
+	# Cylindrical distance
+	var cylinder_dist: float = sqrt(horiz_dist * horiz_dist + y_dist * y_dist)
+
+	if cylinder_dist > tunnel_radius:
+		return 0.0
+
+	# Smooth carving with falloff at edges
+	return 1.0 - (cylinder_dist / tunnel_radius)
 
 ## Check if a position should have crystal formations (for rendering)
 ## Returns crystal intensity 0.0 to 1.0

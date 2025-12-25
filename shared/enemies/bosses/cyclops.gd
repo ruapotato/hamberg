@@ -1,4 +1,4 @@
-extends Boss
+extends "res://shared/enemies/bosses/boss.gd"
 class_name Cyclops
 
 ## Cyclops - First boss of the game
