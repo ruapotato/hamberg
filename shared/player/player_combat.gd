@@ -143,13 +143,17 @@ func process_hitbox_hit(enemy: Node3D) -> void:
 		send_enemy_damage_request(enemy_network_id, damage, knockback, hit_direction, damage_type)
 
 		# Play hit sound and effect
+		var hit_sound := _get_weapon_hit_sound()
 		if is_critical:
-			# Critical hit: louder sound, bigger effect
-			SoundManager.play_sound_varied("sword_hit", enemy.global_position, 3.0)  # Louder
+			# Critical hit: dedicated crit sound + layered impact
+			SoundManager.play_sound_varied("critical_hit", enemy.global_position, 2.0, 0.15)
+			SoundManager.play_sound_varied(hit_sound, enemy.global_position, 1.0, 0.2)  # Layer base hit
 			_spawn_critical_hit_effect(enemy.global_position, hit_direction)
+			_spawn_damage_number(enemy.global_position, damage, true)
 		else:
-			SoundManager.play_sound_varied("sword_hit", enemy.global_position)
+			SoundManager.play_sound_varied(hit_sound, enemy.global_position, 0.0, 0.15)
 			_spawn_blood_spark_effect(enemy.global_position, hit_direction)
+			_spawn_damage_number(enemy.global_position, damage, false)
 
 		# Trigger hit feedback (hitstop + screen shake) for satisfying combat feel
 		# Scale intensity based on damage multiplier - crits get extra feedback
@@ -178,6 +182,32 @@ func _spawn_critical_hit_effect(position: Vector3, direction: Vector3) -> void:
 		effect.global_position = position
 		if effect.has_method("set_hit_direction"):
 			effect.set_hit_direction(direction)
+
+## Get appropriate hit sound based on weapon type
+func _get_weapon_hit_sound() -> String:
+	match player.current_weapon_type:
+		"fists":
+			return "punch_hit"
+		_:
+			return "sword_hit"
+
+## Get appropriate swing sound based on weapon type
+func _get_weapon_swing_sound() -> String:
+	match player.current_weapon_type:
+		"fists":
+			return "punch_swing"
+		_:
+			return "sword_swing"
+
+## Spawn floating damage number at hit position
+func _spawn_damage_number(position: Vector3, damage: float, is_crit: bool) -> void:
+	var DamageNumberScene = preload("res://shared/effects/damage_number.tscn")
+	if DamageNumberScene:
+		var number = DamageNumberScene.instantiate()
+		player.get_tree().root.add_child(number)
+		number.global_position = position + Vector3(0, 0.5, 0)  # Offset above hit point
+		if number.has_method("setup"):
+			number.setup(damage, is_crit)
 
 ## Update hitbox state during attack animation
 ## Called each physics frame during attack

@@ -1,0 +1,15 @@
+[gd_scene load_steps=2 format=3 uid="uid://dmgnumber001"]
+
+[ext_resource type="Script" path="res://shared/effects/damage_number.gd" id="1_script"]
+
+[node name="DamageNumber" type="Node3D"]
+script = ExtResource("1_script")
+
+[node name="Label3D" type="Label3D" parent="."]
+pixel_size = 0.01
+billboard = 1
+no_depth_test = true
+font_size = 32
+outline_size = 8
+modulate = Color(1, 1, 1, 1)
+text = "0"
