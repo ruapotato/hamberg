@@ -23,6 +23,7 @@ enum AIState {
 	ATTACKING,      # Melee attack in progress
 	THROWING,       # Rock throw attack
 	RETREATING,     # Backing away after attack
+	STAGGERED,      # Stunned from taking too many hits - vulnerable!
 }
 
 # ============================================================================
@@ -116,6 +117,14 @@ var target_player: CharacterBody3D = null
 var attack_cooldown: float = 0.0
 var throw_cooldown: float = 0.0
 
+# Stagger system - enemies get stunned after taking enough hits
+var stagger_buildup: float = 0.0      # Current stagger accumulation
+var stagger_threshold: float = 100.0  # Damage needed to trigger stagger
+var stagger_decay_rate: float = 20.0  # Stagger decays per second when not hit
+var stagger_duration: float = 1.5     # How long stagger lasts
+var stagger_timer: float = 0.0        # Current stagger time remaining
+var is_staggered: bool = false        # Currently in stagger state
+
 # Circling
 var circle_direction: int = 1
 var circle_timer: float = 0.0
@@ -182,6 +191,9 @@ func _ready() -> void:
 func _physics_process(delta: float) -> void:
 	if is_dead:
 		return
+
+	# Update stagger state
+	_update_stagger(delta)
 
 	# VALHEIM-STYLE: Host runs AI, others interpolate
 	if is_host:
@@ -400,6 +412,8 @@ func _update_ai(delta: float) -> void:
 			_update_throwing(delta, distance)
 		AIState.RETREATING:
 			_update_retreating(delta, distance)
+		AIState.STAGGERED:
+			_update_staggered(delta)
 
 func _change_state(new_state: AIState) -> void:
 	if ai_state == new_state:
@@ -627,6 +641,14 @@ func _update_retreating(delta: float, distance: float) -> void:
 	if distance > preferred_distance * 1.2 or state_timer > 2.0:
 		_change_state(AIState.STALKING)
 
+func _update_staggered(delta: float) -> void:
+	# Enemy is stunned - stop all movement
+	velocity.x = 0
+	velocity.z = 0
+
+	# Stay in staggered state until timer expires (handled by _update_stagger)
+	# Just wait - we're vulnerable!
+
 ## PERFORMANCE: Use EnemyAI's cached player list instead of scanning tree every call
 func _find_nearest_player() -> CharacterBody3D:
 	var nearest: CharacterBody3D = null
@@ -800,6 +822,12 @@ func take_damage(damage: float, knockback: float = 0.0, direction: Vector3 = Vec
 		kb_dir = kb_dir.normalized()
 		velocity += kb_dir * knockback
 
+	# Stagger accumulation - build up stagger on each hit
+	if not is_staggered and not is_dead:
+		stagger_buildup += final_damage
+		if stagger_buildup >= stagger_threshold:
+			_trigger_stagger()
+
 	if health <= 0:
 		health = 0
 		# Only host triggers death (drops loot, notifies server)
@@ -821,6 +849,60 @@ func _get_damage_type_name(damage_type: int) -> String:
 		WeaponData.DamageType.ICE: return "ice"
 		WeaponData.DamageType.POISON: return "poison"
 		_: return "physical"
+
+## Trigger stagger state - enemy is stunned and vulnerable
+func _trigger_stagger() -> void:
+	if is_staggered or is_dead:
+		return
+
+	is_staggered = true
+	stagger_timer = stagger_duration
+	stagger_buildup = 0.0  # Reset buildup
+
+	# Switch to staggered AI state
+	if is_host:
+		ai_state = AIState.STAGGERED
+		state_timer = stagger_duration
+
+	# Play stagger sound
+	SoundManager.play_sound_varied("enemy_hurt", global_position)
+
+	print("[Enemy] %s STAGGERED! Vulnerable for %.1fs" % [enemy_name, stagger_duration])
+
+	# Stagger animation - wobble and lean back
+	if body_container:
+		var stagger_tween = create_tween()
+		stagger_tween.set_parallel(true)
+
+		# Lean back dramatically
+		stagger_tween.tween_property(body_container, "rotation:x", -0.4, 0.1)
+		stagger_tween.chain().tween_property(body_container, "rotation:x", 0.1, 0.15)
+		stagger_tween.chain().tween_property(body_container, "rotation:x", -0.2, 0.1)
+		stagger_tween.chain().tween_property(body_container, "rotation:x", 0.0, 0.2)
+
+		# Wobble side to side
+		stagger_tween.tween_property(body_container, "rotation:z", 0.15, 0.08)
+		stagger_tween.chain().tween_property(body_container, "rotation:z", -0.15, 0.16)
+		stagger_tween.chain().tween_property(body_container, "rotation:z", 0.1, 0.12)
+		stagger_tween.chain().tween_property(body_container, "rotation:z", 0.0, 0.1)
+
+## Update stagger state (called from _physics_process)
+func _update_stagger(delta: float) -> void:
+	# Decay stagger buildup when not being hit
+	if stagger_buildup > 0 and not is_staggered:
+		stagger_buildup = maxf(0.0, stagger_buildup - stagger_decay_rate * delta)
+
+	# Update stagger timer
+	if is_staggered:
+		stagger_timer -= delta
+		if stagger_timer <= 0:
+			is_staggered = false
+			stagger_timer = 0.0
+			# Return to idle state
+			if is_host and ai_state == AIState.STAGGERED:
+				ai_state = AIState.IDLE
+				state_timer = 0.0
+			print("[Enemy] %s recovered from stagger" % enemy_name)
 
 func _die() -> void:
 	if is_dead:

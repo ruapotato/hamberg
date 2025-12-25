@@ -110,7 +110,7 @@ func process_hitbox_hit(enemy: Node3D) -> void:
 
 		# Play hit sound and effect
 		SoundManager.play_sound_varied("sword_hit", enemy.global_position)
-		_spawn_hit_effect(enemy.global_position)
+		_spawn_blood_spark_effect(enemy.global_position, hit_direction)
 
 		# Trigger hit feedback (hitstop + screen shake) for satisfying combat feel
 		# Scale intensity based on damage multiplier
@@ -118,13 +118,15 @@ func process_hitbox_hit(enemy: Node3D) -> void:
 		if player.has_method("trigger_hit_feedback"):
 			player.trigger_hit_feedback(hit_intensity)
 
-## Spawn hit effect at position
-func _spawn_hit_effect(position: Vector3) -> void:
-	var HitEffectScene = preload("res://shared/effects/hit_effect.tscn")
-	if HitEffectScene:
-		var effect = HitEffectScene.instantiate()
+## Spawn blood and spark particles at hit position
+func _spawn_blood_spark_effect(position: Vector3, direction: Vector3) -> void:
+	var BloodSparkScene = preload("res://shared/effects/blood_spark_effect.tscn")
+	if BloodSparkScene:
+		var effect = BloodSparkScene.instantiate()
 		player.get_tree().root.add_child(effect)
 		effect.global_position = position
+		if effect.has_method("set_hit_direction"):
+			effect.set_hit_direction(direction)
 
 ## Update hitbox state during attack animation
 ## Called each physics frame during attack
