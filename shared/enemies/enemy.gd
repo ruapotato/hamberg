@@ -11,7 +11,7 @@ class_name Enemy
 ## - Non-host clients interpolate toward synced position
 ## - Damage is LOCAL-FIRST: each client handles damage to their own player
 
-signal died(enemy: Enemy)
+signal died(enemy)
 
 # AI States
 enum AIState {
