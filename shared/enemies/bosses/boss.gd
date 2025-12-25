@@ -11,9 +11,9 @@ class_name Boss
 ## - Special guaranteed loot drops
 ## - Stagger/stun mechanics
 
-signal boss_defeated(boss)
-signal phase_changed(boss, new_phase: int)
-signal boss_spawned(boss)
+signal boss_defeated(boss_instance)
+signal phase_changed(boss_instance, new_phase: int)
+signal boss_spawned(boss_instance)
 
 # ============================================================================
 # BOSS STATS (override in subclasses)
@@ -21,8 +21,8 @@ signal boss_spawned(boss)
 @export var boss_name: String = "Boss"
 @export var boss_title: String = "The Unnamed"  # e.g., "Guardian of the Valley"
 @export var phase_thresholds: Array[float] = [0.66, 0.33]  # Health % to trigger phases
-@export var stagger_threshold: float = 0.15  # % of max health damage to cause stagger
-@export var stagger_duration: float = 2.0
+@export var boss_stagger_threshold: float = 0.15  # % of max health damage to cause stagger (sets parent's stagger_threshold)
+@export var boss_stagger_duration: float = 2.0  # Sets parent's stagger_duration
 @export var guaranteed_drops: Array[String] = []  # Item IDs that always drop
 @export var boss_scale: float = 2.0  # Size multiplier
 
@@ -30,8 +30,6 @@ signal boss_spawned(boss)
 # BOSS STATE
 # ============================================================================
 var current_phase: int = 0  # 0 = phase 1, increases at thresholds
-var is_staggered: bool = false
-var stagger_timer: float = 0.0
 var damage_since_last_stagger: float = 0.0
 var is_spawning: bool = true  # True during entrance animation
 var spawn_timer: float = 0.0
@@ -44,6 +42,10 @@ var boss_health_bar: Control = null
 # BOSS SETUP
 # ============================================================================
 func _ready() -> void:
+	# Set boss-specific stagger values before super._ready()
+	stagger_threshold = boss_stagger_threshold * max_health  # Convert from % to actual damage
+	stagger_duration = boss_stagger_duration
+
 	super._ready()
 
 	# Apply boss scale
@@ -53,6 +55,9 @@ func _ready() -> void:
 	# Override some enemy defaults for bosses
 	max_health = max_health * 5  # Bosses have much more health
 	health = max_health
+
+	# Recalculate stagger threshold after health increase
+	stagger_threshold = boss_stagger_threshold * max_health
 
 	# Start with entrance animation
 	is_spawning = true
@@ -260,8 +265,8 @@ func take_damage(damage: float, knockback: float = 0.0, direction: Vector3 = Vec
 	# Track damage for stagger
 	damage_since_last_stagger += damage
 
-	# Check for stagger
-	if damage_since_last_stagger >= max_health * stagger_threshold:
+	# Check for stagger (stagger_threshold is already calculated as % of max_health)
+	if damage_since_last_stagger >= stagger_threshold:
 		_trigger_stagger()
 		damage_since_last_stagger = 0.0
 
