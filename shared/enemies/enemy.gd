@@ -1183,7 +1183,7 @@ func _setup_collision_box_mesh() -> void:
 
 	add_child(collision_box_mesh)
 
-## Flash the collision box and body when hit
+## Flash the collision box and body when hit, with physical recoil
 func flash_hit_effect() -> void:
 	# Kill any existing tween
 	if hit_flash_tween and hit_flash_tween.is_valid():
@@ -1201,6 +1201,20 @@ func flash_hit_effect() -> void:
 	# Flash the body white
 	_set_body_tint(Color(2.0, 2.0, 2.0, 1.0))  # Bright white (>1 for bloom effect)
 	hit_flash_tween.tween_callback(_reset_body_tint).set_delay(0.1)
+
+	# Hit recoil effect - quick squash and lean back for impact feel
+	if body_container and not is_dead:
+		# Save original values
+		var original_scale = body_container.scale
+		var original_rotation_x = body_container.rotation.x
+
+		# Squash vertically (impact compression)
+		hit_flash_tween.tween_property(body_container, "scale", Vector3(1.15, 0.85, 1.15), 0.05)
+		hit_flash_tween.chain().tween_property(body_container, "scale", original_scale, 0.1)
+
+		# Lean back (recoil)
+		hit_flash_tween.tween_property(body_container, "rotation:x", original_rotation_x - 0.2, 0.05)
+		hit_flash_tween.chain().tween_property(body_container, "rotation:x", original_rotation_x, 0.15)
 
 func _reset_body_tint() -> void:
 	_set_body_tint(Color(1.0, 1.0, 1.0, 1.0))

@@ -83,11 +83,13 @@ func process_hitbox_hit(enemy: Node3D) -> void:
 	var weapon_data = _get_equipped_weapon()
 	var combo_multiplier := 1.0
 
-	# Calculate combo damage multiplier
+	# Calculate combo damage multiplier based on weapon and combo hit
 	if player.current_weapon_type == "stone_knife" and player.current_combo_animation == 2:
-		combo_multiplier = 1.5
+		combo_multiplier = 1.5  # Knife jab finisher
+	elif player.current_weapon_type == "stone_sword" and player.current_combo_animation == 2:
+		combo_multiplier = 1.75  # Sword overhead cleave finisher
 	elif player.current_weapon_type == "stone_axe" and player.current_combo_animation == 2:
-		combo_multiplier = 2.0
+		combo_multiplier = 2.0  # Axe slam finisher
 
 	var damage: float = weapon_data.damage * combo_multiplier
 	var knockback: float = weapon_data.knockback

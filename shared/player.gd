@@ -1150,6 +1150,29 @@ func _handle_attack() -> void:
 		combo_count = (combo_count + 1) % MAX_COMBO
 		combo_timer = COMBO_WINDOW  # Reset combo window
 
+	elif is_sword:
+		# Store current combo animation BEFORE incrementing
+		current_combo_animation = combo_count  # 0=diagonal right, 1=diagonal left, 2=overhead cleave
+
+		# Sword 3-hit combo: diagonal slash right, diagonal slash left, OVERHEAD CLEAVE finisher
+		if combo_count == 0:
+			print("[Player] Sword combo hit 1 - DIAGONAL SLASH RIGHT!")
+			if equipped_weapon_visual:
+				equipped_weapon_visual.rotation_degrees = Vector3(90, 0, 0)
+		elif combo_count == 1:
+			print("[Player] Sword combo hit 2 - DIAGONAL SLASH LEFT!")
+			if equipped_weapon_visual:
+				equipped_weapon_visual.rotation_degrees = Vector3(90, 0, 0)
+		else:  # combo_count == 2
+			combo_multiplier = 1.75  # 75% more damage on overhead cleave finisher
+			print("[Player] Sword combo FINISHER - OVERHEAD CLEAVE! (Hit %d)" % (combo_count + 1))
+			if equipped_weapon_visual:
+				equipped_weapon_visual.rotation_degrees = Vector3(90, 0, 0)
+
+		# Advance combo
+		combo_count = (combo_count + 1) % MAX_COMBO
+		combo_timer = COMBO_WINDOW  # Reset combo window
+
 	elif is_axe:
 		# Store current combo animation BEFORE incrementing
 		current_combo_animation = combo_count  # 0=right sweep, 1=left sweep, 2=overhead slam
@@ -2413,8 +2436,11 @@ func _update_body_animations(delta: float) -> void:
 		elif current_weapon_type == "stone_knife":
 			# KNIFE COMBO ANIMATIONS
 			_animate_knife_attack(attack_progress, right_arm, right_elbow)
+		elif current_weapon_type == "stone_sword":
+			# SWORD COMBO ANIMATIONS - Dramatic slashing arcs
+			_animate_sword_attack(attack_progress, right_arm, right_elbow)
 		else:
-			# DEFAULT SLASH ANIMATION
+			# DEFAULT SLASH ANIMATION (fists, other weapons)
 			var start_z = -1.0
 			var end_z = 0.5
 			var horizontal_angle = lerp(start_z, end_z, attack_progress)
@@ -2722,6 +2748,66 @@ func _animate_knife_attack(progress: float, right_arm: Node3D, right_elbow: Node
 			right_arm.rotation.z = -0.3
 			if right_elbow:
 				right_elbow.rotation.x = -sin(progress * PI) * 0.9
+
+## Animate sword combo attacks - Dramatic slashing arcs with overhead finisher
+func _animate_sword_attack(progress: float, right_arm: Node3D, right_elbow: Node3D) -> void:
+	match current_combo_animation:
+		0:  # Diagonal slash from upper-right to lower-left
+			var windup_end = 0.2
+			if progress < windup_end:
+				# Wind-up: raise arm high and to the right
+				var t = progress / windup_end
+				var t_ease = t * t * (3.0 - 2.0 * t)  # Smoothstep
+				right_arm.rotation.x = lerp(0.0, -1.2, t_ease)  # Raise up
+				right_arm.rotation.z = lerp(0.0, -1.4, t_ease)  # Out to right
+				if right_elbow:
+					right_elbow.rotation.x = lerp(0.0, -0.8, t_ease)
+			else:
+				# Strike: sweep diagonally down and across
+				var t = (progress - windup_end) / (1.0 - windup_end)
+				var t_power = t * t  # Accelerating strike
+				right_arm.rotation.x = lerp(-1.2, 0.6, t_power)  # Swing down
+				right_arm.rotation.z = lerp(-1.4, 0.8, t_power)  # Across body
+				if right_elbow:
+					right_elbow.rotation.x = lerp(-0.8, -0.3, t_power)
+
+		1:  # Diagonal slash from upper-left to lower-right (reverse)
+			var windup_end = 0.2
+			if progress < windup_end:
+				# Wind-up: raise arm high and to the left
+				var t = progress / windup_end
+				var t_ease = t * t * (3.0 - 2.0 * t)
+				right_arm.rotation.x = lerp(0.0, -1.2, t_ease)  # Raise up
+				right_arm.rotation.z = lerp(0.0, 0.6, t_ease)  # Across to left
+				if right_elbow:
+					right_elbow.rotation.x = lerp(0.0, -0.8, t_ease)
+			else:
+				# Strike: sweep diagonally down and right
+				var t = (progress - windup_end) / (1.0 - windup_end)
+				var t_power = t * t
+				right_arm.rotation.x = lerp(-1.2, 0.6, t_power)  # Swing down
+				right_arm.rotation.z = lerp(0.6, -1.2, t_power)  # Back to right
+				if right_elbow:
+					right_elbow.rotation.x = lerp(-0.8, -0.3, t_power)
+
+		2:  # Overhead cleave finisher - powerful downward strike
+			var windup_end = 0.3  # Longer wind-up for dramatic effect
+			if progress < windup_end:
+				# Wind-up: raise sword high overhead
+				var t = progress / windup_end
+				var t_ease = t * t * (3.0 - 2.0 * t)
+				right_arm.rotation.x = lerp(0.0, -2.2, t_ease)  # Way up overhead
+				right_arm.rotation.z = lerp(0.0, -0.3, t_ease)  # Slightly right
+				if right_elbow:
+					right_elbow.rotation.x = lerp(0.0, -1.2, t_ease)  # Bent back
+			else:
+				# Strike: powerful downward cleave
+				var t = (progress - windup_end) / (1.0 - windup_end)
+				var t_power = t * t * t  # Cubic for heavy acceleration
+				right_arm.rotation.x = lerp(-2.2, 0.8, t_power)  # Slam down
+				right_arm.rotation.z = lerp(-0.3, 0.0, t_power)  # Center
+				if right_elbow:
+					right_elbow.rotation.x = lerp(-1.2, 0.0, t_power)  # Extend
 
 ## Check for enemy hits during axe spin attack
 ## Hits enemies and environmental objects multiple times with a cooldown
