@@ -75,6 +75,9 @@ func disable_weapon_hitbox() -> void:
 	if collision_shape:
 		collision_shape.disabled = true
 
+## Critical hit multiplier
+const CRIT_MULTIPLIER: float = 2.5
+
 ## Process a hit detected by weapon hitbox collision
 func process_hitbox_hit(enemy: Node3D) -> void:
 	if not player.is_local_player:
@@ -91,7 +94,35 @@ func process_hitbox_hit(enemy: Node3D) -> void:
 	elif player.current_weapon_type == "stone_axe" and player.current_combo_animation == 2:
 		combo_multiplier = 2.0  # Axe slam finisher
 
-	var damage: float = weapon_data.damage * combo_multiplier
+	# Check for critical hit conditions
+	var is_critical := false
+	var crit_reason := ""
+
+	# Crit 1: Enemy is stunned (after successful parry)
+	if "is_stunned" in enemy and enemy.is_stunned:
+		is_critical = true
+		crit_reason = "PARRY CRIT"
+
+	# Crit 2: Enemy is staggered (vulnerable from accumulated hits)
+	if "is_staggered" in enemy and enemy.is_staggered:
+		is_critical = true
+		crit_reason = "STAGGER CRIT"
+
+	# Crit 3: Stealth attack - enemy hasn't detected player (IDLE state, no target)
+	if not is_critical and "ai_state" in enemy:
+		# Enemy.AIState.IDLE = 0
+		var is_idle = enemy.ai_state == 0
+		var has_no_target = not ("target_player" in enemy and enemy.target_player != null)
+		if is_idle or has_no_target:
+			is_critical = true
+			crit_reason = "STEALTH CRIT"
+
+	# Apply critical multiplier
+	var final_multiplier := combo_multiplier
+	if is_critical:
+		final_multiplier *= CRIT_MULTIPLIER
+
+	var damage: float = weapon_data.damage * final_multiplier
 	var knockback: float = weapon_data.knockback
 	var damage_type: int = weapon_data.damage_type if "damage_type" in weapon_data else -1
 
@@ -105,16 +136,26 @@ func process_hitbox_hit(enemy: Node3D) -> void:
 	# Send damage request to server
 	var enemy_network_id = enemy.network_id if "network_id" in enemy else 0
 	if enemy_network_id > 0:
-		print("[Player] HITBOX HIT %s! (%.1f damage)" % [enemy.name, damage])
+		if is_critical:
+			print("[Player] %s on %s! (%.1f damage, x%.1f)" % [crit_reason, enemy.name, damage, final_multiplier])
+		else:
+			print("[Player] HITBOX HIT %s! (%.1f damage)" % [enemy.name, damage])
 		send_enemy_damage_request(enemy_network_id, damage, knockback, hit_direction, damage_type)
 
 		# Play hit sound and effect
-		SoundManager.play_sound_varied("sword_hit", enemy.global_position)
-		_spawn_blood_spark_effect(enemy.global_position, hit_direction)
+		if is_critical:
+			# Critical hit: louder sound, bigger effect
+			SoundManager.play_sound_varied("sword_hit", enemy.global_position, 3.0)  # Louder
+			_spawn_critical_hit_effect(enemy.global_position, hit_direction)
+		else:
+			SoundManager.play_sound_varied("sword_hit", enemy.global_position)
+			_spawn_blood_spark_effect(enemy.global_position, hit_direction)
 
 		# Trigger hit feedback (hitstop + screen shake) for satisfying combat feel
-		# Scale intensity based on damage multiplier
-		var hit_intensity = clampf(combo_multiplier, 1.0, 2.0)
+		# Scale intensity based on damage multiplier - crits get extra feedback
+		var hit_intensity = clampf(final_multiplier, 1.0, 3.0)
+		if is_critical:
+			hit_intensity = 3.0  # Max intensity for crits
 		if player.has_method("trigger_hit_feedback"):
 			player.trigger_hit_feedback(hit_intensity)
 
@@ -123,6 +164,16 @@ func _spawn_blood_spark_effect(position: Vector3, direction: Vector3) -> void:
 	var BloodSparkScene = preload("res://shared/effects/blood_spark_effect.tscn")
 	if BloodSparkScene:
 		var effect = BloodSparkScene.instantiate()
+		player.get_tree().root.add_child(effect)
+		effect.global_position = position
+		if effect.has_method("set_hit_direction"):
+			effect.set_hit_direction(direction)
+
+## Spawn critical hit effect - bigger, more dramatic particles
+func _spawn_critical_hit_effect(position: Vector3, direction: Vector3) -> void:
+	var CritEffectScene = preload("res://shared/effects/critical_hit_effect.tscn")
+	if CritEffectScene:
+		var effect = CritEffectScene.instantiate()
 		player.get_tree().root.add_child(effect)
 		effect.global_position = position
 		if effect.has_method("set_hit_direction"):
