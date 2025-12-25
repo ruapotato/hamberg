@@ -11,9 +11,9 @@ class_name Boss
 ## - Special guaranteed loot drops
 ## - Stagger/stun mechanics
 
-signal boss_defeated(boss: Boss)
-signal phase_changed(boss: Boss, new_phase: int)
-signal boss_spawned(boss: Boss)
+signal boss_defeated(boss)
+signal phase_changed(boss, new_phase: int)
+signal boss_spawned(boss)
 
 # ============================================================================
 # BOSS STATS (override in subclasses)
