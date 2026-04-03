@@ -454,7 +454,12 @@ func _send_enemies_to_player(peer_id: int) -> void:
 		var enemy_path = enemy.get_path()
 		var enemy_name = enemy.enemy_name if "enemy_name" in enemy else "Enemy"
 		# IMPORTANT: Use enemy_name not node.name (which changes at runtime)
-		var enemy_type = enemy_name  # Always "Gahnome", not "@CharacterBody3D@5366"
+		var enemy_type = enemy_name  # Always "Gahnome", "Sporeling", or "Zombie"
+
+		# For zombies, include the subtype in broadcast_name (e.g., "Zombie_walker")
+		var broadcast_name = enemy_name
+		if enemy_name == "Zombie" and "zombie_type" in enemy:
+			broadcast_name = "Zombie_" + enemy.zombie_type
 
 		# Get network_id and host_peer_id from the enemy
 		var net_id = enemy.network_id if "network_id" in enemy else 0
@@ -464,7 +469,7 @@ func _send_enemies_to_player(peer_id: int) -> void:
 		var position = [enemy.global_position.x, enemy.global_position.y, enemy.global_position.z, net_id, host_peer]
 
 		# Send to this specific client only
-		NetworkManager.rpc_spawn_enemy.rpc_id(peer_id, enemy_path, enemy_type, position, enemy_name)
+		NetworkManager.rpc_spawn_enemy.rpc_id(peer_id, enemy_path, enemy_type, position, broadcast_name)
 		enemies_sent += 1
 
 	print("[Server] Sent %d enemies to player %d" % [enemies_sent, peer_id])

@@ -37,6 +37,17 @@ const STATE_SYNC_INTERVAL: float = 0.2   # 5Hz position relay
 # Enemy scenes
 const GAHNOME_SCENE = preload("res://shared/enemies/gahnome.tscn")
 const SPORELING_SCENE = preload("res://shared/enemies/sporeling.tscn")
+const ZOMBIE_SCENE = preload("res://shared/enemies/zombie.tscn")
+
+# Zombie type weights (must sum to 1.0)
+# 50% walker, 25% runner, 15% brute, 7% mage, 3% exploder
+const ZOMBIE_TYPE_WEIGHTS = [
+	["walker", 0.50],
+	["runner", 0.75],    # cumulative: 0.50 + 0.25
+	["brute", 0.90],     # cumulative: 0.75 + 0.15
+	["mage_zombie", 0.97], # cumulative: 0.90 + 0.07
+	["exploder", 1.00],  # cumulative: 0.97 + 0.03
+]
 
 # Animal scenes
 const DEER_SCENE = preload("res://shared/animals/deer.tscn")
@@ -264,30 +275,45 @@ func _spawn_enemy_near_player(player: Node, peer_id: int = 0, is_dark_forest: bo
 			biome = terrain_world.get_biome_at(Vector2(spawn_position.x, spawn_position.z))
 
 		# Choose enemy scene based on biome
+		# Zombies can spawn in ALL biomes (50% chance), biome-specific enemies fill the rest
 		var enemy_scene = GAHNOME_SCENE
 		var enemy_type_name = "Gahnome"
-		if biome in DARK_FOREST_BIOMES:
+		var zombie_subtype = ""
+
+		if randf() < 0.5:
+			# Spawn a zombie (all biomes)
+			enemy_scene = ZOMBIE_SCENE
+			zombie_subtype = _pick_random_zombie_type()
+			enemy_type_name = "Zombie"
+		elif biome in DARK_FOREST_BIOMES:
 			enemy_scene = SPORELING_SCENE
 			enemy_type_name = "Sporeling"
-		print("[EnemySpawner] Spawning %s in biome '%s' at %s" % [enemy_type_name, biome, spawn_position])
+		# else: Gahnome (default for valley/meadow)
+
+		print("[EnemySpawner] Spawning %s%s in biome '%s' at %s" % [enemy_type_name, ("_" + zombie_subtype if zombie_subtype else ""), biome, spawn_position])
 
 		# Check if terrain collision exists at this position
 		if terrain_world and terrain_world.has_method("has_collision_at_position"):
 			if terrain_world.has_collision_at_position(spawn_position):
 				# Valid spawn position with collision - spawn the enemy
-				_spawn_enemy(enemy_scene, spawn_position, peer_id, is_night)
+				_spawn_enemy(enemy_scene, spawn_position, peer_id, is_night, zombie_subtype)
 				return
 		else:
 			# No terrain world check available, spawn anyway (fallback)
-			_spawn_enemy(enemy_scene, spawn_position, peer_id, is_night)
+			_spawn_enemy(enemy_scene, spawn_position, peer_id, is_night, zombie_subtype)
 			return
 
 	# All attempts failed - don't spawn (terrain not loaded yet)
 
 ## Spawn an enemy at a position with assigned host client
 ## is_night: if true, apply night-time buffs (more damage, more health)
-func _spawn_enemy(enemy_scene: PackedScene, position: Vector3, host_peer_id: int = 0, is_night: bool = false) -> void:
+## zombie_subtype: if non-empty, set zombie_type on the enemy before adding to tree
+func _spawn_enemy(enemy_scene: PackedScene, position: Vector3, host_peer_id: int = 0, is_night: bool = false, zombie_subtype: String = "") -> void:
 	var enemy = enemy_scene.instantiate()
+
+	# Set zombie type BEFORE adding to tree (so _ready uses correct stats)
+	if zombie_subtype != "" and enemy.has_method("set_zombie_type"):
+		enemy.set_zombie_type(zombie_subtype)
 
 	# Assign network ID BEFORE adding to tree (so it's available in _ready)
 	var net_id = next_network_id
@@ -341,15 +367,19 @@ func _spawn_enemy(enemy_scene: PackedScene, position: Vector3, host_peer_id: int
 			enemy.died.connect(_on_enemy_died)
 
 		var enemy_name = enemy.enemy_name if "enemy_name" in enemy else "Enemy"
+		# For zombies, include the subtype in the name sent to clients (e.g., "Zombie_walker")
+		var broadcast_name = enemy_name
+		if zombie_subtype != "":
+			broadcast_name = "Zombie_" + zombie_subtype
 		var night_str = " [NIGHT BUFFED]" if is_night and not enemy.is_in_group("animals") else ""
-		print("[EnemySpawner] Spawned %s at %s (network_id=%d, host_peer=%d)%s" % [enemy_name, position, net_id, host_peer_id, night_str])
+		print("[EnemySpawner] Spawned %s at %s (network_id=%d, host_peer=%d)%s" % [broadcast_name, position, net_id, host_peer_id, night_str])
 
 		# Broadcast enemy spawn to all clients (include network_id AND host_peer_id in position array)
 		var enemy_path = enemy_paths[enemy]
 		# IMPORTANT: Use enemy_name (from exported var) not node.name (which changes at runtime)
-		var enemy_type = enemy_name  # Always "Gahnome", not "@CharacterBody3D@5366"
+		var enemy_type = enemy_name  # "Gahnome", "Sporeling", or "Zombie"
 		var pos_array = [position.x, position.y, position.z, net_id, host_peer_id]  # Include network_id and host_peer_id
-		NetworkManager.rpc_spawn_enemy.rpc(enemy_path, enemy_type, pos_array, enemy_name)
+		NetworkManager.rpc_spawn_enemy.rpc(enemy_path, enemy_type, pos_array, broadcast_name)
 	else:
 		print("[EnemySpawner] ERROR: WorldContainer not found!")
 		enemy.queue_free()
@@ -464,13 +494,30 @@ func _broadcast_enemy_states() -> void:
 	if not states.is_empty():
 		NetworkManager.rpc_update_enemy_states.rpc(states)
 
+## Pick a random zombie type using weighted distribution
+func _pick_random_zombie_type() -> String:
+	var roll = randf()
+	for entry in ZOMBIE_TYPE_WEIGHTS:
+		if roll <= entry[1]:
+			return entry[0]
+	return "walker"  # Fallback
+
 ## Spawn enemy manually at a position (for testing/debugging)
 func spawn_enemy_at(position: Vector3, enemy_type: String = "gahnome") -> void:
 	match enemy_type:
 		"gahnome":
 			_spawn_enemy(GAHNOME_SCENE, position)
+		"sporeling":
+			_spawn_enemy(SPORELING_SCENE, position)
+		"zombie":
+			_spawn_enemy(ZOMBIE_SCENE, position, 0, false, _pick_random_zombie_type())
 		_:
-			print("[EnemySpawner] Unknown enemy type: %s" % enemy_type)
+			# Check if it's a specific zombie type like "zombie_walker"
+			if enemy_type.begins_with("zombie_"):
+				var subtype = enemy_type.substr(7)  # Remove "zombie_" prefix
+				_spawn_enemy(ZOMBIE_SCENE, position, 0, false, subtype)
+			else:
+				print("[EnemySpawner] Unknown enemy type: %s" % enemy_type)
 
 ## Spawn a boss at a position near a player
 ## Returns the spawned boss or null if spawn failed

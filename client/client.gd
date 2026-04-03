@@ -24,6 +24,7 @@ var build_controls_hint_scene := preload("res://client/ui/build_controls_hint.ts
 # Enemy scenes
 var gahnome_scene := preload("res://shared/enemies/gahnome.tscn")
 var sporeling_scene := preload("res://shared/enemies/sporeling.tscn")
+var zombie_scene := preload("res://shared/enemies/zombie.tscn")
 
 # Boss scenes
 var cyclops_scene := preload("res://shared/enemies/bosses/cyclops.tscn")
@@ -2030,6 +2031,8 @@ func spawn_enemy(enemy_path: NodePath, enemy_type: String, position: Vector3, en
 			enemy_scene = gahnome_scene
 		"Sporeling":
 			enemy_scene = sporeling_scene
+		"Zombie":
+			enemy_scene = zombie_scene
 		"Cyclops":
 			enemy_scene = cyclops_scene
 		"Deer":
@@ -2045,6 +2048,14 @@ func spawn_enemy(enemy_path: NodePath, enemy_type: String, position: Vector3, en
 	# Instantiate enemy
 	var enemy = enemy_scene.instantiate()
 	enemy.name = str(enemy_path).get_file()  # Use the path's last part as name
+
+	# Set zombie type BEFORE adding to tree (so _ready uses correct stats/textures)
+	if enemy_type == "Zombie" and enemy.has_method("set_zombie_type"):
+		# enemy_name contains "Zombie_walker", "Zombie_brute", etc.
+		var zombie_subtype = "walker"
+		if enemy_name.begins_with("Zombie_"):
+			zombie_subtype = enemy_name.substr(7)  # Remove "Zombie_" prefix
+		enemy.set_zombie_type(zombie_subtype)
 
 	# Set network_id BEFORE adding to tree (so it's available in _ready)
 	if "network_id" in enemy:

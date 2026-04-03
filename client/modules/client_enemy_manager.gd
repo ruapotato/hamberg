@@ -51,6 +51,12 @@ func spawn_enemy(network_id: int, enemy_type: String, position: Array, host_peer
 ## Get enemy scene path
 func get_enemy_scene(enemy_type: String) -> String:
 	match enemy_type:
+		"Gahnome":
+			return "res://shared/enemies/gahnome.tscn"
+		"Sporeling":
+			return "res://shared/enemies/sporeling.tscn"
+		"Zombie":
+			return "res://shared/enemies/zombie.tscn"
 		"goblin":
 			return "res://shared/enemies/goblin.tscn"
 		"skeleton":
