@@ -412,7 +412,7 @@ GrassInfo get_grass_pattern(vec2 world_xz, float anim_time) {
 	info.wind_bend = 0.0;
 
 	// Scale for grass (larger = bigger clumps, more spread out)
-	float grass_scale = 3.0;  // Increased for efficiency
+	float grass_scale = 0.4;  // Small, ankle-height grass blades
 	vec2 scaled_pos = world_xz / grass_scale;
 
 	// Wind parameters (simplified)
@@ -666,14 +666,6 @@ void vertex() {
 	world_pos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 	// Transform normal to world space using inverse transpose for correct orientation
 	world_normal = normalize(mat3(MODEL_MATRIX) * NORMAL);
-
-	// Grass vertex displacement - subtle bumps on flat terrain for 3D silhouette
-	if (enable_grass_detail && world_normal.y > 0.8) {
-		float grass_bump = simple_rand(floor(world_pos.xz * 1.5)) * 0.08;
-		// Animate slightly with wind
-		grass_bump *= 0.7 + 0.3 * sin(time * 1.2 + world_pos.x * 0.3 + world_pos.z * 0.2);
-		VERTEX += NORMAL * grass_bump;
-	}
 
 	// Snow height displacement - only on flat surfaces
 	// Note: Footprints only affect color, not vertex height (terrain mesh too sparse for small details)
