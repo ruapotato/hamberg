@@ -12,7 +12,7 @@ var is_initialized: bool = false
 var MultimeshChunkScript = preload("res://shared/environmental/multimesh_chunk.gd")
 var EnvironmentalSpawnerScript = preload("res://shared/environmental/environmental_spawner.gd")
 
-const CHUNKS_PER_FRAME := 2  # Process up to 2 chunks per frame to avoid hitching
+const CHUNKS_PER_FRAME := 1  # Process 1 chunk per frame to avoid hitching
 
 func initialize(terrain_ref: Node3D, world_seed: int, chunk_size: float = 32.0) -> void:
 	terrain_world = terrain_ref

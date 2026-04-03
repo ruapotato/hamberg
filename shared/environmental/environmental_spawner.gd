@@ -557,8 +557,8 @@ func generate_dense_grass_transforms(chunk_pos: Vector2i, voxel_world: Node3D, d
 
 	var chunk_world_pos := Vector2(chunk_pos.x * chunk_size, chunk_pos.y * chunk_size)
 
-	# Dense grass: ~3000 clumps per 32x32 chunk
-	var grass_per_chunk := int(chunk_size * chunk_size * 3.0 * density_multiplier)
+	# Grass density: ~500 clumps per 32x32 chunk (2 quads each = 1000 quads/chunk)
+	var grass_per_chunk := int(chunk_size * chunk_size * 0.5 * density_multiplier)
 
 	for i in grass_per_chunk:
 		var local_x := rng.randf_range(0, chunk_size)

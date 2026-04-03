@@ -409,25 +409,26 @@ func _setup_rock() -> void:
 func _setup_grass() -> void:
 	var obj_def := ObjectDef.new()
 
-	# Grass blade mesh - crossed quads for 3D volume (Valheim-style star pattern)
+	# Grass blade mesh - crossed quads standing upright
 	var grass_blade := QuadMesh.new()
-	grass_blade.size = Vector2(0.15, 0.45)
+	grass_blade.size = Vector2(0.2, 0.4)
+	grass_blade.orientation = PlaneMesh.FACE_Z  # Face Z so we can rotate upright
 
 	# Shader material with vertex wind animation
 	var grass_shader := load("res://shared/environmental/grass_material.gdshader")
 	var grass_mat := ShaderMaterial.new()
 	grass_mat.shader = grass_shader
 
-	# 3 crossed quads at 60-degree intervals (star pattern)
-	# Each quad is centered with bottom at Y=0, top at Y=0.45
-	var half_height := 0.45 / 2.0
-	obj_def.mesh_defs.append(MeshDef.new(grass_blade, grass_mat, Transform3D(Basis(), Vector3(0, half_height, 0))))
-	obj_def.mesh_defs.append(MeshDef.new(grass_blade, grass_mat, Transform3D(Basis.from_euler(Vector3(0, PI / 3.0, 0)), Vector3(0, half_height, 0))))
-	obj_def.mesh_defs.append(MeshDef.new(grass_blade, grass_mat, Transform3D(Basis.from_euler(Vector3(0, 2.0 * PI / 3.0, 0)), Vector3(0, half_height, 0))))
+	# 2 crossed quads at 90 degrees (X pattern) - rotate 90° on X to stand upright
+	var half_height := 0.4 / 2.0
+	var upright := Basis.from_euler(Vector3(-PI / 2.0, 0, 0))  # Rotate to stand vertical
+	var upright_rotated := Basis.from_euler(Vector3(-PI / 2.0, PI / 2.0, 0))  # + 90° Y
+	obj_def.mesh_defs.append(MeshDef.new(grass_blade, grass_mat, Transform3D(upright, Vector3(0, half_height, 0))))
+	obj_def.mesh_defs.append(MeshDef.new(grass_blade, grass_mat, Transform3D(upright_rotated, Vector3(0, half_height, 0))))
 
-	obj_def.collision_radius = 0.0  # No collision for grass
+	obj_def.collision_radius = 0.0
 	obj_def.collision_height = 0.0
-	obj_def.cull_distance = 40.0
+	obj_def.cull_distance = 25.0
 	obj_def.max_health = 10.0
 	obj_def.resource_drops = {}
 
