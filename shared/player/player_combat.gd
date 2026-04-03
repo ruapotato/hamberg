@@ -40,7 +40,6 @@ func send_enemy_damage_request(enemy_network_id: int, damage: float, knockback: 
 ## Enable weapon hitbox for collision detection during attack swing
 func enable_weapon_hitbox() -> void:
 	if not player.weapon_hitbox:
-		print("[Combat] WARNING: No weapon hitbox to enable!")
 		return
 
 	# Clear hit tracking for new swing

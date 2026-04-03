@@ -113,7 +113,9 @@ func _create_effect() -> void:
 
 ## Static helper to spawn a hit effect at a position
 static func spawn_at(parent: Node, pos: Vector3, color: Color = Color(1, 0.5, 0.2), critical: bool = false) -> void:
-	var effect = HitEffect.new()
+	var script = load("res://shared/effects/hit_effect.gd")
+	var effect = Node3D.new()
+	effect.set_script(script)
 	effect.effect_color = color
 	effect.is_critical = critical
 	parent.add_child(effect)
