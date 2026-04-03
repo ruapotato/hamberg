@@ -955,198 +955,95 @@ func _setup_body() -> void:
 	body_container = Node3D.new()
 	body_container.name = "BodyContainer"
 	body_container.rotation.y = PI
-	body_container.position.y = -0.15  # Lower body to align feet with ground (collision shape compensation)
 	add_child(body_container)
 
-	var scale_factor: float = 0.79  # 20% bigger than original 0.66
+	# Billboard Sprite3D (Paper Mario style)
+	var sprite = Sprite3D.new()
+	sprite.name = "Sprite"
+	sprite.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	sprite.pixel_size = 0.025
+	sprite.alpha_cut = SpriteBase3D.ALPHA_CUT_OPAQUE_PREPASS
+	sprite.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
+	sprite.texture = _create_sprite_texture()
+	# Position so bottom of sprite is at ground level
+	# 64px tall * 0.025 pixel_size = 1.6 units total height, center at half
+	sprite.position = Vector3(0, 0.8, 0)
+	body_container.add_child(sprite)
 
-	# Materials
-	var skin_mat = StandardMaterial3D.new()
-	skin_mat.albedo_color = Color(0.45, 0.55, 0.35, 1)
+	head_base_height = 0.0  # No 3D head to bob
 
-	var clothes_mat = StandardMaterial3D.new()
-	clothes_mat.albedo_color = Color(0.4, 0.25, 0.15, 1)
+## Create a procedural 64x64 gnome sprite texture (earthy brown/green humanoid)
+func _create_sprite_texture() -> ImageTexture:
+	var img = Image.create(64, 64, false, Image.FORMAT_RGBA8)
+	img.fill(Color(0, 0, 0, 0))  # Transparent background
 
-	var hair_mat = StandardMaterial3D.new()
-	hair_mat.albedo_color = Color(0.7, 0.7, 0.7, 1)
+	var skin = Color(0.45, 0.55, 0.35, 1.0)       # Green-brown skin
+	var clothes = Color(0.4, 0.25, 0.15, 1.0)      # Brown tunic
+	var hat_color = Color(0.7, 0.7, 0.7, 1.0)      # Gray hat
+	var eye_color = Color(0.05, 0.05, 0.05, 1.0)   # Dark eyes
+	var nose_color = Color(0.5, 0.6, 0.4, 1.0)     # Slightly lighter nose
 
-	# Hips
-	var hips = MeshInstance3D.new()
-	var hips_mesh = BoxMesh.new()
-	hips_mesh.size = Vector3(0.18, 0.15, 0.1) * scale_factor
-	hips.mesh = hips_mesh
-	hips.material_override = clothes_mat
-	hips.position = Vector3(0, 0.58 * scale_factor, 0)
-	body_container.add_child(hips)
+	# Pointy hat (rows 2-18, triangle)
+	for y in range(2, 19):
+		var half_w = int((y - 2) * 0.6) + 1
+		for x in range(32 - half_w, 32 + half_w):
+			img.set_pixel(x, y, hat_color)
 
-	# Torso
-	torso = MeshInstance3D.new()
-	var torso_mesh = CapsuleMesh.new()
-	torso_mesh.radius = 0.08 * scale_factor
-	torso_mesh.height = 0.4 * scale_factor
-	torso.mesh = torso_mesh
-	torso.material_override = clothes_mat
-	torso.position = Vector3(0, 0.75 * scale_factor, 0)
-	body_container.add_child(torso)
+	# Head (rows 18-30, oval)
+	for y in range(18, 31):
+		var dy = (y - 24.0) / 6.0
+		var half_w = int(7.0 * sqrt(max(0, 1.0 - dy * dy)))
+		for x in range(32 - half_w, 32 + half_w):
+			img.set_pixel(x, y, skin)
 
-	# Neck
-	var neck = MeshInstance3D.new()
-	var neck_mesh = CapsuleMesh.new()
-	neck_mesh.radius = 0.03 * scale_factor
-	neck_mesh.height = 0.08 * scale_factor
-	neck.mesh = neck_mesh
-	neck.material_override = skin_mat
-	neck.position = Vector3(0, 0.92 * scale_factor, 0)
-	body_container.add_child(neck)
+	# Eyes (row 23)
+	img.set_pixel(29, 23, eye_color)
+	img.set_pixel(30, 23, eye_color)
+	img.set_pixel(34, 23, eye_color)
+	img.set_pixel(35, 23, eye_color)
 
-	# Head
-	head = MeshInstance3D.new()
-	var head_mesh = SphereMesh.new()
-	head_mesh.radius = 0.1 * scale_factor
-	head_mesh.height = 0.2 * scale_factor
-	head.mesh = head_mesh
-	head.material_override = skin_mat
-	head.position = Vector3(0, 0.99 * scale_factor, 0)
-	body_container.add_child(head)
+	# Nose (row 25-26)
+	img.set_pixel(32, 25, nose_color)
+	img.set_pixel(31, 26, nose_color)
+	img.set_pixel(32, 26, nose_color)
+	img.set_pixel(33, 26, nose_color)
 
-	# Hat
-	var hat = MeshInstance3D.new()
-	var hat_mesh = PrismMesh.new()
-	hat_mesh.size = Vector3(0.22 * scale_factor, 0.25 * scale_factor, 0.22 * scale_factor)
-	hat.mesh = hat_mesh
-	hat.material_override = hair_mat
-	hat.position = Vector3(0, 1.11 * scale_factor, 0)
-	head.add_child(hat)
+	# Body / tunic (rows 31-48)
+	for y in range(31, 49):
+		var progress = (y - 31.0) / 17.0
+		var half_w = int(lerp(7.0, 10.0, progress))
+		for x in range(32 - half_w, 32 + half_w):
+			img.set_pixel(x, y, clothes)
 
-	# Nose
-	var nose = MeshInstance3D.new()
-	var nose_mesh = SphereMesh.new()
-	var nose_radius = 0.02 * scale_factor
-	nose_mesh.radius = nose_radius
-	nose_mesh.height = nose_radius * 2.0
-	nose.mesh = nose_mesh
-	nose.material_override = skin_mat
-	nose.position = Vector3(0, -0.01 * scale_factor, 0.09 * scale_factor)
-	head.add_child(nose)
+	# Arms (rows 33-42, sticking out from sides)
+	for y in range(33, 43):
+		# Left arm
+		for x in range(18, 25):
+			img.set_pixel(x, y, skin)
+		# Right arm
+		for x in range(39, 46):
+			img.set_pixel(x, y, skin)
 
-	# Eyes
-	var eye_mat = StandardMaterial3D.new()
-	eye_mat.albedo_color = Color(0.05, 0.05, 0.05, 1)
+	# Legs (rows 49-60)
+	for y in range(49, 61):
+		# Left leg
+		for x in range(26, 31):
+			img.set_pixel(x, y, clothes)
+		# Right leg
+		for x in range(33, 38):
+			img.set_pixel(x, y, clothes)
 
-	var eye_mesh = SphereMesh.new()
-	var eye_radius = 0.015 * scale_factor
-	eye_mesh.radius = eye_radius
-	eye_mesh.height = eye_radius * 2.0
+	# Feet (rows 59-61)
+	for y in range(59, 62):
+		for x in range(24, 32):
+			img.set_pixel(x, y, Color(0.3, 0.2, 0.1, 1.0))
+		for x in range(32, 40):
+			img.set_pixel(x, y, Color(0.3, 0.2, 0.1, 1.0))
 
-	var left_eye = MeshInstance3D.new()
-	left_eye.mesh = eye_mesh
-	left_eye.material_override = eye_mat
-	left_eye.position = Vector3(-0.04 * scale_factor, 0.02 * scale_factor, 0.08 * scale_factor)
-	head.add_child(left_eye)
+	var tex = ImageTexture.create_from_image(img)
+	return tex
 
-	var right_eye = MeshInstance3D.new()
-	right_eye.mesh = eye_mesh
-	right_eye.material_override = eye_mat
-	right_eye.position = Vector3(0.04 * scale_factor, 0.02 * scale_factor, 0.08 * scale_factor)
-	head.add_child(right_eye)
-
-	# Legs
-	var thigh_mesh = CapsuleMesh.new()
-	thigh_mesh.radius = 0.04 * scale_factor
-	thigh_mesh.height = 0.175 * scale_factor
-
-	left_leg = Node3D.new()
-	left_leg.position = Vector3(-0.06 * scale_factor, 0.58 * scale_factor, 0)
-	body_container.add_child(left_leg)
-
-	var left_thigh = MeshInstance3D.new()
-	left_thigh.mesh = thigh_mesh
-	left_thigh.material_override = clothes_mat
-	left_thigh.position = Vector3(0, -0.0875 * scale_factor, 0)
-	left_leg.add_child(left_thigh)
-
-	var left_knee = Node3D.new()
-	left_knee.name = "Knee"
-	left_knee.position = Vector3(0, -0.175 * scale_factor, 0)
-	left_leg.add_child(left_knee)
-
-	var left_shin = MeshInstance3D.new()
-	left_shin.mesh = thigh_mesh
-	left_shin.material_override = clothes_mat
-	left_shin.position = Vector3(0, -0.0875 * scale_factor, 0)
-	left_knee.add_child(left_shin)
-
-	right_leg = Node3D.new()
-	right_leg.position = Vector3(0.06 * scale_factor, 0.58 * scale_factor, 0)
-	body_container.add_child(right_leg)
-
-	var right_thigh = MeshInstance3D.new()
-	right_thigh.mesh = thigh_mesh
-	right_thigh.material_override = clothes_mat
-	right_thigh.position = Vector3(0, -0.0875 * scale_factor, 0)
-	right_leg.add_child(right_thigh)
-
-	var right_knee = Node3D.new()
-	right_knee.name = "Knee"
-	right_knee.position = Vector3(0, -0.175 * scale_factor, 0)
-	right_leg.add_child(right_knee)
-
-	var right_shin = MeshInstance3D.new()
-	right_shin.mesh = thigh_mesh
-	right_shin.material_override = clothes_mat
-	right_shin.position = Vector3(0, -0.0875 * scale_factor, 0)
-	right_knee.add_child(right_shin)
-
-	# Arms
-	var arm_mesh = CapsuleMesh.new()
-	arm_mesh.radius = 0.03 * scale_factor
-	arm_mesh.height = 0.15 * scale_factor
-
-	left_arm = Node3D.new()
-	left_arm.position = Vector3(-0.11 * scale_factor, 0.90 * scale_factor, 0)
-	body_container.add_child(left_arm)
-
-	var left_upper = MeshInstance3D.new()
-	left_upper.mesh = arm_mesh
-	left_upper.material_override = skin_mat
-	left_upper.position = Vector3(0, -0.075 * scale_factor, 0)
-	left_arm.add_child(left_upper)
-
-	var left_elbow = Node3D.new()
-	left_elbow.name = "Elbow"
-	left_elbow.position = Vector3(0, -0.15 * scale_factor, 0)
-	left_arm.add_child(left_elbow)
-
-	var left_forearm = MeshInstance3D.new()
-	left_forearm.mesh = arm_mesh
-	left_forearm.material_override = skin_mat
-	left_forearm.position = Vector3(0, -0.075 * scale_factor, 0)
-	left_elbow.add_child(left_forearm)
-
-	right_arm = Node3D.new()
-	right_arm.position = Vector3(0.11 * scale_factor, 0.90 * scale_factor, 0)
-	body_container.add_child(right_arm)
-
-	var right_upper = MeshInstance3D.new()
-	right_upper.mesh = arm_mesh
-	right_upper.material_override = skin_mat
-	right_upper.position = Vector3(0, -0.075 * scale_factor, 0)
-	right_arm.add_child(right_upper)
-
-	var right_elbow = Node3D.new()
-	right_elbow.name = "Elbow"
-	right_elbow.position = Vector3(0, -0.15 * scale_factor, 0)
-	right_arm.add_child(right_elbow)
-
-	var right_forearm = MeshInstance3D.new()
-	right_forearm.mesh = arm_mesh
-	right_forearm.material_override = skin_mat
-	right_forearm.position = Vector3(0, -0.075 * scale_factor, 0)
-	right_elbow.add_child(right_forearm)
-
-	head_base_height = 0.99 * scale_factor
-
-## Visual telegraph for wind-up attack - swing arm back and tint red
+## Visual telegraph for wind-up attack - tint red (billboard sprite style)
 var windup_tween: Tween = null
 var original_arm_rotation: float = 0.0
 
@@ -1159,60 +1056,54 @@ func _set_windup_telegraph(enabled: bool) -> void:
 		windup_tween.kill()
 
 	if enabled:
-		# Swing arm BACK to telegraph attack (positive X = arm goes up/back)
-		if right_arm:
-			original_arm_rotation = right_arm.rotation.x
-			windup_tween = create_tween()
-			windup_tween.tween_property(right_arm, "rotation:x", 1.2, 0.25)  # Swing back (arm up)
-		# Tint red
+		# Tint red to telegraph attack
 		_set_body_tint(Color(1.0, 0.4, 0.4, 1.0))
 	else:
-		# Reset arm and color
-		if right_arm:
-			right_arm.rotation.x = 0.0
 		_set_body_tint(Color(1.0, 1.0, 1.0, 1.0))
 
-## Swing arm forward for attack hit
+## Attack swing visual (sprite squash-and-stretch lunge)
 func _play_attack_swing() -> void:
-	if not right_arm:
+	if not body_container:
 		return
 
 	if windup_tween and windup_tween.is_valid():
 		windup_tween.kill()
 
+	# Quick lunge forward effect via scale squash
 	windup_tween = create_tween()
-	# Fast swing forward from wound-up position (negative X = arm swings down/forward)
-	windup_tween.tween_property(right_arm, "rotation:x", -1.0, 0.1)  # Swing forward fast
-	windup_tween.tween_property(right_arm, "rotation:x", 0.0, 0.3)  # Return to normal
+	windup_tween.tween_property(body_container, "scale", Vector3(1.2, 0.85, 1.2), 0.1)
+	windup_tween.tween_property(body_container, "scale", Vector3.ONE, 0.3)
 
 	# Also clear the red tint
 	_set_body_tint(Color(1.0, 1.0, 1.0, 1.0))
 
-## Set body color tint
+## Set body color tint (works with both Sprite3D billboard and legacy MeshInstance3D)
 func _set_body_tint(color: Color) -> void:
 	if not body_container:
 		return
 
 	for child in body_container.get_children():
-		_tint_mesh_recursive(child, color)
+		_tint_node_recursive(child, color)
 
-func _tint_mesh_recursive(node: Node, color: Color) -> void:
-	if node is MeshInstance3D:
+func _tint_node_recursive(node: Node, color: Color) -> void:
+	if node is Sprite3D:
+		if color == Color(1.0, 1.0, 1.0, 1.0):
+			node.modulate = Color.WHITE
+		else:
+			node.modulate = Color.WHITE.lerp(color, 0.5)
+	elif node is MeshInstance3D:
 		var mat = node.material_override
 		if mat and mat is StandardMaterial3D:
-			# Modulate the existing color
 			if color == Color(1.0, 1.0, 1.0, 1.0):
-				# Reset - we need to restore original colors
 				_restore_original_color(mat)
 			else:
-				# Store original if not stored, then tint
 				if not mat.has_meta("original_color"):
 					mat.set_meta("original_color", mat.albedo_color)
 				var orig = mat.get_meta("original_color")
 				mat.albedo_color = orig.lerp(color, 0.5)
 
 	for child in node.get_children():
-		_tint_mesh_recursive(child, color)
+		_tint_node_recursive(child, color)
 
 func _restore_original_color(mat: StandardMaterial3D) -> void:
 	if mat.has_meta("original_color"):

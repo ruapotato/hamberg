@@ -877,209 +877,81 @@ func _interpolate_remote_player(delta: float) -> void:
 	_update_remote_player_animations(delta)
 
 func _update_remote_player_animations(delta: float) -> void:
-	"""Animations for remote players based on synced combat and movement state"""
+	"""Sprite-based animations for remote players (Paper Mario style)"""
 	if not body_container:
 		return
 
-	var left_leg = body_container.get_node_or_null("LeftLeg")
-	var right_leg = body_container.get_node_or_null("RightLeg")
-	var left_arm = body_container.get_node_or_null("LeftArm")
-	var right_arm = body_container.get_node_or_null("RightArm")
-	var left_knee = left_leg.get_node_or_null("Knee") if left_leg else null
-	var right_knee = right_leg.get_node_or_null("Knee") if right_leg else null
-	var left_elbow = left_arm.get_node_or_null("Elbow") if left_arm else null
-	var right_elbow = right_arm.get_node_or_null("Elbow") if right_arm else null
-
-	if not left_leg or not right_leg:
+	var sprite = body_container.get_node_or_null("BodySprite")
+	if not sprite:
 		return
-
-	# ==== COMBAT STATE ANIMATIONS (HIGHEST PRIORITY) ====
 
 	# Death animation - fall over (highest priority)
 	if is_dead:
-		# Smoothly fall forward
-		body_container.rotation.x = lerp(body_container.rotation.x, PI / 2, delta * 2.0)
-		body_container.position.y = lerp(body_container.position.y, -0.5, delta * 2.0)
+		sprite.rotation.z = lerp(sprite.rotation.z, PI / 2, delta * 2.0)
+		sprite.position.y = lerp(sprite.position.y, 0.5, delta * 2.0)
 		return
 
-	# Stun animation overrides everything - wobble the whole body
+	# Stun animation - wobble the sprite
 	if is_stunned:
 		remote_anim_time += delta
-		var wobble_speed = 15.0
-		var wobble_intensity = 0.25
-		var time = remote_anim_time * wobble_speed
-		var wobble_x = sin(time) * wobble_intensity
-		var wobble_z = cos(time * 1.3) * wobble_intensity
-
-		body_container.rotation.x = wobble_x
-		body_container.rotation.z = wobble_z
-
-		# Arms flail
-		if left_arm:
-			left_arm.rotation.x = sin(time * 2.0) * 0.5
-		if right_arm:
-			right_arm.rotation.x = cos(time * 2.0) * 0.5
-
-		# Legs wobble
-		if left_leg:
-			left_leg.rotation.x = sin(time * 1.5) * 0.3
-		if right_leg:
-			right_leg.rotation.x = -sin(time * 1.5) * 0.3
+		var time = remote_anim_time * 15.0
+		sprite.rotation.z = sin(time) * 0.25
+		sprite.position.x = cos(time * 1.3) * 0.05
 		return
 
-	# Reset body rotation if not stunned
+	# Reset stun wobble
+	sprite.rotation.z = lerp(sprite.rotation.z, 0.0, delta * 10.0)
+	sprite.position.x = lerp(sprite.position.x, 0.0, delta * 10.0)
 	body_container.rotation.x = lerp(body_container.rotation.x, 0.0, delta * 10.0)
-	body_container.rotation.z = lerp(body_container.rotation.z, 0.0, delta * 10.0)
 
-	# Track if arms are controlled by combat (to skip arm movement in walk/run)
-	var arms_controlled := false
+	# Lunge animation
+	if is_lunging:
+		body_container.rotation.x = lerp(body_container.rotation.x, 0.5, delta * 20.0)
+		sprite.scale.y = lerp(sprite.scale.y, 0.8, delta * 20.0)
+		sprite.scale.x = lerp(sprite.scale.x, 1.2, delta * 20.0)
+		return
 
-	# Blocking animation - left arm raised for shield defense
-	if is_blocking:
-		arms_controlled = true
-		if left_arm:
-			left_arm.rotation.x = lerp(left_arm.rotation.x, -1.2, delta * 25.0)
-			left_arm.rotation.z = lerp(left_arm.rotation.z, 0.3, delta * 25.0)
-		if right_arm:
-			right_arm.rotation.x = lerp(right_arm.rotation.x, -0.3, delta * 15.0)
-			right_arm.rotation.z = lerp(right_arm.rotation.z, -0.2, delta * 15.0)
+	# Reset scale
+	sprite.scale.x = lerp(sprite.scale.x, 1.0, delta * 10.0)
+	sprite.scale.y = lerp(sprite.scale.y, 1.0, delta * 10.0)
 
-	# Special attack animations (spinning, lunging, etc.)
-	elif is_special_attacking:
-		arms_controlled = true
-		var attack_progress = attack_timer / current_special_attack_animation_time if current_special_attack_animation_time > 0 else 0.0
-		attack_progress = clamp(attack_progress, 0.0, 1.0)
-
-		if is_spinning:
-			# Axe spin - arms extended horizontally
-			if right_arm:
-				right_arm.rotation.x = -0.3
-				right_arm.rotation.z = -1.5
-			if left_arm:
-				left_arm.rotation.x = -0.3
-				left_arm.rotation.z = 1.5
-			if right_elbow:
-				right_elbow.rotation.x = -0.1
-			if left_elbow:
-				left_elbow.rotation.x = -0.1
-		elif is_lunging:
-			# Knife lunge - arm thrust forward
-			if right_arm:
-				right_arm.rotation.x = lerp(-0.5, -1.8, attack_progress)
-				right_arm.rotation.z = 0.0
-			if right_elbow:
-				right_elbow.rotation.x = lerp(-0.3, 0.0, attack_progress)
-		else:
-			# Default special attack - powerful swing
-			var swing_x = -sin(attack_progress * PI) * 2.0
-			var swing_z = sin(attack_progress * PI) * -0.5
-			if right_arm:
-				right_arm.rotation.x = swing_x
-				right_arm.rotation.z = swing_z
-			if right_elbow:
-				right_elbow.rotation.x = -sin(attack_progress * PI) * 0.8
-
-	# Normal attack animations
-	elif is_attacking and right_arm:
-		arms_controlled = true
+	# Attack tilt
+	if is_attacking:
 		var attack_progress = attack_timer / current_attack_animation_time if current_attack_animation_time > 0 else 0.0
 		attack_progress = clamp(attack_progress, 0.0, 1.0)
+		sprite.rotation.z = -sin(attack_progress * PI) * 0.15
 
-		# Default slash animation (works for sword, fists, etc.)
-		var start_z = -1.0
-		var end_z = 0.5
-		var horizontal_angle = lerp(start_z, end_z, attack_progress)
-		right_arm.rotation.z = horizontal_angle
-		var forward_angle = -sin(attack_progress * PI) * 0.8
-		right_arm.rotation.x = forward_angle
-
-		if right_elbow:
-			var elbow_bend = -sin(attack_progress * PI) * 0.6
-			right_elbow.rotation.x = elbow_bend
-
-	# ==== MOVEMENT ANIMATIONS ====
+	# Movement animations
 	match current_animation_state:
 		"walk":
 			remote_anim_time += delta
-			var walk_speed = 6.0
-			var t = remote_anim_time * walk_speed
-
-			# Leg swing
-			var leg_swing = sin(t) * 0.4
-			left_leg.rotation.x = leg_swing
-			right_leg.rotation.x = -leg_swing
-
-			# Knee bend when leg swings forward
-			if left_knee:
-				left_knee.rotation.x = max(0.0, leg_swing) * 0.8
-			if right_knee:
-				right_knee.rotation.x = max(0.0, -leg_swing) * 0.8
-
-			# Arm swing opposite to legs (only if not controlled by combat)
-			if not arms_controlled:
-				if left_arm:
-					left_arm.rotation.x = -leg_swing * 0.5
-				if right_arm:
-					right_arm.rotation.x = leg_swing * 0.5
+			var t = remote_anim_time * 6.0
+			# Walking bob
+			sprite.position.y = 1.2 + abs(sin(t)) * 0.04
+			if not is_attacking:
+				sprite.rotation.z = sin(t) * 0.03
 
 		"run":
 			remote_anim_time += delta
-			var run_speed = 10.0
-			var t = remote_anim_time * run_speed
-
-			# More pronounced leg swing for running
-			var leg_swing = sin(t) * 0.6
-			left_leg.rotation.x = leg_swing
-			right_leg.rotation.x = -leg_swing
-
-			# More knee bend for running
-			if left_knee:
-				left_knee.rotation.x = max(0.0, leg_swing) * 1.2
-			if right_knee:
-				right_knee.rotation.x = max(0.0, -leg_swing) * 1.2
-
-			# More arm swing for running (only if not controlled by combat)
-			if not arms_controlled:
-				if left_arm:
-					left_arm.rotation.x = -leg_swing * 0.7
-				if right_arm:
-					right_arm.rotation.x = leg_swing * 0.7
+			var t = remote_anim_time * 10.0
+			# Running bob (more pronounced)
+			sprite.position.y = 1.2 + abs(sin(t)) * 0.08
+			if not is_attacking:
+				sprite.rotation.z = sin(t) * 0.05
 
 		"jump", "falling":
-			# Legs in jumping pose
-			if left_leg:
-				left_leg.rotation.x = lerp(left_leg.rotation.x, 0.4, delta * 10.0)
-			if right_leg:
-				right_leg.rotation.x = lerp(right_leg.rotation.x, -0.3, delta * 10.0)
-
-			# Arms out for balance (only if not controlled by combat)
-			if not arms_controlled:
-				if left_arm:
-					left_arm.rotation.x = lerp(left_arm.rotation.x, -0.2, delta * 10.0)
-					left_arm.rotation.z = lerp(left_arm.rotation.z, -0.4, delta * 10.0)
-				if right_arm:
-					right_arm.rotation.x = lerp(right_arm.rotation.x, -0.2, delta * 10.0)
-					right_arm.rotation.z = lerp(right_arm.rotation.z, 0.4, delta * 10.0)
+			# Stretch slightly while in air
+			sprite.scale.y = lerp(sprite.scale.y, 1.1, delta * 10.0)
+			sprite.scale.x = lerp(sprite.scale.x, 0.9, delta * 10.0)
+			sprite.position.y = lerp(sprite.position.y, 1.2, delta * 10.0)
 
 		"idle", _:
-			# Legs return to neutral
-			if left_leg:
-				left_leg.rotation.x = lerp(left_leg.rotation.x, 0.0, delta * 8.0)
-			if right_leg:
-				right_leg.rotation.x = lerp(right_leg.rotation.x, 0.0, delta * 8.0)
-			if left_knee:
-				left_knee.rotation.x = lerp(left_knee.rotation.x, 0.0, delta * 8.0)
-			if right_knee:
-				right_knee.rotation.x = lerp(right_knee.rotation.x, 0.0, delta * 8.0)
-
-			# Arms return to neutral (only if not controlled by combat)
-			if not arms_controlled:
-				if left_arm:
-					left_arm.rotation.x = lerp(left_arm.rotation.x, 0.0, delta * 8.0)
-					left_arm.rotation.z = lerp(left_arm.rotation.z, 0.0, delta * 8.0)
-				if right_arm:
-					right_arm.rotation.x = lerp(right_arm.rotation.x, 0.0, delta * 8.0)
-					right_arm.rotation.z = lerp(right_arm.rotation.z, 0.0, delta * 8.0)
+			# Gentle breathing bob
+			var idle_time = Time.get_ticks_msec() / 1000.0
+			var breathe_bob = sin(idle_time * 1.6) * 0.015
+			sprite.position.y = lerp(sprite.position.y, 1.2 + breathe_bob, delta * 8.0)
+			if not is_attacking:
+				sprite.rotation.z = lerp(sprite.rotation.z, 0.0, delta * 5.0)
 
 # ============================================================================
 # ATTACK/RESOURCE GATHERING
@@ -2117,15 +1989,44 @@ func can_parry(shield_data) -> bool:  # shield_data is ShieldData
 # ============================================================================
 
 func _setup_player_body() -> void:
-	"""Create player body from TSCN file"""
-	# Load the complete body scene
-	var body_scene = preload("res://shared/player_body.tscn")
-	body_container = body_scene.instantiate()
-
-	# Add directly to player (this CharacterBody3D)
+	"""Create player body as a 2D billboard sprite (Paper Mario style)"""
+	# Create body_container Node3D to hold the sprite
+	body_container = Node3D.new()
+	body_container.name = "PlayerBody"
 	add_child(body_container)
 
-	print("[Player] Player body loaded from player_body.tscn")
+	# Create the Sprite3D billboard
+	var sprite := Sprite3D.new()
+	sprite.name = "BodySprite"
+	sprite.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	sprite.pixel_size = 0.025
+	sprite.alpha_cut = SpriteBase3D.ALPHA_CUT_OPAQUE_PREPASS
+	sprite.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
+
+	# Generate the mage texture from TextureGenerator autoload
+	sprite.texture = TextureGenerator.generate_mage_texture("blue", 0)
+
+	# Position sprite so feet are at ground level
+	# Texture is 64x96 pixels, pixel_size=0.025, so height = 96 * 0.025 = 2.4 units
+	# Sprite origin is at center, so offset up by half height to put feet at y=0
+	sprite.position = Vector3(0, 1.2, 0)
+
+	body_container.add_child(sprite)
+
+	# Create hand attachment points for weapons and shields
+	# Right hand attach - positioned at roughly where the mage's right hand is
+	var right_hand_attach := Node3D.new()
+	right_hand_attach.name = "RightHandAttach"
+	right_hand_attach.position = Vector3(0.3, 1.15, 0.1)  # Right side, mid-body, slightly forward
+	body_container.add_child(right_hand_attach)
+
+	# Left hand attach - positioned at roughly where the mage's left hand is
+	var left_hand_attach := Node3D.new()
+	left_hand_attach.name = "LeftHandAttach"
+	left_hand_attach.position = Vector3(-0.3, 1.15, 0.1)  # Left side, mid-body, slightly forward
+	body_container.add_child(left_hand_attach)
+
+	print("[Player] Player body created as 2D billboard sprite (Paper Mario style)")
 	print("[Player] Body container parent: %s" % body_container.get_parent().name)
 
 func _setup_terrain_preview_shapes() -> void:
@@ -2181,26 +2082,15 @@ func _setup_terrain_preview_shapes() -> void:
 	print("[Player] Terrain preview shapes created")
 
 func _update_body_animations(delta: float) -> void:
-	"""Animate the legs, arms, and torso based on movement"""
+	"""Animate the 2D billboard sprite based on movement (Paper Mario style)"""
 	if not body_container:
 		return
+
+	var sprite = body_container.get_node_or_null("BodySprite")
 
 	# Process hitstop (freeze animations during hitstop for impact feel)
 	if hitstop_timer > 0:
 		hitstop_timer -= delta
-		# During hitstop, skip all animation updates - freeze everything in place
-		return
-
-	var left_leg = body_container.get_node_or_null("LeftLeg")
-	var right_leg = body_container.get_node_or_null("RightLeg")
-	var left_arm = body_container.get_node_or_null("LeftArm")
-	var right_arm = body_container.get_node_or_null("RightArm")
-	var hips = body_container.get_node_or_null("Hips")
-	var torso = body_container.get_node_or_null("Torso")
-	var neck = body_container.get_node_or_null("Neck")
-	var head = body_container.get_node_or_null("Head")
-
-	if not left_leg or not right_leg:
 		return
 
 	# Update attack animation
@@ -2228,30 +2118,31 @@ func _update_body_animations(delta: float) -> void:
 		# Axe spin: rotate body and check for hits during spin
 		if is_spinning and body_container:
 			var spin_progress = special_attack_timer / current_special_attack_animation_time
-			# Full 360 degree spin (plus a bit extra for follow-through)
 			spin_rotation = spin_progress * TAU * 1.1
 			body_container.rotation.y += delta * 15.0  # Fast spin
-
-			# Check for enemies in range during spin (every frame)
 			_check_spin_hits()
 
 		if special_attack_timer >= current_special_attack_animation_time:
 			is_special_attacking = false
 			special_attack_timer = 0.0
-			# Reset spin state
 			if is_spinning:
 				is_spinning = false
 				spin_hit_times.clear()
-				# Reset wrist pivot after spin (but NOT weapon - stay at 90 degrees)
 				if weapon_wrist_pivot:
 					weapon_wrist_pivot.rotation_degrees = Vector3.ZERO
-			# DON'T reset is_lunging here - it persists until landing!
-			# DON'T reset weapon rotation here - knife stays horizontal until landing!
 
-	# Stun animation overrides everything
+	# Stun animation - wobble the sprite
 	if is_stunned:
-		_animate_stun(delta, left_arm, right_arm, left_leg, right_leg)
+		if sprite:
+			var time = (STUN_DURATION - stun_timer) * 15.0
+			sprite.rotation.z = sin(time) * 0.25
+			sprite.position.x = cos(time * 1.3) * 0.05
 		return
+
+	# Reset stun wobble
+	if sprite:
+		sprite.rotation.z = lerp(sprite.rotation.z, 0.0, delta * 10.0)
+		sprite.position.x = lerp(sprite.position.x, 0.0, delta * 10.0)
 
 	# Update landing animation timer
 	if is_landing:
@@ -2260,405 +2151,86 @@ func _update_body_animations(delta: float) -> void:
 			is_landing = false
 			landing_timer = 0.0
 
-	# Get elbow and knee nodes for articulated animations
-	var left_elbow = left_arm.get_node_or_null("Elbow") if left_arm else null
-	var right_elbow = right_arm.get_node_or_null("Elbow") if right_arm else null
-	var left_knee = left_leg.get_node_or_null("Knee") if left_leg else null
-	var right_knee = right_leg.get_node_or_null("Knee") if right_leg else null
-
-	# Landing animation (impact bounce) - high priority
-	if is_landing:
+	# Landing animation - squash and stretch
+	if is_landing and sprite:
 		var landing_progress = landing_timer / LANDING_ANIMATION_TIME
-		var bounce_curve = sin(landing_progress * PI)  # 0 -> 1 -> 0
-
-		# Compress body on impact
-		if body_container:
-			body_container.scale.y = lerp(1.0, 0.85, bounce_curve * 0.5)
-
-		# Bend knees on impact
-		if left_knee:
-			left_knee.rotation.x = lerp(0.0, 0.8, bounce_curve)
-		if right_knee:
-			right_knee.rotation.x = lerp(0.0, 0.8, bounce_curve)
-
-		# Arms swing down slightly
-		if left_arm and not is_blocking:
-			left_arm.rotation.x = lerp(0.0, 0.3, bounce_curve)
-			if left_elbow:
-				left_elbow.rotation.x = lerp(0.0, -0.2, bounce_curve)
-		if right_arm and not is_attacking and not is_special_attacking:
-			right_arm.rotation.x = lerp(0.0, 0.3, bounce_curve)
-			if right_elbow:
-				right_elbow.rotation.x = lerp(0.0, -0.2, bounce_curve)
-
-		# Don't process other movement animations during landing
+		var bounce_curve = sin(landing_progress * PI)
+		# Squash: wider and shorter on impact
+		sprite.scale.x = lerp(1.0, 1.3, bounce_curve * 0.5)
+		sprite.scale.y = lerp(1.0, 0.8, bounce_curve * 0.5)
 		return
 
-	# Jump/falling animation - Light running jump style
-	if (is_jumping or is_falling) and not is_on_floor():
-		# Arms spread slightly to the sides for balance
-		var arm_intensity = 1.0 if is_jumping else 0.7
+	# Reset squash/stretch
+	if sprite:
+		sprite.scale.x = lerp(sprite.scale.x, 1.0, delta * 10.0)
+		sprite.scale.y = lerp(sprite.scale.y, 1.0, delta * 10.0)
 
-		if left_arm and not is_blocking:
-			# Arm out to the side, slight forward angle
-			left_arm.rotation.x = lerp(left_arm.rotation.x, -0.2 * arm_intensity, delta * 10.0)
-			left_arm.rotation.z = lerp(left_arm.rotation.z, -0.4 * arm_intensity, delta * 10.0)  # Out to left side (negative = outward)
-			if left_elbow:
-				left_elbow.rotation.x = lerp(left_elbow.rotation.x, 0.0, delta * 10.0)  # Keep straight
-
-		if right_arm and not is_attacking and not is_special_attacking:
-			# Arm out to the side, slight forward angle
-			right_arm.rotation.x = lerp(right_arm.rotation.x, -0.2 * arm_intensity, delta * 10.0)
-			right_arm.rotation.z = lerp(right_arm.rotation.z, 0.4 * arm_intensity, delta * 10.0)  # Out to right side (positive = outward)
-			if right_elbow:
-				right_elbow.rotation.x = lerp(right_elbow.rotation.x, 0.0, delta * 10.0)  # Keep straight
-
-		# Running pose: one leg forward, one leg back (asymmetric)
-		if left_leg:
-			left_leg.rotation.x = lerp(left_leg.rotation.x, 0.4, delta * 10.0)  # Forward
-			if left_knee:
-				left_knee.rotation.x = lerp(left_knee.rotation.x, 0.6, delta * 10.0)  # Moderate bend
-		if right_leg:
-			right_leg.rotation.x = lerp(right_leg.rotation.x, -0.3, delta * 10.0)  # Back
-			if right_knee:
-				right_knee.rotation.x = lerp(right_knee.rotation.x, 0.3, delta * 10.0)  # Slight bend
-
-		# No forward lean - keep body upright
-		if body_container:
-			body_container.rotation.x = lerp(body_container.rotation.x, 0.0, delta * 10.0)
-
-		# NOTE: Don't return here - allow attack animations to process below
-		# The right_arm is already skipped above if attacking, so attack animations will handle it
-
-	# Lunge crouch animation overrides everything (ball shape for dramatic leap)
+	# Lunge animation - lean forward and compress
 	if is_lunging and body_container:
-		# Crouch the body into a ball shape with aggressive forward dive
-		body_container.rotation.x = lerp(body_container.rotation.x, 1.3, delta * 20.0)  # Lean forward aggressively (30 degrees more)
-		body_container.scale.y = lerp(body_container.scale.y, 0.7, delta * 20.0)  # Compress vertically
+		body_container.rotation.x = lerp(body_container.rotation.x, 0.5, delta * 20.0)
+		if sprite:
+			sprite.scale.y = lerp(sprite.scale.y, 0.8, delta * 20.0)
+			sprite.scale.x = lerp(sprite.scale.x, 1.2, delta * 20.0)
+		return
 
-		# Tuck arms and legs in
-		if left_arm:
-			left_arm.rotation.x = lerp(left_arm.rotation.x, -0.8, delta * 20.0)
-			left_arm.rotation.z = lerp(left_arm.rotation.z, 0.5, delta * 20.0)
-			if left_elbow:
-				left_elbow.rotation.x = lerp(left_elbow.rotation.x, -0.9, delta * 20.0)  # Tuck elbow in
-		if right_arm:
-			right_arm.rotation.x = lerp(right_arm.rotation.x, -0.8, delta * 20.0)
-			right_arm.rotation.z = lerp(right_arm.rotation.z, -0.5, delta * 20.0)
-			if right_elbow:
-				right_elbow.rotation.x = lerp(right_elbow.rotation.x, -0.9, delta * 20.0)  # Tuck elbow in
-		if left_leg:
-			left_leg.rotation.x = lerp(left_leg.rotation.x, 0.6, delta * 20.0)
-			if left_knee:
-				left_knee.rotation.x = lerp(left_knee.rotation.x, 1.2, delta * 20.0)  # Bend knee tightly
-		if right_leg:
-			right_leg.rotation.x = lerp(right_leg.rotation.x, 0.6, delta * 20.0)
-			if right_knee:
-				right_knee.rotation.x = lerp(right_knee.rotation.x, 1.2, delta * 20.0)  # Bend knee tightly
-		return  # Skip other animations while lunging
-
-	# Reset body container scale and rotation when not lunging, not in air
-	# Don't reset when jumping/falling - preserve the falling pose
+	# Reset body container rotation when not lunging
 	var in_air = (is_jumping or is_falling) and not is_on_floor()
 	if body_container and not is_lunging and not is_stunned and not in_air:
 		body_container.rotation.x = lerp(body_container.rotation.x, 0.0, delta * 10.0)
-		body_container.scale.y = lerp(body_container.scale.y, 1.0, delta * 10.0)
 
-		# Also reset limbs from lunge position
-		if left_arm and not is_blocking:
-			left_arm.rotation.x = lerp(left_arm.rotation.x, 0.0, delta * 10.0)
-			left_arm.rotation.z = lerp(left_arm.rotation.z, 0.0, delta * 10.0)
-			if left_elbow:
-				left_elbow.rotation.x = lerp(left_elbow.rotation.x, 0.0, delta * 10.0)
-		if right_arm and not is_attacking and not is_special_attacking:
-			right_arm.rotation.x = lerp(right_arm.rotation.x, 0.0, delta * 10.0)
-			right_arm.rotation.z = lerp(right_arm.rotation.z, 0.0, delta * 10.0)
-			if right_elbow:
-				right_elbow.rotation.x = lerp(right_elbow.rotation.x, 0.0, delta * 10.0)
-		if left_leg:
-			left_leg.rotation.x = lerp(left_leg.rotation.x, 0.0, delta * 10.0)
-			if left_knee:
-				left_knee.rotation.x = lerp(left_knee.rotation.x, 0.0, delta * 10.0)
-		if right_leg:
-			right_leg.rotation.x = lerp(right_leg.rotation.x, 0.0, delta * 10.0)
-			if right_knee:
-				right_knee.rotation.x = lerp(right_knee.rotation.x, 0.0, delta * 10.0)
-
-	# Blocking animation overrides everything (only LEFT arm raised for shield defense)
-	if is_blocking:
-		# Raise LEFT arm for blocking (shield is in left hand)
-		if left_arm:
-			left_arm.rotation.x = lerp(left_arm.rotation.x, -1.2, delta * 25.0)  # Left arm forward at shoulder height (fast)
-			left_arm.rotation.z = lerp(left_arm.rotation.z, 0.3, delta * 25.0)  # Slight outward angle for shield
-		# Right arm (weapon) stays relaxed or in natural position
-		if right_arm:
-			right_arm.rotation.x = lerp(right_arm.rotation.x, -0.3, delta * 15.0)  # Slightly forward, relaxed
-			right_arm.rotation.z = lerp(right_arm.rotation.z, -0.2, delta * 15.0)  # Slight inward angle
-	# Special attack animation overrides arm movement (more dramatic, RIGHT arm for weapons)
-	elif is_special_attacking and right_arm:
-		var attack_progress = special_attack_timer / current_special_attack_animation_time
-
-		if is_spinning:
-			# AXE SPIN - Arms extended horizontally, spinning with body
-			# Both arms out to sides holding the axe
-			right_arm.rotation.x = -0.3  # Slightly forward
-			right_arm.rotation.z = -1.5  # Extended to the right
-			if left_arm:
-				left_arm.rotation.x = -0.3
-				left_arm.rotation.z = 1.5  # Extended to the left
-			# Arms fully extended during spin
-			if right_elbow:
-				right_elbow.rotation.x = -0.1
-			if left_elbow:
-				left_elbow.rotation.x = -0.1
-		else:
-			# Default special attack animation
-			# Strong overhead slash or thrust (more dramatic than normal attacks)
-			var swing_x = -sin(attack_progress * PI) * 2.0  # Very strong forward/down motion
-			var swing_z = sin(attack_progress * PI) * -0.5  # Some horizontal motion
-			right_arm.rotation.x = swing_x
-			right_arm.rotation.z = swing_z
-
-			# Elbow bends during windup and extends on strike
-			if right_elbow:
-				var elbow_bend = -sin(attack_progress * PI) * 0.8  # Negative = bend inward
-				right_elbow.rotation.x = elbow_bend
-	# Attack animation overrides arm movement (RIGHT arm for weapons)
-	elif is_attacking and right_arm:
-		var raw_progress = attack_timer / current_attack_animation_time
-		# Apply easing for weighted, impactful feel (slow wind-up, fast strike, slow follow-through)
-		var attack_progress = _ease_attack_progress(raw_progress)
-
-		# Different animations based on weapon type and combo
-		if current_weapon_type == "stone_axe":
-			# AXE COMBO ANIMATIONS - Big, powerful two-handed swings
-			_animate_axe_attack(attack_progress, right_arm, left_arm, right_elbow, left_elbow)
-		elif current_weapon_type == "stone_knife":
-			# KNIFE COMBO ANIMATIONS
-			_animate_knife_attack(attack_progress, right_arm, right_elbow)
-		elif current_weapon_type == "stone_sword":
-			# SWORD COMBO ANIMATIONS - Dramatic slashing arcs
-			_animate_sword_attack(attack_progress, right_arm, right_elbow)
-		else:
-			# DEFAULT SLASH ANIMATION (fists, other weapons)
-			var start_z = -1.0
-			var end_z = 0.5
-			var horizontal_angle = lerp(start_z, end_z, attack_progress)
-			right_arm.rotation.z = horizontal_angle
-			var forward_angle = -sin(attack_progress * PI) * 0.8
-			right_arm.rotation.x = forward_angle
-
-			if right_elbow:
-				var elbow_bend = -sin(attack_progress * PI) * 0.6
-				right_elbow.rotation.x = elbow_bend
-	elif right_arm:
-		# Normal arm swing will be handled below
-		pass
-
-	# When blocking, rotate player mesh to face camera direction (camera stays free)
+	# When blocking, rotate player mesh to face camera direction
 	if is_local_player and is_blocking and body_container:
 		var camera_controller = get_node_or_null("CameraController")
 		if camera_controller and "camera_rotation" in camera_controller:
-			# Camera remains free to move - we only rotate the mesh
 			var camera_yaw = camera_controller.camera_rotation.x
-			var target_rotation = camera_yaw + PI  # Add PI to account for mesh facing +Z (needs 180° flip)
+			var target_rotation = camera_yaw + PI
 			body_container.rotation.y = lerp_angle(body_container.rotation.y, target_rotation, delta * 10.0)
 			synced_rotation_y = body_container.global_rotation.y
 
-	# Movement animations (walking or defensive shuffle)
+	# Attack animation - tilt the sprite forward
+	if is_attacking and sprite:
+		var attack_progress = attack_timer / current_attack_animation_time
+		var swing_tilt = -sin(attack_progress * PI) * 0.15
+		sprite.rotation.z = swing_tilt
+
+	# Movement animations
 	var horizontal_speed = Vector2(velocity.x, velocity.z).length()
 
 	if horizontal_speed > 0.5:
-		# Moving - different animation based on blocking state
 		var speed_multiplier = horizontal_speed / WALK_SPEED
 		animation_phase += delta * 8.0 * speed_multiplier
 
-		# Play footstep sound when leg hits ground (phase crosses PI boundaries)
-		# Each PI of phase = one footstep (left or right foot)
+		# Play footstep sound when phase crosses PI boundaries
 		if is_on_floor() and is_local_player and not is_spinning:
 			var current_step = int(animation_phase / PI)
 			var last_step = int(_last_footstep_phase / PI)
 			if current_step != last_step:
-				# Check if walking on snow
 				var footstep_sound = "footstep_grass"
 				var weather_managers = get_tree().get_nodes_in_group("weather_manager")
 				if weather_managers.size() > 0:
 					var weather_mgr = weather_managers[0]
-					if weather_mgr.get_snowpack() > 0.2:  # More than 20% snow coverage
+					if weather_mgr.get_snowpack() > 0.2:
 						footstep_sound = "footstep_snow"
 				SoundManager.play_sound_varied(footstep_sound, global_position, -8.0, 0.15)
 		_last_footstep_phase = animation_phase
 
-		# Skip walk animation during spin - legs stay neutral, body spins
-		if is_spinning:
-			left_leg.rotation.x = lerp(left_leg.rotation.x, 0.0, delta * 10.0)
-			right_leg.rotation.x = lerp(right_leg.rotation.x, 0.0, delta * 10.0)
-			if left_knee:
-				left_knee.rotation.x = lerp(left_knee.rotation.x, 0.0, delta * 10.0)
-			if right_knee:
-				right_knee.rotation.x = lerp(right_knee.rotation.x, 0.0, delta * 10.0)
-		elif is_blocking:
-			# Defensive shuffle - small leg movements, LEFT arm stays raised (shield)
-			var leg_angle = sin(animation_phase) * 0.15  # Half the normal swing
-			left_leg.rotation.x = leg_angle
-			right_leg.rotation.x = -leg_angle
-
-			# Add knee bend for walking
-			var knee_angle = sin(animation_phase) * 0.4
-			if left_knee:
-				left_knee.rotation.x = max(0.0, knee_angle)
-			if right_knee:
-				right_knee.rotation.x = max(0.0, -knee_angle)
-
-			# Left arm (shield) stays in defensive position (already set above)
-			# Right arm (weapon) stays relaxed (already set above)
-			# No arm swinging during defensive movement
-
-			# Less torso sway when defending, reset scales
-			if torso:
-				var sway = sin(animation_phase) * 0.02
-				torso.rotation.z = sway
-				torso.rotation.y = lerp(torso.rotation.y, 0.0, delta * 10.0)
-				torso.scale.x = lerp(torso.scale.x, 1.0, delta * 10.0)
-				torso.scale.z = lerp(torso.scale.z, 1.0, delta * 10.0)
-
-			# Reset hips from walking
-			if hips:
-				hips.rotation.y = lerp(hips.rotation.y, 0.0, delta * 10.0)
-				hips.rotation.z = lerp(hips.rotation.z, 0.0, delta * 10.0)
-
-			# Head stays stable when blocking
-			if head:
-				head.position.y = lerp(head.position.y, head_height, delta * 10.0)
-				head.rotation.y = lerp(head.rotation.y, 0.0, delta * 8.0)
-		else:
-			# Enhanced walking animation - smooth and refined
-			var leg_angle = sin(animation_phase) * 0.35  # Slightly more leg swing
-			var arm_angle = sin(animation_phase + 0.2) * 0.25  # Arms slightly ahead of legs, more swing
-
-			# Legs swing opposite with knee articulation
-			left_leg.rotation.x = leg_angle
-			right_leg.rotation.x = -leg_angle
-
-			# Enhanced knee bend - more natural flex during stride
-			var knee_phase = animation_phase + 0.5  # Knees bend slightly after leg moves forward
-			var left_knee_bend = max(0.0, sin(knee_phase) * 0.6)  # Bend when leg forward
-			var right_knee_bend = max(0.0, -sin(knee_phase) * 0.6)
-			if left_knee:
-				left_knee.rotation.x = left_knee_bend
-			if right_knee:
-				right_knee.rotation.x = right_knee_bend
-
-			# Arms swing opposite to legs with natural elbow articulation
-			if left_arm and not is_blocking:
-				left_arm.rotation.x = -arm_angle
-				left_arm.rotation.z = sin(animation_phase) * 0.03  # Subtle sideways motion
-				if left_elbow:
-					# Elbow bends when arm swings back (arm_angle negative = arm back)
-					# Elbow stays straight when arm forward
-					left_elbow.rotation.x = max(0.0, -arm_angle * 0.7)
-			if right_arm and not is_attacking and not is_special_attacking and not is_blocking:
-				right_arm.rotation.x = arm_angle
-				right_arm.rotation.z = -sin(animation_phase) * 0.03
-				if right_elbow:
-					# Elbow bends when arm swings back (arm_angle positive = arm back)
-					right_elbow.rotation.x = max(0.0, arm_angle * 0.7)
-
-			# Hip rotation - hips twist with stride (key to natural walk)
-			if hips:
-				var hip_twist = sin(animation_phase) * 0.08  # Rotate around Y axis
-				hips.rotation.y = hip_twist
-				# Slight hip tilt (weight shift side to side)
-				hips.rotation.z = sin(animation_phase) * 0.03
-
-			# Torso counter-rotation (shoulders twist opposite to hips)
-			if torso:
-				var torso_twist = -sin(animation_phase) * 0.06  # Counter to hips
-				torso.rotation.y = torso_twist
-				# Subtle side sway
-				torso.rotation.z = sin(animation_phase) * 0.04
-				# Reset breathing scale from idle
-				torso.scale.x = lerp(torso.scale.x, 1.0, delta * 10.0)
-				torso.scale.z = lerp(torso.scale.z, 1.0, delta * 10.0)
-
-			# Vertical body bob - whole body moves up/down with steps
-			if body_container:
-				var step_bob = abs(sin(animation_phase)) * 0.02  # Bob up at each step
-				body_container.position.y = step_bob
-
-			# Head stays stable (humans naturally stabilize head while walking)
-			if head:
-				# Keep head at fixed height - no bobbing
-				head.position.y = lerp(head.position.y, head_height, delta * 10.0)
-				# Reset idle head look
-				head.rotation.y = lerp(head.rotation.y, 0.0, delta * 8.0)
-			# Neck counter-rotates to keep head level despite torso sway
-			if neck:
-				neck.rotation.z = lerp(neck.rotation.z, -sin(animation_phase) * 0.03, delta * 10.0)
+		# Walking bob animation on the sprite (Paper Mario style hop)
+		if sprite and not is_spinning:
+			var step_bob = abs(sin(animation_phase)) * 0.06  # Bounce up/down
+			sprite.position.y = 1.2 + step_bob  # Base height + bob
+			# Slight tilt side-to-side while walking
+			sprite.rotation.z = sin(animation_phase) * 0.03
+		elif sprite:
+			# During spin, keep sprite stable
+			sprite.position.y = lerp(sprite.position.y, 1.2, delta * 10.0)
 	else:
-		# Enhanced idle animation - breathing and subtle life
-		# Use time-based animation for idle (not phase-based)
-		var idle_time = Time.get_ticks_msec() / 1000.0
-
-		# Breathing cycle (slow, natural rhythm ~4 seconds per breath)
-		var breath_cycle = sin(idle_time * 1.6) * 0.5 + 0.5  # 0 to 1, smooth
-		var breath_intensity = 0.015  # Subtle chest expansion
-
-		# Reset walking phase
+		# Idle animation - gentle breathing bob
 		animation_phase = 0.0
-
-		# Legs return to natural stance with slight asymmetry
-		var stance_offset = sin(idle_time * 0.3) * 0.02  # Very slow weight shift
-		left_leg.rotation.x = lerp(left_leg.rotation.x, stance_offset, delta * 5.0)
-		right_leg.rotation.x = lerp(right_leg.rotation.x, -stance_offset * 0.5, delta * 5.0)
-
-		# Knees slightly relaxed (not locked straight)
-		if left_knee:
-			left_knee.rotation.x = lerp(left_knee.rotation.x, 0.05, delta * 5.0)
-		if right_knee:
-			right_knee.rotation.x = lerp(right_knee.rotation.x, 0.05, delta * 5.0)
-
-		# Arms hang naturally with subtle sway
-		if left_arm and not is_blocking:
-			var left_sway = sin(idle_time * 0.7) * 0.02
-			left_arm.rotation.x = lerp(left_arm.rotation.x, 0.05 + left_sway, delta * 5.0)  # Slightly forward
-			left_arm.rotation.z = lerp(left_arm.rotation.z, -0.08, delta * 5.0)  # Slightly out from body
-			if left_elbow:
-				left_elbow.rotation.x = lerp(left_elbow.rotation.x, 0.1, delta * 5.0)  # Slight natural bend
-		if right_arm and not is_attacking and not is_special_attacking:
-			var right_sway = sin(idle_time * 0.7 + 1.0) * 0.02  # Offset from left
-			right_arm.rotation.x = lerp(right_arm.rotation.x, 0.05 + right_sway, delta * 5.0)
-			right_arm.rotation.z = lerp(right_arm.rotation.z, 0.08, delta * 5.0)
-			if right_elbow:
-				right_elbow.rotation.x = lerp(right_elbow.rotation.x, 0.1, delta * 5.0)
-
-		# Torso breathing - chest expands/contracts
-		if torso:
-			var chest_expand = breath_cycle * breath_intensity
-			torso.scale.z = lerp(torso.scale.z, 1.0 + chest_expand, delta * 8.0)
-			torso.scale.x = lerp(torso.scale.x, 1.0 + chest_expand * 0.5, delta * 8.0)
-			# Reset any rotation from walking
-			torso.rotation.y = lerp(torso.rotation.y, 0.0, delta * 5.0)
-			torso.rotation.z = lerp(torso.rotation.z, 0.0, delta * 5.0)
-
-		# Hips reset from walking
-		if hips:
-			hips.rotation.y = lerp(hips.rotation.y, 0.0, delta * 5.0)
-			hips.rotation.z = lerp(hips.rotation.z, 0.0, delta * 5.0)
-
-		# Shoulders rise slightly with breath
-		if body_container:
-			var shoulder_rise = breath_cycle * 0.008
-			body_container.position.y = lerp(body_container.position.y, shoulder_rise, delta * 8.0)
-
-		# Head stays stable at rest
-		if head:
-			head.rotation.y = lerp(head.rotation.y, 0.0, delta * 3.0)
-			head.position.y = lerp(head.position.y, head_height, delta * 5.0)
-
-		# Neck resets
-		if neck:
-			neck.rotation.z = lerp(neck.rotation.z, 0.0, delta * 5.0)
+		if sprite:
+			var idle_time = Time.get_ticks_msec() / 1000.0
+			var breathe_bob = sin(idle_time * 1.6) * 0.015
+			sprite.position.y = lerp(sprite.position.y, 1.2 + breathe_bob, delta * 8.0)
+			sprite.rotation.z = lerp(sprite.rotation.z, 0.0, delta * 5.0)
 
 ## Called after camera controller is attached
 func setup_viewmodel() -> void:
@@ -3258,33 +2830,16 @@ func trigger_hit_feedback(intensity: float = 1.0) -> void:
 		camera_controller.shake(shake_intensity, shake_duration)
 
 ## Animate stun wobble effect
-func _animate_stun(delta: float, left_arm: Node3D, right_arm: Node3D, left_leg: Node3D, right_leg: Node3D) -> void:
+func _animate_stun(delta: float, _left_arm: Node3D, _right_arm: Node3D, _left_leg: Node3D, _right_leg: Node3D) -> void:
 	if not body_container:
 		return
 
-	# Wobble the entire body container
-	var wobble_speed = 15.0  # Fast wobble
-	var wobble_intensity = 0.25  # Strong wobble (radians)
-
-	# Use stun_timer for continuous wobble
-	var time = (STUN_DURATION - stun_timer) * wobble_speed
-	var wobble_x = sin(time) * wobble_intensity
-	var wobble_z = cos(time * 1.3) * wobble_intensity  # Different frequency for more chaotic wobble
-
-	body_container.rotation.x = wobble_x
-	body_container.rotation.z = wobble_z
-
-	# Also make arms flail a bit
-	if left_arm:
-		left_arm.rotation.x = sin(time * 2.0) * 0.5
-	if right_arm:
-		right_arm.rotation.x = cos(time * 2.0) * 0.5
-
-	# Legs wobble
-	if left_leg:
-		left_leg.rotation.x = sin(time * 1.5) * 0.3
-	if right_leg:
-		right_leg.rotation.x = -sin(time * 1.5) * 0.3
+	# Sprite-based stun: wobble the sprite
+	var sprite = body_container.get_node_or_null("BodySprite")
+	if sprite:
+		var time = (STUN_DURATION - stun_timer) * 15.0
+		sprite.rotation.z = sin(time) * 0.25
+		sprite.position.x = cos(time * 1.3) * 0.05
 
 ## Apply stun to this player
 func apply_stun(duration: float = STUN_DURATION) -> void:
@@ -3306,11 +2861,13 @@ func _die() -> void:
 	# Disable physics
 	set_physics_process(false)
 
-	# Play death animation (programmatic - fall over)
+	# Play death animation (sprite falls over sideways)
 	if body_container:
-		var tween = create_tween()
-		tween.tween_property(body_container, "rotation:x", PI / 2, 1.0)
-		tween.parallel().tween_property(body_container, "position:y", -0.5, 1.0)
+		var sprite = body_container.get_node_or_null("BodySprite")
+		if sprite:
+			var tween = create_tween()
+			tween.tween_property(sprite, "rotation:z", PI / 2, 1.0)
+			tween.parallel().tween_property(sprite, "position:y", 0.5, 1.0)
 
 	# Notify server of death
 	if is_local_player and NetworkManager.is_client:
@@ -3350,6 +2907,12 @@ func respawn_at(spawn_position: Vector3) -> void:
 	if body_container:
 		body_container.rotation = Vector3.ZERO
 		body_container.position = Vector3.ZERO
+		# Reset sprite from death animation
+		var sprite = body_container.get_node_or_null("BodySprite")
+		if sprite:
+			sprite.rotation = Vector3.ZERO
+			sprite.position = Vector3(0, 1.2, 0)
+			sprite.scale = Vector3.ONE
 
 	# Reset fall timer
 	fall_time_below_ground = 0.0
@@ -3714,29 +3277,11 @@ func _find_hand_attach_point(hand_name: String) -> Node3D:
 	if not body_container:
 		return null
 
-	# Map hand name to arm node name
-	var arm_name = ""
+	# Sprite-based body: use the dedicated hand attach points
 	if hand_name == "RightHand":
-		arm_name = "RightArm"
+		return body_container.get_node_or_null("RightHandAttach")
 	elif hand_name == "LeftHand":
-		arm_name = "LeftArm"
-	else:
-		return null
-
-	# Find the arm node in body container
-	if not body_container.has_node(arm_name):
-		return null
-
-	var arm = body_container.get_node(arm_name)
-	if not arm or not is_instance_valid(arm):
-		return null
-
-	# Find HandAttach node in the arm (it's under Elbow)
-	if arm.has_node("Elbow/HandAttach"):
-		return arm.get_node("Elbow/HandAttach")
-	# Fallback: check directly under arm
-	if arm.has_node("HandAttach"):
-		return arm.get_node("HandAttach")
+		return body_container.get_node_or_null("LeftHandAttach")
 
 	return null
 
@@ -3775,6 +3320,12 @@ func _create_hood_visual(primary_color: Color, secondary_color: Color) -> void:
 	if not body_container:
 		return
 
+	# Sprite-based body: skip 3D hood mesh creation (sprite texture handles appearance)
+	# The hood would look odd floating around a 2D billboard
+	print("[Player] Skipping 3D hood visual (sprite-based body)")
+	return
+
+	# --- Legacy 3D body code below (kept for reference) ---
 	hood_visual = Node3D.new()
 	hood_visual.name = "Hood"
 
@@ -3878,29 +3429,8 @@ func _update_cape_visual() -> void:
 		print("[Player] Unequipped cape")
 		return
 
-	print("[Player] Equipped cape: %s" % armor_data.item_id)
-
-	# Create cape visual (simple flowing shape attached to shoulders)
-	cape_visual = Node3D.new()
-	cape_visual.name = "Cape"
-	body_container.add_child(cape_visual)
-
-	# Create cape mesh - a simple elongated shape hanging from the back
-	var cape_mesh = MeshInstance3D.new()
-	var box = BoxMesh.new()
-	box.size = Vector3(0.25, 0.6, 0.05)  # Wide, tall, thin
-	cape_mesh.mesh = box
-
-	# Create material with armor colors
-	var mat = StandardMaterial3D.new()
-	mat.albedo_color = armor_data.primary_color
-	cape_mesh.material_override = mat
-
-	cape_mesh.position = Vector3(0, -0.3, -0.08)  # Behind and below attachment
-	cape_visual.add_child(cape_mesh)
-
-	# Position cape at upper back (between shoulders)
-	cape_visual.position = Vector3(0, 1.35, -0.05)
+	# Sprite-based body: skip 3D cape mesh (would look odd with billboard sprite)
+	print("[Player] Equipped cape: %s (sprite-based body - visual skipped)" % armor_data.item_id)
 
 ## Update accessory visual (Cyclops Eye glow effect)
 func _update_accessory_visual() -> void:
@@ -3941,74 +3471,29 @@ func _apply_cyclops_glow() -> void:
 	cyclops_light.position = Vector3(0, 1.0, 0)  # At player center
 	body_container.add_child(cyclops_light)
 
-	# Apply emission glow to body parts
-	var glow_color = Color(1.0, 0.9, 0.5)  # Warm yellow glow
-	var emission_strength = 1.5
-
-	# Apply to all visible body meshes (using correct node paths from player_body.tscn)
-	var body_parts = [
-		"Head", "Neck", "Torso", "Hips",
-		"LeftArm/UpperArmMesh", "LeftArm/Elbow/ForearmMesh",
-		"RightArm/UpperArmMesh", "RightArm/Elbow/ForearmMesh",
-		"LeftLeg/ThighMesh", "LeftLeg/Knee/ShinMesh", "LeftLeg/Knee/Foot",
-		"RightLeg/ThighMesh", "RightLeg/Knee/ShinMesh", "RightLeg/Knee/Foot"
-	]
-
-	for part_path in body_parts:
-		var mesh = body_container.get_node_or_null(part_path)
-		if mesh and mesh is MeshInstance3D:
-			var mat = mesh.material_override
-			if mat and mat is StandardMaterial3D:
-				mat.emission_enabled = true
-				mat.emission = glow_color
-				mat.emission_energy_multiplier = emission_strength
+	# Apply modulate tint to the sprite for glow effect
+	var sprite = body_container.get_node_or_null("BodySprite")
+	if sprite and sprite is SpriteBase3D:
+		sprite.modulate = Color(1.3, 1.2, 0.9)  # Warm golden tint
 
 ## Remove the Cyclops Eye glow effect
 func _remove_cyclops_glow() -> void:
 	if not body_container:
 		return
 
-	# Remove emission from body parts (using correct node paths from player_body.tscn)
-	var body_parts = [
-		"Head", "Neck", "Torso", "Hips",
-		"LeftArm/UpperArmMesh", "LeftArm/Elbow/ForearmMesh",
-		"RightArm/UpperArmMesh", "RightArm/Elbow/ForearmMesh",
-		"LeftLeg/ThighMesh", "LeftLeg/Knee/ShinMesh", "LeftLeg/Knee/Foot",
-		"RightLeg/ThighMesh", "RightLeg/Knee/ShinMesh", "RightLeg/Knee/Foot"
-	]
-
-	for part_path in body_parts:
-		var mesh = body_container.get_node_or_null(part_path)
-		if mesh and mesh is MeshInstance3D:
-			var mat = mesh.material_override
-			if mat and mat is StandardMaterial3D:
-				mat.emission_enabled = false
-				mat.emission = Color.BLACK
-				mat.emission_energy_multiplier = 0.0
+	# Reset sprite modulate tint
+	var sprite = body_container.get_node_or_null("BodySprite")
+	if sprite and sprite is SpriteBase3D:
+		sprite.modulate = Color.WHITE
 
 ## Initialize all armor visuals to default (unarmored) state
 func _initialize_armor_visuals() -> void:
 	if not body_container:
 		return
 
-	print("[Player] Initializing armor visuals to default skin colors")
-
-	# Head - skin color
-	_set_mesh_color(body_container, "Head", DEFAULT_SKIN_COLOR)
-	_set_mesh_color(body_container, "Neck", DEFAULT_SKIN_COLOR)
-
-	# Torso - light tan (minimal clothing)
-	_set_mesh_color(body_container, "Torso", DEFAULT_CLOTHES_COLOR)
-	var torso = body_container.get_node_or_null("Torso")
-	if torso:
-		_set_mesh_color(torso, "MeshInstance3D", DEFAULT_CLOTHES_COLOR)
-
-	# Arms - skin color
-	_set_arm_colors(DEFAULT_SKIN_COLOR)
-
-	# Hips and legs - slightly darker tan
-	_set_mesh_color(body_container, "Hips", DEFAULT_PANTS_COLOR)
-	_set_leg_colors(DEFAULT_PANTS_COLOR)
+	# Sprite-based body: no individual mesh parts to color
+	# The sprite texture already includes the full character appearance
+	print("[Player] Armor visuals initialized (sprite-based body - texture handles appearance)")
 
 # ============================================================================
 # ARMOR VISUAL HELPERS

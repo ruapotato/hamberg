@@ -69,7 +69,7 @@ func _cache_joint_nodes() -> void:
 
 ## Update all animations - call this in _physics_process
 func update_animations(delta: float) -> void:
-	if not body_container or not left_leg or not right_leg:
+	if not body_container:
 		return
 
 	# PERFORMANCE: Cache joint references on first call
@@ -108,6 +108,11 @@ func update_animations(delta: float) -> void:
 	# Stun animation overrides everything
 	if is_stunned:
 		_animate_stun(delta)
+		return
+
+	# Billboard sprites (no legs) only get idle breathing, no limb-based animations
+	if not left_leg or not right_leg:
+		_animate_idle(delta)
 		return
 
 	# Check if moving based on velocity

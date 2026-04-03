@@ -11,6 +11,10 @@ const MAX_LIFETIME := 1.0
 const RISE_SPEED := 2.0
 const DRIFT_SPEED := 0.5
 
+# Pop animation for crits (no tweens)
+var _pop_timer: float = 0.0
+var _is_crit: bool = false
+
 func _ready() -> void:
 	# Random horizontal drift for visual variety
 	velocity = Vector3(
@@ -25,6 +29,7 @@ func setup(damage: float, is_crit: bool) -> void:
 
 	# Format damage as integer
 	var damage_text := str(int(damage))
+	_is_crit = is_crit
 
 	if is_crit:
 		# Critical hit: gold color, larger, with "CRIT!" prefix
@@ -32,11 +37,9 @@ func setup(damage: float, is_crit: bool) -> void:
 		label.modulate = Color(1.0, 0.85, 0.2, 1.0)  # Gold
 		label.outline_modulate = Color(0.8, 0.3, 0.0, 1.0)  # Orange outline
 		label.font_size = 48
-		# Start with a pop scale animation
+		# Start pop animation (no tweens)
 		scale = Vector3(0.5, 0.5, 0.5)
-		var tween = create_tween()
-		tween.tween_property(self, "scale", Vector3(1.2, 1.2, 1.2), 0.1)
-		tween.tween_property(self, "scale", Vector3(1.0, 1.0, 1.0), 0.1)
+		_pop_timer = 0.2
 	else:
 		# Normal hit: white/light color
 		label.text = damage_text
@@ -46,6 +49,19 @@ func setup(damage: float, is_crit: bool) -> void:
 
 func _process(delta: float) -> void:
 	lifetime += delta
+
+	# Handle crit pop animation (no tweens)
+	if _pop_timer > 0:
+		_pop_timer -= delta
+		var pop_progress := 1.0 - (_pop_timer / 0.2)
+		if pop_progress < 0.5:
+			# Scale up to 1.2
+			var s := lerpf(0.5, 1.2, pop_progress * 2.0)
+			scale = Vector3(s, s, s)
+		else:
+			# Scale down to 1.0
+			var s := lerpf(1.2, 1.0, (pop_progress - 0.5) * 2.0)
+			scale = Vector3(s, s, s)
 
 	# Move upward with drift
 	global_position += velocity * delta

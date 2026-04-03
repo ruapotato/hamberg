@@ -3,15 +3,13 @@ extends Node3D
 ## FireArea - Area of effect fire damage zone
 ## Deals damage over time to enemies in radius
 
-const WeaponData = preload("res://shared/weapon_data.gd")
-
 @export var radius: float = 5.0
 @export var damage: float = 12.0
 @export var tick_rate: float = 0.5  # Damage every 0.5 seconds
 @export var duration: float = 3.0  # How long the fire lasts
 
-# Fire area always deals FIRE damage
-const DAMAGE_TYPE: int = WeaponData.DamageType.FIRE
+# Fire area always deals FIRE damage (3 = WeaponData.DamageType.FIRE)
+const DAMAGE_TYPE: int = 3
 
 var tick_timer: float = 0.0
 var enemies_in_area: Array = []
@@ -121,18 +119,10 @@ func _on_area_body_exited(body: Node3D) -> void:
 		print("[FireArea] Enemy left fire: %s" % body.name)
 
 func _deal_damage_to_enemies() -> void:
-	# Deal damage to all enemies in area - use network damage system
+	# Deal damage to all enemies in area directly (single player for now)
 	for enemy in enemies_in_area:
 		if is_instance_valid(enemy) and enemy.has_method("take_damage"):
-			var direction = (enemy.global_position - global_position).normalized()
-			var enemy_network_id = enemy.network_id if "network_id" in enemy else 0
-			if enemy_network_id > 0:
-				print("[FireArea] Sending fire damage RPC: net_id=%d, damage=%.1f" % [enemy_network_id, damage])
-				var dir_array = [direction.x, direction.y, direction.z]
-				# Fire area deals FIRE damage type
-				NetworkManager.rpc_damage_enemy.rpc_id(1, enemy_network_id, damage, 0.5, dir_array, DAMAGE_TYPE)
-			else:
-				print("[FireArea] Enemy %s has no network_id!" % enemy.name)
+			enemy.take_damage(int(damage))
 
 func _on_timer_timeout() -> void:
 	# Fire duration expired, clean up

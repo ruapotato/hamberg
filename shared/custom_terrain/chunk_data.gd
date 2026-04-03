@@ -97,15 +97,15 @@ func get_voxel(x: int, y_local: int, z: int) -> float:
 		# Smooth transition
 		base_density = 1.0 - (distance_from_surface + 2.0) / 4.0
 
-	# Cave carving disabled for performance testing
-	#if biome_generator != null and base_density > 0.0:
-	#	if biome_generator.has_method("get_fast_cave_carving"):
-	#		var world_x: float = float(chunk_x * CHUNK_SIZE_XZ + x)
-	#		var world_z: float = float(chunk_z * CHUNK_SIZE_XZ + z)
-	#		var world_pos := Vector3(world_x, float(world_y), world_z)
-	#		var cave_carve: float = biome_generator.get_fast_cave_carving(world_pos, terrain_height)
-	#		if cave_carve > 0.0:
-	#			base_density = maxf(0.0, base_density - cave_carve)
+	# Fast 3D cave carving - single noise sample per voxel
+	if biome_generator != null and base_density > 0.0:
+		if biome_generator.has_method("get_fast_cave_carving"):
+			var world_x: float = float(chunk_x * CHUNK_SIZE_XZ + x)
+			var world_z: float = float(chunk_z * CHUNK_SIZE_XZ + z)
+			var world_pos := Vector3(world_x, float(world_y), world_z)
+			var cave_carve: float = biome_generator.get_fast_cave_carving(world_pos, terrain_height)
+			if cave_carve > 0.0:
+				base_density = maxf(0.0, base_density - cave_carve)
 
 	return base_density
 

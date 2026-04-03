@@ -47,211 +47,118 @@ func _ready() -> void:
 
 	health = max_health
 
-## Override body setup for bioluminescent fungal appearance
+## Override body setup for bioluminescent fungal billboard sprite (Paper Mario style)
 func _setup_body() -> void:
 	body_container = Node3D.new()
 	body_container.name = "BodyContainer"
 	body_container.rotation.y = PI
 	add_child(body_container)
 
-	var scale_factor: float = 1.2  # 50% larger than Gahnome's 0.79
+	# Billboard Sprite3D (Paper Mario style)
+	var sprite = Sprite3D.new()
+	sprite.name = "Sprite"
+	sprite.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	sprite.pixel_size = 0.025
+	sprite.alpha_cut = SpriteBase3D.ALPHA_CUT_OPAQUE_PREPASS
+	sprite.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
+	sprite.texture = _create_sprite_texture()
+	# Sporeling is larger: 64px * 0.025 = 1.6 units, center at half
+	sprite.position = Vector3(0, 0.8, 0)
+	body_container.add_child(sprite)
 
-	# Bioluminescent materials
-	var body_mat = StandardMaterial3D.new()
-	body_mat.albedo_color = Color(0.15, 0.2, 0.25, 1)  # Dark blue-gray body
-	body_mat.emission_enabled = true
-	body_mat.emission = Color(0.0, 0.3, 0.5, 1)  # Cyan glow
-	body_mat.emission_energy_multiplier = 0.6
+	head_base_height = 0.0  # No 3D head to bob
 
-	var cap_mat = StandardMaterial3D.new()
-	cap_mat.albedo_color = Color(0.1, 0.15, 0.3, 1)  # Deep purple-blue cap
-	cap_mat.emission_enabled = true
-	cap_mat.emission = Color(0.2, 0.1, 0.6, 1)  # Purple glow
-	cap_mat.emission_energy_multiplier = 1.2
+## Create a procedural 64x64 mushroom/sporeling sprite texture (purple/red bioluminescent)
+func _create_sprite_texture() -> ImageTexture:
+	var img = Image.create(64, 64, false, Image.FORMAT_RGBA8)
+	img.fill(Color(0, 0, 0, 0))  # Transparent background
 
-	var tendril_mat = StandardMaterial3D.new()
-	tendril_mat.albedo_color = Color(0.12, 0.18, 0.22, 1)
-	tendril_mat.emission_enabled = true
-	tendril_mat.emission = Color(0.0, 0.4, 0.35, 1)  # Teal glow
-	tendril_mat.emission_energy_multiplier = 0.8
+	var cap_color = Color(0.35, 0.1, 0.45, 1.0)        # Deep purple cap
+	var cap_highlight = Color(0.5, 0.15, 0.6, 1.0)      # Lighter purple highlight
+	var body_color = Color(0.15, 0.2, 0.25, 1.0)        # Dark blue-gray body
+	var eye_color = Color(0.8, 0.2, 0.8, 1.0)           # Magenta glowing eyes
+	var spot_color = Color(0.0, 0.8, 0.4, 1.0)          # Bright green spore spots
+	var tendril_color = Color(0.12, 0.25, 0.22, 1.0)    # Dark teal tendrils
 
-	var eye_mat = StandardMaterial3D.new()
-	eye_mat.albedo_color = Color(0.0, 0.0, 0.0, 1)
-	eye_mat.emission_enabled = true
-	eye_mat.emission = Color(0.8, 0.2, 0.8, 1)  # Magenta glowing eyes
-	eye_mat.emission_energy_multiplier = 2.0
+	# Mushroom cap dome (rows 2-22, wide dome shape)
+	for y in range(2, 23):
+		var dy = (y - 12.0) / 10.0
+		var half_w = int(18.0 * sqrt(max(0, 1.0 - dy * dy)))
+		if y < 12:
+			half_w = int(half_w * 0.85)  # Narrower at top of dome
+		for x in range(32 - half_w, 32 + half_w):
+			# Add highlight near center-top
+			if y < 10 and abs(x - 32) < 6:
+				img.set_pixel(x, y, cap_highlight)
+			else:
+				img.set_pixel(x, y, cap_color)
 
-	# Bulbous body/torso
-	torso = MeshInstance3D.new()
-	var torso_mesh = SphereMesh.new()
-	torso_mesh.radius = 0.18 * scale_factor
-	torso_mesh.height = 0.32 * scale_factor
-	torso.mesh = torso_mesh
-	torso.material_override = body_mat
-	torso.position = Vector3(0, 0.5 * scale_factor, 0)
-	body_container.add_child(torso)
+	# Cap rim / underside (rows 20-24, flat bottom edge)
+	for y in range(20, 25):
+		var half_w = int(16.0 - (y - 20) * 2.5)
+		if half_w < 2:
+			half_w = 2
+		for x in range(32 - half_w, 32 + half_w):
+			img.set_pixel(x, y, cap_color.darkened(0.3))
 
-	# Upper body bulge
-	var upper_body = MeshInstance3D.new()
-	var upper_mesh = SphereMesh.new()
-	upper_mesh.radius = 0.15 * scale_factor
-	upper_mesh.height = 0.25 * scale_factor
-	upper_body.mesh = upper_mesh
-	upper_body.material_override = body_mat
-	upper_body.position = Vector3(0, 0.72 * scale_factor, 0)
-	body_container.add_child(upper_body)
+	# Glowing spots on cap
+	var spots = [Vector2i(24, 8), Vector2i(38, 10), Vector2i(28, 14), Vector2i(36, 6), Vector2i(32, 4)]
+	for s in spots:
+		if s.x >= 0 and s.x < 64 and s.y >= 0 and s.y < 64:
+			img.set_pixel(s.x, s.y, spot_color)
+			if s.x + 1 < 64:
+				img.set_pixel(s.x + 1, s.y, spot_color)
+			if s.y + 1 < 64:
+				img.set_pixel(s.x, s.y + 1, spot_color)
 
-	# Mushroom cap head
-	head = MeshInstance3D.new()
-	var head_mesh = CylinderMesh.new()
-	head_mesh.top_radius = 0.08 * scale_factor
-	head_mesh.bottom_radius = 0.28 * scale_factor
-	head_mesh.height = 0.12 * scale_factor
-	head.mesh = head_mesh
-	head.material_override = cap_mat
-	head.position = Vector3(0, 0.92 * scale_factor, 0)
-	body_container.add_child(head)
+	# Multiple glowing eyes under cap (row 22-24)
+	var eye_xs = [26, 28, 35, 37]
+	for ex in eye_xs:
+		img.set_pixel(ex, 22, eye_color)
+		img.set_pixel(ex, 23, eye_color)
 
-	# Cap dome on top
-	var cap_dome = MeshInstance3D.new()
-	var dome_mesh = SphereMesh.new()
-	dome_mesh.radius = 0.12 * scale_factor
-	dome_mesh.height = 0.15 * scale_factor
-	cap_dome.mesh = dome_mesh
-	cap_dome.material_override = cap_mat
-	cap_dome.position = Vector3(0, 0.06 * scale_factor, 0)
-	head.add_child(cap_dome)
-
-	# Glowing eyes (multiple, scattered under cap)
-	var eye_mesh = SphereMesh.new()
-	eye_mesh.radius = 0.025 * scale_factor
-	eye_mesh.height = 0.05 * scale_factor
-
-	var eye_positions = [
-		Vector3(-0.08, -0.02, 0.12) * scale_factor,
-		Vector3(0.08, -0.02, 0.12) * scale_factor,
-		Vector3(-0.12, -0.03, 0.08) * scale_factor,
-		Vector3(0.12, -0.03, 0.08) * scale_factor,
-	]
-
-	for pos in eye_positions:
-		var eye = MeshInstance3D.new()
-		eye.mesh = eye_mesh
-		eye.material_override = eye_mat
-		eye.position = pos
-		head.add_child(eye)
-
-	# Tendril legs (3 pairs for alien look)
-	var leg_positions = [
-		Vector3(-0.12, 0.35, 0.05) * scale_factor,
-		Vector3(0.12, 0.35, 0.05) * scale_factor,
-		Vector3(-0.14, 0.35, -0.03) * scale_factor,
-		Vector3(0.14, 0.35, -0.03) * scale_factor,
-	]
-
-	var tendril_mesh = CapsuleMesh.new()
-	tendril_mesh.radius = 0.035 * scale_factor
-	tendril_mesh.height = 0.35 * scale_factor
-
-	# Create leg containers for animation
-	left_leg = Node3D.new()
-	left_leg.position = leg_positions[0]
-	body_container.add_child(left_leg)
-
-	var left_tendril = MeshInstance3D.new()
-	left_tendril.mesh = tendril_mesh
-	left_tendril.material_override = tendril_mat
-	left_tendril.position = Vector3(0, -0.175 * scale_factor, 0)
-	left_leg.add_child(left_tendril)
-
-	right_leg = Node3D.new()
-	right_leg.position = leg_positions[1]
-	body_container.add_child(right_leg)
-
-	var right_tendril = MeshInstance3D.new()
-	right_tendril.mesh = tendril_mesh
-	right_tendril.material_override = tendril_mat
-	right_tendril.position = Vector3(0, -0.175 * scale_factor, 0)
-	right_leg.add_child(right_tendril)
-
-	# Back left tendril (animated)
-	back_left_leg = Node3D.new()
-	back_left_leg.position = leg_positions[2]
-	body_container.add_child(back_left_leg)
-
-	var back_left_tendril = MeshInstance3D.new()
-	back_left_tendril.mesh = tendril_mesh
-	back_left_tendril.material_override = tendril_mat
-	back_left_tendril.position = Vector3(0, -0.175 * scale_factor, 0)
-	back_left_leg.add_child(back_left_tendril)
-
-	# Back right tendril (animated)
-	back_right_leg = Node3D.new()
-	back_right_leg.position = leg_positions[3]
-	body_container.add_child(back_right_leg)
-
-	var back_right_tendril = MeshInstance3D.new()
-	back_right_tendril.mesh = tendril_mesh
-	back_right_tendril.material_override = tendril_mat
-	back_right_tendril.position = Vector3(0, -0.175 * scale_factor, 0)
-	back_right_leg.add_child(back_right_tendril)
-
-	# Tendril arms (longer, whip-like)
-	var arm_mesh = CapsuleMesh.new()
-	arm_mesh.radius = 0.025 * scale_factor
-	arm_mesh.height = 0.25 * scale_factor
-
-	left_arm = Node3D.new()
-	left_arm.position = Vector3(-0.16 * scale_factor, 0.65 * scale_factor, 0)
-	body_container.add_child(left_arm)
-
-	var left_upper = MeshInstance3D.new()
-	left_upper.mesh = arm_mesh
-	left_upper.material_override = tendril_mat
-	left_upper.position = Vector3(0, -0.125 * scale_factor, 0)
-	left_upper.rotation.z = 0.3  # Slight outward angle
-	left_arm.add_child(left_upper)
-
-	right_arm = Node3D.new()
-	right_arm.position = Vector3(0.16 * scale_factor, 0.65 * scale_factor, 0)
-	body_container.add_child(right_arm)
-
-	var right_upper = MeshInstance3D.new()
-	right_upper.mesh = arm_mesh
-	right_upper.material_override = tendril_mat
-	right_upper.position = Vector3(0, -0.125 * scale_factor, 0)
-	right_upper.rotation.z = -0.3
-	right_arm.add_child(right_upper)
+	# Bulbous body / stalk (rows 24-46)
+	for y in range(24, 47):
+		var progress = (y - 24.0) / 22.0
+		# Bulges in the middle, narrower at top and bottom
+		var bulge = sin(progress * PI) * 4.0
+		var half_w = int(5.0 + bulge)
+		for x in range(32 - half_w, 32 + half_w):
+			img.set_pixel(x, y, body_color)
 
 	# Glowing spore spots on body
-	var spore_mat = StandardMaterial3D.new()
-	spore_mat.albedo_color = Color(0.1, 0.3, 0.2, 1)
-	spore_mat.emission_enabled = true
-	spore_mat.emission = Color(0.0, 0.8, 0.4, 1)  # Bright green glow
-	spore_mat.emission_energy_multiplier = 1.5
+	var body_spots = [Vector2i(30, 30), Vector2i(35, 35), Vector2i(29, 40), Vector2i(34, 28)]
+	for s in body_spots:
+		img.set_pixel(s.x, s.y, spot_color)
 
-	var spot_mesh = SphereMesh.new()
-	spot_mesh.radius = 0.02 * scale_factor
-	spot_mesh.height = 0.04 * scale_factor
+	# Tendril arms (rows 28-40, thin wispy arms)
+	for y in range(28, 41):
+		var progress = (y - 28.0) / 12.0
+		# Left tendril curves outward
+		var lx = int(26 - progress * 8)
+		for dx in range(0, 2):
+			if lx + dx >= 0:
+				img.set_pixel(lx + dx, y, tendril_color)
+		# Right tendril curves outward
+		var rx = int(37 + progress * 8)
+		for dx in range(0, 2):
+			if rx + dx < 64:
+				img.set_pixel(rx + dx, y, tendril_color)
 
-	var spot_positions = [
-		Vector3(0.1, 0.55, 0.12) * scale_factor,
-		Vector3(-0.12, 0.48, 0.1) * scale_factor,
-		Vector3(0.08, 0.62, -0.1) * scale_factor,
-		Vector3(-0.06, 0.7, 0.08) * scale_factor,
-		Vector3(0.14, 0.5, -0.05) * scale_factor,
-	]
+	# Tendril legs (rows 47-60, multiple thin legs)
+	var leg_offsets = [-5, -2, 2, 5]
+	for lo in leg_offsets:
+		for y in range(47, 61):
+			var spread = (y - 47.0) / 13.0 * lo * 0.5
+			var lx = int(32 + lo + spread)
+			if lx >= 0 and lx < 63:
+				img.set_pixel(lx, y, tendril_color)
+				img.set_pixel(lx + 1, y, tendril_color)
 
-	for pos in spot_positions:
-		var spot = MeshInstance3D.new()
-		spot.mesh = spot_mesh
-		spot.material_override = spore_mat
-		spot.position = pos
-		body_container.add_child(spot)
+	var tex = ImageTexture.create_from_image(img)
+	return tex
 
-	head_base_height = 0.92 * scale_factor
-
-## Override telegraph to use spore-specific visual
+## Override telegraph to use sprite tint (no 3D arms to swing)
 func _set_windup_telegraph(enabled: bool) -> void:
 	if not body_container:
 		return
@@ -260,29 +167,23 @@ func _set_windup_telegraph(enabled: bool) -> void:
 		windup_tween.kill()
 
 	if enabled:
-		# Pulse glow brighter instead of arm swing
-		if right_arm:
-			original_arm_rotation = right_arm.rotation.x
-			windup_tween = create_tween()
-			windup_tween.tween_property(right_arm, "rotation:x", 1.0, 0.35)
 		# Tint with spore-green warning
 		_set_body_tint(Color(0.4, 1.0, 0.4, 1.0))
 	else:
-		if right_arm:
-			right_arm.rotation.x = 0.0
 		_set_body_tint(Color(1.0, 1.0, 1.0, 1.0))
 
-## Override attack swing animation
+## Override attack swing animation (sprite squash-and-stretch)
 func _play_attack_swing() -> void:
-	if not right_arm:
+	if not body_container:
 		return
 
 	if windup_tween and windup_tween.is_valid():
 		windup_tween.kill()
 
+	# Quick lunge forward effect via scale squash
 	windup_tween = create_tween()
-	windup_tween.tween_property(right_arm, "rotation:x", -0.8, 0.15)
-	windup_tween.tween_property(right_arm, "rotation:x", 0.0, 0.35)
+	windup_tween.tween_property(body_container, "scale", Vector3(1.2, 0.85, 1.2), 0.1)
+	windup_tween.tween_property(body_container, "scale", Vector3.ONE, 0.3)
 
 	_set_body_tint(Color(1.0, 1.0, 1.0, 1.0))
 
