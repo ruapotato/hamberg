@@ -153,8 +153,8 @@ func _draw_mage_front(img: Image, robe: Array, skin: Color) -> void:
 
 	# Eyes
 	for eye_dx in [-3, 3]:
-		var ex := cx + eye_dx
-		var ey := head_cy - 1
+		var ex: int = cx + eye_dx
+		var ey: int = head_cy - 1
 		if ex >= 0 and ex < 64 and ey >= 0 and ey < 96:
 			img.set_pixel(ex, ey, Color(0.1, 0.1, 0.2))
 			img.set_pixel(ex, ey + 1, Color(0.1, 0.1, 0.2))
@@ -165,8 +165,8 @@ func _draw_mage_front(img: Image, robe: Array, skin: Color) -> void:
 	# Eyebrows
 	for eye_dx in [-3, 3]:
 		for bx in range(-1, 2):
-			var px := cx + eye_dx + bx
-			var py := head_cy - 3
+			var px: int = cx + eye_dx + bx
+			var py: int = head_cy - 3
 			if px >= 0 and px < 64 and py >= 0 and py < 96:
 				img.set_pixel(px, py, skin * 0.6)
 
@@ -223,11 +223,11 @@ func _draw_mage_front(img: Image, robe: Array, skin: Color) -> void:
 
 	# --- Arms (at sides, with sleeves) ---
 	for arm_side in [-1, 1]:
-		var arm_x := cx + arm_side * 12
+		var arm_x: int = cx + arm_side * 12
 		for i in range(18):
-			var py := by - 54 + i
+			var py: int = by - 54 + i
 			for dx in range(-3, 4):
-				var px := arm_x + dx
+				var px: int = arm_x + dx
 				if px >= 0 and px < 64 and py >= 0 and py < 96:
 					# Sleeve widens toward bottom
 					var sleeve_w: float = 3.0 + i * 0.15
@@ -235,8 +235,8 @@ func _draw_mage_front(img: Image, robe: Array, skin: Color) -> void:
 						img.set_pixel(px, py, robe[0] * (0.88 + randf() * 0.1))
 		# Hands
 		for dx in range(-2, 3):
-			var px := arm_x + dx
-			var py := by - 35
+			var px: int = arm_x + dx
+			var py: int = by - 35
 			if px >= 0 and px < 64 and py >= 0 and py < 96:
 				img.set_pixel(px, py, skin * 0.95)
 			if px >= 0 and px < 64 and py + 1 < 96:
@@ -354,18 +354,18 @@ func _draw_mage_back(img: Image, robe: Array, skin: Color) -> void:
 
 	# --- Arms (back view) ---
 	for arm_side in [-1, 1]:
-		var arm_x := cx + arm_side * 12
+		var arm_x: int = cx + arm_side * 12
 		for i in range(18):
-			var py := by - 54 + i
+			var py: int = by - 54 + i
 			for dx in range(-3, 4):
-				var px := arm_x + dx
+				var px: int = arm_x + dx
 				if px >= 0 and px < 64 and py >= 0 and py < 96:
 					var sleeve_w: float = 3.0 + i * 0.15
 					if abs(dx) <= sleeve_w:
 						img.set_pixel(px, py, robe[0] * (0.83 + randf() * 0.1))
 		for dx in range(-2, 3):
-			var px := arm_x + dx
-			var py := by - 35
+			var px: int = arm_x + dx
+			var py: int = by - 35
 			if px >= 0 and px < 64 and py >= 0 and py < 96:
 				img.set_pixel(px, py, skin * 0.9)
 			if px >= 0 and px < 64 and py + 1 < 96:
