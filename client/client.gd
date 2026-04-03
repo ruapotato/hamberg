@@ -125,6 +125,10 @@ const BIOME_CHECK_INTERVAL: float = 2.0  # Check biome every 2 seconds
 # Fog wall manager
 var fog_wall_manager: Node3D = null
 
+# 2D environment spawner (client-side billboard trees/rocks/grass)
+var env_spawner_2d: Node3D = null
+var EnvironmentSpawner2DScript = preload("res://client/environment_spawner_2d.gd")
+
 # Cached Shnarken NPCs (avoid expensive tree traversal every frame)
 var cached_shnarkens: Array = []
 var shnarken_cache_timer: float = 0.0
@@ -1353,6 +1357,12 @@ func receive_world_config(world_data: Dictionary) -> void:
 	if terrain_world:
 		terrain_world.initialize_world(world_seed, world_name)
 		print("[Client] Initialized world '%s' with seed %d" % [world_name, world_seed])
+
+		# Initialize 2D environment spawner (billboard trees/rocks/grass)
+		if not env_spawner_2d:
+			env_spawner_2d = EnvironmentSpawner2DScript.new()
+			env_spawner_2d.name = "EnvironmentSpawner2D"
+			world.add_child(env_spawner_2d)
 
 		# Initialize map system with BiomeGenerator
 		_initialize_map_system()

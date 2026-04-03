@@ -2026,6 +2026,11 @@ func _setup_player_body() -> void:
 	left_hand_attach.position = Vector3(-0.3, 1.15, 0.1)  # Left side, mid-body, slightly forward
 	body_container.add_child(left_hand_attach)
 
+	# In first-person mode, hide the local player's sprite (you don't see yourself)
+	# Remote players still show their sprite
+	if is_local_player:
+		sprite.visible = false
+
 	print("[Player] Player body created as 2D billboard sprite (Paper Mario style)")
 	print("[Player] Body container parent: %s" % body_container.get_parent().name)
 
