@@ -125,7 +125,6 @@ const BIOME_CHECK_INTERVAL: float = 2.0  # Check biome every 2 seconds
 # Fog wall manager
 var fog_wall_manager: Node3D = null
 
-
 # Cached Shnarken NPCs (avoid expensive tree traversal every frame)
 var cached_shnarkens: Array = []
 var shnarken_cache_timer: float = 0.0

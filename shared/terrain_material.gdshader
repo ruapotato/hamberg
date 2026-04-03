@@ -412,7 +412,7 @@ GrassInfo get_grass_pattern(vec2 world_xz, float anim_time) {
 	info.wind_bend = 0.0;
 
 	// Scale for grass (larger = bigger clumps, more spread out)
-	float grass_scale = 0.4;  // Small, ankle-height grass blades
+	float grass_scale = 3.0;  // Increased for efficiency
 	vec2 scaled_pos = world_xz / grass_scale;
 
 	// Wind parameters (simplified)
@@ -476,7 +476,7 @@ float get_grass_detail(vec2 xz_pos, float flatness, int biome_idx, float anim_ti
 
 	// Grass intensity varies by biome
 	float biome_grass_intensity = 0.0;
-	if (biome_idx == 0) biome_grass_intensity = 1.0;       // Valley - lush grass
+	if (biome_idx == 0) biome_grass_intensity = 1.0;       // Valley - lots of grass
 	else if (biome_idx == 1) biome_grass_intensity = 0.3;  // Dark forest - some grass
 	else if (biome_idx == 2) biome_grass_intensity = 0.5;  // Swamp - muddy grass
 	else if (biome_idx == 3) biome_grass_intensity = 0.0;  // Mountain - no grass (snow)
@@ -641,7 +641,7 @@ GrassInfo get_grass_detail_full(vec2 xz_pos, float flatness, int biome_idx, floa
 
 	// Grass intensity varies by biome
 	float biome_grass_intensity = 0.0;
-	if (biome_idx == 0) biome_grass_intensity = 1.0;  // Valley - lush grass
+	if (biome_idx == 0) biome_grass_intensity = 1.0;
 	else if (biome_idx == 1) biome_grass_intensity = 0.3;
 	else if (biome_idx == 2) biome_grass_intensity = 0.5;
 	else if (biome_idx == 3) biome_grass_intensity = 0.0;
@@ -865,34 +865,44 @@ void fragment() {
 				color = mix(color, floor_color, blend_strength);
 			}
 		} else {
-			// === GRASS BLADES ===
+			// === OTHER BIOMES - GRASS BLADES ===
 			GrassInfo grass_info = get_grass_detail_full(xz_pos, flatness, current_biome, time);
 
 			if (grass_info.coverage > 0.01) {
-				// Natural grass colors - dark earthy base, bright green tips
-				vec3 blade_base_color = vec3(0.12, 0.22, 0.06);  // Dark earth-green
-				vec3 blade_tip_color = vec3(0.28, 0.52, 0.12);   // Bright grass green
-
-				// Per-position color variation for natural look
-				float color_noise = hash21(floor(xz_pos * 0.5)) * 0.15;
-				blade_tip_color += color_noise;
+				// === GRASS BLADE COLORING ===
+				vec3 blade_base_color = grass_color * 0.6;
+				vec3 blade_tip_color = grass_color * 1.2;
+				blade_tip_color = mix(blade_tip_color, blade_tip_color * vec3(1.05, 1.1, 0.85), 0.4);
 
 				float height_factor = grass_info.height;
 				vec3 blade_color = mix(blade_base_color, blade_tip_color, height_factor);
 
-				// Warm/cool variation across the field
-				float field_var = sin(xz_pos.x * 0.1) * cos(xz_pos.y * 0.13) * 0.08;
-				blade_color += vec3(field_var, field_var * 0.5, -field_var * 0.3);
+				// Inter-blade shadows
+				float shadow_factor = grass_info.shadow * grass_info.coverage;
+				blade_color *= (1.0 - shadow_factor * 0.4);
 
-				// Wind color shift - slight yellow when bending
-				blade_color = mix(blade_color, blade_color * vec3(1.1, 1.15, 0.9), grass_info.wind_bend * 0.3);
+				// Subsurface scattering
+				float sss_strength = height_factor * grass_info.coverage * 0.25;
+				vec3 sss_color = grass_color * vec3(1.1, 1.2, 0.9) * 1.3;
+				blade_color = mix(blade_color, sss_color, sss_strength * grass_info.wind_bend);
 
-				// Inter-blade shadows at base
-				blade_color *= (1.0 - grass_info.shadow * 0.5);
+				// Wind highlight
+				float wind_highlight = grass_info.wind_bend * grass_info.coverage * 0.15;
+				blade_color *= (1.0 + wind_highlight);
 
-				// Strong blend with terrain - grass dominates on flat areas
-				float blend_strength = smoothstep(0.0, 0.3, grass_info.coverage);
-				color = mix(color, blade_color, blend_strength * 0.85);
+				// Specular-like highlight on blade tips
+				if (height_factor > 0.75 && grass_info.coverage > 0.5) {
+					float tip_spec = (height_factor - 0.75) * 4.0 * grass_info.coverage;
+					blade_color = mix(blade_color, vec3(1.0), tip_spec * 0.08);
+				}
+
+				// Blend with base terrain
+				float blend_strength = smoothstep(0.0, 0.6, grass_info.coverage);
+				color = mix(color, blade_color, blend_strength);
+
+				// Edge darkening
+				float edge_factor = smoothstep(0.0, 0.2, grass_info.coverage);
+				color *= mix(0.92, 1.0, edge_factor);
 			}
 		}
 	}
