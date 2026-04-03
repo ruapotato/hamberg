@@ -557,8 +557,8 @@ func generate_dense_grass_transforms(chunk_pos: Vector2i, voxel_world: Node3D, d
 
 	var chunk_world_pos := Vector2(chunk_pos.x * chunk_size, chunk_pos.y * chunk_size)
 
-	# Extremely high density - ~8000 grass clumps per 32x32 chunk (100x original)
-	var grass_per_chunk := int(chunk_size * chunk_size * 8.0 * density_multiplier)
+	# Dense grass: ~3000 clumps per 32x32 chunk
+	var grass_per_chunk := int(chunk_size * chunk_size * 3.0 * density_multiplier)
 
 	for i in grass_per_chunk:
 		var local_x := rng.randf_range(0, chunk_size)
@@ -569,7 +569,7 @@ func generate_dense_grass_transforms(chunk_pos: Vector2i, voxel_world: Node3D, d
 		if _is_in_exclusion_zone(world_pos):
 			continue
 
-		# Quick height/biome check
+		# Quick height/biome check using noise (no physics raycasts)
 		var height: float = voxel_world.get_terrain_height_at(world_pos)
 		if height < -5.0 or height > 30.0:
 			continue
@@ -579,13 +579,8 @@ func generate_dense_grass_transforms(chunk_pos: Vector2i, voxel_world: Node3D, d
 		if biome != "valley":
 			continue
 
-		# Slope check (simplified)
-		var slope := _estimate_slope_at(world_pos, voxel_world)
-		if slope > 35.0:
-			continue
-
-		# Get surface position
-		var surface_pos: Vector3 = voxel_world.find_surface_position(world_pos, 100.0, 200.0)
+		# Place at terrain height (cheap noise lookup, not physics raycast)
+		var surface_pos := Vector3(world_pos.x, height, world_pos.y)
 
 		# Random rotation and scale
 		var rotation_y := rng.randf_range(0, TAU)

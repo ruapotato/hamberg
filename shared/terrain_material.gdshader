@@ -476,7 +476,7 @@ float get_grass_detail(vec2 xz_pos, float flatness, int biome_idx, float anim_ti
 
 	// Grass intensity varies by biome
 	float biome_grass_intensity = 0.0;
-	if (biome_idx == 0) biome_grass_intensity = 1.0;       // Valley - lots of grass
+	if (biome_idx == 0) biome_grass_intensity = 0.0;       // Valley uses 3D MultiMesh grass
 	else if (biome_idx == 1) biome_grass_intensity = 0.3;  // Dark forest - some grass
 	else if (biome_idx == 2) biome_grass_intensity = 0.5;  // Swamp - muddy grass
 	else if (biome_idx == 3) biome_grass_intensity = 0.0;  // Mountain - no grass (snow)
@@ -641,7 +641,7 @@ GrassInfo get_grass_detail_full(vec2 xz_pos, float flatness, int biome_idx, floa
 
 	// Grass intensity varies by biome
 	float biome_grass_intensity = 0.0;
-	if (biome_idx == 0) biome_grass_intensity = 1.0;
+	if (biome_idx == 0) biome_grass_intensity = 0.0;  // Valley uses 3D MultiMesh grass
 	else if (biome_idx == 1) biome_grass_intensity = 0.3;
 	else if (biome_idx == 2) biome_grass_intensity = 0.5;
 	else if (biome_idx == 3) biome_grass_intensity = 0.0;

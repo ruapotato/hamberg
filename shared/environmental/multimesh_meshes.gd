@@ -409,26 +409,25 @@ func _setup_rock() -> void:
 func _setup_grass() -> void:
 	var obj_def := ObjectDef.new()
 
-	# Grass blade mesh - thin and delicate
+	# Grass blade mesh - crossed quads for 3D volume (Valheim-style star pattern)
 	var grass_blade := QuadMesh.new()
-	grass_blade.size = Vector2(0.08, 0.35)
+	grass_blade.size = Vector2(0.15, 0.45)
 
-	# Material - slightly deeper green
-	var grass_mat := StandardMaterial3D.new()
-	grass_mat.albedo_color = Color(0.25, 0.55, 0.2, 1)
-	grass_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
-	grass_mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+	# Shader material with vertex wind animation
+	var grass_shader := load("res://shared/environmental/grass_material.gdshader")
+	var grass_mat := ShaderMaterial.new()
+	grass_mat.shader = grass_shader
 
-	# 5 thin blades per clump
-	obj_def.mesh_defs.append(MeshDef.new(grass_blade, grass_mat, Transform3D(Basis(), Vector3(0, 0.18, 0))))
-	obj_def.mesh_defs.append(MeshDef.new(grass_blade, grass_mat, Transform3D(Basis.from_euler(Vector3(0, PI/6, 0)), Vector3(0.06, 0.16, 0.03))))
-	obj_def.mesh_defs.append(MeshDef.new(grass_blade, grass_mat, Transform3D(Basis.from_euler(Vector3(0, -PI/3, 0)), Vector3(-0.05, 0.17, -0.04))))
-	obj_def.mesh_defs.append(MeshDef.new(grass_blade, grass_mat, Transform3D(Basis.from_euler(Vector3(0, PI/4, 0)), Vector3(0.04, 0.15, -0.05))))
-	obj_def.mesh_defs.append(MeshDef.new(grass_blade, grass_mat, Transform3D(Basis.from_euler(Vector3(0, -PI/12, 0)), Vector3(-0.03, 0.19, 0.05))))
+	# 3 crossed quads at 60-degree intervals (star pattern)
+	# Each quad is centered with bottom at Y=0, top at Y=0.45
+	var half_height := 0.45 / 2.0
+	obj_def.mesh_defs.append(MeshDef.new(grass_blade, grass_mat, Transform3D(Basis(), Vector3(0, half_height, 0))))
+	obj_def.mesh_defs.append(MeshDef.new(grass_blade, grass_mat, Transform3D(Basis.from_euler(Vector3(0, PI / 3.0, 0)), Vector3(0, half_height, 0))))
+	obj_def.mesh_defs.append(MeshDef.new(grass_blade, grass_mat, Transform3D(Basis.from_euler(Vector3(0, 2.0 * PI / 3.0, 0)), Vector3(0, half_height, 0))))
 
 	obj_def.collision_radius = 0.0  # No collision for grass
 	obj_def.collision_height = 0.0
-	obj_def.cull_distance = 25.0
+	obj_def.cull_distance = 40.0
 	obj_def.max_health = 10.0
 	obj_def.resource_drops = {}
 

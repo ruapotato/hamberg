@@ -125,6 +125,10 @@ const BIOME_CHECK_INTERVAL: float = 2.0  # Check biome every 2 seconds
 # Fog wall manager
 var fog_wall_manager: Node3D = null
 
+# Grass renderer (client-side only)
+var grass_renderer: Node3D = null
+var GrassRendererScript = preload("res://client/grass_renderer.gd")
+
 # Cached Shnarken NPCs (avoid expensive tree traversal every frame)
 var cached_shnarkens: Array = []
 var shnarken_cache_timer: float = 0.0
@@ -1354,6 +1358,13 @@ func receive_world_config(world_data: Dictionary) -> void:
 		terrain_world.initialize_world(world_seed, world_name)
 		print("[Client] Initialized world '%s' with seed %d" % [world_name, world_seed])
 
+		# Initialize client-side grass renderer
+		if not grass_renderer:
+			grass_renderer = GrassRendererScript.new()
+			grass_renderer.name = "GrassRenderer"
+			world.add_child(grass_renderer)
+		grass_renderer.initialize(terrain_world, world_seed)
+
 		# Initialize map system with BiomeGenerator
 		_initialize_map_system()
 	else:
@@ -1703,6 +1714,10 @@ func receive_terrain_chunk(chunk_x: int, chunk_z: int, chunk_data: Dictionary) -
 
 ## Receive environmental objects from server - queues for batch spawning
 func receive_environmental_objects(chunk_pos: Vector2i, objects_data: Array) -> void:
+	# Generate client-side grass for this chunk
+	if grass_renderer:
+		grass_renderer.on_chunk_loaded(chunk_pos)
+
 	# Create chunk entry if it doesn't exist
 	if not environmental_chunks.has(chunk_pos):
 		environmental_chunks[chunk_pos] = {}
@@ -1805,6 +1820,10 @@ func _process_environmental_queue() -> void:
 
 ## Despawn environmental objects for a chunk
 func despawn_environmental_objects(chunk_pos: Vector2i) -> void:
+	# Unload client-side grass for this chunk
+	if grass_renderer:
+		grass_renderer.on_chunk_unloaded(chunk_pos)
+
 	# Clear any queued objects for this chunk
 	if environmental_spawn_queues.has(chunk_pos):
 		environmental_spawn_queues.erase(chunk_pos)
@@ -2006,6 +2025,8 @@ func _cleanup_environmental_objects() -> void:
 		despawn_environmental_objects(chunk_pos)
 	environmental_chunks.clear()
 	environmental_spawn_queues.clear()
+	if grass_renderer:
+		grass_renderer.cleanup()
 
 ## Spawn an enemy (client-host model: one client runs AI, others interpolate)
 func spawn_enemy(enemy_path: NodePath, enemy_type: String, position: Vector3, enemy_name: String, network_id: int = 0, host_peer_id: int = 0) -> void:
