@@ -33,7 +33,7 @@ func _process(_delta: float) -> void:
 	# Process queued chunks (spread across frames)
 	var processed := 0
 	while not pending_chunks.is_empty() and processed < CHUNKS_PER_FRAME:
-		var chunk_pos := pending_chunks.pop_front()
+		var chunk_pos: Vector2i = pending_chunks.pop_front()
 		if not grass_chunks.has(chunk_pos):
 			_generate_grass_for_chunk(chunk_pos)
 		processed += 1
@@ -62,11 +62,11 @@ func _generate_grass_for_chunk(chunk_pos: Vector2i) -> void:
 	if not terrain_world or not spawner:
 		return
 
-	var transforms := spawner.generate_dense_grass_transforms(chunk_pos, terrain_world)
+	var transforms: Array = spawner.generate_dense_grass_transforms(chunk_pos, terrain_world)
 	if transforms.is_empty():
 		return
 
-	var mm_chunk := MultimeshChunkScript.new()
+	var mm_chunk = MultimeshChunkScript.new()
 	mm_chunk.set_chunk_position(chunk_pos)
 	add_child(mm_chunk)
 	mm_chunk.add_decoration_instances("grass", transforms)
