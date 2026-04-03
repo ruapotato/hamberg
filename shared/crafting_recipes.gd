@@ -49,6 +49,11 @@ func _initialize_recipes() -> void:
 	# Note: stone_axe is now a basic recipe (no workbench) for early game bootstrapping
 	add_recipe("stone_knife", 1, {"wood": 5, "stone": 2}, "workbench")
 	add_recipe("fire_wand", 1, {"wood": 3, "resin": 7}, "workbench")
+	add_recipe("arcane_wand", 1, {"wood": 5, "stone": 3}, "workbench")  # Tier 1 - cheap
+	add_recipe("nature_wand", 1, {"wood": 8, "resin": 5}, "workbench")  # Tier 2 - wood-heavy for nature theme
+	add_recipe("holy_wand", 1, {"wood": 5, "stone": 5, "copper": 3}, "workbench")  # Tier 2 - needs some metal
+	add_recipe("lightning_wand", 1, {"wood": 5, "copper": 5, "iron": 3}, "workbench")  # Tier 2 - needs metal
+	add_recipe("dark_wand", 1, {"wood": 3, "charcoal": 5, "iron": 3}, "workbench")  # Tier 2 - dark materials
 	add_recipe("bow", 1, {"wood": 10, "resin": 1}, "workbench")
 
 	# Shields (workbench required)

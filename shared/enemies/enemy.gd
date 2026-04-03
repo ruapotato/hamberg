@@ -272,6 +272,7 @@ func _run_follower_interpolation(delta: float) -> void:
 
 	# Interpolate rotation
 	rotation.y = lerp_angle(rotation.y, sync_rotation_y, 8.0 * delta)
+	_update_sprite_facing()
 
 	# Set velocity for animation system (so walk animation plays)
 	velocity = sync_velocity
@@ -441,6 +442,19 @@ func _face_movement() -> void:
 ## Smoothly interpolate rotation towards target (called each frame)
 func _update_rotation(delta: float) -> void:
 	rotation.y = lerp_angle(rotation.y, target_rotation_y, ROTATION_LERP_SPEED * delta)
+	_update_sprite_facing()
+
+## Update the DirectionalSprite's facing_angle from the entity's current rotation.
+func _update_sprite_facing() -> void:
+	if not body_container:
+		return
+	var sprite = body_container.get_node_or_null("Sprite")
+	if not sprite:
+		sprite = body_container.get_node_or_null("BodySprite")
+	if sprite and sprite is DirectionalSprite:
+		# rotation.y includes the PI offset from look_at convention;
+		# DirectionalSprite expects 0 = forward along -Z, which matches rotation.y = 0.
+		sprite.facing_angle = rotation.y
 
 func _update_idle(delta: float) -> void:
 	if is_wander_paused:
@@ -957,14 +971,15 @@ func _setup_body() -> void:
 	body_container.rotation.y = PI
 	add_child(body_container)
 
-	# Billboard Sprite3D (Paper Mario style)
-	var sprite = Sprite3D.new()
+	# Directional Billboard Sprite3D (Paper Mario style)
+	var sprite = DirectionalSprite.new()
 	sprite.name = "Sprite"
-	sprite.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	sprite.pixel_size = 0.025
 	sprite.alpha_cut = SpriteBase3D.ALPHA_CUT_OPAQUE_PREPASS
 	sprite.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
-	sprite.texture = _create_sprite_texture()
+	var enemy_tex = _create_sprite_texture()
+	sprite.texture = enemy_tex
+	sprite.set_textures_4dir(enemy_tex, enemy_tex, enemy_tex, enemy_tex)
 	# Position so bottom of sprite is at ground level
 	# 64px tall * 0.025 pixel_size = 1.6 units total height, center at half
 	sprite.position = Vector3(0, 0.8, 0)

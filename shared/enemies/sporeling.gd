@@ -54,14 +54,15 @@ func _setup_body() -> void:
 	body_container.rotation.y = PI
 	add_child(body_container)
 
-	# Billboard Sprite3D (Paper Mario style)
-	var sprite = Sprite3D.new()
+	# Directional Billboard Sprite3D (Paper Mario style)
+	var sprite = DirectionalSprite.new()
 	sprite.name = "Sprite"
-	sprite.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	sprite.pixel_size = 0.025
 	sprite.alpha_cut = SpriteBase3D.ALPHA_CUT_OPAQUE_PREPASS
 	sprite.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
-	sprite.texture = _create_sprite_texture()
+	var sporeling_tex = _create_sprite_texture()
+	sprite.texture = sporeling_tex
+	sprite.set_textures_4dir(sporeling_tex, sporeling_tex, sporeling_tex, sporeling_tex)
 	# Sporeling is larger: 64px * 0.025 = 1.6 units, center at half
 	sprite.position = Vector3(0, 0.8, 0)
 	body_container.add_child(sprite)

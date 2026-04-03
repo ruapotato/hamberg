@@ -73,6 +73,13 @@ func _initialize_items() -> void:
 	_register_deer_armor_set()
 	_register_tank_armor_set()  # Buy-only from Shnarken
 
+	# Tier 1-2 Elemental Wands (workbench required)
+	_register_lightning_wand()
+	_register_arcane_wand()
+	_register_nature_wand()
+	_register_dark_wand()
+	_register_holy_wand()
+
 	# Buy-only weapons
 	_register_ice_wand()  # Buy-only from Shnarken
 
@@ -232,6 +239,7 @@ func _register_weapon_fire_wand() -> void:
 	weapon.knockback = 3.0
 	weapon.durability = 60
 	weapon.stamina_cost = 15.0  # For magic weapons, this is actually brain power cost
+	weapon.spell_name = "fireball"  # Maps to SpellRegistry
 	weapon.projectile_speed = 30.0
 	weapon.weight = 1.5
 	weapon.weapon_scene = load("res://shared/weapons/fire_wand.tscn")
@@ -560,20 +568,108 @@ func _register_tank_armor_set() -> void:
 	# Poison: 5.5
 	# Speed penalty: -15% total (helmet has no penalty)
 
+## Lightning Wand - Tier 2 lightning wand, chains between enemies
+func _register_lightning_wand() -> void:
+	var weapon = WeaponData.new()
+	weapon.item_id = "lightning_wand"
+	weapon.display_name = "Lightning Wand"
+	weapon.description = "A crackling wand that unleashes chain lightning. Uses Brain Power (BP).\nLightning arcs between nearby enemies."
+	weapon.weapon_type = WeaponData.WeaponType.MAGIC
+	weapon.damage = 15.0  # Tier 2 - slightly higher base damage
+	weapon.damage_type = WeaponData.DamageType.LIGHTNING
+	weapon.attack_speed = 0.8  # Slower but hits multiple targets
+	weapon.knockback = 4.0
+	weapon.durability = 50
+	weapon.stamina_cost = 20.0  # Higher BP cost for tier 2
+	weapon.spell_name = "chain_lightning"  # Maps to SpellRegistry
+	weapon.projectile_speed = 60.0
+	weapon.weight = 1.5
+	items["lightning_wand"] = weapon
+
+## Arcane Wand - Tier 1 arcane wand, fires homing missiles
+func _register_arcane_wand() -> void:
+	var weapon = WeaponData.new()
+	weapon.item_id = "arcane_wand"
+	weapon.display_name = "Arcane Wand"
+	weapon.description = "A shimmering wand that fires homing magic missiles. Uses Brain Power (BP).\nMissiles track nearby enemies."
+	weapon.weapon_type = WeaponData.WeaponType.MAGIC
+	weapon.damage = 10.0  # Tier 1 - lower per-hit but fires 3 missiles
+	weapon.damage_type = WeaponData.DamageType.ARCANE
+	weapon.attack_speed = 1.2
+	weapon.knockback = 2.0
+	weapon.durability = 60
+	weapon.stamina_cost = 10.0  # Low BP cost for tier 1
+	weapon.spell_name = "magic_missile"  # Maps to SpellRegistry
+	weapon.projectile_speed = 45.0
+	weapon.weight = 1.0
+	items["arcane_wand"] = weapon
+
+## Nature Wand - Tier 2 nature wand, entangles enemies with vines
+func _register_nature_wand() -> void:
+	var weapon = WeaponData.new()
+	weapon.item_id = "nature_wand"
+	weapon.display_name = "Nature Wand"
+	weapon.description = "A living wand that summons grasping vines. Uses Brain Power (BP).\nRoots enemies in place and deals damage over time."
+	weapon.weapon_type = WeaponData.WeaponType.MAGIC
+	weapon.damage = 8.0  # Lower direct damage, relies on DoT and crowd control
+	weapon.damage_type = WeaponData.DamageType.NATURE
+	weapon.attack_speed = 0.8
+	weapon.knockback = 1.0
+	weapon.durability = 70
+	weapon.stamina_cost = 15.0
+	weapon.spell_name = "vine_grasp"  # Maps to SpellRegistry
+	weapon.weight = 1.5
+	items["nature_wand"] = weapon
+
+## Dark Wand - Tier 2 dark wand, drains life from enemies
+func _register_dark_wand() -> void:
+	var weapon = WeaponData.new()
+	weapon.item_id = "dark_wand"
+	weapon.display_name = "Dark Wand"
+	weapon.description = "A sinister wand that drains the souls of enemies. Uses Brain Power (BP).\nSteals life and mana from targets."
+	weapon.weapon_type = WeaponData.WeaponType.MAGIC
+	weapon.damage = 14.0  # Tier 2 damage plus lifesteal
+	weapon.damage_type = WeaponData.DamageType.DARK
+	weapon.attack_speed = 1.0
+	weapon.knockback = 2.0
+	weapon.durability = 45  # Fragile, dark magic corrodes
+	weapon.stamina_cost = 18.0  # Tier 2 BP cost
+	weapon.spell_name = "soul_drain"  # Maps to SpellRegistry
+	weapon.weight = 1.5
+	items["dark_wand"] = weapon
+
+## Holy Wand - Tier 2 holy wand, damages undead and heals allies
+func _register_holy_wand() -> void:
+	var weapon = WeaponData.new()
+	weapon.item_id = "holy_wand"
+	weapon.display_name = "Holy Wand"
+	weapon.description = "A radiant wand of divine light. Uses Brain Power (BP).\nDeals bonus damage to undead and heals nearby allies."
+	weapon.weapon_type = WeaponData.WeaponType.MAGIC
+	weapon.damage = 12.0
+	weapon.damage_type = WeaponData.DamageType.HOLY
+	weapon.attack_speed = 0.9
+	weapon.knockback = 3.0
+	weapon.durability = 65
+	weapon.stamina_cost = 18.0
+	weapon.spell_name = "divine_light"  # Maps to SpellRegistry
+	weapon.weight = 1.5
+	items["holy_wand"] = weapon
+
 ## Ice Wand - Buy-only magic weapon from Shnarken
 ## Cannot be crafted - entry-level magic weapon for players who can't make fire wand
 func _register_ice_wand() -> void:
 	var weapon = WeaponData.new()
 	weapon.item_id = "ice_wand"
 	weapon.display_name = "Frost Wand"
-	weapon.description = "A basic wand that shoots frost bolts. Buy-only from Shnarken.\nDeals ice damage - effective against fire enemies."
+	weapon.description = "A wand that shoots piercing ice shards. Buy-only from Shnarken.\nDeals ice damage - slows enemies on hit."
 	weapon.weapon_type = WeaponData.WeaponType.MAGIC
-	weapon.damage = 12.0  # Slightly less than fire wand
+	weapon.damage = 12.0
 	weapon.damage_type = WeaponData.DamageType.ICE
 	weapon.attack_speed = 1.5
 	weapon.knockback = 3.0
 	weapon.durability = 80
 	weapon.stamina_cost = 12.0  # Uses brain power for magic
+	weapon.spell_name = "ice_shard"  # Maps to SpellRegistry
 	weapon.weight = 1.5
 	items["ice_wand"] = weapon
 

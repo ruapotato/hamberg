@@ -51,8 +51,8 @@ func _ready() -> void:
 # ============================================
 # MAGE PLAYER TEXTURES (64x96 pixels)
 # ============================================
-func generate_mage_texture(robe_color: String = "blue", skin_idx: int = 0) -> ImageTexture:
-	var cache_key := "mage_%s_%d" % [robe_color, skin_idx]
+func generate_mage_texture(robe_color: String = "blue", skin_idx: int = 0, view_angle: String = "front") -> ImageTexture:
+	var cache_key := "mage_%s_%d_%s" % [robe_color, skin_idx, view_angle]
 	if texture_cache.has(cache_key):
 		return texture_cache[cache_key]
 
@@ -60,125 +60,467 @@ func generate_mage_texture(robe_color: String = "blue", skin_idx: int = 0) -> Im
 	var robe: Array = MAGE_ROBES.get(robe_color, MAGE_ROBES["blue"])
 	var skin: Color = SKIN_TONES[clamp(skin_idx, 0, SKIN_TONES.size() - 1)]
 
-	# Fill transparent
 	img.fill(Color(0, 0, 0, 0))
 
-	# Draw mage (centered, from bottom up)
-	var cx := 32  # Center x
-	var by := 90  # Bottom y
-
-	# Robe base (flowing robes)
-	_draw_robe(img, cx, by, robe)
-
-	# Body/torso
-	_draw_torso(img, cx, by - 45, robe)
-
-	# Head
-	_draw_head(img, cx, by - 70, skin)
-
-	# Wizard hat
-	_draw_wizard_hat(img, cx, by - 82, robe)
-
-	# Arms (will be animated separately in some cases)
-	_draw_arms(img, cx, by - 50, skin, robe)
-
-	# Staff/wand holder position marker (subtle)
-	img.set_pixel(cx + 18, by - 45, Color(1, 1, 0, 0.5))
+	match view_angle:
+		"front":
+			_draw_mage_front(img, robe, skin)
+		"back":
+			_draw_mage_back(img, robe, skin)
+		"side":
+			_draw_mage_side(img, robe, skin)
+		_:
+			_draw_mage_front(img, robe, skin)
 
 	var tex := ImageTexture.create_from_image(img)
 	texture_cache[cache_key] = tex
 	return tex
 
-func _draw_robe(img: Image, cx: int, by: int, colors: Array) -> void:
-	# Flowing robe bottom
-	for y in range(by - 40, by):
-		var width: int = int(12 + (y - (by - 40)) * 0.4)
-		var wave: int = int(sin(y * 0.3) * 2)
-		for x in range(cx - width + wave, cx + width + wave):
-			if x >= 0 and x < 64:
+func _draw_mage_front(img: Image, robe: Array, skin: Color) -> void:
+	var cx := 32
+	var by := 92  # Bottom of sprite
+
+	# --- Robe skirt (bottom half, flowing) ---
+	for y in range(by - 35, by):
+		var progress: float = (y - (by - 35)) / 35.0
+		var width: int = int(10 + progress * 10)
+		var wave: int = int(sin(y * 0.4) * 1.5)
+		for x in range(cx - width + wave, cx + width + wave + 1):
+			if x >= 0 and x < 64 and y >= 0 and y < 96:
+				var edge_dist: float = min(abs(x - (cx - width + wave)), abs(x - (cx + width + wave)))
+				var shade: float = 0.88 + randf() * 0.1
+				if edge_dist <= 1:
+					img.set_pixel(x, y, robe[2] * shade)
+				else:
+					img.set_pixel(x, y, robe[0] * shade)
+		# Robe hem detail on last 2 rows
+		if y >= by - 2:
+			for x in range(cx - width + wave, cx + width + wave + 1):
+				if x >= 0 and x < 64:
+					img.set_pixel(x, y, robe[2] * 0.9)
+
+	# --- Torso (upper body robe) ---
+	for y in range(by - 55, by - 34):
+		var progress: float = (y - (by - 55)) / 21.0
+		var width: int = int(8 + progress * 3)
+		for x in range(cx - width, cx + width + 1):
+			if x >= 0 and x < 64 and y >= 0 and y < 96:
 				var shade: float = 0.9 + randf() * 0.1
-				img.set_pixel(x, y, colors[0] * shade)
+				img.set_pixel(x, y, robe[0] * shade)
 
-	# Robe edges/trim
-	for y in range(by - 40, by):
-		var width: int = int(12 + (y - (by - 40)) * 0.4)
-		if y >= 0 and y < 96:
-			if cx - width >= 0:
-				img.set_pixel(cx - width, y, colors[2])
-			if cx + width - 1 < 64:
-				img.set_pixel(cx + width - 1, y, colors[2])
+	# Shoulders (wider at top of torso)
+	for y in range(by - 57, by - 53):
+		var width := 11
+		for x in range(cx - width, cx + width + 1):
+			if x >= 0 and x < 64 and y >= 0 and y < 96:
+				img.set_pixel(x, y, robe[0] * 0.95)
 
-func _draw_torso(img: Image, cx: int, y: int, colors: Array) -> void:
-	# Upper body
-	for dy in range(-5, 15):
-		var width: int = 10 - abs(dy) / 3
-		for dx in range(-width, width):
+	# Belt / sash
+	for x in range(cx - 10, cx + 11):
+		if x >= 0 and x < 64:
+			var belt_y := by - 36
+			if belt_y >= 0 and belt_y < 96:
+				img.set_pixel(x, belt_y, robe[2] * 0.85)
+			if belt_y + 1 < 96:
+				img.set_pixel(x, belt_y + 1, robe[2] * 0.75)
+
+	# Robe center seam
+	for y in range(by - 35, by - 3):
+		if cx >= 0 and cx < 64 and y >= 0 and y < 96:
+			img.set_pixel(cx, y, robe[2] * 0.8)
+
+	# --- Neck ---
+	for y in range(by - 60, by - 56):
+		for dx in range(-3, 4):
 			var px := cx + dx
-			var py := y + dy
-			if px >= 0 and px < 64 and py >= 0 and py < 96:
-				img.set_pixel(px, py, colors[0])
+			if px >= 0 and px < 64 and y >= 0 and y < 96:
+				img.set_pixel(px, y, skin * 0.95)
 
-	# Belt
-	for dx in range(-8, 8):
-		var px := cx + dx
-		if px >= 0 and px < 64 and y + 10 < 96:
-			img.set_pixel(px, y + 10, colors[2] * 0.8)
-
-func _draw_head(img: Image, cx: int, y: int, skin: Color) -> void:
-	# Circular head
-	for dy in range(-8, 8):
-		for dx in range(-6, 6):
-			if dx * dx + dy * dy < 45:
+	# --- Head (large, ~1/4 body height = ~24px tall) ---
+	var head_cy := by - 72
+	var head_rx := 9  # horizontal radius
+	var head_ry := 11  # vertical radius
+	for dy in range(-head_ry, head_ry + 1):
+		for dx in range(-head_rx, head_rx + 1):
+			var nx: float = dx / float(head_rx)
+			var ny: float = dy / float(head_ry)
+			if nx * nx + ny * ny < 1.0:
 				var px := cx + dx
-				var py := y + dy
+				var py := head_cy + dy
 				if px >= 0 and px < 64 and py >= 0 and py < 96:
-					var shade: float = 0.95 + randf() * 0.05
+					var shade: float = 0.94 + randf() * 0.06
 					img.set_pixel(px, py, skin * shade)
 
 	# Eyes
-	img.set_pixel(cx - 2, y - 1, Color(0.1, 0.1, 0.2))
-	img.set_pixel(cx + 2, y - 1, Color(0.1, 0.1, 0.2))
-	# Eye shine
-	img.set_pixel(cx - 2, y - 2, Color(0.8, 0.8, 1.0))
-	img.set_pixel(cx + 2, y - 2, Color(0.8, 0.8, 1.0))
+	for eye_dx in [-3, 3]:
+		var ex := cx + eye_dx
+		var ey := head_cy - 1
+		if ex >= 0 and ex < 64 and ey >= 0 and ey < 96:
+			img.set_pixel(ex, ey, Color(0.1, 0.1, 0.2))
+			img.set_pixel(ex, ey + 1, Color(0.1, 0.1, 0.2))
+		# Eye shine
+		if ex >= 0 and ex < 64 and ey - 1 >= 0:
+			img.set_pixel(ex, ey - 1, Color(0.8, 0.8, 1.0, 0.8))
 
-	# Beard (wizard-style)
-	for dy in range(3, 12):
-		var beard_width: int = 4 - dy / 3
+	# Eyebrows
+	for eye_dx in [-3, 3]:
+		for bx in range(-1, 2):
+			var px := cx + eye_dx + bx
+			var py := head_cy - 3
+			if px >= 0 and px < 64 and py >= 0 and py < 96:
+				img.set_pixel(px, py, skin * 0.6)
+
+	# Nose
+	img.set_pixel(cx, head_cy + 2, skin * 0.85)
+	img.set_pixel(cx, head_cy + 3, skin * 0.82)
+
+	# Beard (wizard-style, flowing down)
+	for dy in range(5, 16):
+		var beard_width: int = max(0, 6 - dy / 2)
 		for dx in range(-beard_width, beard_width + 1):
 			var px := cx + dx
-			var py := y + dy
+			var py := head_cy + dy
 			if px >= 0 and px < 64 and py >= 0 and py < 96:
-				img.set_pixel(px, py, Color(0.7, 0.7, 0.75))
+				var shade: float = 0.9 + randf() * 0.1
+				img.set_pixel(px, py, Color(0.72, 0.72, 0.77) * shade)
 
-func _draw_wizard_hat(img: Image, cx: int, y: int, colors: Array) -> void:
+	# --- Wizard hat ---
+	var hat_base_y := head_cy - head_ry + 1
 	# Hat brim
-	for dx in range(-10, 11):
+	for dx in range(-12, 13):
 		var px := cx + dx
-		if px >= 0 and px < 64 and y + 5 >= 0 and y + 5 < 96:
-			img.set_pixel(px, y + 5, colors[2])
-			img.set_pixel(px, y + 6, colors[2])
+		if px >= 0 and px < 64:
+			for brim_dy in range(0, 3):
+				var py := hat_base_y + brim_dy
+				if py >= 0 and py < 96:
+					img.set_pixel(px, py, robe[2] * 0.9)
 
 	# Hat cone
-	for dy in range(-25, 6):
-		var width: int = int(8 - abs(dy + 10) * 0.35)
-		if width > 0:
-			for dx in range(-width, width):
-				var px := cx + dx
-				var py := y + dy
-				if px >= 0 and px < 64 and py >= 0 and py < 96:
-					var shade: float = 0.9 + (dx + width) / float(width * 2) * 0.2
-					img.set_pixel(px, py, colors[1] * shade)
+	var hat_height := 22
+	for dy in range(0, hat_height):
+		var progress: float = dy / float(hat_height)
+		var width: int = int(9 * (1.0 - progress))
+		if width < 1:
+			width = 1
+		var bend: int = int(progress * progress * 5)
+		for dx in range(-width, width + 1):
+			var px := cx + dx + bend
+			var py := hat_base_y - dy
+			if px >= 0 and px < 64 and py >= 0 and py < 96:
+				var shade: float = 0.85 + (dx + width) / float(width * 2 + 1) * 0.15
+				img.set_pixel(px, py, robe[1] * shade)
 
-	# Hat tip (slight bend)
-	for i in range(5):
-		var px := cx + 3 + i
-		var py := y - 25 + i
+	# Hat tip curl
+	var tip_y := hat_base_y - hat_height
+	for i in range(4):
+		var px := cx + int(hat_height * 0.23) + 2 + i
+		var py := tip_y + i
 		if px >= 0 and px < 64 and py >= 0 and py < 96:
-			img.set_pixel(px, py, colors[1])
+			img.set_pixel(px, py, robe[1])
 
-	# Star on hat
-	_draw_star(img, cx, y - 8, Color(1, 0.9, 0.3))
+	# Star emblem on hat
+	_draw_star(img, cx + 1, hat_base_y - 10, Color(1, 0.9, 0.3))
+
+	# --- Arms (at sides, with sleeves) ---
+	for arm_side in [-1, 1]:
+		var arm_x := cx + arm_side * 12
+		for i in range(18):
+			var py := by - 54 + i
+			for dx in range(-3, 4):
+				var px := arm_x + dx
+				if px >= 0 and px < 64 and py >= 0 and py < 96:
+					# Sleeve widens toward bottom
+					var sleeve_w: float = 3.0 + i * 0.15
+					if abs(dx) <= sleeve_w:
+						img.set_pixel(px, py, robe[0] * (0.88 + randf() * 0.1))
+		# Hands
+		for dx in range(-2, 3):
+			var px := arm_x + dx
+			var py := by - 35
+			if px >= 0 and px < 64 and py >= 0 and py < 96:
+				img.set_pixel(px, py, skin * 0.95)
+			if px >= 0 and px < 64 and py + 1 < 96:
+				img.set_pixel(px, py + 1, skin * 0.95)
+
+	# Staff/wand holder position marker (subtle)
+	var marker_x := cx + 18
+	var marker_y := by - 45
+	if marker_x >= 0 and marker_x < 64 and marker_y >= 0 and marker_y < 96:
+		img.set_pixel(marker_x, marker_y, Color(1, 1, 0, 0.5))
+
+func _draw_mage_back(img: Image, robe: Array, skin: Color) -> void:
+	var cx := 32
+	var by := 92
+
+	# --- Robe skirt (same silhouette as front) ---
+	for y in range(by - 35, by):
+		var progress: float = (y - (by - 35)) / 35.0
+		var width: int = int(10 + progress * 10)
+		var wave: int = int(sin(y * 0.4) * 1.5)
+		for x in range(cx - width + wave, cx + width + wave + 1):
+			if x >= 0 and x < 64 and y >= 0 and y < 96:
+				var edge_dist: float = min(abs(x - (cx - width + wave)), abs(x - (cx + width + wave)))
+				var shade: float = 0.85 + randf() * 0.1
+				if edge_dist <= 1:
+					img.set_pixel(x, y, robe[2] * shade)
+				else:
+					img.set_pixel(x, y, robe[0] * shade)
+		if y >= by - 2:
+			for x in range(cx - width + wave, cx + width + wave + 1):
+				if x >= 0 and x < 64:
+					img.set_pixel(x, y, robe[2] * 0.85)
+
+	# --- Torso back ---
+	for y in range(by - 55, by - 34):
+		var progress: float = (y - (by - 55)) / 21.0
+		var width: int = int(8 + progress * 3)
+		for x in range(cx - width, cx + width + 1):
+			if x >= 0 and x < 64 and y >= 0 and y < 96:
+				var shade: float = 0.85 + randf() * 0.1
+				img.set_pixel(x, y, robe[0] * shade)
+
+	# Shoulders
+	for y in range(by - 57, by - 53):
+		var width := 11
+		for x in range(cx - width, cx + width + 1):
+			if x >= 0 and x < 64 and y >= 0 and y < 96:
+				img.set_pixel(x, y, robe[0] * 0.9)
+
+	# Belt
+	for x in range(cx - 10, cx + 11):
+		if x >= 0 and x < 64:
+			var belt_y := by - 36
+			if belt_y >= 0 and belt_y < 96:
+				img.set_pixel(x, belt_y, robe[2] * 0.8)
+			if belt_y + 1 < 96:
+				img.set_pixel(x, belt_y + 1, robe[2] * 0.7)
+
+	# --- Neck (back) ---
+	for y in range(by - 60, by - 56):
+		for dx in range(-3, 4):
+			var px := cx + dx
+			if px >= 0 and px < 64 and y >= 0 and y < 96:
+				img.set_pixel(px, y, skin * 0.9)
+
+	# --- Back of head ---
+	var head_cy := by - 72
+	var head_rx := 9
+	var head_ry := 11
+	for dy in range(-head_ry, head_ry + 1):
+		for dx in range(-head_rx, head_rx + 1):
+			var nx: float = dx / float(head_rx)
+			var ny: float = dy / float(head_ry)
+			if nx * nx + ny * ny < 1.0:
+				var px := cx + dx
+				var py := head_cy + dy
+				if px >= 0 and px < 64 and py >= 0 and py < 96:
+					# Hair on back of head
+					var shade: float = 0.85 + randf() * 0.1
+					if ny < 0.3:
+						img.set_pixel(px, py, Color(0.55, 0.55, 0.60) * shade)
+					else:
+						img.set_pixel(px, py, skin * 0.9 * shade)
+
+	# --- Wizard hat (back view, no star) ---
+	var hat_base_y := head_cy - head_ry + 1
+	for dx in range(-12, 13):
+		var px := cx + dx
+		if px >= 0 and px < 64:
+			for brim_dy in range(0, 3):
+				var py := hat_base_y + brim_dy
+				if py >= 0 and py < 96:
+					img.set_pixel(px, py, robe[2] * 0.85)
+
+	var hat_height := 22
+	for dy in range(0, hat_height):
+		var progress: float = dy / float(hat_height)
+		var width: int = int(9 * (1.0 - progress))
+		if width < 1:
+			width = 1
+		var bend: int = int(progress * progress * 5)
+		for dx in range(-width, width + 1):
+			var px := cx + dx + bend
+			var py := hat_base_y - dy
+			if px >= 0 and px < 64 and py >= 0 and py < 96:
+				var shade: float = 0.8 + (dx + width) / float(width * 2 + 1) * 0.15
+				img.set_pixel(px, py, robe[1] * shade)
+
+	var tip_y := hat_base_y - hat_height
+	for i in range(4):
+		var px := cx + int(hat_height * 0.23) + 2 + i
+		var py := tip_y + i
+		if px >= 0 and px < 64 and py >= 0 and py < 96:
+			img.set_pixel(px, py, robe[1])
+
+	# --- Arms (back view) ---
+	for arm_side in [-1, 1]:
+		var arm_x := cx + arm_side * 12
+		for i in range(18):
+			var py := by - 54 + i
+			for dx in range(-3, 4):
+				var px := arm_x + dx
+				if px >= 0 and px < 64 and py >= 0 and py < 96:
+					var sleeve_w: float = 3.0 + i * 0.15
+					if abs(dx) <= sleeve_w:
+						img.set_pixel(px, py, robe[0] * (0.83 + randf() * 0.1))
+		for dx in range(-2, 3):
+			var px := arm_x + dx
+			var py := by - 35
+			if px >= 0 and px < 64 and py >= 0 and py < 96:
+				img.set_pixel(px, py, skin * 0.9)
+			if px >= 0 and px < 64 and py + 1 < 96:
+				img.set_pixel(px, py + 1, skin * 0.9)
+
+func _draw_mage_side(img: Image, robe: Array, skin: Color) -> void:
+	var cx := 30  # Slightly left of center for side view
+	var by := 92
+
+	# --- Robe skirt (side profile, narrower) ---
+	for y in range(by - 35, by):
+		var progress: float = (y - (by - 35)) / 35.0
+		var front_w: int = int(6 + progress * 7)
+		var back_w: int = int(5 + progress * 5)
+		var wave: int = int(sin(y * 0.4) * 1)
+		for x in range(cx - back_w + wave, cx + front_w + wave + 1):
+			if x >= 0 and x < 64 and y >= 0 and y < 96:
+				var edge_dist: float = min(abs(x - (cx - back_w + wave)), abs(x - (cx + front_w + wave)))
+				var shade: float = 0.88 + randf() * 0.1
+				if edge_dist <= 1:
+					img.set_pixel(x, y, robe[2] * shade)
+				else:
+					img.set_pixel(x, y, robe[0] * shade)
+		if y >= by - 2:
+			for x in range(cx - back_w + wave, cx + front_w + wave + 1):
+				if x >= 0 and x < 64:
+					img.set_pixel(x, y, robe[2] * 0.9)
+
+	# --- Torso (side, thinner) ---
+	for y in range(by - 55, by - 34):
+		var progress: float = (y - (by - 55)) / 21.0
+		var front_w: int = int(5 + progress * 2)
+		var back_w: int = int(4 + progress * 1)
+		for x in range(cx - back_w, cx + front_w + 1):
+			if x >= 0 and x < 64 and y >= 0 and y < 96:
+				var shade: float = 0.88 + randf() * 0.1
+				img.set_pixel(x, y, robe[0] * shade)
+
+	# Shoulders
+	for y in range(by - 57, by - 53):
+		for x in range(cx - 5, cx + 7):
+			if x >= 0 and x < 64 and y >= 0 and y < 96:
+				img.set_pixel(x, y, robe[0] * 0.92)
+
+	# Belt
+	for x in range(cx - 5, cx + 7):
+		if x >= 0 and x < 64:
+			var belt_y := by - 36
+			if belt_y >= 0 and belt_y < 96:
+				img.set_pixel(x, belt_y, robe[2] * 0.85)
+
+	# --- Neck ---
+	for y in range(by - 60, by - 56):
+		for dx in range(-2, 3):
+			var px := cx + dx
+			if px >= 0 and px < 64 and y >= 0 and y < 96:
+				img.set_pixel(px, y, skin * 0.95)
+
+	# --- Head (side profile) ---
+	var head_cy := by - 72
+	var head_rx := 9
+	var head_ry := 11
+	for dy in range(-head_ry, head_ry + 1):
+		for dx in range(-head_rx, head_rx + 1):
+			var nx: float = dx / float(head_rx)
+			var ny: float = dy / float(head_ry)
+			if nx * nx + ny * ny < 1.0:
+				var px := cx + dx
+				var py := head_cy + dy
+				if px >= 0 and px < 64 and py >= 0 and py < 96:
+					var shade: float = 0.94 + randf() * 0.06
+					img.set_pixel(px, py, skin * shade)
+
+	# Eye (one, side view)
+	var ex := cx + 4
+	var ey := head_cy - 1
+	if ex >= 0 and ex < 64 and ey >= 0 and ey + 1 < 96:
+		img.set_pixel(ex, ey, Color(0.1, 0.1, 0.2))
+		img.set_pixel(ex, ey + 1, Color(0.1, 0.1, 0.2))
+		if ey - 1 >= 0:
+			img.set_pixel(ex, ey - 1, Color(0.8, 0.8, 1.0, 0.8))
+
+	# Eyebrow
+	for bx in range(-1, 2):
+		var px := ex + bx
+		var py := head_cy - 3
+		if px >= 0 and px < 64 and py >= 0 and py < 96:
+			img.set_pixel(px, py, skin * 0.6)
+
+	# Nose (profile, protruding)
+	for i in range(4):
+		var px := cx + head_rx - 1 + i / 2
+		var py := head_cy + 1 + i
+		if px >= 0 and px < 64 and py >= 0 and py < 96:
+			img.set_pixel(px, py, skin * 0.88)
+
+	# Beard (side profile)
+	for dy in range(5, 14):
+		var beard_width: int = max(0, 5 - dy / 2)
+		for dx in range(0, beard_width + 1):
+			var px := cx + dx + 2
+			var py := head_cy + dy
+			if px >= 0 and px < 64 and py >= 0 and py < 96:
+				img.set_pixel(px, py, Color(0.72, 0.72, 0.77) * (0.9 + randf() * 0.1))
+
+	# --- Wizard hat (side) ---
+	var hat_base_y := head_cy - head_ry + 1
+	for dx in range(-10, 12):
+		var px := cx + dx
+		if px >= 0 and px < 64:
+			for brim_dy in range(0, 3):
+				var py := hat_base_y + brim_dy
+				if py >= 0 and py < 96:
+					img.set_pixel(px, py, robe[2] * 0.9)
+
+	var hat_height := 22
+	for dy in range(0, hat_height):
+		var progress: float = dy / float(hat_height)
+		var width: int = int(8 * (1.0 - progress))
+		if width < 1:
+			width = 1
+		var bend: int = int(progress * progress * 5)
+		for dx in range(-width / 2, width + 1):
+			var px := cx + dx + bend
+			var py := hat_base_y - dy
+			if px >= 0 and px < 64 and py >= 0 and py < 96:
+				var shade: float = 0.85 + randf() * 0.12
+				img.set_pixel(px, py, robe[1] * shade)
+
+	var tip_y := hat_base_y - hat_height
+	for i in range(4):
+		var px := cx + int(hat_height * 0.23) + 2 + i
+		var py := tip_y + i
+		if px >= 0 and px < 64 and py >= 0 and py < 96:
+			img.set_pixel(px, py, robe[1])
+
+	# Star on hat side
+	_draw_star(img, cx + 2, hat_base_y - 10, Color(1, 0.9, 0.3))
+
+	# --- Arm (one visible, side view) ---
+	var arm_x := cx + 2
+	for i in range(18):
+		var py := by - 54 + i
+		for dx in range(-3, 4):
+			var px := arm_x + dx
+			if px >= 0 and px < 64 and py >= 0 and py < 96:
+				img.set_pixel(px, py, robe[0] * (0.85 + randf() * 0.1))
+	# Hand
+	for dx in range(-2, 3):
+		var px := arm_x + dx
+		var py := by - 35
+		if px >= 0 and px < 64 and py >= 0 and py < 96:
+			img.set_pixel(px, py, skin * 0.95)
+		if px >= 0 and px < 64 and py + 1 < 96:
+			img.set_pixel(px, py + 1, skin * 0.95)
 
 func _draw_star(img: Image, cx: int, cy: int, color: Color) -> void:
 	# Simple 5-point star
@@ -188,37 +530,13 @@ func _draw_star(img: Image, cx: int, cy: int, color: Color) -> void:
 		Vector2i(-2, 3), Vector2i(-1, 1), Vector2i(-3, 0),
 		Vector2i(-1, -1)
 	]
+	var img_w := img.get_width()
+	var img_h := img.get_height()
 	for p in points:
 		var px: int = cx + p.x
 		var py: int = cy + p.y
-		if px >= 0 and px < 64 and py >= 0 and py < 96:
+		if px >= 0 and px < img_w and py >= 0 and py < img_h:
 			img.set_pixel(px, py, color)
-
-func _draw_arms(img: Image, cx: int, y: int, skin: Color, robe: Array) -> void:
-	# Left arm (down)
-	for i in range(15):
-		var px := cx - 12
-		var py := y + i
-		if px >= 0 and px < 64 and py >= 0 and py < 96:
-			# Sleeve
-			img.set_pixel(px, py, robe[0])
-			img.set_pixel(px + 1, py, robe[0])
-			img.set_pixel(px + 2, py, robe[0])
-
-	# Left hand
-	for dx in range(-1, 3):
-		var px := cx - 12 + dx
-		var py := y + 15
-		if px >= 0 and px < 64 and py >= 0 and py < 96:
-			img.set_pixel(px, py, skin)
-
-	# Right arm (holding staff, angled up)
-	for i in range(12):
-		var px := cx + 10 + i / 2
-		var py := y + 5 - i / 3
-		if px >= 0 and px < 64 and py >= 0 and py < 96:
-			img.set_pixel(px, py, robe[0])
-			img.set_pixel(px, py + 1, robe[0])
 
 # ============================================
 # ZOMBIE TEXTURES (64x96 pixels)
@@ -1159,8 +1477,8 @@ func generate_staff_texture(staff_type: String = "arcane") -> ImageTexture:
 # ANIMAL TEXTURES (64x64 pixels, side-view)
 # ============================================
 
-func generate_deer_texture() -> ImageTexture:
-	var cache_key := "animal_deer"
+func generate_deer_texture(view_angle: String = "side") -> ImageTexture:
+	var cache_key := "animal_deer_%s" % view_angle
 	if texture_cache.has(cache_key):
 		return texture_cache[cache_key]
 
@@ -1174,21 +1492,34 @@ func generate_deer_texture() -> ImageTexture:
 	var eye_color := Color(0.1, 0.08, 0.05)
 	var nose_color := Color(0.25, 0.15, 0.10)
 
+	match view_angle:
+		"side":
+			_draw_deer_side(img, tan_body, tan_dark, belly_color, antler_color, eye_color, nose_color)
+		"front":
+			_draw_deer_front(img, tan_body, tan_dark, belly_color, antler_color, eye_color, nose_color)
+		"back":
+			_draw_deer_back(img, tan_body, tan_dark, belly_color, antler_color)
+		_:
+			_draw_deer_side(img, tan_body, tan_dark, belly_color, antler_color, eye_color, nose_color)
+
+	var tex := ImageTexture.create_from_image(img)
+	texture_cache[cache_key] = tex
+	return tex
+
+func _draw_deer_side(img: Image, tan_body: Color, tan_dark: Color, belly_color: Color, antler_color: Color, eye_color: Color, nose_color: Color) -> void:
 	# Body - horizontal oval, facing right
-	# Center of body around (30, 35), semi-major axis ~14 horizontal, ~9 vertical
 	for y in range(26, 45):
 		for x in range(14, 48):
 			var dx: float = (x - 30.0) / 14.0
 			var dy: float = (y - 35.0) / 9.0
 			if dx * dx + dy * dy < 1.0:
 				var shade: float = 0.95 + randf() * 0.05
-				# Lighter belly on lower portion
 				if dy > 0.3:
 					img.set_pixel(x, y, belly_color * shade)
 				else:
 					img.set_pixel(x, y, tan_body * shade)
 
-	# Neck - angled up-right from front of body
+	# Neck
 	for i in range(12):
 		var nx: int = 42 + i / 3
 		var ny: int = 30 - i
@@ -1199,7 +1530,7 @@ func generate_deer_texture() -> ImageTexture:
 				if ny + 1 < 64:
 					img.set_pixel(px, ny + 1, tan_body * (0.90 + randf() * 0.07))
 
-	# Head - small oval at top of neck
+	# Head
 	var head_cx := 46
 	var head_cy := 17
 	for y in range(head_cy - 5, head_cy + 5):
@@ -1216,7 +1547,6 @@ func generate_deer_texture() -> ImageTexture:
 	# Eye
 	img.set_pixel(head_cx + 2, head_cy - 1, eye_color)
 	img.set_pixel(head_cx + 3, head_cy - 1, eye_color)
-	# Eye shine
 	img.set_pixel(head_cx + 3, head_cy - 2, Color(0.9, 0.9, 1.0, 0.7))
 
 	# Ear
@@ -1227,30 +1557,27 @@ func generate_deer_texture() -> ImageTexture:
 			img.set_pixel(px, py, tan_dark)
 			img.set_pixel(px + 1, py, tan_dark)
 
-	# Antlers - two branching structures on top of head
+	# Antlers
 	for antler_side in [-1, 1]:
 		var ax: int = head_cx + antler_side * 2
-		# Main tine going up
 		for i in range(8):
 			var py: int = head_cy - 6 - i
 			var px: int = ax + antler_side * (i / 3)
 			if px >= 0 and px < 64 and py >= 0:
 				img.set_pixel(px, py, antler_color)
-		# Branch tine
 		for i in range(4):
 			var py: int = head_cy - 10 + i / 2
 			var px: int = ax + antler_side * (3 + i)
 			if px >= 0 and px < 64 and py >= 0:
 				img.set_pixel(px, py, antler_color)
 
-	# Legs - four thin legs
+	# Legs
 	var leg_positions := [20, 26, 36, 42]
 	for lx in leg_positions:
 		for ly in range(44, 58):
 			if lx >= 0 and lx < 64:
 				img.set_pixel(lx, ly, tan_dark)
 				img.set_pixel(lx + 1, ly, tan_dark)
-		# Hooves
 		if lx >= 0 and lx < 63:
 			img.set_pixel(lx, 58, Color(0.2, 0.15, 0.1))
 			img.set_pixel(lx + 1, 58, Color(0.2, 0.15, 0.1))
@@ -1264,13 +1591,194 @@ func generate_deer_texture() -> ImageTexture:
 			if py + 1 < 64:
 				img.set_pixel(px, py + 1, belly_color)
 
-	var tex := ImageTexture.create_from_image(img)
-	texture_cache[cache_key] = tex
-	return tex
+func _draw_deer_front(img: Image, tan_body: Color, tan_dark: Color, belly_color: Color, antler_color: Color, eye_color: Color, nose_color: Color) -> void:
+	var cx := 32
+
+	# Body - narrower front view oval
+	for y in range(28, 48):
+		for x in range(22, 43):
+			var dx: float = (x - cx) / 9.0
+			var dy: float = (y - 38.0) / 9.0
+			if dx * dx + dy * dy < 1.0:
+				var shade: float = 0.95 + randf() * 0.05
+				if dy > 0.3:
+					img.set_pixel(x, y, belly_color * shade)
+				else:
+					img.set_pixel(x, y, tan_body * shade)
+
+	# Chest highlight
+	for y in range(30, 38):
+		for x in range(cx - 4, cx + 5):
+			var dx: float = (x - cx) / 4.0
+			var dy: float = (y - 34.0) / 4.0
+			if dx * dx + dy * dy < 1.0:
+				img.set_pixel(x, y, belly_color * (0.95 + randf() * 0.05))
+
+	# Neck
+	for y in range(22, 29):
+		for dx in range(-3, 4):
+			var px: int = cx + dx
+			if px >= 0 and px < 64 and y >= 0:
+				img.set_pixel(px, y, tan_body * (0.93 + randf() * 0.07))
+
+	# Head - facing viewer
+	var head_cy := 15
+	for dy in range(-6, 7):
+		for dx in range(-6, 7):
+			var nx: float = dx / 6.0
+			var ny: float = dy / 6.0
+			if nx * nx + ny * ny < 1.0:
+				var px := cx + dx
+				var py := head_cy + dy
+				if px >= 0 and px < 64 and py >= 0 and py < 64:
+					img.set_pixel(px, py, tan_body * (0.95 + randf() * 0.05))
+
+	# Muzzle
+	for dy in range(2, 6):
+		for dx in range(-3, 4):
+			var nx: float = dx / 3.0
+			var ny: float = (dy - 4.0) / 2.0
+			if nx * nx + ny * ny < 1.0:
+				var px := cx + dx
+				var py := head_cy + dy
+				if px >= 0 and px < 64 and py >= 0 and py < 64:
+					img.set_pixel(px, py, belly_color * 0.95)
+
+	# Nose
+	img.set_pixel(cx - 1, head_cy + 3, nose_color)
+	img.set_pixel(cx, head_cy + 3, nose_color)
+	img.set_pixel(cx + 1, head_cy + 3, nose_color)
+
+	# Eyes (both visible)
+	img.set_pixel(cx - 3, head_cy - 1, eye_color)
+	img.set_pixel(cx + 3, head_cy - 1, eye_color)
+	img.set_pixel(cx - 3, head_cy - 2, Color(0.9, 0.9, 1.0, 0.7))
+	img.set_pixel(cx + 3, head_cy - 2, Color(0.9, 0.9, 1.0, 0.7))
+
+	# Ears (both sides, angled out)
+	for i in range(4):
+		for side in [-1, 1]:
+			var px: int = cx + side * (6 + i)
+			var py: int = head_cy - 4 - i
+			if px >= 0 and px < 64 and py >= 0:
+				img.set_pixel(px, py, tan_dark)
+				if py + 1 < 64:
+					img.set_pixel(px, py + 1, tan_dark)
+
+	# Antlers (both sides, symmetrical, going up and out)
+	for antler_side in [-1, 1]:
+		var ax: int = cx + antler_side * 4
+		for i in range(8):
+			var py: int = head_cy - 7 - i
+			var px: int = ax + antler_side * (i / 2)
+			if px >= 0 and px < 64 and py >= 0:
+				img.set_pixel(px, py, antler_color)
+		for i in range(4):
+			var py: int = head_cy - 11 + i / 2
+			var px: int = ax + antler_side * (4 + i)
+			if px >= 0 and px < 64 and py >= 0:
+				img.set_pixel(px, py, antler_color)
+
+	# Front legs (two visible, closer together)
+	for leg_offset in [-5, 5]:
+		var lx: int = cx + leg_offset
+		for ly in range(47, 58):
+			if lx >= 0 and lx + 1 < 64:
+				img.set_pixel(lx, ly, tan_dark)
+				img.set_pixel(lx + 1, ly, tan_dark)
+		if lx >= 0 and lx + 1 < 64:
+			img.set_pixel(lx, 58, Color(0.2, 0.15, 0.1))
+			img.set_pixel(lx + 1, 58, Color(0.2, 0.15, 0.1))
+
+func _draw_deer_back(img: Image, tan_body: Color, tan_dark: Color, belly_color: Color, antler_color: Color) -> void:
+	var cx := 32
+
+	# Body - back view
+	for y in range(28, 48):
+		for x in range(22, 43):
+			var dx: float = (x - cx) / 9.0
+			var dy: float = (y - 38.0) / 9.0
+			if dx * dx + dy * dy < 1.0:
+				var shade: float = 0.92 + randf() * 0.05
+				img.set_pixel(x, y, tan_body * shade)
+
+	# Rump/white tail patch
+	for dy in range(-3, 4):
+		for dx in range(-4, 5):
+			var nx: float = dx / 4.0
+			var ny: float = dy / 3.0
+			if nx * nx + ny * ny < 1.0:
+				var px := cx + dx
+				var py := 30 + dy
+				if px >= 0 and px < 64 and py >= 0 and py < 64:
+					img.set_pixel(px, py, belly_color * (0.95 + randf() * 0.05))
+
+	# Tail (white, upright)
+	for i in range(6):
+		var px := cx
+		var py := 26 - i
+		if px >= 0 and px < 64 and py >= 0:
+			img.set_pixel(px, py, belly_color)
+			if px + 1 < 64:
+				img.set_pixel(px + 1, py, belly_color)
+
+	# Neck (back)
+	for y in range(22, 29):
+		for dx in range(-3, 4):
+			var px: int = cx + dx
+			if px >= 0 and px < 64:
+				img.set_pixel(px, y, tan_body * (0.90 + randf() * 0.07))
+
+	# Back of head
+	var head_cy := 15
+	for dy in range(-6, 7):
+		for dx in range(-6, 7):
+			var nx: float = dx / 6.0
+			var ny: float = dy / 6.0
+			if nx * nx + ny * ny < 1.0:
+				var px := cx + dx
+				var py := head_cy + dy
+				if px >= 0 and px < 64 and py >= 0 and py < 64:
+					img.set_pixel(px, py, tan_body * (0.92 + randf() * 0.05))
+
+	# Ears (back)
+	for i in range(4):
+		for side in [-1, 1]:
+			var px: int = cx + side * (6 + i)
+			var py: int = head_cy - 4 - i
+			if px >= 0 and px < 64 and py >= 0:
+				img.set_pixel(px, py, tan_dark)
+				if py + 1 < 64:
+					img.set_pixel(px, py + 1, tan_dark)
+
+	# Antlers (from behind)
+	for antler_side in [-1, 1]:
+		var ax: int = cx + antler_side * 4
+		for i in range(8):
+			var py: int = head_cy - 7 - i
+			var px: int = ax + antler_side * (i / 2)
+			if px >= 0 and px < 64 and py >= 0:
+				img.set_pixel(px, py, antler_color)
+		for i in range(4):
+			var py: int = head_cy - 11 + i / 2
+			var px: int = ax + antler_side * (4 + i)
+			if px >= 0 and px < 64 and py >= 0:
+				img.set_pixel(px, py, antler_color)
+
+	# Back legs
+	for leg_offset in [-5, 5]:
+		var lx: int = cx + leg_offset
+		for ly in range(47, 58):
+			if lx >= 0 and lx + 1 < 64:
+				img.set_pixel(lx, ly, tan_dark)
+				img.set_pixel(lx + 1, ly, tan_dark)
+		if lx >= 0 and lx + 1 < 64:
+			img.set_pixel(lx, 58, Color(0.2, 0.15, 0.1))
+			img.set_pixel(lx + 1, 58, Color(0.2, 0.15, 0.1))
 
 
-func generate_pig_texture() -> ImageTexture:
-	var cache_key := "animal_pig"
+func generate_pig_texture(view_angle: String = "side") -> ImageTexture:
+	var cache_key := "animal_pig_%s" % view_angle
 	if texture_cache.has(cache_key):
 		return texture_cache[cache_key]
 
@@ -1284,21 +1792,34 @@ func generate_pig_texture() -> ImageTexture:
 	var eye_color := Color(0.12, 0.08, 0.08)
 	var hoof_color := Color(0.55, 0.40, 0.35)
 
+	match view_angle:
+		"side":
+			_draw_pig_side(img, pink_body, pink_dark, pink_light, snout_color, eye_color, hoof_color)
+		"front":
+			_draw_pig_front(img, pink_body, pink_dark, pink_light, snout_color, eye_color, hoof_color)
+		"back":
+			_draw_pig_back(img, pink_body, pink_dark, pink_light, hoof_color)
+		_:
+			_draw_pig_side(img, pink_body, pink_dark, pink_light, snout_color, eye_color, hoof_color)
+
+	var tex := ImageTexture.create_from_image(img)
+	texture_cache[cache_key] = tex
+	return tex
+
+func _draw_pig_side(img: Image, pink_body: Color, pink_dark: Color, pink_light: Color, snout_color: Color, eye_color: Color, hoof_color: Color) -> void:
 	# Body - fat round oval, facing right
-	# Center around (28, 36), larger horizontal radius for roundness
 	for y in range(24, 50):
 		for x in range(12, 46):
 			var dx: float = (x - 28.0) / 15.0
 			var dy: float = (y - 36.0) / 12.0
 			if dx * dx + dy * dy < 1.0:
 				var shade: float = 0.95 + randf() * 0.05
-				# Lighter on belly
 				if dy > 0.4:
 					img.set_pixel(x, y, pink_light * shade)
 				else:
 					img.set_pixel(x, y, pink_body * shade)
 
-	# Head - round, attached to front of body, facing right
+	# Head
 	var head_cx := 46
 	var head_cy := 34
 	for y in range(head_cy - 7, head_cy + 7):
@@ -1308,12 +1829,11 @@ func generate_pig_texture() -> ImageTexture:
 			if dx * dx + dy * dy < 1.0:
 				img.set_pixel(x, y, pink_body * (0.95 + randf() * 0.05))
 
-	# Snout - rectangular protrusion
+	# Snout
 	for y in range(head_cy - 2, head_cy + 3):
 		for x in range(head_cx + 5, head_cx + 10):
 			if x < 64:
 				img.set_pixel(x, y, snout_color)
-	# Nostrils
 	if head_cx + 8 < 64:
 		img.set_pixel(head_cx + 8, head_cy - 1, pink_dark)
 		img.set_pixel(head_cx + 8, head_cy + 1, pink_dark)
@@ -1321,10 +1841,9 @@ func generate_pig_texture() -> ImageTexture:
 	# Eye
 	img.set_pixel(head_cx + 1, head_cy - 2, eye_color)
 	img.set_pixel(head_cx + 2, head_cy - 2, eye_color)
-	# Eye shine
 	img.set_pixel(head_cx + 2, head_cy - 3, Color(0.9, 0.9, 1.0, 0.6))
 
-	# Ear - triangular flop on top of head
+	# Ear
 	for i in range(5):
 		var px: int = head_cx - 1 + i / 2
 		var py: int = head_cy - 7 - i
@@ -1333,7 +1852,7 @@ func generate_pig_texture() -> ImageTexture:
 			if px + 1 < 64:
 				img.set_pixel(px + 1, py, pink_dark)
 
-	# Legs - four stubby legs
+	# Legs
 	var pig_leg_positions := [17, 23, 33, 39]
 	for lx in pig_leg_positions:
 		for ly in range(48, 56):
@@ -1341,13 +1860,12 @@ func generate_pig_texture() -> ImageTexture:
 				img.set_pixel(lx, ly, pink_dark)
 				img.set_pixel(lx + 1, ly, pink_dark)
 				img.set_pixel(lx + 2, ly, pink_dark)
-		# Hooves
 		if lx >= 0 and lx + 2 < 64:
 			img.set_pixel(lx, 56, hoof_color)
 			img.set_pixel(lx + 1, 56, hoof_color)
 			img.set_pixel(lx + 2, 56, hoof_color)
 
-	# Curly tail - spiral shape at back
+	# Curly tail
 	var tail_points := [
 		Vector2i(11, 30), Vector2i(10, 29), Vector2i(9, 28),
 		Vector2i(8, 28), Vector2i(7, 29), Vector2i(7, 30),
@@ -1357,13 +1875,140 @@ func generate_pig_texture() -> ImageTexture:
 		if p.x >= 0 and p.x < 64 and p.y >= 0 and p.y < 64:
 			img.set_pixel(p.x, p.y, pink_dark)
 
-	var tex := ImageTexture.create_from_image(img)
-	texture_cache[cache_key] = tex
-	return tex
+func _draw_pig_front(img: Image, pink_body: Color, pink_dark: Color, pink_light: Color, snout_color: Color, eye_color: Color, hoof_color: Color) -> void:
+	var cx := 32
+
+	# Body - round, front view
+	for y in range(26, 50):
+		for x in range(18, 47):
+			var dx: float = (x - cx) / 13.0
+			var dy: float = (y - 38.0) / 11.0
+			if dx * dx + dy * dy < 1.0:
+				var shade: float = 0.95 + randf() * 0.05
+				if dy > 0.4:
+					img.set_pixel(x, y, pink_light * shade)
+				else:
+					img.set_pixel(x, y, pink_body * shade)
+
+	# Head - round, facing viewer
+	var head_cy := 22
+	for dy in range(-8, 9):
+		for dx in range(-8, 9):
+			var nx: float = dx / 8.0
+			var ny: float = dy / 8.0
+			if nx * nx + ny * ny < 1.0:
+				var px := cx + dx
+				var py := head_cy + dy
+				if px >= 0 and px < 64 and py >= 0 and py < 64:
+					img.set_pixel(px, py, pink_body * (0.95 + randf() * 0.05))
+
+	# Snout (front-facing, oval)
+	for dy in range(-3, 4):
+		for dx in range(-4, 5):
+			var nx: float = dx / 4.0
+			var ny: float = dy / 3.0
+			if nx * nx + ny * ny < 1.0:
+				var px := cx + dx
+				var py := head_cy + 3 + dy
+				if px >= 0 and px < 64 and py >= 0 and py < 64:
+					img.set_pixel(px, py, snout_color)
+
+	# Nostrils
+	img.set_pixel(cx - 2, head_cy + 3, pink_dark)
+	img.set_pixel(cx + 2, head_cy + 3, pink_dark)
+
+	# Eyes
+	img.set_pixel(cx - 4, head_cy - 2, eye_color)
+	img.set_pixel(cx - 3, head_cy - 2, eye_color)
+	img.set_pixel(cx + 3, head_cy - 2, eye_color)
+	img.set_pixel(cx + 4, head_cy - 2, eye_color)
+	img.set_pixel(cx - 3, head_cy - 3, Color(0.9, 0.9, 1.0, 0.6))
+	img.set_pixel(cx + 4, head_cy - 3, Color(0.9, 0.9, 1.0, 0.6))
+
+	# Ears (both sides, flopping)
+	for i in range(5):
+		for side in [-1, 1]:
+			var px: int = cx + side * (7 + i / 2)
+			var py: int = head_cy - 6 - i
+			if px >= 0 and px < 64 and py >= 0:
+				img.set_pixel(px, py, pink_dark)
+				if px + side >= 0 and px + side < 64:
+					img.set_pixel(px + side, py, pink_dark)
+
+	# Front legs (two visible)
+	for leg_offset in [-7, 7]:
+		var lx: int = cx + leg_offset
+		for ly in range(48, 56):
+			if lx >= 0 and lx + 2 < 64:
+				img.set_pixel(lx, ly, pink_dark)
+				img.set_pixel(lx + 1, ly, pink_dark)
+				img.set_pixel(lx + 2, ly, pink_dark)
+		if lx >= 0 and lx + 2 < 64:
+			img.set_pixel(lx, 56, hoof_color)
+			img.set_pixel(lx + 1, 56, hoof_color)
+			img.set_pixel(lx + 2, 56, hoof_color)
+
+func _draw_pig_back(img: Image, pink_body: Color, pink_dark: Color, pink_light: Color, hoof_color: Color) -> void:
+	var cx := 32
+
+	# Body - back view
+	for y in range(26, 50):
+		for x in range(18, 47):
+			var dx: float = (x - cx) / 13.0
+			var dy: float = (y - 38.0) / 11.0
+			if dx * dx + dy * dy < 1.0:
+				var shade: float = 0.92 + randf() * 0.05
+				img.set_pixel(x, y, pink_body * shade)
+
+	# Back of head
+	var head_cy := 22
+	for dy in range(-8, 9):
+		for dx in range(-8, 9):
+			var nx: float = dx / 8.0
+			var ny: float = dy / 8.0
+			if nx * nx + ny * ny < 1.0:
+				var px := cx + dx
+				var py := head_cy + dy
+				if px >= 0 and px < 64 and py >= 0 and py < 64:
+					img.set_pixel(px, py, pink_body * (0.92 + randf() * 0.05))
+
+	# Ears (back view)
+	for i in range(5):
+		for side in [-1, 1]:
+			var px: int = cx + side * (7 + i / 2)
+			var py: int = head_cy - 6 - i
+			if px >= 0 and px < 64 and py >= 0:
+				img.set_pixel(px, py, pink_dark)
+				if px + side >= 0 and px + side < 64:
+					img.set_pixel(px + side, py, pink_dark)
+
+	# Curly tail (prominent from back)
+	var tail_points := [
+		Vector2i(cx, 27), Vector2i(cx + 1, 26), Vector2i(cx + 2, 25),
+		Vector2i(cx + 3, 25), Vector2i(cx + 4, 26), Vector2i(cx + 4, 27),
+		Vector2i(cx + 3, 28), Vector2i(cx + 2, 28), Vector2i(cx + 1, 27),
+		Vector2i(cx + 1, 26), Vector2i(cx + 2, 24), Vector2i(cx + 3, 24),
+	]
+	for p in tail_points:
+		if p.x >= 0 and p.x < 64 and p.y >= 0 and p.y < 64:
+			img.set_pixel(p.x, p.y, pink_dark)
+
+	# Back legs
+	for leg_offset in [-7, 7]:
+		var lx: int = cx + leg_offset
+		for ly in range(48, 56):
+			if lx >= 0 and lx + 2 < 64:
+				img.set_pixel(lx, ly, pink_dark)
+				img.set_pixel(lx + 1, ly, pink_dark)
+				img.set_pixel(lx + 2, ly, pink_dark)
+		if lx >= 0 and lx + 2 < 64:
+			img.set_pixel(lx, 56, hoof_color)
+			img.set_pixel(lx + 1, 56, hoof_color)
+			img.set_pixel(lx + 2, 56, hoof_color)
 
 
-func generate_sheep_texture() -> ImageTexture:
-	var cache_key := "animal_sheep"
+func generate_sheep_texture(view_angle: String = "side") -> ImageTexture:
+	var cache_key := "animal_sheep_%s" % view_angle
 	if texture_cache.has(cache_key):
 		return texture_cache[cache_key]
 
@@ -1378,14 +2023,27 @@ func generate_sheep_texture() -> ImageTexture:
 	var eye_color := Color(0.08, 0.06, 0.05)
 	var ear_color := Color(0.30, 0.25, 0.22)
 
+	match view_angle:
+		"side":
+			_draw_sheep_side(img, wool_white, wool_light, wool_shadow, face_color, leg_color, eye_color, ear_color)
+		"front":
+			_draw_sheep_front(img, wool_white, wool_light, wool_shadow, face_color, leg_color, eye_color, ear_color)
+		"back":
+			_draw_sheep_back(img, wool_white, wool_light, wool_shadow, face_color, leg_color, ear_color)
+		_:
+			_draw_sheep_side(img, wool_white, wool_light, wool_shadow, face_color, leg_color, eye_color, ear_color)
+
+	var tex := ImageTexture.create_from_image(img)
+	texture_cache[cache_key] = tex
+	return tex
+
+func _draw_sheep_side(img: Image, wool_white: Color, wool_light: Color, wool_shadow: Color, face_color: Color, leg_color: Color, eye_color: Color, ear_color: Color) -> void:
 	# Wool body - large puffy cloud shape, facing right
-	# Main body oval center around (28, 32)
 	for y in range(18, 48):
 		for x in range(10, 48):
 			var dx: float = (x - 28.0) / 17.0
 			var dy: float = (y - 32.0) / 13.0
 			if dx * dx + dy * dy < 1.0:
-				# Create puffy/bumpy wool texture
 				var bump: float = sin(x * 1.5) * cos(y * 1.3) * 0.15
 				var dist: float = dx * dx + dy * dy
 				var shade: float = 0.92 + randf() * 0.08
@@ -1396,7 +2054,7 @@ func generate_sheep_texture() -> ImageTexture:
 				else:
 					img.set_pixel(x, y, wool_white * shade)
 
-	# Extra wool bumps on top for puffy look
+	# Extra wool bumps on top
 	var bump_centers := [
 		Vector2i(20, 19), Vector2i(27, 17), Vector2i(34, 18),
 		Vector2i(17, 21), Vector2i(39, 20), Vector2i(24, 18),
@@ -1415,7 +2073,7 @@ func generate_sheep_texture() -> ImageTexture:
 						else:
 							img.set_pixel(px, py, wool_white * shade)
 
-	# Face/head - dark, sticking out right side of wool
+	# Face/head
 	var face_cx := 48
 	var face_cy := 30
 	for y in range(face_cy - 6, face_cy + 6):
@@ -1426,7 +2084,7 @@ func generate_sheep_texture() -> ImageTexture:
 				var shade: float = 0.92 + randf() * 0.08
 				img.set_pixel(x, y, face_color * shade)
 
-	# Muzzle - slightly lighter area at bottom of face
+	# Muzzle
 	for y in range(face_cy + 2, face_cy + 5):
 		for x in range(face_cx + 1, face_cx + 5):
 			if x < 64 and y < 64:
@@ -1438,10 +2096,9 @@ func generate_sheep_texture() -> ImageTexture:
 	# Eyes
 	img.set_pixel(face_cx + 1, face_cy - 2, eye_color)
 	img.set_pixel(face_cx + 2, face_cy - 2, eye_color)
-	# Eye shine
 	img.set_pixel(face_cx + 2, face_cy - 3, Color(0.8, 0.8, 0.9, 0.6))
 
-	# Ears - small, on sides of head
+	# Ears
 	for i in range(3):
 		var py: int = face_cy - 4 + i
 		var px: int = face_cx + 5 + i
@@ -1449,21 +2106,19 @@ func generate_sheep_texture() -> ImageTexture:
 			img.set_pixel(px, py, ear_color)
 			if py + 1 < 64:
 				img.set_pixel(px, py + 1, ear_color)
-	# Left ear (behind wool)
 	for i in range(3):
 		var py: int = face_cy - 5 + i
 		var px: int = face_cx - 5 - i
 		if px >= 0 and py >= 0:
 			img.set_pixel(px, py, ear_color)
 
-	# Legs - four dark thin legs
+	# Legs
 	var sheep_leg_positions := [16, 22, 34, 40]
 	for lx in sheep_leg_positions:
 		for ly in range(46, 58):
 			if lx >= 0 and lx + 1 < 64:
 				img.set_pixel(lx, ly, leg_color)
 				img.set_pixel(lx + 1, ly, leg_color)
-		# Hooves
 		if lx >= 0 and lx + 1 < 64:
 			img.set_pixel(lx, 58, Color(0.12, 0.10, 0.08))
 			img.set_pixel(lx + 1, 58, Color(0.12, 0.10, 0.08))
@@ -1477,9 +2132,173 @@ func generate_sheep_texture() -> ImageTexture:
 				if px >= 0 and px < 64 and py >= 0 and py < 64:
 					img.set_pixel(px, py, wool_white * (0.90 + randf() * 0.10))
 
-	var tex := ImageTexture.create_from_image(img)
-	texture_cache[cache_key] = tex
-	return tex
+func _draw_sheep_front(img: Image, wool_white: Color, wool_light: Color, wool_shadow: Color, face_color: Color, leg_color: Color, eye_color: Color, ear_color: Color) -> void:
+	var cx := 32
+
+	# Wool body - round puffy front view
+	for y in range(20, 50):
+		for x in range(14, 51):
+			var dx: float = (x - cx) / 16.0
+			var dy: float = (y - 34.0) / 14.0
+			if dx * dx + dy * dy < 1.0:
+				var bump: float = sin(x * 1.5) * cos(y * 1.3) * 0.15
+				var dist: float = dx * dx + dy * dy
+				var shade: float = 0.92 + randf() * 0.08
+				if dist + bump > 0.7:
+					img.set_pixel(x, y, wool_shadow * shade)
+				elif randf() < 0.3:
+					img.set_pixel(x, y, wool_light * shade)
+				else:
+					img.set_pixel(x, y, wool_white * shade)
+
+	# Wool bumps on top
+	var bump_centers := [
+		Vector2i(24, 20), Vector2i(32, 18), Vector2i(40, 20),
+		Vector2i(28, 19), Vector2i(36, 19),
+	]
+	for bc in bump_centers:
+		for dy in range(-3, 3):
+			for dx in range(-3, 3):
+				if dx * dx + dy * dy < 7:
+					var px: int = bc.x + dx
+					var py: int = bc.y + dy
+					if px >= 0 and px < 64 and py >= 0 and py < 64:
+						var shade: float = 0.93 + randf() * 0.07
+						if randf() < 0.4:
+							img.set_pixel(px, py, wool_light * shade)
+						else:
+							img.set_pixel(px, py, wool_white * shade)
+
+	# Face - dark, centered in wool
+	var face_cy := 30
+	for dy in range(-7, 8):
+		for dx in range(-6, 7):
+			var nx: float = dx / 6.0
+			var ny: float = dy / 7.0
+			if nx * nx + ny * ny < 1.0:
+				var px := cx + dx
+				var py := face_cy + dy
+				if px >= 0 and px < 64 and py >= 0 and py < 64:
+					img.set_pixel(px, py, face_color * (0.92 + randf() * 0.08))
+
+	# Muzzle
+	for dy in range(3, 7):
+		for dx in range(-3, 4):
+			var nx: float = dx / 3.0
+			var ny: float = (dy - 5.0) / 2.0
+			if nx * nx + ny * ny < 1.0:
+				var px := cx + dx
+				var py := face_cy + dy
+				if px >= 0 and px < 64 and py >= 0 and py < 64:
+					img.set_pixel(px, py, ear_color)
+
+	# Eyes (both)
+	img.set_pixel(cx - 3, face_cy - 2, eye_color)
+	img.set_pixel(cx - 2, face_cy - 2, eye_color)
+	img.set_pixel(cx + 2, face_cy - 2, eye_color)
+	img.set_pixel(cx + 3, face_cy - 2, eye_color)
+	img.set_pixel(cx - 2, face_cy - 3, Color(0.8, 0.8, 0.9, 0.6))
+	img.set_pixel(cx + 3, face_cy - 3, Color(0.8, 0.8, 0.9, 0.6))
+
+	# Ears (both sides)
+	for i in range(3):
+		for side in [-1, 1]:
+			var px: int = cx + side * (8 + i)
+			var py: int = face_cy - 3 + i
+			if px >= 0 and px < 64 and py >= 0 and py < 64:
+				img.set_pixel(px, py, ear_color)
+				if py + 1 < 64:
+					img.set_pixel(px, py + 1, ear_color)
+
+	# Legs (two visible)
+	for leg_offset in [-6, 6]:
+		var lx: int = cx + leg_offset
+		for ly in range(48, 58):
+			if lx >= 0 and lx + 1 < 64:
+				img.set_pixel(lx, ly, leg_color)
+				img.set_pixel(lx + 1, ly, leg_color)
+		if lx >= 0 and lx + 1 < 64:
+			img.set_pixel(lx, 58, Color(0.12, 0.10, 0.08))
+			img.set_pixel(lx + 1, 58, Color(0.12, 0.10, 0.08))
+
+func _draw_sheep_back(img: Image, wool_white: Color, wool_light: Color, wool_shadow: Color, face_color: Color, leg_color: Color, ear_color: Color) -> void:
+	var cx := 32
+
+	# Wool body - back view (same puffy shape)
+	for y in range(20, 50):
+		for x in range(14, 51):
+			var dx: float = (x - cx) / 16.0
+			var dy: float = (y - 34.0) / 14.0
+			if dx * dx + dy * dy < 1.0:
+				var bump: float = sin(x * 1.5) * cos(y * 1.3) * 0.15
+				var dist: float = dx * dx + dy * dy
+				var shade: float = 0.90 + randf() * 0.08
+				if dist + bump > 0.7:
+					img.set_pixel(x, y, wool_shadow * shade)
+				elif randf() < 0.3:
+					img.set_pixel(x, y, wool_light * shade)
+				else:
+					img.set_pixel(x, y, wool_white * shade)
+
+	# Wool bumps on top (back)
+	var bump_centers := [
+		Vector2i(24, 20), Vector2i(32, 18), Vector2i(40, 20),
+		Vector2i(28, 19), Vector2i(36, 19),
+	]
+	for bc in bump_centers:
+		for dy in range(-3, 3):
+			for dx in range(-3, 3):
+				if dx * dx + dy * dy < 7:
+					var px: int = bc.x + dx
+					var py: int = bc.y + dy
+					if px >= 0 and px < 64 and py >= 0 and py < 64:
+						var shade: float = 0.93 + randf() * 0.07
+						if randf() < 0.4:
+							img.set_pixel(px, py, wool_light * shade)
+						else:
+							img.set_pixel(px, py, wool_white * shade)
+
+	# Back of head (dark, peeking above wool)
+	var head_cy := 24
+	for dy in range(-5, 4):
+		for dx in range(-5, 6):
+			var nx: float = dx / 5.0
+			var ny: float = dy / 4.0
+			if nx * nx + ny * ny < 1.0:
+				var px := cx + dx
+				var py := head_cy + dy
+				if px >= 0 and px < 64 and py >= 0 and py < 64:
+					img.set_pixel(px, py, face_color * (0.90 + randf() * 0.08))
+
+	# Ears (back view, both sides)
+	for i in range(3):
+		for side in [-1, 1]:
+			var px: int = cx + side * (7 + i)
+			var py: int = head_cy - 1 + i
+			if px >= 0 and px < 64 and py >= 0 and py < 64:
+				img.set_pixel(px, py, ear_color)
+				if py + 1 < 64:
+					img.set_pixel(px, py + 1, ear_color)
+
+	# Woolly tail (prominent from back)
+	for dy in range(-3, 4):
+		for dx in range(-3, 4):
+			if dx * dx + dy * dy < 10:
+				var px: int = cx + dx
+				var py: int = 28 + dy
+				if px >= 0 and px < 64 and py >= 0 and py < 64:
+					img.set_pixel(px, py, wool_white * (0.92 + randf() * 0.08))
+
+	# Legs (two visible from back)
+	for leg_offset in [-6, 6]:
+		var lx: int = cx + leg_offset
+		for ly in range(48, 58):
+			if lx >= 0 and lx + 1 < 64:
+				img.set_pixel(lx, ly, leg_color)
+				img.set_pixel(lx + 1, ly, leg_color)
+		if lx >= 0 and lx + 1 < 64:
+			img.set_pixel(lx, 58, Color(0.12, 0.10, 0.08))
+			img.set_pixel(lx + 1, 58, Color(0.12, 0.10, 0.08))
 
 
 # Clear cache if needed

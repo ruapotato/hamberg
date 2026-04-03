@@ -50,13 +50,16 @@ func _setup_body() -> void:
 	body_container.rotation.y = PI
 	add_child(body_container)
 
-	var sprite = Sprite3D.new()
+	var sprite = DirectionalSprite.new()
 	sprite.name = "BodySprite"
-	sprite.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	sprite.pixel_size = 0.025
 	sprite.alpha_cut = SpriteBase3D.ALPHA_CUT_OPAQUE_PREPASS
 	sprite.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
-	sprite.texture = TextureGenerator.generate_sheep_texture()
+	var tex_side = TextureGenerator.generate_sheep_texture("side")
+	var tex_front = TextureGenerator.generate_sheep_texture("front")
+	var tex_back = TextureGenerator.generate_sheep_texture("back")
+	sprite.texture = tex_side
+	sprite.set_textures_4dir(tex_front, tex_back, tex_side, tex_side)
 
 	# Position sprite so bottom is at ground level
 	var sprite_height = sprite.texture.get_height() if sprite.texture else 32

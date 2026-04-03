@@ -24,12 +24,17 @@ enum ItemType {
 var item_type: ItemType = ItemType.WEAPON
 
 enum DamageType {
-	SLASH,    # Swords, axes - good vs unarmored
-	BLUNT,    # Clubs, hammers - good vs armored
-	PIERCE,   # Spears, arrows - good vs armor
-	FIRE,     # Fire wands - magic damage
-	ICE,      # Ice wands - magic damage
-	POISON,   # Poison weapons
+	SLASH,      # Swords, axes - good vs unarmored
+	BLUNT,      # Clubs, hammers - good vs armored
+	PIERCE,     # Spears, arrows - good vs armor
+	FIRE,       # Fire wands - magic damage
+	ICE,        # Ice wands - magic damage
+	POISON,     # Poison weapons
+	LIGHTNING,  # Lightning wands - chains between enemies
+	ARCANE,     # Arcane wands - pure magic damage
+	NATURE,     # Nature wands - entangling/healing
+	DARK,       # Dark wands - life drain
+	HOLY,       # Holy wands - bonus vs undead
 }
 
 enum WeaponType {
@@ -51,6 +56,9 @@ enum WeaponType {
 # Tool type for environmental object requirements (axe, pickaxe, blunt, etc.)
 # Empty string means no special tool type (e.g., fists, generic weapons)
 @export var tool_type: String = ""
+
+# Spell name for magic weapons (maps to SpellRegistry spell ID)
+@export var spell_name: String = ""
 
 # For ranged weapons
 @export var projectile_scene: PackedScene = null
@@ -82,5 +90,6 @@ func to_dict() -> Dictionary:
 	base["stamina_cost"] = stamina_cost
 	base["parry_window"] = parry_window
 	base["tool_type"] = tool_type
+	base["spell_name"] = spell_name
 	base["projectile_speed"] = projectile_speed
 	return base

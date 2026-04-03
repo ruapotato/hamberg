@@ -402,6 +402,9 @@ func _process(delta: float) -> void:
 				# Re-enable persistent preview if we have a terrain tool equipped
 				_update_persistent_terrain_preview()
 
+	# Update directional sprite facing angle from body rotation
+	_update_player_sprite_facing()
+
 # ============================================================================
 # INPUT HANDLING (CLIENT-SIDE)
 # ============================================================================
@@ -1995,16 +1998,19 @@ func _setup_player_body() -> void:
 	body_container.name = "PlayerBody"
 	add_child(body_container)
 
-	# Create the Sprite3D billboard
-	var sprite := Sprite3D.new()
+	# Create the DirectionalSprite billboard
+	var sprite := DirectionalSprite.new()
 	sprite.name = "BodySprite"
-	sprite.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	sprite.pixel_size = 0.025
 	sprite.alpha_cut = SpriteBase3D.ALPHA_CUT_OPAQUE_PREPASS
 	sprite.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
 
 	# Generate the mage texture from TextureGenerator autoload
-	sprite.texture = TextureGenerator.generate_mage_texture("blue", 0)
+	var tex_front = TextureGenerator.generate_mage_texture("blue", 0, "front")
+	var tex_back = TextureGenerator.generate_mage_texture("blue", 0, "back")
+	var tex_side = TextureGenerator.generate_mage_texture("blue", 0, "side")
+	sprite.texture = tex_front
+	sprite.set_textures_4dir(tex_front, tex_back, tex_side, tex_side)
 
 	# Position sprite so feet are at ground level
 	# Texture is 64x96 pixels, pixel_size=0.025, so height = 96 * 0.025 = 2.4 units
@@ -2033,6 +2039,18 @@ func _setup_player_body() -> void:
 
 	print("[Player] Player body created as 2D billboard sprite (Paper Mario style)")
 	print("[Player] Body container parent: %s" % body_container.get_parent().name)
+
+## Update the DirectionalSprite's facing_angle from the player's body rotation.
+func _update_player_sprite_facing() -> void:
+	if not body_container:
+		return
+	var sprite = body_container.get_node_or_null("BodySprite")
+	if sprite and sprite is DirectionalSprite:
+		# Player's body_container.rotation.y uses atan2(dir.x, dir.z) convention,
+		# which is PI-offset from Godot's standard rotation (where 0 = facing -Z).
+		# Add PI to convert to standard Godot rotation convention that
+		# DirectionalSprite expects (0 = facing -Z).
+		sprite.facing_angle = body_container.global_rotation.y + PI
 
 func _setup_terrain_preview_shapes() -> void:
 	"""Create preview shapes for terrain modification feedback"""
