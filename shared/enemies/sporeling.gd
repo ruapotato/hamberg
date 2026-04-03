@@ -55,7 +55,7 @@ func _setup_body() -> void:
 	add_child(body_container)
 
 	# Directional Billboard Sprite3D (Paper Mario style)
-	var sprite = DirectionalSprite.new()
+	var sprite = DirectionalSpriteScript.new()
 	sprite.name = "Sprite"
 	sprite.pixel_size = 0.025
 	sprite.alpha_cut = SpriteBase3D.ALPHA_CUT_OPAQUE_PREPASS

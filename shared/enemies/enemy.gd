@@ -1,6 +1,8 @@
 extends "res://shared/animated_character.gd"
 class_name Enemy
 
+const DirectionalSpriteScript = preload("res://shared/directional_sprite.gd")
+
 ## Enemy - Gahnome enemy with Valheim-style client-host networking
 ##
 ## VALHEIM-STYLE CLIENT-HOST MODEL:
@@ -451,7 +453,7 @@ func _update_sprite_facing() -> void:
 	var sprite = body_container.get_node_or_null("Sprite")
 	if not sprite:
 		sprite = body_container.get_node_or_null("BodySprite")
-	if sprite and sprite is DirectionalSprite:
+	if sprite and sprite.has_method("set_textures_4dir"):
 		# rotation.y includes the PI offset from look_at convention;
 		# DirectionalSprite expects 0 = forward along -Z, which matches rotation.y = 0.
 		sprite.facing_angle = rotation.y
@@ -972,7 +974,7 @@ func _setup_body() -> void:
 	add_child(body_container)
 
 	# Directional Billboard Sprite3D (Paper Mario style)
-	var sprite = DirectionalSprite.new()
+	var sprite = DirectionalSpriteScript.new()
 	sprite.name = "Sprite"
 	sprite.pixel_size = 0.025
 	sprite.alpha_cut = SpriteBase3D.ALPHA_CUT_OPAQUE_PREPASS

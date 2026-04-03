@@ -11,6 +11,7 @@ const ArmorData = preload("res://shared/armor_data.gd")
 const Projectile = preload("res://shared/projectiles/projectile.gd")
 const HitEffectScene = preload("res://shared/effects/hit_effect.tscn")
 const ParryEffectScene = preload("res://shared/effects/parry_effect.tscn")
+const DirectionalSpriteScript = preload("res://shared/directional_sprite.gd")
 
 # Default player colors (unarmored - skin tones)
 const DEFAULT_SKIN_COLOR: Color = Color(0.9, 0.75, 0.65, 1.0)  # Natural skin tone
@@ -1999,7 +2000,7 @@ func _setup_player_body() -> void:
 	add_child(body_container)
 
 	# Create the DirectionalSprite billboard
-	var sprite := DirectionalSprite.new()
+	var sprite := DirectionalSpriteScript.new()
 	sprite.name = "BodySprite"
 	sprite.pixel_size = 0.025
 	sprite.alpha_cut = SpriteBase3D.ALPHA_CUT_OPAQUE_PREPASS
@@ -2032,11 +2033,6 @@ func _setup_player_body() -> void:
 	left_hand_attach.position = Vector3(-0.3, 1.15, 0.1)  # Left side, mid-body, slightly forward
 	body_container.add_child(left_hand_attach)
 
-	# In first-person mode, hide the local player's sprite (you don't see yourself)
-	# Remote players still show their sprite
-	if is_local_player:
-		sprite.visible = false
-
 	print("[Player] Player body created as 2D billboard sprite (Paper Mario style)")
 	print("[Player] Body container parent: %s" % body_container.get_parent().name)
 
@@ -2045,7 +2041,7 @@ func _update_player_sprite_facing() -> void:
 	if not body_container:
 		return
 	var sprite = body_container.get_node_or_null("BodySprite")
-	if sprite and sprite is DirectionalSprite:
+	if sprite and sprite.has_method("set_textures_4dir"):
 		# Player's body_container.rotation.y uses atan2(dir.x, dir.z) convention,
 		# which is PI-offset from Godot's standard rotation (where 0 = facing -Z).
 		# Add PI to convert to standard Godot rotation convention that

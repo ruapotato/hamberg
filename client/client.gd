@@ -1714,25 +1714,10 @@ func receive_terrain_chunk(chunk_x: int, chunk_z: int, chunk_data: Dictionary) -
 
 ## Receive environmental objects from server - queues for batch spawning
 func receive_environmental_objects(chunk_pos: Vector2i, objects_data: Array) -> void:
-	# Create chunk entry if it doesn't exist
-	if not environmental_chunks.has(chunk_pos):
-		environmental_chunks[chunk_pos] = {}
-
-	# Create queue entry for this chunk if it doesn't exist
-	if not environmental_spawn_queues.has(chunk_pos):
-		environmental_spawn_queues[chunk_pos] = []
-
-	# Queue each object for spawning (instead of spawning immediately)
-	for obj_data in objects_data:
-		var obj_type = obj_data.get("type", "unknown")
-
-		# Validate type exists in our preloaded scenes
-		if not environmental_scenes.has(obj_type):
-			push_error("[Client] Unknown environmental object type: %s" % obj_type)
-			continue
-
-		# Add to this chunk's spawn queue
-		environmental_spawn_queues[chunk_pos].append(obj_data)
+	# 3D environmental objects are no longer spawned - the client-side 2D
+	# EnvironmentSpawner2D handles all environmental visuals now.
+	# Keep this function signature so the server RPC doesn't error.
+	pass
 
 ## Process environmental spawn queue - spawns ENVIRONMENTAL_SPAWN_BATCH_SIZE objects per frame
 ## Prioritizes chunks closest to player (cheap O(n_chunks) operation)

@@ -50,7 +50,7 @@ func _setup_body() -> void:
 	body_container.rotation.y = PI
 	add_child(body_container)
 
-	var sprite = DirectionalSprite.new()
+	var sprite = DirectionalSpriteScript.new()
 	sprite.name = "BodySprite"
 	sprite.pixel_size = 0.025
 	sprite.alpha_cut = SpriteBase3D.ALPHA_CUT_OPAQUE_PREPASS

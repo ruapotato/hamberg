@@ -1,5 +1,4 @@
 extends Sprite3D
-class_name DirectionalSprite
 
 ## DirectionalSprite - Multi-angle 2D billboard sprite for 3D worlds
 ##
@@ -275,7 +274,7 @@ func _apply_sector_8(sector: int) -> void:
 
 	# Fallback to 4-dir if diagonal texture missing
 	if not tex:
-		var fallback_sector := [0, 1, 1, 2, 2, 3, 3, 0][sector]
+		var fallback_sector: int = [0, 1, 1, 2, 2, 3, 3, 0][sector]
 		_apply_sector_4(fallback_sector)
 		return
 
