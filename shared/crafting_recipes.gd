@@ -61,6 +61,28 @@ func _initialize_recipes() -> void:
 	add_recipe("round_shield", 1, {"wood": 10}, "workbench")
 	add_recipe("buckler", 1, {"wood": 5}, "workbench")
 
+	# Charcoal (fireplace required)
+	add_recipe("charcoal", 3, {"wood": 5}, "fireplace")
+
+	# Crafted resources (no station)
+	add_recipe("rope", 1, {"resin": 3})
+	add_recipe("arrows", 10, {"wood": 2, "stone": 1})
+
+	# Tier 2 Weapons - Iron (workbench required)
+	add_recipe("iron_sword", 1, {"iron": 3, "wood": 2}, "workbench")
+	add_recipe("iron_axe", 1, {"iron": 3, "wood": 2}, "workbench")
+	add_recipe("iron_pickaxe", 1, {"iron": 3, "wood": 2}, "workbench")
+
+	# Potions (workbench required)
+	add_recipe("healing_potion", 1, {"glowing_spore": 3, "resin": 1}, "workbench")
+	add_recipe("stamina_potion", 1, {"fungal_essence": 2, "resin": 1}, "workbench")
+
+	# Bone Armor Set (workbench required) - mid-tier from zombie drops
+	add_recipe("bone_armor_helmet", 1, {"bone": 4, "deer_leather": 2}, "workbench")
+	add_recipe("bone_armor_chest", 1, {"bone": 6, "deer_leather": 3}, "workbench")
+	add_recipe("bone_armor_legs", 1, {"bone": 5, "deer_leather": 2}, "workbench")
+	add_recipe("bone_armor_boots", 1, {"bone": 3, "deer_leather": 2}, "workbench")
+
 	# Pig Armor Set (workbench required) - grants Double Jump when full set worn
 	add_recipe("pig_helmet", 1, {"pig_leather": 4}, "workbench")
 	add_recipe("pig_chest", 1, {"pig_leather": 6}, "workbench")

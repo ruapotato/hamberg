@@ -18,6 +18,7 @@ enum SetBonus {
 	NONE,
 	PIG_DOUBLE_JUMP,      # Full pig set: can double jump
 	DEER_STAMINA_SAVER,   # Full deer set: 50% less stamina for sprinting
+	BONE_TOUGHNESS,       # Full bone set: +20% max health
 	CYCLOPS_LIGHT,        # Cyclops Eye: provides light around player
 }
 

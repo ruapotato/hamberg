@@ -1,0 +1,37 @@
+[gd_scene load_steps=5 format=3 uid="uid://arrow_001"]
+
+[ext_resource type="Script" path="res://shared/projectiles/arrow.gd" id="1"]
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_shaft"]
+top_radius = 0.02
+bottom_radius = 0.02
+height = 0.6
+
+[sub_resource type="StandardMaterial3D" id="Material_arrow"]
+shading_mode = 0
+albedo_color = Color(0.4, 0.3, 0.2, 1)
+
+[sub_resource type="CylinderShape3D" id="CylinderShape_arrow"]
+radius = 0.05
+height = 0.6
+
+[node name="Arrow" type="Area3D"]
+collision_layer = 8
+collision_mask = 7
+script = ExtResource("1")
+gravity_strength = 15.0
+stick_duration = 10.0
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0, 0)
+mesh = SubResource("CylinderMesh_shaft")
+surface_material_override/0 = SubResource("Material_arrow")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0, 0)
+shape = SubResource("CylinderShape_arrow")
+
+[node name="Lifetime" type="Timer" parent="."]
+wait_time = 8.0
+one_shot = true
+autostart = true

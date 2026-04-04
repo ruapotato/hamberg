@@ -33,14 +33,30 @@ func _initialize_items() -> void:
 	# Cooking byproducts
 	_register_resource("charcoal", "Charcoal", "Burned remains of food. Can be used as fuel.", 50, 0.3)
 
+	# Enemy drops
+	_register_resource("bone", "Bone", "A sturdy bone dropped by zombies. Useful for crafting.", 50, 1.0)
+	_register_resource("rotten_flesh", "Rotten Flesh", "Decaying flesh from zombies. Unpleasant but useful.", 50, 0.5)
+
+	# Biome 2 drops
+	_register_resource("glowing_spore", "Glowing Spore", "A luminescent spore from the dark forest. Has healing properties.", 50, 0.2)
+	_register_resource("fungal_essence", "Fungal Essence", "Concentrated fungal extract. Invigorating when prepared.", 50, 0.3)
+
 	# Leather (from animals - for crafting armor)
 	_register_resource("pig_leather", "Pig Leather", "Soft pink leather from flying pigs. Light and bouncy.", 30, 1.0)
 	_register_resource("deer_leather", "Deer Leather", "Supple tan leather from deer. Surprisingly light.", 30, 0.8)
+
+	# Crafted resources
+	_register_resource("rope", "Rope", "A length of rope made from resin. Useful for building and crafting.", 50, 0.5)
+	_register_resource("arrows", "Arrows", "Wooden arrows tipped with stone. Ammunition for bows.", 50, 0.1)
 
 	# Cooked food (consumable)
 	_register_food("cooked_venison", "Cooked Venison", "Hearty deer meat. Increases max health and regenerates HP over time.", 20, 1.5, 25.0, 15.0, 10.0, 600.0, 1.5)
 	_register_food("cooked_pork", "Cooked Pork", "Savory pig meat. Increases max stamina and regenerates HP over time.", 20, 2.0, 15.0, 25.0, 10.0, 600.0, 1.0)
 	_register_food("cooked_mutton", "Cooked Mutton", "Tender sheep meat. Balanced nutrition and regenerates HP over time.", 20, 1.8, 20.0, 20.0, 15.0, 600.0, 1.2)
+
+	# Potions (consumable)
+	_register_food("healing_potion", "Healing Potion", "A restorative potion brewed from glowing spores. Quickly restores health.", 10, 0.5, 40.0, 0.0, 0.0, 30.0, 10.0)
+	_register_food("stamina_potion", "Stamina Potion", "An energizing potion brewed from fungal essence. Quickly restores stamina.", 10, 0.5, 0.0, 40.0, 0.0, 30.0, 0.0)
 
 	# Basic tools (no workbench required)
 	_register_tool("hammer", "Hammer", "Used for building structures.", 1)
@@ -63,6 +79,11 @@ func _initialize_items() -> void:
 	_register_weapon_fire_wand()
 	_register_weapon_bow()
 
+	# Tier 2 Weapons - Iron (workbench required)
+	_register_weapon_iron_sword()
+	_register_weapon_iron_axe()
+	_register_weapon_iron_pickaxe()
+
 	# Shields
 	_register_shield_tower()
 	_register_shield_round()
@@ -71,6 +92,7 @@ func _initialize_items() -> void:
 	# Armor sets
 	_register_pig_armor_set()
 	_register_deer_armor_set()
+	_register_bone_armor_set()  # Mid-tier from zombie drops
 	_register_tank_armor_set()  # Buy-only from Shnarken
 
 	# Tier 1-2 Elemental Wands (workbench required)
@@ -261,8 +283,58 @@ func _register_weapon_bow() -> void:
 	weapon.projectile_speed = 40.0
 	weapon.weight = 2.0
 	weapon.weapon_scene = load("res://shared/weapons/bow.tscn")
-	# TODO: Set projectile_scene when arrow scene is created
+	weapon.projectile_scene = load("res://shared/projectiles/arrow.tscn")
 	items["bow"] = weapon
+
+## Tier 2 Weapons - Iron
+func _register_weapon_iron_sword() -> void:
+	var weapon = WeaponData.new()
+	weapon.item_id = "iron_sword"
+	weapon.display_name = "Iron Sword"
+	weapon.description = "A sturdy iron sword. Better damage than stone."
+	weapon.weapon_type = WeaponData.WeaponType.MELEE_ONE_HAND
+	weapon.damage = 22.0
+	weapon.damage_type = WeaponData.DamageType.SLASH
+	weapon.attack_speed = 1.5
+	weapon.knockback = 6.0
+	weapon.durability = 150
+	weapon.stamina_cost = 10.0
+	weapon.weight = 3.5
+	weapon.weapon_scene = load("res://shared/weapons/stone_sword.tscn")  # Reuse mesh for now
+	items["iron_sword"] = weapon
+
+func _register_weapon_iron_axe() -> void:
+	var weapon = WeaponData.new()
+	weapon.item_id = "iron_axe"
+	weapon.display_name = "Iron Axe"
+	weapon.description = "A heavy iron axe. Chops trees faster and hits harder."
+	weapon.weapon_type = WeaponData.WeaponType.MELEE_TWO_HAND
+	weapon.damage = 22.0
+	weapon.damage_type = WeaponData.DamageType.SLASH
+	weapon.attack_speed = 0.9
+	weapon.knockback = 16.0
+	weapon.durability = 180
+	weapon.stamina_cost = 18.0
+	weapon.tool_type = "axe"
+	weapon.weight = 6.5
+	weapon.weapon_scene = load("res://shared/weapons/stone_axe.tscn")  # Reuse mesh for now
+	items["iron_axe"] = weapon
+
+func _register_weapon_iron_pickaxe() -> void:
+	var weapon = WeaponData.new()
+	weapon.item_id = "iron_pickaxe"
+	weapon.display_name = "Iron Pickaxe"
+	weapon.description = "A sturdy iron pickaxe. Mines faster than stone."
+	weapon.weapon_type = WeaponData.WeaponType.MELEE_ONE_HAND
+	weapon.damage = 12.0
+	weapon.damage_type = WeaponData.DamageType.PIERCE
+	weapon.attack_speed = 1.0
+	weapon.knockback = 3.0
+	weapon.durability = 180
+	weapon.stamina_cost = 8.0
+	weapon.tool_type = "pickaxe"
+	weapon.weight = 5.0
+	items["iron_pickaxe"] = weapon
 
 ## Shields
 func _register_shield_tower() -> void:
@@ -493,6 +565,73 @@ func _register_deer_armor_set() -> void:
 	# Fire: 3.5 (weak to fire)
 	# Ice: 7.5 (good vs ice)
 	# Poison: 5.0
+
+## Bone Armor Set - Mid-tier armor from zombie bone and deer leather
+## Set Bonus: +20% max health (Bone Toughness)
+## Stronger than pig/deer but weaker than tank
+func _register_bone_armor_set() -> void:
+	var bone_white = Color(0.85, 0.82, 0.75, 1.0)  # Pale bone
+	var bone_dark = Color(0.55, 0.5, 0.4, 1.0)  # Darker bone/leather
+
+	_register_armor(
+		"bone_armor_helmet", "Bone Helm",
+		"A helmet crafted from zombie bones. Part of the Bone Set.\nFull Set Bonus: +20% Max Health",
+		ArmorData.ArmorSlot.HEAD, {
+			WeaponData.DamageType.SLASH: 2.0,
+			WeaponData.DamageType.BLUNT: 1.5,
+			WeaponData.DamageType.PIERCE: 2.0,
+			WeaponData.DamageType.FIRE: 1.0,
+			WeaponData.DamageType.ICE: 1.0,
+			WeaponData.DamageType.POISON: 1.5,
+		}, "bone", ArmorData.SetBonus.BONE_TOUGHNESS,
+		bone_white, bone_dark, 2.0
+	)
+	_register_armor(
+		"bone_armor_chest", "Bone Cuirass",
+		"A chestpiece reinforced with zombie bones. Part of the Bone Set.\nFull Set Bonus: +20% Max Health",
+		ArmorData.ArmorSlot.CHEST, {
+			WeaponData.DamageType.SLASH: 4.0,
+			WeaponData.DamageType.BLUNT: 3.0,
+			WeaponData.DamageType.PIERCE: 4.0,
+			WeaponData.DamageType.FIRE: 2.0,
+			WeaponData.DamageType.ICE: 2.0,
+			WeaponData.DamageType.POISON: 3.0,
+		}, "bone", ArmorData.SetBonus.BONE_TOUGHNESS,
+		bone_white, bone_dark, 3.5
+	)
+	_register_armor(
+		"bone_armor_legs", "Bone Greaves",
+		"Leg armor reinforced with zombie bones. Part of the Bone Set.\nFull Set Bonus: +20% Max Health",
+		ArmorData.ArmorSlot.LEGS, {
+			WeaponData.DamageType.SLASH: 3.0,
+			WeaponData.DamageType.BLUNT: 2.0,
+			WeaponData.DamageType.PIERCE: 3.0,
+			WeaponData.DamageType.FIRE: 1.5,
+			WeaponData.DamageType.ICE: 1.5,
+			WeaponData.DamageType.POISON: 2.0,
+		}, "bone", ArmorData.SetBonus.BONE_TOUGHNESS,
+		bone_white, bone_dark, 2.5
+	)
+	_register_armor(
+		"bone_armor_boots", "Bone Boots",
+		"Boots reinforced with zombie bones. Part of the Bone Set.\nFull Set Bonus: +20% Max Health",
+		ArmorData.ArmorSlot.CAPE, {
+			WeaponData.DamageType.SLASH: 1.5,
+			WeaponData.DamageType.BLUNT: 1.0,
+			WeaponData.DamageType.PIERCE: 1.5,
+			WeaponData.DamageType.FIRE: 0.5,
+			WeaponData.DamageType.ICE: 0.5,
+			WeaponData.DamageType.POISON: 1.0,
+		}, "bone", ArmorData.SetBonus.BONE_TOUGHNESS,
+		bone_dark, bone_white, 1.5
+	)
+	# Full set totals:
+	# Slash: 10.5
+	# Blunt: 7.5
+	# Pierce: 10.5
+	# Fire: 5.0
+	# Ice: 5.0
+	# Poison: 7.5
 
 ## Tank Armor Set - Heavy iron plate armor (BUY-ONLY from Shnarken)
 ## No set bonus, but VERY high armor values
