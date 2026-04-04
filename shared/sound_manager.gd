@@ -200,6 +200,15 @@ func play_sound_varied(sound_name: String, position: Vector3, volume_db: float =
 	return play_sound(sound_name, position, volume_db, pitch)
 
 
+## Play layered sounds simultaneously for richer impact effects
+## Plays the primary sound plus an optional bass layer for weight
+func play_sound_layered(primary_sound: String, layer_sound: String, position: Vector3, primary_volume: float = 0.0, layer_volume: float = -6.0, layer_pitch: float = 0.7) -> AudioStreamPlayer3D:
+	var primary = play_sound_varied(primary_sound, position, primary_volume, 0.15)
+	if layer_sound != "":
+		play_sound(layer_sound, position, layer_volume, layer_pitch)
+	return primary
+
+
 ## Get the next available 3D player from the pool (round-robin)
 func _get_next_3d_player() -> AudioStreamPlayer3D:
 	var player = _player_pool_3d[_pool_index_3d]

@@ -508,10 +508,17 @@ func _apply_movement(input_data: Dictionary, delta: float) -> void:
 	var is_sprinting: bool = input_data.get("sprint", false)
 	var jump_pressed: bool = input_data.get("jump", false)
 
-	# Calculate movement direction
+	# Calculate movement direction — flatten camera basis to horizontal plane
+	# so looking up/down doesn't affect movement speed
 	var camera_basis: Basis = input_data.get("camera_basis", Basis())
+	var cam_forward := camera_basis.z
+	cam_forward.y = 0
+	cam_forward = cam_forward.normalized()
+	var cam_right := camera_basis.x
+	cam_right.y = 0
+	cam_right = cam_right.normalized()
 	var input_dir := Vector2(move_x, move_z).normalized()
-	var direction := (camera_basis * Vector3(input_dir.x, 0, input_dir.y)).normalized()
+	var direction := (cam_right * input_dir.x + cam_forward * input_dir.y).normalized()
 
 	# FLY MODE: Noclip flight for exploring terrain
 	if fly_mode:
@@ -1125,14 +1132,24 @@ func _handle_attack() -> void:
 	is_attacking = true
 	attack_timer = 0.0
 
-	# Play attack sound based on weapon type
+	# Play attack sound based on weapon type with pitch variation
 	if equipped_weapon_visual:
 		if weapon_data.weapon_type == WeaponData.WeaponType.MAGIC:
-			SoundManager.play_sound_varied("fire_cast", global_position)
+			SoundManager.play_sound_varied("fire_cast", global_position, 0.0, 0.15)
 		else:
-			SoundManager.play_sound_varied("sword_swing", global_position)
+			# Weapon-specific swing sounds with variation
+			match current_weapon_type:
+				"stone_knife":
+					# Knife: higher pitched, faster whoosh
+					SoundManager.play_sound_varied("sword_swing", global_position, -2.0, 0.15)
+				"stone_axe":
+					# Axe: lower pitched, heavier whoosh + subtle bass
+					SoundManager.play_sound_varied("sword_swing", global_position, 1.0, 0.1)
+				_:
+					# Sword: standard swing
+					SoundManager.play_sound_varied("sword_swing", global_position, 0.0, 0.15)
 	else:
-		SoundManager.play_sound_varied("punch_swing", global_position)
+		SoundManager.play_sound_varied("punch_swing", global_position, 0.0, 0.15)
 
 	# Get camera for raycasting/aiming
 	var camera := _get_camera()
@@ -2216,11 +2233,25 @@ func _update_body_animations(delta: float) -> void:
 			body_container.rotation.y = lerp_angle(body_container.rotation.y, target_rotation, delta * 10.0)
 			synced_rotation_y = body_container.global_rotation.y
 
-	# Attack animation - tilt the sprite forward
+	# Attack animation - tilt the sprite forward and animate weapon arm
 	if is_attacking and sprite:
 		var attack_progress = attack_timer / current_attack_animation_time
 		var swing_tilt = -sin(attack_progress * PI) * 0.15
 		sprite.rotation.z = swing_tilt
+
+		# Drive the 3D arm attack animations based on weapon type
+		if right_arm and current_attack_animation_time > 0:
+			var anim_progress = _ease_attack_progress(clamp(attack_progress, 0.0, 1.0))
+			match current_weapon_type:
+				"stone_knife":
+					_animate_knife_attack(anim_progress, right_arm, _right_elbow)
+				"stone_sword":
+					_animate_sword_attack(anim_progress, right_arm, _right_elbow)
+				"stone_axe":
+					_animate_axe_attack(anim_progress, right_arm, left_arm, _right_elbow, _left_elbow)
+				_:
+					# Default punch/fist animation - simple forward jab
+					_animate_knife_attack(anim_progress, right_arm, _right_elbow)
 
 	# Movement animations
 	var horizontal_speed = Vector2(velocity.x, velocity.z).length()
@@ -2287,8 +2318,8 @@ func _animate_limbs_walking(_delta: float) -> void:
 	if _right_knee:
 		_right_knee.rotation.x = max(0.0, -knee_angle)
 
-	# Arms swing opposite to legs
-	if left_arm:
+	# Arms swing opposite to legs (skip during attacks - attack animations control arms)
+	if left_arm and not is_attacking:
 		left_arm.rotation.x = -arm_angle
 		if _left_elbow:
 			_left_elbow.rotation.x = max(0.0, arm_angle * 0.8)
@@ -2317,12 +2348,15 @@ func _animate_limbs_idle(delta: float) -> void:
 		right_leg.rotation.x = lerp(right_leg.rotation.x, 0.0, delta * 5.0)
 		if _right_knee:
 			_right_knee.rotation.x = lerp(_right_knee.rotation.x, 0.0, delta * 5.0)
-	if left_arm:
+	# Don't reset arms to neutral during attacks - attack animations control them
+	if left_arm and not is_attacking:
 		left_arm.rotation.x = lerp(left_arm.rotation.x, 0.0, delta * 5.0)
+		left_arm.rotation.z = lerp(left_arm.rotation.z, 0.0, delta * 5.0)
 		if _left_elbow:
 			_left_elbow.rotation.x = lerp(_left_elbow.rotation.x, 0.0, delta * 5.0)
-	if right_arm:
+	if right_arm and not is_attacking:
 		right_arm.rotation.x = lerp(right_arm.rotation.x, 0.0, delta * 5.0)
+		right_arm.rotation.z = lerp(right_arm.rotation.z, 0.0, delta * 5.0)
 		if _right_elbow:
 			_right_elbow.rotation.x = lerp(_right_elbow.rotation.x, 0.0, delta * 5.0)
 	if torso:
@@ -2909,8 +2943,10 @@ func _spawn_parry_effect() -> void:
 	get_tree().current_scene.add_child(effect)
 	effect.global_position = pos  # Set position after adding to tree
 
-	# Play parry sound
-	SoundManager.play_sound("parry", pos)
+	# Play parry sound - crisp metallic ring at higher pitch
+	SoundManager.play_sound("parry", pos, 2.0, randf_range(1.2, 1.4))
+	# Layer a block sound underneath for depth
+	SoundManager.play_sound("block", pos, -2.0, 0.8)
 
 	# Sync parry effect to other clients
 	if is_local_player:

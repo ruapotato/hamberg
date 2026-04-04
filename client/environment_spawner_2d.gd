@@ -81,25 +81,25 @@ const BIOME_HAS_GRASS: Dictionary = {
 	"hell": false,
 }
 
-# Biome rock colors
+# Biome rock colors - color theory: warm=safety, cool=danger
 const BIOME_ROCK_COLORS: Dictionary = {
-	"valley": Color(0.6, 0.58, 0.55),
-	"meadow": Color(0.65, 0.62, 0.58),
-	"dark_forest": Color(0.3, 0.35, 0.3),
-	"swamp": Color(0.4, 0.38, 0.32),
-	"mountain": Color(0.75, 0.78, 0.82),
-	"desert": Color(0.85, 0.75, 0.55),
-	"wizardland": Color(0.6, 0.4, 0.7),
-	"hell": Color(0.4, 0.2, 0.15),
+	"valley": Color(0.58, 0.55, 0.48),       # Warm gray-brown (earthy, safe)
+	"meadow": Color(0.62, 0.58, 0.50),       # Warm tan (pastoral)
+	"dark_forest": Color(0.18, 0.24, 0.20),  # Dark cool moss-stone (foreboding)
+	"swamp": Color(0.35, 0.30, 0.20),        # Muddy dark brown (decayed)
+	"mountain": Color(0.70, 0.74, 0.82),     # Cool blue-gray (icy)
+	"desert": Color(0.82, 0.68, 0.42),       # Warm sandstone (sun-baked)
+	"wizardland": Color(0.55, 0.32, 0.68),   # Deep purple crystal (arcane)
+	"hell": Color(0.32, 0.12, 0.08),         # Near-black with red tint (obsidian)
 }
 
-# Biome grass colors
+# Biome grass colors - color theory: warm=safety, cool=danger
 const BIOME_GRASS_COLORS: Dictionary = {
-	"valley": Color(0.3, 0.6, 0.3),
-	"meadow": Color(0.35, 0.65, 0.3),
-	"dark_forest": Color(0.1, 0.25, 0.15),
-	"swamp": Color(0.4, 0.5, 0.25),
-	"wizardland": Color(0.6, 0.3, 0.7),
+	"valley": Color(0.38, 0.62, 0.22),       # Warm yellow-green (safe, inviting)
+	"meadow": Color(0.42, 0.65, 0.25),       # Slightly warmer green (pastoral)
+	"dark_forest": Color(0.08, 0.28, 0.18),  # Cool desaturated blue-green (mysterious)
+	"swamp": Color(0.48, 0.52, 0.18),        # Sickly yellow-green (toxic, uneasy)
+	"wizardland": Color(0.65, 0.25, 0.75),   # Purple-magenta (otherworldly)
 }
 
 

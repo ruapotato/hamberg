@@ -29,23 +29,23 @@ uniform sampler2D biome_texture : hint_default_black, filter_linear, repeat_disa
 uniform vec2 biome_texture_center = vec2(0.0, 0.0);  // World position of texture center
 uniform float biome_texture_size = 512.0;  // World units covered by the texture
 
-// Biome grass colors (flat/low slope terrain) - Fantasy bright colors, high saturation
-const vec3 VALLEY_GRASS = vec3(0.25, 0.55, 0.95);       // BRIGHT BLUE (serene meadows)
-const vec3 DARK_FOREST_GRASS = vec3(0.05, 0.25, 0.15); // DARK TEAL-GREEN (bioluminescent dark forest)
-const vec3 SWAMP_GRASS = vec3(0.6, 0.75, 0.3);          // YELLOW-GREEN (murky swamp)
-const vec3 MOUNTAIN_GRASS = vec3(0.95, 0.97, 1.0);      // WHITE (snow/ice)
-const vec3 DESERT_GRASS = vec3(0.95, 0.85, 0.35);       // BRIGHT YELLOW (sandy desert)
-const vec3 WIZARDLAND_GRASS = vec3(0.9, 0.3, 1.0);      // BRIGHT MAGENTA (magical)
-const vec3 HELL_GRASS = vec3(0.9, 0.2, 0.1);            // BRIGHT RED (hellfire)
+// Biome grass colors (flat/low slope terrain) - Color theory: warm=safety, cool=danger
+const vec3 VALLEY_GRASS = vec3(0.38, 0.62, 0.22);       // Warm yellow-green (safe, inviting home)
+const vec3 DARK_FOREST_GRASS = vec3(0.08, 0.28, 0.22);  // Cool desaturated blue-green (mysterious danger)
+const vec3 SWAMP_GRASS = vec3(0.52, 0.55, 0.18);        // Sickly yellow-green (uneasy, toxic)
+const vec3 MOUNTAIN_GRASS = vec3(0.78, 0.85, 0.95);     // Cool blue-white (crisp, harsh cold)
+const vec3 DESERT_GRASS = vec3(0.92, 0.78, 0.35);       // Warm yellow-orange (hot, exposed)
+const vec3 WIZARDLAND_GRASS = vec3(0.72, 0.22, 0.88);   // Deep purple-magenta (otherworldly, magical)
+const vec3 HELL_GRASS = vec3(0.88, 0.18, 0.05);         // Fiery red-orange (maximum danger)
 
-// Biome rock colors (steep/high slope terrain) - Darker for contrast, richer colors
-const vec3 VALLEY_ROCK = vec3(0.4, 0.42, 0.45);         // Gray stone
-const vec3 DARK_FOREST_ROCK = vec3(0.15, 0.2, 0.18);   // Dark mossy stone
-const vec3 SWAMP_ROCK = vec3(0.25, 0.22, 0.18);         // Dark muddy stone
-const vec3 MOUNTAIN_ROCK = vec3(0.6, 0.62, 0.68);       // Light gray rock
-const vec3 DESERT_ROCK = vec3(0.7, 0.58, 0.4);          // Sandy stone
-const vec3 WIZARDLAND_ROCK = vec3(0.55, 0.35, 0.65);    // Purple crystal
-const vec3 HELL_ROCK = vec3(0.3, 0.12, 0.08);           // Dark obsidian
+// Biome rock colors (steep/high slope terrain) - Darker complements for contrast
+const vec3 VALLEY_ROCK = vec3(0.45, 0.42, 0.38);        // Warm gray-brown (earthy, safe)
+const vec3 DARK_FOREST_ROCK = vec3(0.12, 0.18, 0.16);   // Dark cool stone (foreboding)
+const vec3 SWAMP_ROCK = vec3(0.3, 0.25, 0.15);          // Muddy brown (slimy, decayed)
+const vec3 MOUNTAIN_ROCK = vec3(0.58, 0.62, 0.72);      // Cool blue-gray (icy stone)
+const vec3 DESERT_ROCK = vec3(0.75, 0.58, 0.32);        // Warm sandstone (sun-baked)
+const vec3 WIZARDLAND_ROCK = vec3(0.48, 0.28, 0.62);    // Deep purple crystal (arcane)
+const vec3 HELL_ROCK = vec3(0.22, 0.08, 0.05);          // Near-black obsidian with red tint
 
 // Biome difficulty zones (match BiomeGenerator constants)
 // Compact world: 1/4 scale for faster exploration

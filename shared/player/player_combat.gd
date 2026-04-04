@@ -141,16 +141,12 @@ func process_hitbox_hit(enemy: Node3D) -> void:
 			print("[Player] HITBOX HIT %s! (%.1f damage)" % [enemy.name, damage])
 		send_enemy_damage_request(enemy_network_id, damage, knockback, hit_direction, damage_type)
 
-		# Play hit sound and effect
-		var hit_sound := _get_weapon_hit_sound()
+		# Play hit sound and effect (layered for impact)
+		_play_layered_hit_sound(enemy.global_position, is_critical)
 		if is_critical:
-			# Critical hit: dedicated crit sound + layered impact
-			SoundManager.play_sound_varied("critical_hit", enemy.global_position, 2.0, 0.15)
-			SoundManager.play_sound_varied(hit_sound, enemy.global_position, 1.0, 0.2)  # Layer base hit
 			_spawn_critical_hit_effect(enemy.global_position, hit_direction)
 			_spawn_damage_number(enemy.global_position, damage, true)
 		else:
-			SoundManager.play_sound_varied(hit_sound, enemy.global_position, 0.0, 0.15)
 			_spawn_blood_spark_effect(enemy.global_position, hit_direction)
 			_spawn_damage_number(enemy.global_position, damage, false)
 
@@ -187,6 +183,10 @@ func _get_weapon_hit_sound() -> String:
 	match player.current_weapon_type:
 		"fists":
 			return "punch_hit"
+		"stone_axe":
+			return "sword_hit"  # Heavy chop
+		"stone_knife":
+			return "sword_hit"  # Quick slash
 		_:
 			return "sword_hit"
 
@@ -197,6 +197,23 @@ func _get_weapon_swing_sound() -> String:
 			return "punch_swing"
 		_:
 			return "sword_swing"
+
+## Play layered impact sound for weapon hits (adds depth with overlapping sounds)
+func _play_layered_hit_sound(position: Vector3, is_crit: bool) -> void:
+	var hit_sound := _get_weapon_hit_sound()
+	if is_crit:
+		# Critical hit: dedicated crit sound + layered impact at varied pitches
+		SoundManager.play_sound_varied("critical_hit", position, 2.0, 0.15)
+		SoundManager.play_sound_varied(hit_sound, position, 1.0, 0.2)
+	else:
+		# Normal hit: base hit + subtle layered thud for weight
+		SoundManager.play_sound_varied(hit_sound, position, 0.0, 0.15)
+		# Layer a low-pitched punch_hit for bass impact on heavy weapons
+		match player.current_weapon_type:
+			"stone_axe":
+				SoundManager.play_sound("punch_hit", position, -4.0, randf_range(0.6, 0.75))
+			"stone_sword":
+				SoundManager.play_sound("punch_hit", position, -6.0, randf_range(0.7, 0.85))
 
 ## Spawn floating damage number at hit position
 func _spawn_damage_number(position: Vector3, damage: float, is_crit: bool) -> void:
