@@ -2071,13 +2071,25 @@ func _setup_player_body() -> void:
 	if right_arm:
 		_right_elbow = right_arm.get_node_or_null("Elbow")
 
-	# Hide head and neck for local player (camera is inside the head)
-	if is_local_player:
-		if head_node:
-			head_node.visible = false
-		var neck = body_container.get_node_or_null("Neck")
-		if neck:
-			neck.visible = false
+	# Local player: replace detailed head with a simple shadow-only sphere
+	# (camera is inside, so we see through it, but it still casts shadows)
+	if is_local_player and head_node:
+		# Hide the detailed head (eyes, nose, mouth, hair — visible to others)
+		head_node.visible = false
+		# Create a simple sphere at the same position — backface culled so
+		# the camera inside sees through it, but it casts a shadow
+		var shadow_head := MeshInstance3D.new()
+		shadow_head.name = "ShadowHead"
+		var sphere := SphereMesh.new()
+		sphere.radius = 0.1
+		sphere.height = 0.2
+		shadow_head.mesh = sphere
+		var mat := StandardMaterial3D.new()
+		mat.albedo_color = Color(0.9, 0.8, 0.7)  # Skin tone
+		mat.cull_mode = BaseMaterial3D.CULL_FRONT  # Cull front faces — invisible from inside
+		shadow_head.material_override = mat
+		shadow_head.position = head_node.position
+		body_container.add_child(shadow_head)
 
 	print("[Player] Player body loaded from player_body.tscn")
 	print("[Player] Body container parent: %s" % body_container.get_parent().name)
