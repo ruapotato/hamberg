@@ -526,18 +526,18 @@ func _apply_movement(input_data: Dictionary, delta: float) -> void:
 		var fly_velocity := Vector3.ZERO
 
 		# Get full 3D camera direction (not just horizontal)
-		var cam_forward := -camera_basis.z  # Camera's forward direction
-		var cam_right := camera_basis.x     # Camera's right direction
+		var fly_forward := -camera_basis.z  # Camera's forward direction
+		var fly_right := camera_basis.x     # Camera's right direction
 
 		# Movement in camera space (fly where you're looking)
 		if move_z < 0:  # Forward
-			fly_velocity += cam_forward * fly_speed
+			fly_velocity += fly_forward * fly_speed
 		elif move_z > 0:  # Backward
-			fly_velocity -= cam_forward * fly_speed
+			fly_velocity -= fly_forward * fly_speed
 		if move_x > 0:  # Right
-			fly_velocity += cam_right * fly_speed
+			fly_velocity += fly_right * fly_speed
 		elif move_x < 0:  # Left
-			fly_velocity -= cam_right * fly_speed
+			fly_velocity -= fly_right * fly_speed
 
 		# Additional vertical control with Space/Ctrl
 		if jump_pressed:
