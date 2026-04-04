@@ -139,6 +139,7 @@ var viewmodel_arms: Node3D = null
 
 # Player body visuals
 var body_container: Node3D = null
+var first_person_body: Sprite3D = null  # First-person body sprite (visible when looking down)
 
 # Equipped weapon/shield visuals
 var equipped_weapon_visual: Node3D = null  # Main hand weapon
@@ -251,6 +252,10 @@ func _ready() -> void:
 
 	# Setup player body visuals
 	_setup_player_body()
+
+	# For local player: hide billboard sprite and create first-person body
+	if is_local_player:
+		_setup_first_person_body()
 
 	# Initialize armor visuals to default (unarmored) skin colors
 	_initialize_armor_visuals()
@@ -2036,6 +2041,46 @@ func _setup_player_body() -> void:
 	print("[Player] Player body created as 2D billboard sprite (Paper Mario style)")
 	print("[Player] Body container parent: %s" % body_container.get_parent().name)
 
+func _setup_first_person_body() -> void:
+	"""Hide billboard sprite for local player and add first-person body visible when looking down."""
+	# Hide the billboard sprite (other players will still see it via network, but local camera won't)
+	if body_container:
+		var billboard_sprite = body_container.get_node_or_null("BodySprite")
+		if billboard_sprite:
+			billboard_sprite.visible = false
+
+	# Create a first-person body sprite attached to camera, visible when looking down
+	var camera_controller := get_node_or_null("CameraController")
+	if not camera_controller:
+		push_warning("[Player] No CameraController found for first-person body")
+		return
+
+	var camera: Camera3D = camera_controller.get_camera()
+	if not camera:
+		push_warning("[Player] No Camera3D found for first-person body")
+		return
+
+	first_person_body = Sprite3D.new()
+	first_person_body.name = "FirstPersonBody"
+
+	# Use front-facing mage texture (player sees their own robe/feet when looking down)
+	var tex_front = TextureGenerator.generate_mage_texture("blue", 0, "front")
+	first_person_body.texture = tex_front
+	first_person_body.pixel_size = 0.015  # Smaller since it's close to camera
+	first_person_body.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
+	first_person_body.alpha_cut = SpriteBase3D.ALPHA_CUT_OPAQUE_PREPASS
+
+	# NOT billboard - fixed relative to camera
+	first_person_body.billboard = BaseMaterial3D.BILLBOARD_DISABLED
+
+	# Position below and slightly in front of camera
+	# Rotated to face upward so it's visible when player looks down
+	first_person_body.position = Vector3(0, -1.0, -0.3)
+	first_person_body.rotation_degrees = Vector3(-30, 0, 0)  # Tilt upward toward camera
+
+	camera.add_child(first_person_body)
+	print("[Player] First-person body sprite created (visible when looking down)")
+
 ## Update the DirectionalSprite's facing_angle from the player's body rotation.
 func _update_player_sprite_facing() -> void:
 	if not body_container:
@@ -3063,14 +3108,16 @@ func _update_weapon_visual() -> void:
 	if weapon_id == "fists":
 		return
 
-	# Load weapon scene
-	var weapon_scene = weapon_data.get("weapon_scene")
-	if not weapon_scene:
-		push_warning("[Player] No weapon scene for: %s" % weapon_id)
-		return
+	# Create 2D sprite weapon visual instead of 3D mesh
+	var weapon_sprite := Sprite3D.new()
+	weapon_sprite.name = "WeaponSprite"
+	weapon_sprite.texture = TextureGenerator.generate_weapon_texture(weapon_id)
+	weapon_sprite.pixel_size = 0.02
+	weapon_sprite.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
+	weapon_sprite.alpha_cut = SpriteBase3D.ALPHA_CUT_OPAQUE_PREPASS
+	weapon_sprite.billboard = BaseMaterial3D.BILLBOARD_DISABLED
 
-	# Instantiate weapon visual
-	equipped_weapon_visual = weapon_scene.instantiate()
+	equipped_weapon_visual = weapon_sprite
 
 	# Create a wrist pivot node for natural weapon rotation during swings
 	weapon_wrist_pivot = Node3D.new()
@@ -3083,32 +3130,25 @@ func _update_weapon_visual() -> void:
 		right_hand_attach.add_child(weapon_wrist_pivot)
 		weapon_wrist_pivot.add_child(equipped_weapon_visual)
 
-		# Rotate weapon 90 degrees forward (X-axis) so it points forward instead of down
-		equipped_weapon_visual.rotation_degrees = Vector3(90, 0, 0)
-
-		# Apply mount point offset - MUST transform by rotation first!
-		# The mount point is defined in unrotated weapon space, but we need
-		# to offset in the rotated space so the grip ends up at the pivot
-		if equipped_weapon_visual.has_node("MountPoint"):
-			var mount_point = equipped_weapon_visual.get_node("MountPoint")
-			# Transform mount point position by weapon's rotation basis
-			var rotated_offset = equipped_weapon_visual.basis * mount_point.position
-			equipped_weapon_visual.position = -rotated_offset
+		# Rotate sprite so it points upward/forward (blade up from hand)
+		equipped_weapon_visual.rotation_degrees = Vector3(0, 0, 0)
+		# Offset so the handle end is at the hand position
+		equipped_weapon_visual.position = Vector3(0, 0.25, 0)
 
 		# Setup weapon hitbox for collision-based combat (Valheim-style)
 		_setup_weapon_hitbox()
 
-		print("[Player] Equipped weapon visual: %s (with wrist pivot)" % weapon_id)
+		print("[Player] Equipped weapon sprite: %s (with wrist pivot)" % weapon_id)
 	else:
 		# Fallback: attach to body container
 		if body_container:
 			body_container.add_child(weapon_wrist_pivot)
 			weapon_wrist_pivot.add_child(equipped_weapon_visual)
 			weapon_wrist_pivot.position = Vector3(0.3, 1.2, 0)  # Approximate hand position
-			equipped_weapon_visual.rotation_degrees = Vector3(90, 0, 0)
+			equipped_weapon_visual.position = Vector3(0, 0.25, 0)
 			# Setup weapon hitbox for collision-based combat (Valheim-style)
 			_setup_weapon_hitbox()
-			print("[Player] Equipped weapon visual (fallback): %s" % weapon_id)
+			print("[Player] Equipped weapon sprite (fallback): %s" % weapon_id)
 		else:
 			weapon_wrist_pivot.queue_free()
 			weapon_wrist_pivot = null

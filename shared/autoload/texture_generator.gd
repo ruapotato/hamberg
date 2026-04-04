@@ -1474,6 +1474,244 @@ func generate_staff_texture(staff_type: String = "arcane") -> ImageTexture:
 
 
 # ============================================
+# WEAPON TEXTURES (16x48 pixels, side-view)
+# ============================================
+func generate_weapon_texture(weapon_type: String) -> ImageTexture:
+	var cache_key := "weapon_%s" % weapon_type
+	if texture_cache.has(cache_key):
+		return texture_cache[cache_key]
+
+	var img := Image.create(16, 48, false, Image.FORMAT_RGBA8)
+	img.fill(Color(0, 0, 0, 0))
+
+	var cx := 8
+	var by := 44
+
+	match weapon_type:
+		"stone_sword", "sword":
+			_draw_weapon_sword(img, cx, by)
+		"stone_axe", "axe":
+			_draw_weapon_axe(img, cx, by)
+		"stone_knife", "knife":
+			_draw_weapon_knife(img, cx, by)
+		"pickaxe", "stone_pickaxe":
+			_draw_weapon_pickaxe(img, cx, by)
+		"club":
+			_draw_weapon_club(img, cx, by)
+		"bow":
+			_draw_weapon_bow(img, cx, by)
+		"fire_wand", "wand_fire":
+			_draw_fire_wand(img, cx, by)
+		"ice_wand", "wand_ice":
+			_draw_ice_wand(img, cx, by)
+		"lightning_wand", "wand_lightning":
+			_draw_lightning_wand(img, cx, by)
+		"arcane_wand", "wand_arcane":
+			_draw_basic_wand(img, cx, by)
+		"nature_wand", "wand_nature":
+			_draw_weapon_nature_wand(img, cx, by)
+		"dark_wand", "wand_dark":
+			_draw_weapon_dark_wand(img, cx, by)
+		"holy_wand", "wand_holy":
+			_draw_weapon_holy_wand(img, cx, by)
+		_:
+			# Fallback: basic wooden stick
+			_draw_basic_wand(img, cx, by)
+
+	var tex := ImageTexture.create_from_image(img)
+	texture_cache[cache_key] = tex
+	return tex
+
+func _draw_weapon_sword(img: Image, cx: int, by: int) -> void:
+	# Handle (brown)
+	for y in range(by - 8, by):
+		for dx in range(-2, 3):
+			var px := cx + dx
+			if px >= 0 and px < 16:
+				img.set_pixel(px, y, Color(0.45, 0.3, 0.15) * (0.85 + randf() * 0.15))
+	# Crossguard (dark gray)
+	for dx in range(-5, 6):
+		var px := cx + dx
+		if px >= 0 and px < 16:
+			img.set_pixel(px, by - 9, Color(0.4, 0.4, 0.45))
+			img.set_pixel(px, by - 10, Color(0.45, 0.45, 0.5))
+	# Blade (light gray stone)
+	for y in range(4, by - 10):
+		var taper: float = (by - 10.0 - y) / (by - 14.0)
+		var width: int = max(1, int(3 * (1.0 - taper * 0.3)))
+		for dx in range(-width, width + 1):
+			var px := cx + dx
+			if px >= 0 and px < 16:
+				var edge: bool = abs(dx) == width
+				var shade: float = 0.85 + randf() * 0.1
+				if edge:
+					img.set_pixel(px, y, Color(0.5, 0.5, 0.55) * shade)
+				else:
+					img.set_pixel(px, y, Color(0.65, 0.65, 0.7) * shade)
+	# Tip (pointed)
+	for dy in range(0, 4):
+		var width: int = max(0, 2 - dy)
+		for dx in range(-width, width + 1):
+			var px := cx + dx
+			var py := 3 - dy
+			if py >= 0 and px >= 0 and px < 16:
+				img.set_pixel(px, py, Color(0.7, 0.7, 0.75))
+
+func _draw_weapon_axe(img: Image, cx: int, by: int) -> void:
+	# Long handle (brown wood)
+	for y in range(6, by):
+		for dx in range(-1, 2):
+			var px := cx + dx
+			if px >= 0 and px < 16:
+				img.set_pixel(px, y, Color(0.45, 0.3, 0.15) * (0.85 + randf() * 0.15))
+	# Axe head (stone, right side) - triangular blade
+	for y in range(6, 20):
+		var progress: float = (y - 6.0) / 14.0
+		var width: int
+		if progress < 0.5:
+			width = int(progress * 12)
+		else:
+			width = int((1.0 - progress) * 12)
+		for dx in range(1, width + 3):
+			var px := cx + dx
+			if px >= 0 and px < 16:
+				var shade: float = 0.85 + randf() * 0.1
+				img.set_pixel(px, y, Color(0.55, 0.55, 0.6) * shade)
+	# Axe binding (darker stripe where head meets handle)
+	for y in range(10, 16):
+		img.set_pixel(cx, y, Color(0.3, 0.25, 0.15))
+		img.set_pixel(cx + 1, y, Color(0.3, 0.25, 0.15))
+
+func _draw_weapon_knife(img: Image, cx: int, by: int) -> void:
+	# Short handle
+	for y in range(by - 6, by):
+		for dx in range(-2, 3):
+			var px := cx + dx
+			if px >= 0 and px < 16:
+				img.set_pixel(px, y, Color(0.4, 0.28, 0.12) * (0.85 + randf() * 0.15))
+	# Small crossguard
+	for dx in range(-3, 4):
+		var px := cx + dx
+		if px >= 0 and px < 16:
+			img.set_pixel(px, by - 7, Color(0.4, 0.4, 0.45))
+	# Short blade
+	for y in range(by - 22, by - 7):
+		var taper: float = (by - 7.0 - y) / 15.0
+		var width: int = max(1, int(2 * (1.0 - taper * 0.4)))
+		for dx in range(-width, width + 1):
+			var px := cx + dx
+			if px >= 0 and px < 16:
+				var shade: float = 0.85 + randf() * 0.1
+				img.set_pixel(px, y, Color(0.6, 0.6, 0.65) * shade)
+
+func _draw_weapon_pickaxe(img: Image, cx: int, by: int) -> void:
+	# Long handle
+	for y in range(6, by):
+		for dx in range(-1, 2):
+			var px := cx + dx
+			if px >= 0 and px < 16:
+				img.set_pixel(px, y, Color(0.45, 0.3, 0.15) * (0.85 + randf() * 0.15))
+	# Pick head (horizontal stone piece at top)
+	for dx in range(-6, 7):
+		for dy in range(6, 12):
+			var px := cx + dx
+			if px >= 0 and px < 16:
+				var shade: float = 0.85 + randf() * 0.1
+				# Taper the ends to a point
+				var dist_from_center: float = abs(dx) / 6.0
+				if dy < 8 + int(dist_from_center * 3):
+					img.set_pixel(px, dy, Color(0.55, 0.55, 0.6) * shade)
+
+func _draw_weapon_club(img: Image, cx: int, by: int) -> void:
+	# Handle (thinner wood)
+	for y in range(20, by):
+		for dx in range(-1, 2):
+			var px := cx + dx
+			if px >= 0 and px < 16:
+				img.set_pixel(px, y, Color(0.45, 0.3, 0.15) * (0.85 + randf() * 0.15))
+	# Club head (thicker wood, slightly bulging)
+	for y in range(4, 22):
+		var progress: float = (y - 4.0) / 18.0
+		var width: int = int(2 + sin(progress * PI) * 3)
+		for dx in range(-width, width + 1):
+			var px := cx + dx
+			if px >= 0 and px < 16:
+				var shade: float = 0.8 + randf() * 0.15
+				img.set_pixel(px, y, Color(0.5, 0.35, 0.2) * shade)
+
+func _draw_weapon_bow(img: Image, cx: int, by: int) -> void:
+	# Bow limb (curved wood) - draw as arc
+	for y in range(4, by):
+		var progress: float = (y - 4.0) / (by - 4.0)
+		var curve_x: int = int(sin(progress * PI) * 5)
+		# Bow limb
+		for dx in range(0, 2):
+			var px := cx + curve_x + dx
+			if px >= 0 and px < 16:
+				img.set_pixel(px, y, Color(0.45, 0.3, 0.15) * (0.85 + randf() * 0.15))
+	# Bowstring (straight line)
+	for y in range(4, by):
+		var px := cx
+		if px >= 0 and px < 16:
+			img.set_pixel(px, y, Color(0.8, 0.75, 0.6))
+
+func _draw_weapon_nature_wand(img: Image, cx: int, by: int) -> void:
+	# Gnarled wood shaft (green-brown)
+	for y in range(by - 32, by):
+		var wobble: int = int(sin(y * 0.5) * 1)
+		for dx in range(-2 + wobble, 3 + wobble):
+			var px := cx + dx
+			if px >= 0 and px < 16:
+				img.set_pixel(px, y, Color(0.35, 0.3, 0.15) * (0.85 + randf() * 0.15))
+	# Green leaf orb tip
+	for dy in range(-10, 2):
+		for dx in range(-4, 5):
+			var dist: float = sqrt(dx * dx + dy * dy)
+			if dist < 5:
+				var px := cx + dx
+				var py := by - 35 + dy
+				if py >= 0 and px >= 0 and px < 16:
+					var t: float = dist / 5.0
+					img.set_pixel(px, py, Color(0.2, 0.7, 0.3).lerp(Color(0.1, 0.5, 0.2), t))
+
+func _draw_weapon_dark_wand(img: Image, cx: int, by: int) -> void:
+	# Black bone shaft
+	for y in range(by - 32, by):
+		for dx in range(-2, 3):
+			var px := cx + dx
+			if px >= 0 and px < 16:
+				img.set_pixel(px, y, Color(0.15, 0.1, 0.15) * (0.85 + randf() * 0.15))
+	# Purple-black orb
+	for dy in range(-10, 2):
+		for dx in range(-4, 5):
+			var dist: float = sqrt(dx * dx + dy * dy)
+			if dist < 5:
+				var px := cx + dx
+				var py := by - 35 + dy
+				if py >= 0 and px >= 0 and px < 16:
+					var t: float = dist / 5.0
+					img.set_pixel(px, py, Color(0.4, 0.1, 0.5).lerp(Color(0.15, 0.05, 0.2), t))
+
+func _draw_weapon_holy_wand(img: Image, cx: int, by: int) -> void:
+	# White-gold shaft
+	for y in range(by - 32, by):
+		for dx in range(-2, 3):
+			var px := cx + dx
+			if px >= 0 and px < 16:
+				img.set_pixel(px, y, Color(0.85, 0.8, 0.6) * (0.85 + randf() * 0.15))
+	# Golden glowing orb
+	for dy in range(-10, 2):
+		for dx in range(-4, 5):
+			var dist: float = sqrt(dx * dx + dy * dy)
+			if dist < 5:
+				var px := cx + dx
+				var py := by - 35 + dy
+				if py >= 0 and px >= 0 and px < 16:
+					var t: float = dist / 5.0
+					img.set_pixel(px, py, Color(1.0, 0.95, 0.6).lerp(Color(0.9, 0.75, 0.3), t))
+
+
+# ============================================
 # ANIMAL TEXTURES (64x64 pixels, side-view)
 # ============================================
 
