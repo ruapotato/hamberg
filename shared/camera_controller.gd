@@ -125,7 +125,7 @@ func _process_first_person(delta: float) -> void:
 	# Apply rotation: yaw on this node, pitch on spring arm
 	rotation.y = camera_rotation.x
 	spring_arm.rotation.x = camera_rotation.y + shake_offset.y * 0.02
-	spring_arm.position = Vector3(shake_offset.x * 0.05, first_person_eye_height, 0.1)
+	spring_arm.position = Vector3(shake_offset.x * 0.05, first_person_eye_height, 0)
 
 func _process_third_person(delta: float) -> void:
 	# Smooth zoom
@@ -143,7 +143,7 @@ func _process_third_person(delta: float) -> void:
 func _apply_camera_mode() -> void:
 	if camera_mode == CameraMode.FIRST_PERSON:
 		spring_arm.spring_length = 0.0
-		spring_arm.position = Vector3(0, first_person_eye_height, 0.1)
+		spring_arm.position = Vector3(0, first_person_eye_height, 0)
 		is_first_person = true
 	else:
 		spring_arm.spring_length = target_zoom
