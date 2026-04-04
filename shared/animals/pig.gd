@@ -58,17 +58,10 @@ func _setup_body() -> void:
 	sprite.alpha_cut = SpriteBase3D.ALPHA_CUT_OPAQUE_PREPASS
 	sprite.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
 
-	# Try aalib sprites first, fall back to procedural
-	var aalib = SpriteLoader.load_character_sprites("pig")
-	if aalib.size() > 0 and aalib.get("front") != null:
-		sprite.pixel_size = 0.0025  # 639px * 0.0025 = ~1.6 units tall
-		sprite.texture = aalib.get("left", aalib["front"])
-		sprite.set_textures_4dir(
-			aalib["front"],
-			aalib["back"],
-			aalib.get("left", aalib["front"]),
-			aalib.get("right", aalib["front"])
-		)
+	# Try 36-angle sprites first, then procedural fallback
+	if SpriteLoader.has_character("pig"):
+		sprite.set_character("pig")
+		sprite.pixel_size = 0.005  # 384px * 0.005 = 1.92 units tall
 	else:
 		sprite.pixel_size = 0.025
 		var tex_side = TextureGenerator.generate_pig_texture("side")

@@ -98,26 +98,19 @@ func _setup_body() -> void:
 	sprite.alpha_cut = SpriteBase3D.ALPHA_CUT_OPAQUE_PREPASS
 	sprite.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
 
-	# Map zombie_type to aalib sprite name
+	# Map zombie_type to sprite name
 	var sprite_name_map = {
 		"walker": "zombie_walker",
 		"runner": "zombie_runner",
 		"brute": "zombie_brute",
 	}
 	var aalib_name = sprite_name_map.get(zombie_type, "")
-	var aalib = SpriteLoader.load_character_sprites(aalib_name) if aalib_name != "" else {}
 
 	var sprite_height: float
-	if aalib.size() > 0 and aalib.get("front") != null:
-		sprite.pixel_size = 0.002  # 1002px * 0.002 = ~2.0 units tall
-		sprite.texture = aalib["front"]
-		sprite.set_textures_4dir(
-			aalib["front"],
-			aalib["back"],
-			aalib.get("left", aalib["front"]),
-			aalib.get("right", aalib["front"])
-		)
-		sprite_height = aalib["front"].get_height() * sprite.pixel_size
+	if aalib_name != "" and SpriteLoader.has_character(aalib_name):
+		sprite.set_character(aalib_name)
+		sprite.pixel_size = 0.005  # 384px * 0.005 = 1.92 units tall
+		sprite_height = sprite.texture.get_height() * sprite.pixel_size if sprite.texture else 1.92
 	else:
 		# Fallback: procedural ZombieTextureGenerator
 		sprite.pixel_size = 0.02

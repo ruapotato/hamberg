@@ -453,7 +453,7 @@ func _update_sprite_facing() -> void:
 	var sprite = body_container.get_node_or_null("Sprite")
 	if not sprite:
 		sprite = body_container.get_node_or_null("BodySprite")
-	if sprite and sprite.has_method("set_textures_4dir"):
+	if sprite and "facing_angle" in sprite:
 		# rotation.y includes the PI offset from look_at convention;
 		# DirectionalSprite expects 0 = forward along -Z, which matches rotation.y = 0.
 		sprite.facing_angle = rotation.y
@@ -979,18 +979,11 @@ func _setup_body() -> void:
 	sprite.alpha_cut = SpriteBase3D.ALPHA_CUT_OPAQUE_PREPASS
 	sprite.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
 
-	# Try aalib skeleton sprites for gahnome, fall back to procedural
-	var aalib = SpriteLoader.load_character_sprites("skeleton")
-	if aalib.size() > 0 and aalib.get("front") != null:
-		sprite.pixel_size = 0.002  # 1002px * 0.002 = ~2.0 units tall
-		sprite.texture = aalib["front"]
-		sprite.set_textures_4dir(
-			aalib["front"],
-			aalib["back"],
-			aalib.get("left", aalib["front"]),
-			aalib.get("right", aalib["front"])
-		)
-		var sprite_height = aalib["front"].get_height() * sprite.pixel_size
+	# Try 36-angle sprites first, then procedural fallback
+	if SpriteLoader.has_character("skeleton"):
+		sprite.set_character("skeleton")
+		sprite.pixel_size = 0.005  # 384px * 0.005 = 1.92 units tall
+		var sprite_height = sprite.texture.get_height() * sprite.pixel_size if sprite.texture else 1.92
 		sprite.position = Vector3(0, sprite_height * 0.5, 0)
 	else:
 		sprite.pixel_size = 0.025

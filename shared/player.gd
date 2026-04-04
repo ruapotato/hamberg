@@ -2016,18 +2016,11 @@ func _setup_player_body() -> void:
 	sprite.alpha_cut = SpriteBase3D.ALPHA_CUT_OPAQUE_PREPASS
 	sprite.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
 
-	# Try aalib sprites first, fall back to procedural
-	var aalib = SpriteLoader.load_character_sprites("mage")
-	if aalib.size() > 0 and aalib.get("front") != null:
-		sprite.pixel_size = 0.002  # 1002px * 0.002 = ~2.0 units tall
-		sprite.texture = aalib["front"]
-		sprite.set_textures_4dir(
-			aalib["front"],
-			aalib["back"],
-			aalib.get("left", aalib["front"]),
-			aalib.get("right", aalib["front"])
-		)
-		var sprite_height = aalib["front"].get_height() * sprite.pixel_size
+	# Try 36-angle sprites first, then legacy 4-dir, then procedural fallback
+	if SpriteLoader.has_character("mage"):
+		sprite.set_character("mage")
+		sprite.pixel_size = 0.005  # 384px * 0.005 = 1.92 units tall
+		var sprite_height = sprite.texture.get_height() * sprite.pixel_size if sprite.texture else 1.92
 		sprite.position = Vector3(0, sprite_height * 0.5, 0)
 	else:
 		# Fallback: procedural mage texture
@@ -2150,7 +2143,7 @@ func _update_player_sprite_facing() -> void:
 	if not body_container:
 		return
 	var sprite = body_container.get_node_or_null("BodySprite")
-	if sprite and sprite.has_method("set_textures_4dir"):
+	if sprite and "facing_angle" in sprite:
 		# Player's body_container.rotation.y uses atan2(dir.x, dir.z) convention,
 		# which is PI-offset from Godot's standard rotation (where 0 = facing -Z).
 		# Add PI to convert to standard Godot rotation convention that

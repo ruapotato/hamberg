@@ -2,16 +2,31 @@ extends Sprite3D
 
 ## DirectionalSprite - Multi-angle 2D billboard sprite for 3D worlds
 ##
-## Shows different sprite textures based on the camera's viewing angle relative
-## to the entity's facing direction. Supports 4-direction (front/back/left/right)
-## or 8-direction (with diagonals) modes.
+## Supports two modes:
+## 1. 36-angle mode: Uses set_character() to load 36 pre-rendered angle PNGs
+##    for smooth 360-degree rotation (10 degrees per frame).
+## 2. Legacy 4/8-direction mode: Uses set_textures_4dir/8dir for sector-based
+##    texture selection.
 ##
 ## The sprite manually rotates on the Y axis to face the camera (like
 ## BILLBOARD_FIXED_Y) but does NOT use Godot's built-in billboard mode,
 ## since we need to control which texture is shown per angle sector.
 
 # ============================================================================
-# TEXTURES
+# 36-ANGLE MODE
+# ============================================================================
+
+## Character name for 36-angle sprite loading
+var _character_name: String = ""
+
+## Array of 36 Texture2D (index 0 = 0 degrees, index 1 = 10 degrees, etc.)
+var _angle_textures: Array = []
+
+## Whether we are using the 36-angle system (vs legacy 4/8 dir)
+var _use_36_angles: bool = false
+
+# ============================================================================
+# LEGACY TEXTURES (4/8-direction mode)
 # ============================================================================
 
 ## Textures for each direction. Assign via set_textures_4dir/8dir or the dict method.
@@ -32,14 +47,14 @@ var texture_back_right: Texture2D = null
 ## Set this from the owning entity's movement/AI code.
 var facing_angle: float = 0.0
 
-## Number of directional texture variants: 4 or 8.
+## Number of directional texture variants: 4 or 8 (legacy mode only).
 var num_angles: int = 4
 
 # ============================================================================
 # INTERNAL STATE
 # ============================================================================
 
-# Current angle sector index (0-3 for 4-dir, 0-7 for 8-dir). -1 = uninitialised.
+# Current angle sector index. -1 = uninitialised.
 var _current_sector: int = -1
 
 # Cached previous values for change detection
@@ -50,11 +65,27 @@ var _prev_facing_angle: float = INF
 const ANGLE_CHANGE_THRESHOLD: float = 0.087
 
 # ============================================================================
-# PUBLIC API
+# PUBLIC API - 36-ANGLE MODE
+# ============================================================================
+
+## Load 36-angle sprites for a character via SpriteLoader.
+## This is the preferred method for characters with full angle coverage.
+func set_character(character_name: String) -> void:
+	_character_name = character_name
+	_angle_textures = SpriteLoader.load_character_angles(character_name)
+	_use_36_angles = _angle_textures.size() == 36 and _angle_textures[0] != null
+	if _use_36_angles:
+		# Set initial texture to angle 0 (front)
+		texture = _angle_textures[0]
+	_current_sector = -1  # Force refresh
+
+# ============================================================================
+# PUBLIC API - LEGACY MODE
 # ============================================================================
 
 ## Set textures for 4-direction mode (front, back, left, right).
 func set_textures_4dir(front: Texture2D, back: Texture2D, left: Texture2D, right: Texture2D) -> void:
+	_use_36_angles = false
 	texture_front = front
 	texture_back = back
 	texture_left = left
@@ -68,6 +99,7 @@ func set_textures_8dir(
 	front_left: Texture2D, front_right: Texture2D,
 	back_left: Texture2D, back_right: Texture2D
 ) -> void:
+	_use_36_angles = false
 	texture_front = front
 	texture_back = back
 	texture_left = left
@@ -83,6 +115,7 @@ func set_textures_8dir(
 ## Valid keys: "front", "back", "left", "right",
 ##             "front_left", "front_right", "back_left", "back_right"
 func set_all_textures_from_dict(textures: Dictionary) -> void:
+	_use_36_angles = false
 	texture_front = textures.get("front")
 	texture_back = textures.get("back")
 	texture_left = textures.get("left")
@@ -103,7 +136,7 @@ func set_all_textures_from_dict(textures: Dictionary) -> void:
 # ============================================================================
 
 func _ready() -> void:
-	# Disable Godot's built-in billboard — we handle orientation manually.
+	# Disable Godot's built-in billboard -- we handle orientation manually.
 	billboard = BaseMaterial3D.BILLBOARD_DISABLED
 
 func _process(_delta: float) -> void:
@@ -112,21 +145,65 @@ func _process(_delta: float) -> void:
 		return
 
 	var camera_pos := camera.global_position
+	var sprite_world_pos := global_position
 
 	# --- Y-axis billboard: rotate sprite to face camera on Y only ---
-	var sprite_world_pos := global_position
 	var dir_to_camera := camera_pos - sprite_world_pos
 	dir_to_camera.y = 0.0
 	if dir_to_camera.length_squared() > 0.001:
-		# Make the sprite face the camera. Sprite3D forward is +Z when rotation is 0,
-		# so we use look_at and let Godot figure out the quaternion, but only keep Y.
-		var target_point := sprite_world_pos + dir_to_camera.normalized()
-		# We cannot call look_at directly on the sprite because it may be a child of
-		# a rotated container. Instead compute the desired global Y rotation.
 		var desired_y := atan2(dir_to_camera.x, dir_to_camera.z)
 		global_rotation.y = desired_y
 
-	# --- Angle-sector texture selection ---
+	# --- Texture selection ---
+	if _use_36_angles:
+		_update_36_angle_texture(camera_pos, sprite_world_pos)
+	else:
+		_update_legacy_sector_texture(camera_pos, sprite_world_pos)
+
+# ============================================================================
+# 36-ANGLE TEXTURE SELECTION
+# ============================================================================
+
+func _update_36_angle_texture(camera_pos: Vector3, sprite_world_pos: Vector3) -> void:
+	if _angle_textures.is_empty():
+		return
+
+	# Skip expensive recalc if nothing changed enough
+	var cam_moved := (_prev_camera_pos - camera_pos).length_squared() > 0.01
+	var facing_changed := absf(_prev_facing_angle - facing_angle) > ANGLE_CHANGE_THRESHOLD
+	if not cam_moved and not facing_changed and _current_sector != -1:
+		return
+
+	_prev_camera_pos = camera_pos
+	_prev_facing_angle = facing_angle
+
+	var to_camera := camera_pos - sprite_world_pos
+	to_camera.y = 0.0
+	if to_camera.length_squared() < 0.001:
+		return
+
+	var cam_angle := atan2(to_camera.x, to_camera.z)
+	# relative: 0 = seeing front of entity, PI = seeing back
+	# Adding PI flips so that when camera is opposite to facing, we see front
+	var relative := rad_to_deg(cam_angle - facing_angle + PI)
+	# Normalize to 0-360
+	relative = fmod(relative, 360.0)
+	if relative < 0:
+		relative += 360.0
+	var index := int(round(relative / 10.0)) % 36
+	if index == _current_sector:
+		return
+	_current_sector = index
+	var new_tex = _angle_textures[index]
+	if new_tex and new_tex != texture:
+		texture = new_tex
+		flip_h = false
+
+# ============================================================================
+# LEGACY SECTOR-BASED TEXTURE SELECTION
+# ============================================================================
+
+func _update_legacy_sector_texture(camera_pos: Vector3, sprite_world_pos: Vector3) -> void:
 	# Skip expensive recalc if nothing changed enough
 	var cam_moved := (_prev_camera_pos - camera_pos).length_squared() > 0.01
 	var facing_changed := absf(_prev_facing_angle - facing_angle) > ANGLE_CHANGE_THRESHOLD
@@ -137,16 +214,12 @@ func _process(_delta: float) -> void:
 	_prev_facing_angle = facing_angle
 
 	# Compute relative angle: camera direction relative to entity facing.
-	# angle_to_camera is the world angle from the entity to the camera.
 	var to_camera := camera_pos - sprite_world_pos
 	to_camera.y = 0.0
 	if to_camera.length_squared() < 0.001:
 		return
 
 	var angle_to_camera := atan2(to_camera.x, to_camera.z)
-	# relative_angle: 0 = camera seeing entity's front, PI/-PI = seeing entity's back.
-	# When the camera is opposite the entity's facing direction, we see the front,
-	# so we add PI to flip the relationship.
 	var relative_angle := _wrap_angle(angle_to_camera - facing_angle + PI)
 
 	var sector: int
@@ -161,7 +234,7 @@ func _process(_delta: float) -> void:
 	_apply_sector(sector)
 
 # ============================================================================
-# SECTOR CALCULATION
+# SECTOR CALCULATION (legacy)
 # ============================================================================
 
 ## 4-direction sectors (each 90 degrees wide):
@@ -170,7 +243,6 @@ func _process(_delta: float) -> void:
 ##   2 = back   (camera sees entity's back)
 ##   3 = left   (camera sees entity's left side)
 func _get_sector_4(angle: float) -> int:
-	# angle in [-PI, PI], 0 = front
 	if angle >= -PI / 4.0 and angle < PI / 4.0:
 		return 0  # front
 	elif angle >= PI / 4.0 and angle < 3.0 * PI / 4.0:
@@ -181,15 +253,9 @@ func _get_sector_4(angle: float) -> int:
 		return 2  # back
 
 ## 8-direction sectors (each 45 degrees wide).
-## Sectors: 0=front, 1=front-right, 2=right, 3=back-right,
-##          4=back, 5=back-left, 6=left, 7=front-left
 func _get_sector_8(angle: float) -> int:
-	# Each sector is PI/4 (45 degrees) wide, centered on its cardinal/diagonal.
-	# Normalize angle to [0, TAU) for simpler boundary math.
-	var a := fmod(angle + TAU, TAU)  # [0, TAU)
-	var sector_size := TAU / 8.0  # PI/4
-	# Sector 0 (front) is centered at angle=0, spanning [-sector_size/2, sector_size/2].
-	# After shifting by half a sector, integer division gives sector index.
+	var a := fmod(angle + TAU, TAU)
+	var sector_size := TAU / 8.0
 	var sector_index := int((a + sector_size * 0.5) / sector_size) % 8
 	return sector_index
 
@@ -209,7 +275,6 @@ func _apply_sector_4(sector: int) -> void:
 				_set_texture_safe(texture_right)
 				flip_h = false
 			elif texture_left:
-				# Mirror the left texture
 				_set_texture_safe(texture_left)
 				flip_h = true
 			else:
@@ -223,7 +288,6 @@ func _apply_sector_4(sector: int) -> void:
 				_set_texture_safe(texture_left)
 				flip_h = false
 			elif texture_right:
-				# Mirror the right texture
 				_set_texture_safe(texture_right)
 				flip_h = true
 			else:
@@ -231,48 +295,45 @@ func _apply_sector_4(sector: int) -> void:
 				flip_h = false
 
 func _apply_sector_8(sector: int) -> void:
-	# Sectors: 0=front, 1=front-right, 2=right, 3=back-right,
-	#          4=back, 5=back-left, 6=left, 7=front-left
 	var tex: Texture2D = null
 	var should_flip := false
 
 	match sector:
-		0:  # front
+		0:
 			tex = texture_front
-		1:  # front-right
+		1:
 			tex = texture_front_right
 			if not tex and texture_front_left:
 				tex = texture_front_left
 				should_flip = true
-		2:  # right
+		2:
 			tex = texture_right
 			if not tex and texture_left:
 				tex = texture_left
 				should_flip = true
-		3:  # back-right
+		3:
 			tex = texture_back_right
 			if not tex and texture_back_left:
 				tex = texture_back_left
 				should_flip = true
-		4:  # back
+		4:
 			tex = texture_back
-		5:  # back-left
+		5:
 			tex = texture_back_left
 			if not tex and texture_back_right:
 				tex = texture_back_right
 				should_flip = true
-		6:  # left
+		6:
 			tex = texture_left
 			if not tex and texture_right:
 				tex = texture_right
 				should_flip = true
-		7:  # front-left
+		7:
 			tex = texture_front_left
 			if not tex and texture_front_right:
 				tex = texture_front_right
 				should_flip = true
 
-	# Fallback to 4-dir if diagonal texture missing
 	if not tex:
 		var fallback_sector: int = [0, 1, 1, 2, 2, 3, 3, 0][sector]
 		_apply_sector_4(fallback_sector)
