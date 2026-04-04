@@ -11,8 +11,6 @@ const ArmorData = preload("res://shared/armor_data.gd")
 const Projectile = preload("res://shared/projectiles/projectile.gd")
 const HitEffectScene = preload("res://shared/effects/hit_effect.tscn")
 const ParryEffectScene = preload("res://shared/effects/parry_effect.tscn")
-const DirectionalSpriteScript = preload("res://shared/directional_sprite.gd")
-
 # Default player colors (unarmored - skin tones)
 const DEFAULT_SKIN_COLOR: Color = Color(0.9, 0.75, 0.65, 1.0)  # Natural skin tone
 const DEFAULT_CLOTHES_COLOR: Color = Color(0.7, 0.65, 0.6, 1.0)  # Light tan (minimal clothing)
@@ -139,7 +137,7 @@ var viewmodel_arms: Node3D = null
 
 # Player body visuals
 var body_container: Node3D = null
-var first_person_arms: Node3D = null  # FirstPersonArms instance (arm + wand sprites on camera)
+# (first_person_arms removed - using 3D body visible in first person)
 
 # Equipped weapon/shield visuals
 var equipped_weapon_visual: Node3D = null  # Main hand weapon
@@ -394,10 +392,6 @@ func _process(delta: float) -> void:
 		# Remote players: Interpolate between states
 		_interpolate_remote_player(delta)
 	else:
-		# Deferred first-person arms setup (CameraController is added by client after _ready)
-		if first_person_arms == null and get_node_or_null("CameraController") != null:
-			_setup_first_person_arms()
-
 		# Local player: Update persistent terrain preview
 		_update_persistent_terrain_preview()
 
@@ -411,8 +405,7 @@ func _process(delta: float) -> void:
 				# Re-enable persistent preview if we have a terrain tool equipped
 				_update_persistent_terrain_preview()
 
-	# Update directional sprite facing angle from body rotation
-	_update_player_sprite_facing()
+	# (sprite facing update removed - using 3D body)
 
 # ============================================================================
 # INPUT HANDLING (CLIENT-SIDE)
@@ -2004,161 +1997,16 @@ func can_parry(shield_data) -> bool:  # shield_data is ShieldData
 # ============================================================================
 
 func _setup_player_body() -> void:
-	"""Create player body as a 2D billboard sprite (Paper Mario style)"""
-	# Create body_container Node3D to hold the sprite
-	body_container = Node3D.new()
-	body_container.name = "PlayerBody"
+	"""Create player body from TSCN file"""
+	# Load the complete body scene
+	var body_scene = preload("res://shared/player_body.tscn")
+	body_container = body_scene.instantiate()
+
+	# Add directly to player (this CharacterBody3D)
 	add_child(body_container)
 
-	# Create the DirectionalSprite billboard
-	var sprite := DirectionalSpriteScript.new()
-	sprite.name = "BodySprite"
-	sprite.alpha_cut = SpriteBase3D.ALPHA_CUT_OPAQUE_PREPASS
-	sprite.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
-
-	# Try 36-angle sprites first, then legacy 4-dir, then procedural fallback
-	if SpriteLoader.has_character("mage"):
-		sprite.set_character("mage")
-		sprite.pixel_size = 0.005  # 384px * 0.005 = 1.92 units tall
-		var sprite_height = sprite.texture.get_height() * sprite.pixel_size if sprite.texture else 1.92
-		sprite.position = Vector3(0, sprite_height * 0.5, 0)
-	else:
-		# Fallback: procedural mage texture
-		sprite.pixel_size = 0.025
-		var tex_front = TextureGenerator.generate_mage_texture("blue", 0, "front")
-		var tex_back = TextureGenerator.generate_mage_texture("blue", 0, "back")
-		var tex_side = TextureGenerator.generate_mage_texture("blue", 0, "side")
-		sprite.texture = tex_front
-		sprite.set_textures_4dir(tex_front, tex_back, tex_side, tex_side)
-		# Texture is 64x96 pixels, pixel_size=0.025, so height = 96 * 0.025 = 2.4 units
-		sprite.position = Vector3(0, 1.2, 0)
-
-	body_container.add_child(sprite)
-
-	# Create hand attachment points for weapons and shields
-	# Right hand attach - positioned at roughly where the mage's right hand is
-	var right_hand_attach := Node3D.new()
-	right_hand_attach.name = "RightHandAttach"
-	right_hand_attach.position = Vector3(0.3, 1.15, 0.1)  # Right side, mid-body, slightly forward
-	body_container.add_child(right_hand_attach)
-
-	# Left hand attach - positioned at roughly where the mage's left hand is
-	var left_hand_attach := Node3D.new()
-	left_hand_attach.name = "LeftHandAttach"
-	left_hand_attach.position = Vector3(-0.3, 1.15, 0.1)  # Left side, mid-body, slightly forward
-	body_container.add_child(left_hand_attach)
-
-	print("[Player] Player body created as 2D billboard sprite (Paper Mario style)")
+	print("[Player] Player body loaded from player_body.tscn")
 	print("[Player] Body container parent: %s" % body_container.get_parent().name)
-
-func _setup_first_person_arms() -> void:
-	"""Hide billboard sprite for local player and add first-person arms + wand on camera.
-	Matches MvZ: FirstPersonArms is a child of Camera3D at y=-0.15 offset."""
-	print("[Player] _setup_first_person_arms() called, is_local_player=%s" % is_local_player)
-
-	# Only set up for local player
-	if not is_local_player:
-		print("[Player] Not local player, skipping first-person arms")
-		return
-
-	# Don't create twice
-	if first_person_arms != null:
-		return
-
-	# Hide the billboard sprite (other players will still see it via network, but local camera won't)
-	_hide_local_body_sprite()
-
-	# Create first-person arms attached to camera
-	var cam_controller := get_node_or_null("CameraController")
-	if not cam_controller:
-		print("[Player] WARNING: No CameraController child found, children: %s" % str(get_children().map(func(c): return c.name)))
-		return
-
-	if not cam_controller.has_method("get_camera"):
-		print("[Player] WARNING: CameraController has no get_camera() method")
-		return
-
-	var camera: Camera3D = cam_controller.get_camera()
-	if not camera:
-		print("[Player] WARNING: CameraController.get_camera() returned null")
-		return
-
-	print("[Player] Found Camera3D: %s (path: %s)" % [camera.name, camera.get_path()])
-	print("[Player] Camera3D parent: %s" % camera.get_parent().name)
-
-	var arms_script = load("res://shared/player/first_person_arms.gd")
-	if not arms_script:
-		print("[Player] WARNING: Failed to load first_person_arms.gd")
-		return
-
-	first_person_arms = Node3D.new()
-	first_person_arms.set_script(arms_script)
-	first_person_arms.name = "FirstPersonArms"
-	# Match MvZ: FirstPersonArms sits at y=-0.15 relative to Camera3D
-	first_person_arms.position = Vector3(0, -0.15, 0)
-	camera.add_child(first_person_arms)
-	print("[Player] FirstPersonArms created as child of Camera3D (%s)" % camera.get_path())
-	print("[Player] FirstPersonArms position: %s" % first_person_arms.position)
-	print("[Player] FirstPersonArms children after _ready: %s" % str(first_person_arms.get_children().map(func(c): return c.name)))
-	print("[Player] FirstPersonArms child count: %d" % first_person_arms.get_child_count())
-
-## Hide the local player's billboard body sprite (used in first-person mode)
-func _hide_local_body_sprite() -> void:
-	if body_container:
-		var billboard_sprite = body_container.get_node_or_null("BodySprite")
-		if billboard_sprite:
-			billboard_sprite.visible = false
-			print("[Player] Hid billboard BodySprite for local player")
-		else:
-			print("[Player] WARNING: No BodySprite found in body_container")
-	else:
-		print("[Player] WARNING: No body_container found")
-
-## Update first-person arms wand color based on equipped weapon's damage type
-func _update_first_person_arms_color() -> void:
-	if not first_person_arms or not first_person_arms.has_method("set_spell_color"):
-		return
-
-	var weapon_data = null
-	if equipment:
-		weapon_data = equipment.get_equipped_weapon()
-	if not weapon_data:
-		weapon_data = ItemDatabase.get_item("fists")
-
-	# Map damage type to wand crystal color
-	var color: Color = Color(1, 0.5, 0.2)  # Default warm orange
-	if weapon_data:
-		match weapon_data.damage_type:
-			WeaponData.DamageType.FIRE:
-				color = Color(1.0, 0.3, 0.1)  # Orange-red
-			WeaponData.DamageType.ICE:
-				color = Color(0.3, 0.7, 1.0)  # Ice blue
-			WeaponData.DamageType.LIGHTNING:
-				color = Color(0.8, 0.8, 1.0)  # Electric white-blue
-			WeaponData.DamageType.ARCANE:
-				color = Color(0.7, 0.2, 1.0)  # Purple
-			WeaponData.DamageType.NATURE:
-				color = Color(0.2, 0.9, 0.3)  # Green
-			WeaponData.DamageType.DARK:
-				color = Color(0.4, 0.0, 0.5)  # Dark purple
-			WeaponData.DamageType.HOLY:
-				color = Color(1.0, 1.0, 0.6)  # Golden
-			WeaponData.DamageType.POISON:
-				color = Color(0.4, 0.8, 0.1)  # Sickly green
-
-	first_person_arms.set_spell_color(color)
-
-## Update the DirectionalSprite's facing_angle from the player's body rotation.
-func _update_player_sprite_facing() -> void:
-	if not body_container:
-		return
-	var sprite = body_container.get_node_or_null("BodySprite")
-	if sprite and "facing_angle" in sprite:
-		# Player's body_container.rotation.y uses atan2(dir.x, dir.z) convention,
-		# which is PI-offset from Godot's standard rotation (where 0 = facing -Z).
-		# Add PI to convert to standard Godot rotation convention that
-		# DirectionalSprite expects (0 = facing -Z).
-		sprite.facing_angle = body_container.global_rotation.y + PI
 
 func _setup_terrain_preview_shapes() -> void:
 	"""Create preview shapes for terrain modification feedback"""
@@ -3138,7 +2986,6 @@ func _on_equipment_changed(slot) -> void:  # slot is Equipment.EquipmentSlot
 	match slot:
 		Equipment.EquipmentSlot.MAIN_HAND:
 			_update_weapon_visual()
-			_update_first_person_arms_color()
 		Equipment.EquipmentSlot.OFF_HAND:
 			_update_shield_visual()
 		Equipment.EquipmentSlot.HEAD:
@@ -3162,10 +3009,6 @@ func _update_weapon_visual() -> void:
 		weapon_wrist_pivot.queue_free()
 		weapon_wrist_pivot = null
 
-	# Local player uses FirstPersonArms for weapon display, skip the 3D weapon sprite
-	if is_local_player:
-		return
-
 	# Get equipped weapon
 	var weapon_id = equipment.get_equipped_item(Equipment.EquipmentSlot.MAIN_HAND)
 	if weapon_id.is_empty():
@@ -3181,16 +3024,14 @@ func _update_weapon_visual() -> void:
 	if weapon_id == "fists":
 		return
 
-	# Create 2D sprite weapon visual instead of 3D mesh
-	var weapon_sprite := Sprite3D.new()
-	weapon_sprite.name = "WeaponSprite"
-	weapon_sprite.texture = TextureGenerator.generate_weapon_texture(weapon_id)
-	weapon_sprite.pixel_size = 0.02
-	weapon_sprite.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
-	weapon_sprite.alpha_cut = SpriteBase3D.ALPHA_CUT_OPAQUE_PREPASS
-	weapon_sprite.billboard = BaseMaterial3D.BILLBOARD_DISABLED
+	# Load weapon scene
+	var weapon_scene = weapon_data.get("weapon_scene")
+	if not weapon_scene:
+		push_warning("[Player] No weapon scene for: %s" % weapon_id)
+		return
 
-	equipped_weapon_visual = weapon_sprite
+	# Instantiate weapon visual
+	equipped_weapon_visual = weapon_scene.instantiate()
 
 	# Create a wrist pivot node for natural weapon rotation during swings
 	weapon_wrist_pivot = Node3D.new()
@@ -3203,25 +3044,32 @@ func _update_weapon_visual() -> void:
 		right_hand_attach.add_child(weapon_wrist_pivot)
 		weapon_wrist_pivot.add_child(equipped_weapon_visual)
 
-		# Rotate sprite so it points upward/forward (blade up from hand)
-		equipped_weapon_visual.rotation_degrees = Vector3(0, 0, 0)
-		# Offset so the handle end is at the hand position
-		equipped_weapon_visual.position = Vector3(0, 0.25, 0)
+		# Rotate weapon 90 degrees forward (X-axis) so it points forward instead of down
+		equipped_weapon_visual.rotation_degrees = Vector3(90, 0, 0)
+
+		# Apply mount point offset - MUST transform by rotation first!
+		# The mount point is defined in unrotated weapon space, but we need
+		# to offset in the rotated space so the grip ends up at the pivot
+		if equipped_weapon_visual.has_node("MountPoint"):
+			var mount_point = equipped_weapon_visual.get_node("MountPoint")
+			# Transform mount point position by weapon's rotation basis
+			var rotated_offset = equipped_weapon_visual.basis * mount_point.position
+			equipped_weapon_visual.position = -rotated_offset
 
 		# Setup weapon hitbox for collision-based combat (Valheim-style)
 		_setup_weapon_hitbox()
 
-		print("[Player] Equipped weapon sprite: %s (with wrist pivot)" % weapon_id)
+		print("[Player] Equipped weapon visual: %s (with wrist pivot)" % weapon_id)
 	else:
 		# Fallback: attach to body container
 		if body_container:
 			body_container.add_child(weapon_wrist_pivot)
 			weapon_wrist_pivot.add_child(equipped_weapon_visual)
 			weapon_wrist_pivot.position = Vector3(0.3, 1.2, 0)  # Approximate hand position
-			equipped_weapon_visual.position = Vector3(0, 0.25, 0)
+			equipped_weapon_visual.rotation_degrees = Vector3(90, 0, 0)
 			# Setup weapon hitbox for collision-based combat (Valheim-style)
 			_setup_weapon_hitbox()
-			print("[Player] Equipped weapon sprite (fallback): %s" % weapon_id)
+			print("[Player] Equipped weapon visual (fallback): %s" % weapon_id)
 		else:
 			weapon_wrist_pivot.queue_free()
 			weapon_wrist_pivot = null
@@ -3409,11 +3257,29 @@ func _find_hand_attach_point(hand_name: String) -> Node3D:
 	if not body_container:
 		return null
 
-	# Sprite-based body: use the dedicated hand attach points
+	# Map hand name to arm node name
+	var arm_name = ""
 	if hand_name == "RightHand":
-		return body_container.get_node_or_null("RightHandAttach")
+		arm_name = "RightArm"
 	elif hand_name == "LeftHand":
-		return body_container.get_node_or_null("LeftHandAttach")
+		arm_name = "LeftArm"
+	else:
+		return null
+
+	# Find the arm node in body container
+	if not body_container.has_node(arm_name):
+		return null
+
+	var arm = body_container.get_node(arm_name)
+	if not arm or not is_instance_valid(arm):
+		return null
+
+	# Find HandAttach node in the arm (it's under Elbow)
+	if arm.has_node("Elbow/HandAttach"):
+		return arm.get_node("Elbow/HandAttach")
+	# Fallback: check directly under arm
+	if arm.has_node("HandAttach"):
+		return arm.get_node("HandAttach")
 
 	return null
 

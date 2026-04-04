@@ -133,18 +133,7 @@ func _process_third_person(delta: float) -> void:
 
 	# Check if we're close enough to be effectively first-person
 	is_first_person = spring_arm.spring_length < 0.5
-
-	# Hide player mesh in first-person mode (from zoom)
-	var player = get_parent()
-	if player:
-		var body = player.get_node_or_null("PlayerBody")
-		if body:
-			var sprite = body.get_node_or_null("BodySprite")
-			if sprite:
-				sprite.visible = not is_first_person
-		# Toggle first-person arms (inverse of billboard)
-		if "first_person_arms" in player and player.first_person_arms:
-			player.first_person_arms.visible = is_first_person
+	# 3D body is always visible (even in first-person, player can look down and see it)
 
 	# Apply camera rotation with shake
 	rotation.y = camera_rotation.x
@@ -156,25 +145,11 @@ func _apply_camera_mode() -> void:
 		spring_arm.spring_length = 0.0
 		spring_arm.position = Vector3(0, first_person_eye_height, 0)
 		is_first_person = true
-		# Hide local player sprite in first-person
-		_set_local_sprite_visible(false)
 	else:
 		spring_arm.spring_length = target_zoom
 		spring_arm.position = Vector3(0, third_person_height_offset, 0)
 		is_first_person = target_zoom < 0.5
-		_set_local_sprite_visible(true)
-
-func _set_local_sprite_visible(visible: bool) -> void:
-	var player = get_parent()
-	if player:
-		var body = player.get_node_or_null("PlayerBody")
-		if body:
-			var sprite = body.get_node_or_null("BodySprite")
-			if sprite:
-				sprite.visible = visible
-		# Toggle first-person arms (inverse of billboard)
-		if "first_person_arms" in player and player.first_person_arms:
-			player.first_person_arms.visible = not visible
+	# 3D body is always visible in both modes
 
 func _handle_mouse_look(mouse_delta: Vector2) -> void:
 	# Yaw (left/right)

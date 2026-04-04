@@ -46,11 +46,6 @@ var head: Node3D = null
 # Head height (for head bobbing, set by subclasses)
 var head_base_height: float = 0.0
 
-# Sprite-based animation (for billboard sprite entities without 3D legs)
-var _body_sprite: Node3D = null  # Cached reference to BodySprite or Sprite
-var _sprite_base_y: float = -1.0  # Original Y position of the sprite (-1 = not cached)
-var _sprite_anim_time: float = 0.0  # Continuous time accumulator for sprite animations
-
 # PERFORMANCE: Cached joint references (avoid get_node_or_null every frame)
 var _left_knee: Node3D = null
 var _right_knee: Node3D = null
@@ -74,7 +69,7 @@ func _cache_joint_nodes() -> void:
 
 ## Update all animations - call this in _physics_process
 func update_animations(delta: float) -> void:
-	if not body_container:
+	if not body_container or not left_leg or not right_leg:
 		return
 
 	# PERFORMANCE: Cache joint references on first call
@@ -113,12 +108,6 @@ func update_animations(delta: float) -> void:
 	# Stun animation overrides everything
 	if is_stunned:
 		_animate_stun(delta)
-		return
-
-	# Billboard sprites (no legs) get sprite-based walk animation instead of limb-based
-	if not left_leg or not right_leg:
-		if body_container:
-			_animate_sprite(delta)
 		return
 
 	# Check if moving based on velocity
@@ -247,68 +236,6 @@ func _animate_idle(delta: float) -> void:
 	if body_container:
 		var breathe = sin(Time.get_ticks_msec() / 1000.0 * 2.0) * 0.01
 		body_container.position.y = breathe
-
-## Animate sprite-based entities (billboard sprites without 3D legs)
-## Provides walk bob, squash/stretch, and idle breathing for all sprite entities.
-func _animate_sprite(delta: float) -> void:
-	# Cache sprite reference on first call
-	if not _body_sprite:
-		_body_sprite = body_container.get_node_or_null("BodySprite")
-		if not _body_sprite:
-			_body_sprite = body_container.get_node_or_null("Sprite")
-		if not _body_sprite:
-			return
-	if not is_instance_valid(_body_sprite):
-		_body_sprite = null
-		return
-
-	# Cache the sprite's original Y position once
-	if _sprite_base_y < 0.0:
-		_sprite_base_y = _body_sprite.position.y
-
-	_sprite_anim_time += delta
-
-	var horizontal_speed = Vector2(velocity.x, velocity.z).length()
-	var is_moving = horizontal_speed > 0.3
-
-	# Jump / falling animation
-	var in_air = not is_on_floor()
-	if in_air:
-		if velocity.y > 0.5:
-			# Rising - stretch vertically
-			_body_sprite.scale.y = lerp(_body_sprite.scale.y, 1.05, delta * 8.0)
-			_body_sprite.scale.x = lerp(_body_sprite.scale.x, 0.95, delta * 8.0)
-		elif velocity.y < -0.5:
-			# Falling - squash horizontally
-			_body_sprite.scale.y = lerp(_body_sprite.scale.y, 0.95, delta * 8.0)
-			_body_sprite.scale.x = lerp(_body_sprite.scale.x, 1.05, delta * 8.0)
-		return
-
-	if is_moving:
-		# Walking animation: bob up/down with squash/stretch
-		var speed_multiplier = horizontal_speed / walk_speed
-		var bob_speed = 8.0 * speed_multiplier
-		var bob_amplitude = 0.06
-
-		var bob = abs(sin(_sprite_anim_time * bob_speed)) * bob_amplitude
-		_body_sprite.position.y = _sprite_base_y + bob
-
-		# Subtle squash/stretch synced to bob cycle
-		var squash = sin(_sprite_anim_time * bob_speed * 2.0) * 0.03
-		_body_sprite.scale.y = 1.0 + squash
-		_body_sprite.scale.x = 1.0 - squash * 0.5  # Inverse for volume preservation
-
-		# Slight tilt while walking
-		_body_sprite.rotation.z = sin(_sprite_anim_time * bob_speed) * 0.02
-	else:
-		# Idle animation: gentle breathing bob
-		var breathe = sin(_sprite_anim_time * 1.5) * 0.02
-		_body_sprite.position.y = lerp(_body_sprite.position.y, _sprite_base_y + breathe, delta * 5.0)
-
-		# Smoothly return scale and rotation to neutral
-		_body_sprite.scale.x = lerp(_body_sprite.scale.x, 1.0, delta * 5.0)
-		_body_sprite.scale.y = lerp(_body_sprite.scale.y, 1.0, delta * 5.0)
-		_body_sprite.rotation.z = lerp(_body_sprite.rotation.z, 0.0, delta * 5.0)
 
 ## Animate attack (arm swing)
 func _animate_attack(_delta: float) -> void:

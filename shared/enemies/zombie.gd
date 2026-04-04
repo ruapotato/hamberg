@@ -1,7 +1,7 @@
 extends "res://shared/enemies/enemy.gd"
 
 ## Zombie - Undead enemy that spawns in all biomes
-## Uses ZombieTextureGenerator for procedural pixel art sprites
+## Uses 3D procedural mesh body (green-skinned humanoid)
 ## Different zombie types have different stats and appearances:
 ##   walker, runner, brute, mage_zombie, exploder
 
@@ -85,55 +85,239 @@ func _apply_zombie_type() -> void:
 func set_zombie_type(type: String) -> void:
 	zombie_type = type
 
-## Override body setup to use aalib sprites or ZombieTextureGenerator fallback
+## Override body setup to use 3D procedural mesh (green-skinned humanoid)
 func _setup_body() -> void:
 	body_container = Node3D.new()
 	body_container.name = "BodyContainer"
 	body_container.rotation.y = PI
+	body_container.position.y = -0.15  # Lower body to align feet with ground
 	add_child(body_container)
 
-	# Directional Billboard Sprite3D (Paper Mario style)
-	var sprite = DirectionalSpriteScript.new()
-	sprite.name = "Sprite"
-	sprite.alpha_cut = SpriteBase3D.ALPHA_CUT_OPAQUE_PREPASS
-	sprite.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
-
-	# Map zombie_type to sprite name
-	var sprite_name_map = {
-		"walker": "zombie_walker",
-		"runner": "zombie_runner",
-		"brute": "zombie_brute",
-	}
-	var aalib_name = sprite_name_map.get(zombie_type, "")
-
-	var sprite_height: float
-	if aalib_name != "" and SpriteLoader.has_character(aalib_name):
-		sprite.set_character(aalib_name)
-		sprite.pixel_size = 0.005  # 384px * 0.005 = 1.92 units tall
-		sprite_height = sprite.texture.get_height() * sprite.pixel_size if sprite.texture else 1.92
-	else:
-		# Fallback: procedural ZombieTextureGenerator
-		sprite.pixel_size = 0.02
-		var tex_front = ZombieTextureGenerator.get_zombie_texture(zombie_type, "front")
-		var tex_back = ZombieTextureGenerator.get_zombie_texture(zombie_type, "back")
-		var tex_side = ZombieTextureGenerator.get_zombie_texture(zombie_type, "side")
-		sprite.texture = tex_front
-		sprite.set_textures_4dir(tex_front, tex_back, tex_side, tex_side)
-		sprite_height = 96.0 * 0.02  # 1.92
-
-	sprite.position = Vector3(0, sprite_height * 0.5, 0)
+	var scale_factor: float = 0.82
 
 	# Scale brutes up and runners slightly smaller
 	if zombie_type == "brute":
-		body_container.scale = Vector3(1.3, 1.3, 1.3)
+		scale_factor = 1.1
 	elif zombie_type == "runner":
-		body_container.scale = Vector3(0.9, 0.9, 0.9)
+		scale_factor = 0.75
 
-	body_container.add_child(sprite)
+	# Zombie materials - sickly green/gray skin, tattered dark clothes
+	var skin_mat = StandardMaterial3D.new()
+	skin_mat.albedo_color = Color(0.35, 0.5, 0.3, 1)  # Sickly green skin
 
-	head_base_height = 0.0  # No 3D head to bob
+	var clothes_mat = StandardMaterial3D.new()
+	clothes_mat.albedo_color = Color(0.25, 0.2, 0.18, 1)  # Dark tattered clothes
 
-## Override telegraph to use sprite tint
+	var bone_mat = StandardMaterial3D.new()
+	bone_mat.albedo_color = Color(0.7, 0.65, 0.55, 1)  # Exposed bone color
+
+	# Type-specific skin color variations
+	if zombie_type == "brute":
+		skin_mat.albedo_color = Color(0.3, 0.42, 0.28, 1)  # Darker green
+		clothes_mat.albedo_color = Color(0.2, 0.15, 0.12, 1)  # Darker rags
+	elif zombie_type == "runner":
+		skin_mat.albedo_color = Color(0.4, 0.55, 0.35, 1)  # Lighter, more agile looking
+	elif zombie_type == "mage_zombie":
+		skin_mat.albedo_color = Color(0.3, 0.4, 0.45, 1)  # Blue-green tint
+		clothes_mat.albedo_color = Color(0.2, 0.15, 0.3, 1)  # Purple-ish robes
+	elif zombie_type == "exploder":
+		skin_mat.albedo_color = Color(0.5, 0.45, 0.25, 1)  # Sickly yellow-green
+		# Glowing belly for exploder
+		var glow_mat = StandardMaterial3D.new()
+		glow_mat.albedo_color = Color(0.6, 0.4, 0.1, 1)
+		glow_mat.emission_enabled = true
+		glow_mat.emission = Color(0.8, 0.4, 0.0, 1)
+		glow_mat.emission_energy_multiplier = 1.5
+
+	# Hips
+	var hips = MeshInstance3D.new()
+	var hips_mesh = BoxMesh.new()
+	hips_mesh.size = Vector3(0.2, 0.15, 0.12) * scale_factor
+	hips.mesh = hips_mesh
+	hips.material_override = clothes_mat
+	hips.position = Vector3(0, 0.55 * scale_factor, 0)
+	body_container.add_child(hips)
+
+	# Torso
+	torso = MeshInstance3D.new()
+	var torso_mesh = CapsuleMesh.new()
+	torso_mesh.radius = 0.1 * scale_factor
+	torso_mesh.height = 0.4 * scale_factor
+	torso.mesh = torso_mesh
+	torso.material_override = clothes_mat
+	torso.position = Vector3(0, 0.75 * scale_factor, 0)
+	# Zombies slouch slightly
+	torso.rotation.x = 0.15
+	body_container.add_child(torso)
+
+	# Neck (thin, exposed)
+	var neck = MeshInstance3D.new()
+	var neck_mesh = CapsuleMesh.new()
+	neck_mesh.radius = 0.025 * scale_factor
+	neck_mesh.height = 0.1 * scale_factor
+	neck.mesh = neck_mesh
+	neck.material_override = skin_mat
+	neck.position = Vector3(0, 0.92 * scale_factor, 0.02 * scale_factor)
+	body_container.add_child(neck)
+
+	# Head (slightly misshapen)
+	head = MeshInstance3D.new()
+	var head_mesh = SphereMesh.new()
+	head_mesh.radius = 0.09 * scale_factor
+	head_mesh.height = 0.18 * scale_factor
+	head.mesh = head_mesh
+	head.material_override = skin_mat
+	head.position = Vector3(0, 1.0 * scale_factor, 0.03 * scale_factor)
+	# Head tilted slightly
+	head.rotation.z = 0.1
+	body_container.add_child(head)
+
+	# Sunken eyes (dark hollows)
+	var eye_mat = StandardMaterial3D.new()
+	eye_mat.albedo_color = Color(0.1, 0.0, 0.0, 1)
+	if zombie_type == "mage_zombie":
+		eye_mat.emission_enabled = true
+		eye_mat.emission = Color(0.5, 0.2, 0.8, 1)  # Purple glowing eyes
+		eye_mat.emission_energy_multiplier = 1.5
+
+	var eye_mesh = SphereMesh.new()
+	var eye_radius = 0.018 * scale_factor
+	eye_mesh.radius = eye_radius
+	eye_mesh.height = eye_radius * 2.0
+
+	var left_eye = MeshInstance3D.new()
+	left_eye.mesh = eye_mesh
+	left_eye.material_override = eye_mat
+	left_eye.position = Vector3(-0.035 * scale_factor, 0.02 * scale_factor, 0.07 * scale_factor)
+	head.add_child(left_eye)
+
+	var right_eye = MeshInstance3D.new()
+	right_eye.mesh = eye_mesh
+	right_eye.material_override = eye_mat
+	right_eye.position = Vector3(0.035 * scale_factor, 0.02 * scale_factor, 0.07 * scale_factor)
+	head.add_child(right_eye)
+
+	# Jaw (open, hanging)
+	var jaw = MeshInstance3D.new()
+	var jaw_mesh = BoxMesh.new()
+	jaw_mesh.size = Vector3(0.07, 0.03, 0.06) * scale_factor
+	jaw.mesh = jaw_mesh
+	jaw.material_override = skin_mat
+	jaw.position = Vector3(0, -0.06 * scale_factor, 0.05 * scale_factor)
+	jaw.rotation.x = 0.2  # Slightly open
+	head.add_child(jaw)
+
+	# Legs
+	var thigh_mesh = CapsuleMesh.new()
+	thigh_mesh.radius = 0.04 * scale_factor
+	thigh_mesh.height = 0.2 * scale_factor
+
+	left_leg = Node3D.new()
+	left_leg.position = Vector3(-0.07 * scale_factor, 0.55 * scale_factor, 0)
+	body_container.add_child(left_leg)
+
+	var left_thigh = MeshInstance3D.new()
+	left_thigh.mesh = thigh_mesh
+	left_thigh.material_override = clothes_mat
+	left_thigh.position = Vector3(0, -0.1 * scale_factor, 0)
+	left_leg.add_child(left_thigh)
+
+	var left_knee = Node3D.new()
+	left_knee.name = "Knee"
+	left_knee.position = Vector3(0, -0.2 * scale_factor, 0)
+	left_leg.add_child(left_knee)
+
+	var left_shin = MeshInstance3D.new()
+	left_shin.mesh = thigh_mesh
+	left_shin.material_override = clothes_mat
+	left_shin.position = Vector3(0, -0.1 * scale_factor, 0)
+	left_knee.add_child(left_shin)
+
+	right_leg = Node3D.new()
+	right_leg.position = Vector3(0.07 * scale_factor, 0.55 * scale_factor, 0)
+	body_container.add_child(right_leg)
+
+	var right_thigh = MeshInstance3D.new()
+	right_thigh.mesh = thigh_mesh
+	right_thigh.material_override = clothes_mat
+	right_thigh.position = Vector3(0, -0.1 * scale_factor, 0)
+	right_leg.add_child(right_thigh)
+
+	var right_knee = Node3D.new()
+	right_knee.name = "Knee"
+	right_knee.position = Vector3(0, -0.2 * scale_factor, 0)
+	right_leg.add_child(right_knee)
+
+	var right_shin = MeshInstance3D.new()
+	right_shin.mesh = thigh_mesh
+	right_shin.material_override = clothes_mat
+	right_shin.position = Vector3(0, -0.1 * scale_factor, 0)
+	right_knee.add_child(right_shin)
+
+	# Arms (one arm slightly longer, asymmetric zombie look)
+	var arm_mesh = CapsuleMesh.new()
+	arm_mesh.radius = 0.03 * scale_factor
+	arm_mesh.height = 0.18 * scale_factor
+
+	left_arm = Node3D.new()
+	left_arm.position = Vector3(-0.13 * scale_factor, 0.88 * scale_factor, 0.02 * scale_factor)
+	# Left arm hangs forward (zombie slouch)
+	left_arm.rotation.x = -0.3
+	body_container.add_child(left_arm)
+
+	var left_upper = MeshInstance3D.new()
+	left_upper.mesh = arm_mesh
+	left_upper.material_override = skin_mat
+	left_upper.position = Vector3(0, -0.09 * scale_factor, 0)
+	left_arm.add_child(left_upper)
+
+	var left_elbow = Node3D.new()
+	left_elbow.name = "Elbow"
+	left_elbow.position = Vector3(0, -0.18 * scale_factor, 0)
+	left_arm.add_child(left_elbow)
+
+	var left_forearm = MeshInstance3D.new()
+	left_forearm.mesh = arm_mesh
+	left_forearm.material_override = skin_mat
+	left_forearm.position = Vector3(0, -0.09 * scale_factor, 0)
+	left_elbow.add_child(left_forearm)
+
+	right_arm = Node3D.new()
+	right_arm.position = Vector3(0.13 * scale_factor, 0.88 * scale_factor, 0.02 * scale_factor)
+	# Right arm extends forward more (reaching)
+	right_arm.rotation.x = -0.5
+	body_container.add_child(right_arm)
+
+	var right_upper = MeshInstance3D.new()
+	right_upper.mesh = arm_mesh
+	right_upper.material_override = skin_mat
+	right_upper.position = Vector3(0, -0.09 * scale_factor, 0)
+	right_arm.add_child(right_upper)
+
+	var right_elbow = Node3D.new()
+	right_elbow.name = "Elbow"
+	right_elbow.position = Vector3(0, -0.18 * scale_factor, 0)
+	right_arm.add_child(right_elbow)
+
+	var right_forearm = MeshInstance3D.new()
+	right_forearm.mesh = arm_mesh
+	right_forearm.material_override = skin_mat
+	right_forearm.position = Vector3(0, -0.09 * scale_factor, 0)
+	right_elbow.add_child(right_forearm)
+
+	# Exposed bone on one arm (detail)
+	var bone_spot = MeshInstance3D.new()
+	var bone_mesh = CapsuleMesh.new()
+	bone_mesh.radius = 0.012 * scale_factor
+	bone_mesh.height = 0.06 * scale_factor
+	bone_spot.mesh = bone_mesh
+	bone_spot.material_override = bone_mat
+	bone_spot.position = Vector3(0.01 * scale_factor, -0.05 * scale_factor, 0.02 * scale_factor)
+	left_upper.add_child(bone_spot)
+
+	head_base_height = 1.0 * scale_factor
+
+## Override telegraph to use red-ish warning tint for zombies
 func _set_windup_telegraph(enabled: bool) -> void:
 	if not body_container:
 		return
@@ -142,26 +326,29 @@ func _set_windup_telegraph(enabled: bool) -> void:
 		windup_tween.kill()
 
 	if enabled:
+		# Swing arm BACK to telegraph attack
+		if right_arm:
+			original_arm_rotation = right_arm.rotation.x
+			windup_tween = create_tween()
+			windup_tween.tween_property(right_arm, "rotation:x", 1.0, 0.25)
 		# Red-ish warning tint for zombies
 		_set_body_tint(Color(1.0, 0.4, 0.4, 1.0))
 	else:
+		if right_arm:
+			right_arm.rotation.x = -0.5  # Return to zombie slouch pose
 		_set_body_tint(Color(1.0, 1.0, 1.0, 1.0))
 
-## Override attack swing animation (sprite squash-and-stretch)
+## Override attack swing animation
 func _play_attack_swing() -> void:
-	if not body_container:
+	if not right_arm:
 		return
 
 	if windup_tween and windup_tween.is_valid():
 		windup_tween.kill()
 
-	# Preserve base scale (brutes are 1.3x, runners 0.9x)
-	var base_scale = body_container.scale
-	var squash = Vector3(base_scale.x * 1.2, base_scale.y * 0.85, base_scale.z * 1.2)
-
-	# Quick lunge forward effect via scale squash
 	windup_tween = create_tween()
-	windup_tween.tween_property(body_container, "scale", squash, 0.1)
-	windup_tween.tween_property(body_container, "scale", base_scale, 0.3)
+	# Fast swing forward (zombie lunge)
+	windup_tween.tween_property(right_arm, "rotation:x", -1.2, 0.1)
+	windup_tween.tween_property(right_arm, "rotation:x", -0.5, 0.3)  # Back to slouch
 
 	_set_body_tint(Color(1.0, 1.0, 1.0, 1.0))
