@@ -300,7 +300,7 @@ func _register_weapon_iron_sword() -> void:
 	weapon.durability = 150
 	weapon.stamina_cost = 10.0
 	weapon.weight = 3.5
-	weapon.weapon_scene = load("res://shared/weapons/stone_sword.tscn")  # Reuse mesh for now
+	weapon.weapon_scene = load("res://shared/weapons/iron_sword.tscn")
 	items["iron_sword"] = weapon
 
 func _register_weapon_iron_axe() -> void:
@@ -317,7 +317,7 @@ func _register_weapon_iron_axe() -> void:
 	weapon.stamina_cost = 18.0
 	weapon.tool_type = "axe"
 	weapon.weight = 6.5
-	weapon.weapon_scene = load("res://shared/weapons/stone_axe.tscn")  # Reuse mesh for now
+	weapon.weapon_scene = load("res://shared/weapons/iron_axe.tscn")
 	items["iron_axe"] = weapon
 
 func _register_weapon_iron_pickaxe() -> void:
@@ -334,6 +334,7 @@ func _register_weapon_iron_pickaxe() -> void:
 	weapon.stamina_cost = 8.0
 	weapon.tool_type = "pickaxe"
 	weapon.weight = 5.0
+	weapon.weapon_scene = load("res://shared/weapons/iron_pickaxe.tscn")
 	items["iron_pickaxe"] = weapon
 
 ## Shields
@@ -723,6 +724,7 @@ func _register_lightning_wand() -> void:
 	weapon.spell_name = "chain_lightning"  # Maps to SpellRegistry
 	weapon.projectile_speed = 60.0
 	weapon.weight = 1.5
+	weapon.weapon_scene = load("res://shared/weapons/lightning_wand.tscn")
 	items["lightning_wand"] = weapon
 
 ## Arcane Wand - Tier 1 arcane wand, fires homing missiles
@@ -741,6 +743,7 @@ func _register_arcane_wand() -> void:
 	weapon.spell_name = "magic_missile"  # Maps to SpellRegistry
 	weapon.projectile_speed = 45.0
 	weapon.weight = 1.0
+	weapon.weapon_scene = load("res://shared/weapons/arcane_wand.tscn")
 	items["arcane_wand"] = weapon
 
 ## Nature Wand - Tier 2 nature wand, entangles enemies with vines
@@ -758,6 +761,7 @@ func _register_nature_wand() -> void:
 	weapon.stamina_cost = 15.0
 	weapon.spell_name = "vine_grasp"  # Maps to SpellRegistry
 	weapon.weight = 1.5
+	weapon.weapon_scene = load("res://shared/weapons/nature_wand.tscn")
 	items["nature_wand"] = weapon
 
 ## Dark Wand - Tier 2 dark wand, drains life from enemies
@@ -775,6 +779,7 @@ func _register_dark_wand() -> void:
 	weapon.stamina_cost = 18.0  # Tier 2 BP cost
 	weapon.spell_name = "soul_drain"  # Maps to SpellRegistry
 	weapon.weight = 1.5
+	weapon.weapon_scene = load("res://shared/weapons/dark_wand.tscn")
 	items["dark_wand"] = weapon
 
 ## Holy Wand - Tier 2 holy wand, damages undead and heals allies
@@ -792,6 +797,7 @@ func _register_holy_wand() -> void:
 	weapon.stamina_cost = 18.0
 	weapon.spell_name = "divine_light"  # Maps to SpellRegistry
 	weapon.weight = 1.5
+	weapon.weapon_scene = load("res://shared/weapons/holy_wand.tscn")
 	items["holy_wand"] = weapon
 
 ## Ice Wand - Buy-only magic weapon from Shnarken
@@ -810,6 +816,7 @@ func _register_ice_wand() -> void:
 	weapon.stamina_cost = 12.0  # Uses brain power for magic
 	weapon.spell_name = "ice_shard"  # Maps to SpellRegistry
 	weapon.weight = 1.5
+	weapon.weapon_scene = load("res://shared/weapons/ice_wand.tscn")
 	items["ice_wand"] = weapon
 
 ## Glowing Medallion - Buy from Shnarken to summon the Cyclops boss

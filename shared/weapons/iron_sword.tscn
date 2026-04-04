@@ -1,0 +1,43 @@
+[gd_scene load_steps=5 format=3 uid="uid://c8m3jn7rqw5vp"]
+
+[sub_resource type="BoxMesh" id="blade_mesh"]
+size = Vector3(0.08, 0.9, 0.04)
+
+[sub_resource type="BoxMesh" id="handle_mesh"]
+size = Vector3(0.06, 0.25, 0.06)
+
+[sub_resource type="StandardMaterial3D" id="iron_mat"]
+albedo_color = Color(0.6, 0.6, 0.65, 1)
+metallic = 0.3
+
+[sub_resource type="SphereShape3D" id="hitbox_shape"]
+radius = 0.8
+
+[node name="IronSword" type="Node3D"]
+
+[node name="MountPoint" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.12, 0)
+
+[node name="Handle" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
+mesh = SubResource("handle_mesh")
+surface_material_override/0 = SubResource("iron_mat")
+
+[node name="Blade" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.55, 0)
+mesh = SubResource("blade_mesh")
+surface_material_override/0 = SubResource("iron_mat")
+
+[node name="Hitbox" type="Area3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.2, 0)
+collision_layer = 0
+collision_mask = 4
+monitoring = false
+monitorable = false
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Hitbox"]
+shape = SubResource("hitbox_shape")
+disabled = true
+
+[node name="Tip" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.0, 0)

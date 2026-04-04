@@ -1,0 +1,48 @@
+[gd_scene load_steps=6 format=3 uid="uid://d5p2xk8nqv4jm"]
+
+[sub_resource type="CylinderMesh" id="handle_mesh"]
+top_radius = 0.035
+bottom_radius = 0.04
+height = 1.1
+
+[sub_resource type="BoxMesh" id="head_mesh"]
+size = Vector3(0.4, 0.28, 0.08)
+
+[sub_resource type="StandardMaterial3D" id="wood_mat"]
+albedo_color = Color(0.45, 0.3, 0.15, 1)
+
+[sub_resource type="StandardMaterial3D" id="iron_mat"]
+albedo_color = Color(0.6, 0.6, 0.65, 1)
+metallic = 0.3
+
+[sub_resource type="BoxShape3D" id="hitbox_shape"]
+size = Vector3(0.5, 1.4, 0.3)
+
+[node name="IronAxe" type="Node3D"]
+
+[node name="MountPoint" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.1, 0)
+
+[node name="Handle" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.45, 0)
+mesh = SubResource("handle_mesh")
+surface_material_override/0 = SubResource("wood_mat")
+
+[node name="Head" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.12, 0.95, 0)
+mesh = SubResource("head_mesh")
+surface_material_override/0 = SubResource("iron_mat")
+
+[node name="Hitbox" type="Area3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.12, 0.95, 0)
+collision_layer = 0
+collision_mask = 4
+monitoring = false
+monitorable = false
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Hitbox"]
+shape = SubResource("hitbox_shape")
+disabled = true
+
+[node name="Tip" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.3, 0.95, 0)
