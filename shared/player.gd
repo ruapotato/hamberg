@@ -2233,11 +2233,12 @@ func _update_body_animations(delta: float) -> void:
 			body_container.rotation.y = lerp_angle(body_container.rotation.y, target_rotation, delta * 10.0)
 			synced_rotation_y = body_container.global_rotation.y
 
-	# Attack animation - tilt the sprite forward and animate weapon arm
-	if is_attacking and sprite:
-		var attack_progress = attack_timer / current_attack_animation_time
-		var swing_tilt = -sin(attack_progress * PI) * 0.15
-		sprite.rotation.z = swing_tilt
+	# Attack animation - animate weapon arm (and sprite tilt if sprite exists)
+	if is_attacking:
+		var attack_progress = attack_timer / current_attack_animation_time if current_attack_animation_time > 0 else 0.0
+		if sprite:
+			var swing_tilt = -sin(attack_progress * PI) * 0.15
+			sprite.rotation.z = swing_tilt
 
 		# Drive the 3D arm attack animations based on weapon type
 		if right_arm and current_attack_animation_time > 0:
