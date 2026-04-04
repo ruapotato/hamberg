@@ -35,9 +35,13 @@ var active_rocks: Dictionary = {}
 var active_grass: Dictionary = {}
 
 # Texture references
-var tree_textures: Dictionary = {}
+var tree_textures_front: Dictionary = {}
+var tree_textures_side: Dictionary = {}
 var rock_texture: ImageTexture = null
 var grass_texture: ImageTexture = null
+
+# DirectionalSprite script
+var DirectionalSprite = preload("res://shared/directional_sprite.gd")
 
 # Grid-based spawning
 const GRID_SIZE: float = 8.0
@@ -150,8 +154,9 @@ func _generate_textures() -> void:
 							   "cactus", "palm", "frost_pine", "crystal_tree",
 							   "ember_tree", "dark_oak"]
 		for tree_type in all_tree_types:
-			tree_textures[tree_type] = tex_gen.generate_tree_texture(tree_type)
-		print("[EnvironmentSpawner2D] Generated %d tree textures" % all_tree_types.size())
+			tree_textures_front[tree_type] = tex_gen.generate_tree_texture(tree_type, "front")
+			tree_textures_side[tree_type] = tex_gen.generate_tree_texture(tree_type, "side")
+		print("[EnvironmentSpawner2D] Generated %d tree textures (front + side)" % all_tree_types.size())
 	else:
 		_generate_fallback_textures()
 
@@ -180,7 +185,8 @@ func _generate_fallback_textures() -> void:
 	for tree_type in ["oak", "pine", "dead", "magic", "swamp",
 					   "cactus", "palm", "frost_pine", "crystal_tree",
 					   "ember_tree", "dark_oak"]:
-		tree_textures[tree_type] = tex
+		tree_textures_front[tree_type] = tex
+		tree_textures_side[tree_type] = tex
 
 
 func _generate_rock_texture() -> void:
@@ -273,8 +279,13 @@ func _create_tree_body() -> StaticBody3D:
 	collision.position = Vector3(0, 1.5, 0)
 	body.add_child(collision)
 
-	# Billboard sprite
-	var sprite = _create_billboard_sprite()
+	# DirectionalSprite instead of regular billboard
+	var sprite = Sprite3D.new()
+	sprite.set_script(DirectionalSprite)
+	sprite.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
+	sprite.alpha_cut = SpriteBase3D.ALPHA_CUT_DISCARD
+	sprite.render_priority = 0
+	sprite.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	body.add_child(sprite)
 
 	return body
@@ -446,14 +457,21 @@ func _get_tree_type_for_biome(biome: String) -> String:
 
 
 func _place_tree(tree_body: StaticBody3D, pos: Vector3, tree_type: String) -> void:
-	var sprite: Sprite3D = tree_body.get_child(1) as Sprite3D  # Child 0 = collision, child 1 = sprite
+	var sprite = tree_body.get_child(1)  # Child 0 = collision, child 1 = DirectionalSprite
 	if not sprite:
 		return
 
-	sprite.texture = tree_textures.get(tree_type, tree_textures.get("oak"))
+	# Set directional textures: front, back (=front), side, side (mirrored for left/right)
+	var front_tex = tree_textures_front.get(tree_type, tree_textures_front.get("oak"))
+	var side_tex = tree_textures_side.get(tree_type, tree_textures_side.get("oak"))
+	if sprite.has_method("set_textures_4dir"):
+		sprite.set_textures_4dir(front_tex, front_tex, side_tex, side_tex)
+	else:
+		sprite.texture = front_tex
+
 	sprite.pixel_size = 0.04 + rng.randf() * 0.02
 
-	var tex_height = sprite.texture.get_height() if sprite.texture else 128
+	var tex_height = front_tex.get_height() if front_tex else 128
 	var world_height = tex_height * sprite.pixel_size
 
 	# Scale variation (wide range for natural variety: small shrubs to large trees)
@@ -472,7 +490,13 @@ func _place_tree(tree_body: StaticBody3D, pos: Vector3, tree_type: String) -> vo
 
 	# Position body at ground level
 	tree_body.position = pos
-	tree_body.rotation.y = rng.randf() * TAU
+	var tree_rotation = rng.randf() * TAU
+	tree_body.rotation.y = tree_rotation
+
+	# Set facing_angle so the DirectionalSprite knows which direction this tree "faces"
+	# Each tree gets a random facing, giving variety as you walk through the forest
+	if "facing_angle" in sprite:
+		sprite.facing_angle = tree_rotation
 
 	# Update collision shape based on scale
 	var collision: CollisionShape3D = tree_body.get_child(0) as CollisionShape3D
