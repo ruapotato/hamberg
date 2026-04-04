@@ -329,12 +329,16 @@ func _process(_delta: float) -> void:
 			else:
 				debug_console_ui.show_console()
 
+var auto_play: bool = false  # Skip character selection, auto-pick first character
+
 func auto_connect_to_localhost() -> void:
 	"""Auto-connect to localhost for singleplayer mode"""
+	auto_play = true
 	auto_connect_to_address("127.0.0.1:%d" % NetworkManager.DEFAULT_PORT)
 
 func auto_connect_to_address(address_port: String) -> void:
 	"""Auto-connect to a specific address:port"""
+	auto_play = true
 	await get_tree().create_timer(0.1).timeout
 
 	var parts = address_port.split(":")
@@ -1546,6 +1550,17 @@ func _sync_map_markers_from_pins() -> void:
 ## Receive character list from server
 func receive_character_list(characters: Array) -> void:
 	print("[Client] Received %d characters from server" % characters.size())
+
+	# Auto-play: skip character selection UI, pick first character or create one
+	if auto_play:
+		if characters.size() > 0:
+			var char_data = characters[0]
+			var char_id: String = char_data.get("id", "auto_test")
+			var char_name: String = char_data.get("name", "AutoPlayer")
+			_on_character_selected(char_id, char_name, false)
+		else:
+			_on_character_selected("auto_test", "AutoPlayer", true)
+		return
 
 	if character_selection_ui:
 		character_selection_ui.show_characters(characters)

@@ -123,7 +123,7 @@ func _ready() -> void:
 func _process(_delta: float) -> void:
 	# Find player if not set
 	if not player or not is_instance_valid(player):
-		var players = get_tree().get_nodes_in_group("player")
+		var players = get_tree().get_nodes_in_group("local_player")
 		if players.size() > 0:
 			player = players[0]
 			last_spawn_center = player.global_position
