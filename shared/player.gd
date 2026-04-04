@@ -139,7 +139,7 @@ var viewmodel_arms: Node3D = null
 
 # Player body visuals
 var body_container: Node3D = null
-var first_person_body: Sprite3D = null  # First-person body sprite (visible when looking down)
+var first_person_arms: Node3D = null  # FirstPersonArms instance (arm + wand sprites on camera)
 
 # Equipped weapon/shield visuals
 var equipped_weapon_visual: Node3D = null  # Main hand weapon
@@ -253,9 +253,9 @@ func _ready() -> void:
 	# Setup player body visuals
 	_setup_player_body()
 
-	# For local player: hide billboard sprite and create first-person body
+	# For local player: hide billboard sprite and create first-person arms
 	if is_local_player:
-		_setup_first_person_body()
+		_setup_first_person_arms()
 
 	# Initialize armor visuals to default (unarmored) skin colors
 	_initialize_armor_visuals()
@@ -2041,45 +2041,65 @@ func _setup_player_body() -> void:
 	print("[Player] Player body created as 2D billboard sprite (Paper Mario style)")
 	print("[Player] Body container parent: %s" % body_container.get_parent().name)
 
-func _setup_first_person_body() -> void:
-	"""Hide billboard sprite for local player and add first-person body visible when looking down."""
+func _setup_first_person_arms() -> void:
+	"""Hide billboard sprite for local player and add first-person arms + wand on camera."""
 	# Hide the billboard sprite (other players will still see it via network, but local camera won't)
 	if body_container:
 		var billboard_sprite = body_container.get_node_or_null("BodySprite")
 		if billboard_sprite:
 			billboard_sprite.visible = false
 
-	# Create a first-person body sprite attached to camera, visible when looking down
+	# Create first-person arms attached to camera
 	var camera_controller := get_node_or_null("CameraController")
 	if not camera_controller:
-		push_warning("[Player] No CameraController found for first-person body")
+		push_warning("[Player] No CameraController found for first-person arms")
 		return
 
 	var camera: Camera3D = camera_controller.get_camera()
 	if not camera:
-		push_warning("[Player] No Camera3D found for first-person body")
+		push_warning("[Player] No Camera3D found for first-person arms")
 		return
 
-	first_person_body = Sprite3D.new()
-	first_person_body.name = "FirstPersonBody"
+	var arms_script = load("res://shared/player/first_person_arms.gd")
+	first_person_arms = Node3D.new()
+	first_person_arms.set_script(arms_script)
+	first_person_arms.name = "FirstPersonArms"
+	camera.add_child(first_person_arms)
+	print("[Player] First-person arms created (arm + wand sprites on camera)")
 
-	# Use front-facing mage texture (player sees their own robe/feet when looking down)
-	var tex_front = TextureGenerator.generate_mage_texture("blue", 0, "front")
-	first_person_body.texture = tex_front
-	first_person_body.pixel_size = 0.015  # Smaller since it's close to camera
-	first_person_body.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
-	first_person_body.alpha_cut = SpriteBase3D.ALPHA_CUT_OPAQUE_PREPASS
+## Update first-person arms wand color based on equipped weapon's damage type
+func _update_first_person_arms_color() -> void:
+	if not first_person_arms or not first_person_arms.has_method("set_spell_color"):
+		return
 
-	# NOT billboard - fixed relative to camera
-	first_person_body.billboard = BaseMaterial3D.BILLBOARD_DISABLED
+	var weapon_data = null
+	if equipment:
+		weapon_data = equipment.get_equipped_weapon()
+	if not weapon_data:
+		weapon_data = ItemDatabase.get_item("fists")
 
-	# Position below and slightly in front of camera
-	# Rotated to face upward so it's visible when player looks down
-	first_person_body.position = Vector3(0, -1.0, -0.3)
-	first_person_body.rotation_degrees = Vector3(-30, 0, 0)  # Tilt upward toward camera
+	# Map damage type to wand crystal color
+	var color: Color = Color(1, 0.5, 0.2)  # Default warm orange
+	if weapon_data:
+		match weapon_data.damage_type:
+			WeaponData.DamageType.FIRE:
+				color = Color(1.0, 0.3, 0.1)  # Orange-red
+			WeaponData.DamageType.ICE:
+				color = Color(0.3, 0.7, 1.0)  # Ice blue
+			WeaponData.DamageType.LIGHTNING:
+				color = Color(0.8, 0.8, 1.0)  # Electric white-blue
+			WeaponData.DamageType.ARCANE:
+				color = Color(0.7, 0.2, 1.0)  # Purple
+			WeaponData.DamageType.NATURE:
+				color = Color(0.2, 0.9, 0.3)  # Green
+			WeaponData.DamageType.DARK:
+				color = Color(0.4, 0.0, 0.5)  # Dark purple
+			WeaponData.DamageType.HOLY:
+				color = Color(1.0, 1.0, 0.6)  # Golden
+			WeaponData.DamageType.POISON:
+				color = Color(0.4, 0.8, 0.1)  # Sickly green
 
-	camera.add_child(first_person_body)
-	print("[Player] First-person body sprite created (visible when looking down)")
+	first_person_arms.set_spell_color(color)
 
 ## Update the DirectionalSprite's facing_angle from the player's body rotation.
 func _update_player_sprite_facing() -> void:
@@ -3070,6 +3090,7 @@ func _on_equipment_changed(slot) -> void:  # slot is Equipment.EquipmentSlot
 	match slot:
 		Equipment.EquipmentSlot.MAIN_HAND:
 			_update_weapon_visual()
+			_update_first_person_arms_color()
 		Equipment.EquipmentSlot.OFF_HAND:
 			_update_shield_visual()
 		Equipment.EquipmentSlot.HEAD:

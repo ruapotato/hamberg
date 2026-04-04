@@ -142,9 +142,9 @@ func _process_third_person(delta: float) -> void:
 			var sprite = body.get_node_or_null("BodySprite")
 			if sprite:
 				sprite.visible = not is_first_person
-		# Toggle first-person body sprite (inverse of billboard)
-		if "first_person_body" in player and player.first_person_body:
-			player.first_person_body.visible = is_first_person
+		# Toggle first-person arms (inverse of billboard)
+		if "first_person_arms" in player and player.first_person_arms:
+			player.first_person_arms.visible = is_first_person
 
 	# Apply camera rotation with shake
 	rotation.y = camera_rotation.x
@@ -172,9 +172,9 @@ func _set_local_sprite_visible(visible: bool) -> void:
 			var sprite = body.get_node_or_null("BodySprite")
 			if sprite:
 				sprite.visible = visible
-		# Toggle first-person body sprite (inverse of billboard)
-		if "first_person_body" in player and player.first_person_body:
-			player.first_person_body.visible = not visible
+		# Toggle first-person arms (inverse of billboard)
+		if "first_person_arms" in player and player.first_person_arms:
+			player.first_person_arms.visible = not visible
 
 func _handle_mouse_look(mouse_delta: Vector2) -> void:
 	# Yaw (left/right)
