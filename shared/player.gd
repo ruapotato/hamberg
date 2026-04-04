@@ -139,6 +139,21 @@ var viewmodel_arms: Node3D = null
 var body_container: Node3D = null
 # (first_person_arms removed - using 3D body visible in first person)
 
+# Body part references for 3D limb animation
+var left_leg: Node3D = null
+var right_leg: Node3D = null
+var left_arm: Node3D = null
+var right_arm: Node3D = null
+var torso: Node3D = null
+var head_node: Node3D = null  # Named head_node to avoid conflict with any inherited 'head'
+var head_base_height: float = 0.0
+
+# Cached joint references for limb animation
+var _left_knee: Node3D = null
+var _right_knee: Node3D = null
+var _left_elbow: Node3D = null
+var _right_elbow: Node3D = null
+
 # Equipped weapon/shield visuals
 var equipped_weapon_visual: Node3D = null  # Main hand weapon
 var equipped_shield_visual: Node3D = null  # Off hand shield
@@ -2011,11 +2026,37 @@ func _setup_player_body() -> void:
 	var body_scene = preload("res://shared/player_body.tscn")
 	body_container = body_scene.instantiate()
 
+	# Face the body the same direction as the camera (-Z forward in Godot)
+	body_container.rotation.y = PI
+
 	# Add directly to player (this CharacterBody3D)
 	add_child(body_container)
 
+	# Wire up animation references from the body scene
+	left_leg = body_container.get_node_or_null("LeftLeg")
+	right_leg = body_container.get_node_or_null("RightLeg")
+	left_arm = body_container.get_node_or_null("LeftArm")
+	right_arm = body_container.get_node_or_null("RightArm")
+	torso = body_container.get_node_or_null("Torso")
+	head_node = body_container.get_node_or_null("Head")
+
+	# Cache head base height for head bobbing
+	if head_node:
+		head_base_height = head_node.position.y
+
+	# Cache knee/elbow joint references for detailed animation
+	if left_leg:
+		_left_knee = left_leg.get_node_or_null("Knee")
+	if right_leg:
+		_right_knee = right_leg.get_node_or_null("Knee")
+	if left_arm:
+		_left_elbow = left_arm.get_node_or_null("Elbow")
+	if right_arm:
+		_right_elbow = right_arm.get_node_or_null("Elbow")
+
 	print("[Player] Player body loaded from player_body.tscn")
 	print("[Player] Body container parent: %s" % body_container.get_parent().name)
+	print("[Player] Limb refs: legs=%s/%s arms=%s/%s" % [left_leg != null, right_leg != null, left_arm != null, right_arm != null])
 
 func _setup_terrain_preview_shapes() -> void:
 	"""Create preview shapes for terrain modification feedback"""
@@ -2211,6 +2252,9 @@ func _update_body_animations(delta: float) -> void:
 		elif sprite:
 			# During spin, keep sprite stable
 			sprite.position.y = lerp(sprite.position.y, 1.2, delta * 10.0)
+
+		# 3D limb walking animation (legs and arms swing)
+		_animate_limbs_walking(delta)
 	else:
 		# Idle animation - gentle breathing bob
 		animation_phase = 0.0
@@ -2219,6 +2263,75 @@ func _update_body_animations(delta: float) -> void:
 			var breathe_bob = sin(idle_time * 1.6) * 0.015
 			sprite.position.y = lerp(sprite.position.y, 1.2 + breathe_bob, delta * 8.0)
 			sprite.rotation.z = lerp(sprite.rotation.z, 0.0, delta * 5.0)
+
+		# 3D limb idle animation (return to neutral)
+		_animate_limbs_idle(delta)
+
+func _animate_limbs_walking(_delta: float) -> void:
+	"""Animate 3D body limbs during walking (legs swing, arms swing opposite)"""
+	if not left_leg or not right_leg:
+		return
+
+	var leg_sin = sin(animation_phase)
+	var leg_angle = leg_sin * 0.3
+	var arm_angle = sin(animation_phase) * 0.2
+
+	# Legs swing opposite
+	left_leg.rotation.x = leg_angle
+	right_leg.rotation.x = -leg_angle
+
+	# Knee bend for natural gait
+	var knee_angle = sin(animation_phase) * 0.5
+	if _left_knee:
+		_left_knee.rotation.x = max(0.0, knee_angle)
+	if _right_knee:
+		_right_knee.rotation.x = max(0.0, -knee_angle)
+
+	# Arms swing opposite to legs
+	if left_arm:
+		left_arm.rotation.x = -arm_angle
+		if _left_elbow:
+			_left_elbow.rotation.x = max(0.0, arm_angle * 0.8)
+	if right_arm and not is_attacking:
+		right_arm.rotation.x = arm_angle
+		if _right_elbow:
+			_right_elbow.rotation.x = max(0.0, -arm_angle * 0.8)
+
+	# Subtle torso sway
+	if torso:
+		var sway = sin(animation_phase) * 0.05
+		torso.rotation.z = sway
+
+	# Subtle head bob
+	if head_node and head_base_height > 0:
+		var bob = sin(animation_phase * 2.0) * 0.015
+		head_node.position.y = head_base_height + bob
+
+func _animate_limbs_idle(delta: float) -> void:
+	"""Return 3D body limbs to neutral pose"""
+	if left_leg:
+		left_leg.rotation.x = lerp(left_leg.rotation.x, 0.0, delta * 5.0)
+		if _left_knee:
+			_left_knee.rotation.x = lerp(_left_knee.rotation.x, 0.0, delta * 5.0)
+	if right_leg:
+		right_leg.rotation.x = lerp(right_leg.rotation.x, 0.0, delta * 5.0)
+		if _right_knee:
+			_right_knee.rotation.x = lerp(_right_knee.rotation.x, 0.0, delta * 5.0)
+	if left_arm:
+		left_arm.rotation.x = lerp(left_arm.rotation.x, 0.0, delta * 5.0)
+		if _left_elbow:
+			_left_elbow.rotation.x = lerp(_left_elbow.rotation.x, 0.0, delta * 5.0)
+	if right_arm:
+		right_arm.rotation.x = lerp(right_arm.rotation.x, 0.0, delta * 5.0)
+		if _right_elbow:
+			_right_elbow.rotation.x = lerp(_right_elbow.rotation.x, 0.0, delta * 5.0)
+	if torso:
+		torso.rotation.z = lerp(torso.rotation.z, 0.0, delta * 5.0)
+
+	# Idle breathing (gentle vertical bob on body container)
+	if body_container:
+		var breathe = sin(Time.get_ticks_msec() / 1000.0 * 2.0) * 0.01
+		body_container.position.y = breathe
 
 ## Called after camera controller is attached
 func setup_viewmodel() -> void:

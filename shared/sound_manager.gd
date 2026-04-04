@@ -13,6 +13,7 @@ var sounds := {
 	"critical_hit": "res://audio/generated/critical_hit.wav",
 	"enemy_hurt": "res://audio/generated/enemy_hurt.wav",
 	"enemy_death": "res://audio/generated/enemy_death.wav",
+	"zombie_growl": "res://audio/generated/enemy_hurt.wav",  # Reuse enemy_hurt at low pitch for growling
 	"player_hurt": "res://audio/generated/player_hurt.wav",
 	"magic_cast": "res://audio/generated/magic_cast.wav",
 	"fire_cast": "res://audio/generated/fire_cast.wav",

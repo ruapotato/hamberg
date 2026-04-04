@@ -17,6 +17,11 @@ const ZOMBIE_STATS = {
 	"exploder": { "hp": 35.0, "speed": 4.0, "charge_speed": 6.0, "damage": 30.0, "attack_range": 1.8 },
 }
 
+# Ambient growl system
+var growl_timer: float = 0.0
+var growl_interval: float = 10.0  # Randomized per zombie in _ready
+var is_stalker: bool = false  # 30% chance — stalkers circle instead of rushing
+
 func _ready() -> void:
 	_apply_zombie_type()
 	super._ready()
@@ -26,6 +31,16 @@ func _ready() -> void:
 	patience = randf_range(0.3, 0.6)
 
 	health = max_health
+
+	# Randomize initial growl timing so zombies don't all growl at once
+	growl_timer = randf_range(2.0, 8.0)
+	growl_interval = randf_range(5.0, 15.0)
+
+	# 30% of zombies become stalkers (circle and ambush instead of direct chase)
+	is_stalker = randf() < 0.3
+	if is_stalker:
+		patience = randf_range(0.6, 0.9)  # More patient
+		aggression = randf_range(0.3, 0.6)  # Less aggressive until they commit
 
 ## Configure stats and name based on zombie_type
 func _apply_zombie_type() -> void:
@@ -352,3 +367,97 @@ func _play_attack_swing() -> void:
 	windup_tween.tween_property(right_arm, "rotation:x", -0.5, 0.3)  # Back to slouch
 
 	_set_body_tint(Color(1.0, 1.0, 1.0, 1.0))
+
+# ============================================================================
+# AMBIENT GROWL & STALKING BEHAVIOR
+# ============================================================================
+
+## Update growl timer — plays growl sounds at zombie's position for 3D audio
+func _physics_process(delta: float) -> void:
+	super._physics_process(delta)
+
+	if is_dead or not is_host:
+		return
+
+	# Ambient growl timer
+	growl_timer -= delta
+	if growl_timer <= 0:
+		_play_growl()
+		# Growl more frequently while stalking or chasing
+		if ai_state == AIState.STALKING:
+			growl_timer = randf_range(3.0, 8.0)
+		elif ai_state == AIState.CHARGING or ai_state == AIState.CIRCLING:
+			growl_timer = randf_range(2.0, 5.0)
+		else:
+			growl_timer = randf_range(5.0, 15.0)
+
+func _play_growl() -> void:
+	"""Play a zombie growl at this zombie's position — 3D audio makes it directional.
+	Sound plays at actual position so player hears growling before seeing the zombie."""
+	# Low pitch + low volume = menacing growl from enemy_hurt sound
+	var pitch = randf_range(0.4, 0.65)
+	var volume = -12.0  # Quiet enough to be ambient but audible at distance
+	if ai_state == AIState.STALKING:
+		volume = -8.0  # Slightly louder when stalking (building tension)
+	SoundManager.play_sound("zombie_growl", global_position, volume, pitch)
+
+## Override stalking behavior for stalker-type zombies
+func _update_stalking(delta: float, distance: float) -> void:
+	if not is_stalker:
+		# Normal zombies use default stalking from enemy.gd
+		super._update_stalking(delta, distance)
+		return
+
+	# STALKER BEHAVIOR: Circle at distance, wait for opportunity
+	_face_target()
+
+	# Check for pack attack: count nearby zombies
+	var nearby_zombies := 0
+	for enemy in get_tree().get_nodes_in_group("enemies"):
+		if enemy != self and enemy is Enemy and is_instance_valid(enemy):
+			if enemy.global_position.distance_to(global_position) < 15.0:
+				nearby_zombies += 1
+
+	# Check if player is facing away from us
+	var player_facing_away := false
+	if target_player and is_instance_valid(target_player):
+		var to_zombie = (global_position - target_player.global_position).normalized()
+		var player_forward = -target_player.global_transform.basis.z
+		player_forward.y = 0
+		player_forward = player_forward.normalized()
+		to_zombie.y = 0
+		# If dot product is negative, player is facing away from zombie
+		player_facing_away = to_zombie.dot(player_forward) < -0.2
+
+	# Rush conditions: player facing away, or pack attack (2+ nearby zombies), or very close
+	if distance < 10.0 or player_facing_away or nearby_zombies >= 2:
+		_change_state(AIState.CHARGING)
+		charge_target_pos = target_player.global_position
+		return
+
+	# Stay at 12-18 unit distance and circle around player
+	var ideal_distance = randf_range(12.0, 18.0)
+	var to_player = target_player.global_position - global_position
+	to_player.y = 0
+	to_player = to_player.normalized()
+
+	# Perpendicular direction for circling (offset from player's facing direction)
+	var strafe_dir = Vector3(-to_player.z, 0, to_player.x) * circle_direction
+
+	# Adjust distance: approach if too far, retreat if too close
+	var distance_diff = distance - ideal_distance
+	var approach_factor = clamp(distance_diff / 5.0, -0.5, 0.5)
+	var move_dir = (strafe_dir * 0.7 + to_player * approach_factor).normalized()
+
+	velocity.x = move_dir.x * strafe_speed * 0.6  # Move slowly while stalking
+	velocity.z = move_dir.z * strafe_speed * 0.6
+
+	# Occasionally change circle direction
+	if state_timer > 3.0 + randf() * 2.0:
+		circle_direction *= -1
+		state_timer = 0.0
+
+	# After a long stalk, commit to attack regardless
+	if state_timer > 8.0 + patience * 4.0:
+		_change_state(AIState.CHARGING)
+		charge_target_pos = target_player.global_position
