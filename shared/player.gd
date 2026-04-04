@@ -2071,9 +2071,17 @@ func _setup_player_body() -> void:
 	if right_arm:
 		_right_elbow = right_arm.get_node_or_null("Elbow")
 
+	# Hide head and neck for local player (camera is inside the head)
+	if is_local_player:
+		if head_node:
+			head_node.visible = false
+		var neck = body_container.get_node_or_null("Neck")
+		if neck:
+			neck.visible = false
+
 	print("[Player] Player body loaded from player_body.tscn")
 	print("[Player] Body container parent: %s" % body_container.get_parent().name)
-	print("[Player] Limb refs: legs=%s/%s arms=%s/%s" % [left_leg != null, right_leg != null, left_arm != null, right_arm != null])
+	print("[Player] Limb refs: legs=%s/%s arms=%s/%s head_hidden=%s" % [left_leg != null, right_leg != null, left_arm != null, right_arm != null, is_local_player])
 
 func _setup_terrain_preview_shapes() -> void:
 	"""Create preview shapes for terrain modification feedback"""
