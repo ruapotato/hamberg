@@ -99,10 +99,12 @@ func _setup_body() -> void:
 	sprite.alpha_cut = SpriteBase3D.ALPHA_CUT_OPAQUE_PREPASS
 	sprite.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
 
-	# Get zombie texture from the autoload generator
-	var zombie_tex = ZombieTextureGenerator.get_zombie_texture(zombie_type)
-	sprite.texture = zombie_tex
-	sprite.set_textures_4dir(zombie_tex, zombie_tex, zombie_tex, zombie_tex)
+	# Get zombie textures for all angles from the autoload generator
+	var tex_front = ZombieTextureGenerator.get_zombie_texture(zombie_type, "front")
+	var tex_back = ZombieTextureGenerator.get_zombie_texture(zombie_type, "back")
+	var tex_side = ZombieTextureGenerator.get_zombie_texture(zombie_type, "side")
+	sprite.texture = tex_front
+	sprite.set_textures_4dir(tex_front, tex_back, tex_side, tex_side)
 
 	# Zombie textures are 64x96, pixel_size 0.02 -> 1.92 units tall, center at half
 	var sprite_height = 96.0 * 0.02  # 1.92
