@@ -1306,4 +1306,3 @@ func apply_network_modification(operation: String, position: Vector3, data: Dict
 		"flatten_square":
 			var target_height = data.get("target_height", position.y)
 			flatten_square(position, target_height)
-

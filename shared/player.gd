@@ -2052,7 +2052,8 @@ func _setup_player_body() -> void:
 	print("[Player] Body container parent: %s" % body_container.get_parent().name)
 
 func _setup_first_person_arms() -> void:
-	"""Hide billboard sprite for local player and add first-person arms + wand on camera."""
+	"""Hide billboard sprite for local player and add first-person arms + wand on camera.
+	Matches MvZ: FirstPersonArms is a child of Camera3D at y=-0.15 offset."""
 	print("[Player] _setup_first_person_arms() called, is_local_player=%s" % is_local_player)
 
 	# Only set up for local player
@@ -2065,15 +2066,7 @@ func _setup_first_person_arms() -> void:
 		return
 
 	# Hide the billboard sprite (other players will still see it via network, but local camera won't)
-	if body_container:
-		var billboard_sprite = body_container.get_node_or_null("BodySprite")
-		if billboard_sprite:
-			billboard_sprite.visible = false
-			print("[Player] Hid billboard BodySprite for local player")
-		else:
-			print("[Player] WARNING: No BodySprite found in body_container")
-	else:
-		print("[Player] WARNING: No body_container found")
+	_hide_local_body_sprite()
 
 	# Create first-person arms attached to camera
 	var cam_controller := get_node_or_null("CameraController")
@@ -2091,6 +2084,7 @@ func _setup_first_person_arms() -> void:
 		return
 
 	print("[Player] Found Camera3D: %s (path: %s)" % [camera.name, camera.get_path()])
+	print("[Player] Camera3D parent: %s" % camera.get_parent().name)
 
 	var arms_script = load("res://shared/player/first_person_arms.gd")
 	if not arms_script:
@@ -2100,9 +2094,25 @@ func _setup_first_person_arms() -> void:
 	first_person_arms = Node3D.new()
 	first_person_arms.set_script(arms_script)
 	first_person_arms.name = "FirstPersonArms"
+	# Match MvZ: FirstPersonArms sits at y=-0.15 relative to Camera3D
+	first_person_arms.position = Vector3(0, -0.15, 0)
 	camera.add_child(first_person_arms)
-	print("[Player] First-person arms created and added as child of Camera3D (%s)" % camera.get_path())
+	print("[Player] FirstPersonArms created as child of Camera3D (%s)" % camera.get_path())
+	print("[Player] FirstPersonArms position: %s" % first_person_arms.position)
 	print("[Player] FirstPersonArms children after _ready: %s" % str(first_person_arms.get_children().map(func(c): return c.name)))
+	print("[Player] FirstPersonArms child count: %d" % first_person_arms.get_child_count())
+
+## Hide the local player's billboard body sprite (used in first-person mode)
+func _hide_local_body_sprite() -> void:
+	if body_container:
+		var billboard_sprite = body_container.get_node_or_null("BodySprite")
+		if billboard_sprite:
+			billboard_sprite.visible = false
+			print("[Player] Hid billboard BodySprite for local player")
+		else:
+			print("[Player] WARNING: No BodySprite found in body_container")
+	else:
+		print("[Player] WARNING: No body_container found")
 
 ## Update first-person arms wand color based on equipped weapon's damage type
 func _update_first_person_arms_color() -> void:
@@ -3044,7 +3054,8 @@ func respawn_at(spawn_position: Vector3) -> void:
 	# Reset camera if this is the local player
 	if is_local_player:
 		# Camera will follow the repositioned player automatically
-		pass
+		# Re-hide body sprite (death animation may have changed visibility)
+		_hide_local_body_sprite()
 
 ## Enable game loaded state (called when loading is complete)
 func set_game_loaded(loaded: bool) -> void:
