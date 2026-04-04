@@ -48,6 +48,7 @@ const TREE_COLLISION_LAYER: int = 1
 # Tree types by biome
 const BIOME_TREES: Dictionary = {
 	"valley": ["oak", "oak", "pine", "magic"],
+	"meadow": ["oak", "pine", "pine", "oak"],
 	"dark_forest": ["dark_oak", "dark_oak", "swamp", "dead"],
 	"swamp": ["swamp", "swamp", "dead", "swamp"],
 	"mountain": ["frost_pine", "frost_pine", "pine", "dead"],
@@ -59,6 +60,7 @@ const BIOME_TREES: Dictionary = {
 # Tree density multiplier by biome
 const BIOME_TREE_DENSITY: Dictionary = {
 	"valley": 1.2,
+	"meadow": 0.7,
 	"dark_forest": 1.5,
 	"swamp": 0.8,
 	"mountain": 0.4,
@@ -70,6 +72,7 @@ const BIOME_TREE_DENSITY: Dictionary = {
 # Grass spawning by biome
 const BIOME_HAS_GRASS: Dictionary = {
 	"valley": true,
+	"meadow": true,
 	"dark_forest": true,
 	"swamp": true,
 	"mountain": false,
@@ -81,6 +84,7 @@ const BIOME_HAS_GRASS: Dictionary = {
 # Biome rock colors
 const BIOME_ROCK_COLORS: Dictionary = {
 	"valley": Color(0.6, 0.58, 0.55),
+	"meadow": Color(0.65, 0.62, 0.58),
 	"dark_forest": Color(0.3, 0.35, 0.3),
 	"swamp": Color(0.4, 0.38, 0.32),
 	"mountain": Color(0.75, 0.78, 0.82),
@@ -92,6 +96,7 @@ const BIOME_ROCK_COLORS: Dictionary = {
 # Biome grass colors
 const BIOME_GRASS_COLORS: Dictionary = {
 	"valley": Color(0.3, 0.6, 0.3),
+	"meadow": Color(0.35, 0.65, 0.3),
 	"dark_forest": Color(0.1, 0.25, 0.15),
 	"swamp": Color(0.4, 0.5, 0.25),
 	"wizardland": Color(0.6, 0.3, 0.7),
@@ -253,7 +258,9 @@ func _create_object_pools() -> void:
 
 
 func _create_tree_body() -> StaticBody3D:
+	var ChoppableTree2D = preload("res://client/choppable_tree_2d.gd")
 	var body = StaticBody3D.new()
+	body.set_script(ChoppableTree2D)
 	body.collision_layer = TREE_COLLISION_LAYER
 	body.collision_mask = 0
 
@@ -338,14 +345,29 @@ func _spawn_environment_around(center: Vector3) -> void:
 		var biome = _get_biome_at(cell_world_x, cell_world_z)
 		var biome_density_mult = BIOME_TREE_DENSITY.get(biome, 1.0)
 
-		# Spawn trees
+		# Spawn trees with minimum spacing to avoid stacking
 		var num_trees = int(cell_area * tree_density * biome_density_mult * (0.5 + rng.randf()))
+		var cell_tree_positions: Array[Vector2] = []
+		var min_tree_spacing: float = 2.5  # Minimum distance between trees in a cell
+
 		for _t in range(num_trees):
 			if tree_idx >= max_trees:
 				break
 
 			var local_x = rng.randf() * GRID_SIZE
 			var local_z = rng.randf() * GRID_SIZE
+
+			# Check spacing against other trees in this cell
+			var too_close = false
+			var candidate = Vector2(local_x, local_z)
+			for existing_pos in cell_tree_positions:
+				if candidate.distance_to(existing_pos) < min_tree_spacing:
+					too_close = true
+					break
+			if too_close:
+				continue
+
+			cell_tree_positions.append(candidate)
 			var world_x = grid_x * GRID_SIZE + local_x
 			var world_z = grid_z * GRID_SIZE + local_z
 
@@ -434,9 +456,16 @@ func _place_tree(tree_body: StaticBody3D, pos: Vector3, tree_type: String) -> vo
 	var tex_height = sprite.texture.get_height() if sprite.texture else 128
 	var world_height = tex_height * sprite.pixel_size
 
-	# Scale variation
-	var scale_var = 0.9 + rng.randf() * 0.6
+	# Scale variation (wide range for natural variety: small shrubs to large trees)
+	var scale_var = 0.6 + rng.randf() * 1.4  # Range: 0.6 to 2.0
 	sprite.scale = Vector3.ONE * scale_var
+
+	# Random tint variation per tree (slightly different greens/browns)
+	var hue_shift = rng.randf() * 0.08 - 0.04  # -0.04 to +0.04 hue shift
+	var brightness_shift = rng.randf() * 0.3 - 0.15  # -0.15 to +0.15 brightness
+	var tint = Color(1.0 + hue_shift, 1.0 + brightness_shift * 0.5, 1.0 - hue_shift)
+	tint = tint.lightened(brightness_shift * 0.5)
+	sprite.modulate = tint
 
 	# Position sprite so base sits on ground
 	sprite.position = Vector3(0, world_height * 0.48 * scale_var, 0)
@@ -453,17 +482,32 @@ func _place_tree(tree_body: StaticBody3D, pos: Vector3, tree_type: String) -> vo
 		capsule.height = 3.0 * scale_var
 		collision.position = Vector3(0, 1.5 * scale_var, 0)
 
+	# Reset tree health/state for pool reuse (if choppable)
+	if tree_body.has_method("get_object_type"):
+		tree_body.is_destroyed = false
+		# Bigger trees have more health
+		tree_body.max_health = 60.0 + scale_var * 40.0
+		tree_body.current_health = tree_body.max_health
+		# Bigger trees drop more wood
+		tree_body.resource_drops = {"wood": max(1, int(2 + scale_var * 2))}
+		tree_body.scale = Vector3.ONE
+
 	tree_body.visible = true
 
 
 func _place_rock(sprite: Sprite3D, pos: Vector3, biome: String = "valley") -> void:
 	sprite.pixel_size = 0.04
-	var scale_var = 0.6 + rng.randf() * 1.2
+	var scale_var = 0.3 + rng.randf() * 1.7  # Range: 0.3 to 2.0 (wider variety)
 	sprite.scale = Vector3.ONE * scale_var
 
-	# Tint based on biome
+	# Tint based on biome with per-rock color variation
 	var rock_color: Color = BIOME_ROCK_COLORS.get(biome, BIOME_ROCK_COLORS["valley"])
-	sprite.modulate = rock_color.lightened(rng.randf() * 0.2 - 0.1)
+	var color_shift = rng.randf() * 0.3 - 0.15  # -0.15 to +0.15
+	var warm_shift = rng.randf() * 0.1 - 0.05  # Slight warm/cool variation
+	rock_color = rock_color.lightened(color_shift)
+	rock_color.r += warm_shift
+	rock_color.b -= warm_shift
+	sprite.modulate = rock_color
 
 	var rock_height = 48 * sprite.pixel_size * scale_var
 	sprite.position = pos + Vector3(0, rock_height * 0.25, 0)

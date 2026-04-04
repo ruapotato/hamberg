@@ -98,10 +98,10 @@ func _fill_rect(img: Image, x1: int, y1: int, x2: int, y2: int, color: Color) ->
 
 # --- Helper: fill a triangle (3 points) ---
 func _fill_triangle(img: Image, p0: Vector2, p1: Vector2, p2: Vector2, color: Color) -> void:
-	var min_y := int(min(p0.y, min(p1.y, p2.y)))
-	var max_y := int(max(p0.y, max(p1.y, p2.y)))
-	var min_x := int(min(p0.x, min(p1.x, p2.x)))
-	var max_x := int(max(p0.x, max(p1.x, p2.x)))
+	var min_y: int = int(min(p0.y, min(p1.y, p2.y)))
+	var max_y: int = int(max(p0.y, max(p1.y, p2.y)))
+	var min_x: int = int(min(p0.x, min(p1.x, p2.x)))
+	var max_x: int = int(max(p0.x, max(p1.x, p2.x)))
 	for y in range(min_y, max_y + 1):
 		for x in range(min_x, max_x + 1):
 			var v0 := p2 - p0
@@ -120,10 +120,10 @@ func _fill_triangle(img: Image, p0: Vector2, p1: Vector2, p2: Vector2, color: Co
 
 # --- Helper: draw a line (Bresenham) ---
 func _draw_line(img: Image, x0: int, y0: int, x1: int, y1: int, color: Color) -> void:
-	var dx := abs(x1 - x0)
-	var dy := abs(y1 - y0)
-	var sx := 1 if x0 < x1 else -1
-	var sy := 1 if y0 < y1 else -1
+	var dx: int = abs(x1 - x0)
+	var dy: int = abs(y1 - y0)
+	var sx: int = 1 if x0 < x1 else -1
+	var sy: int = 1 if y0 < y1 else -1
 	var err: int = dx - dy
 	var cx := x0
 	var cy := y0
@@ -298,7 +298,7 @@ func _draw_mage_back(img: Image, robe: Array, skin: Color) -> void:
 		for x in range(cx - half_w, cx + half_w + 1):
 			var shade: float = 0.90 + randf() * 0.07
 			# Cape fold lines down the center
-			var fold := abs(x - cx)
+			var fold: int = abs(x - cx)
 			if fold < 2:
 				shade *= 0.9
 			_px(img, x, y, robe_dark * shade)

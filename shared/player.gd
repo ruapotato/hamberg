@@ -253,9 +253,8 @@ func _ready() -> void:
 	# Setup player body visuals
 	_setup_player_body()
 
-	# For local player: hide billboard sprite and create first-person arms
-	if is_local_player:
-		_setup_first_person_arms()
+	# First-person arms setup is deferred - CameraController is added by client after _ready()
+	# See _process() for the deferred setup check
 
 	# Initialize armor visuals to default (unarmored) skin colors
 	_initialize_armor_visuals()
@@ -395,6 +394,10 @@ func _process(delta: float) -> void:
 		# Remote players: Interpolate between states
 		_interpolate_remote_player(delta)
 	else:
+		# Deferred first-person arms setup (CameraController is added by client after _ready)
+		if first_person_arms == null and get_node_or_null("CameraController") != null:
+			_setup_first_person_arms()
+
 		# Local player: Update persistent terrain preview
 		_update_persistent_terrain_preview()
 
@@ -1173,7 +1176,10 @@ func _handle_attack() -> void:
 				var object_name: String = hit_node.name if hit_node else ""
 				var is_dynamic := object_name.begins_with("FallenLog_") or object_name.begins_with("SplitLog_")
 
-				if is_dynamic:
+				# Client-side 2D trees (from EnvironmentSpawner2D) - handle damage locally
+				if hit_object.has_method("take_damage_local"):
+					hit_object.take_damage_local(damage)
+				elif is_dynamic:
 					_send_dynamic_damage_request(object_name, damage, result.position)
 				else:
 					var object_id: int = hit_object.get_object_id()

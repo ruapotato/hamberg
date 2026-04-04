@@ -274,6 +274,12 @@ func raycast_from_camera(max_distance: float = 100.0) -> Dictionary:
 func damage_destructible(collider: Node, damage: int, hit_position: Vector3 = Vector3.ZERO) -> void:
 	# Check if it's a tree
 	if collider.is_in_group("destructible_trees"):
+		# Try client-side 2D tree damage first
+		if collider.has_method("take_damage_local"):
+			collider.take_damage_local(float(damage))
+			return
+
+		# Fallback to old environment spawner system
 		var spawners = get_tree().get_nodes_in_group("environment_spawner")
 		if spawners.size() > 0:
 			var spawner = spawners[0]

@@ -64,8 +64,8 @@ const DARK_FOREST_BIOMES = ["dark_forest"]
 const ANIMAL_BIOMES = ["meadow", "valley", "dark_forest"]
 
 # Animal spawn parameters (separate from enemies)
-const ANIMAL_SPAWN_CHECK_INTERVAL: float = 8.0  # Check every 8 seconds
-const MAX_ANIMALS_PER_PLAYER: int = 3  # More animals for fun
+const ANIMAL_SPAWN_CHECK_INTERVAL: float = 4.0  # Check every 4 seconds (more frequent)
+const MAX_ANIMALS_PER_PLAYER: int = 6  # More animals for a lively world
 var animal_spawn_timer: float = 0.0
 
 # Tracking
@@ -677,7 +677,7 @@ func _count_nearby_animals(position: Vector3) -> int:
 			# Check if this is an animal (in "animals" group)
 			if enemy.is_in_group("animals"):
 				var distance = enemy.global_position.distance_to(position)
-				if distance <= MAX_SPAWN_DISTANCE:
+				if distance <= 80.0:  # Count animals in a wider radius
 					count += 1
 	return count
 
@@ -708,8 +708,8 @@ func _spawn_animal_near_player(player: Node, peer_id: int = 0) -> void:
 			var side = 1 if randf() > 0.5 else -1
 			angle = player_backward_angle + side * randf_range(PI/2, PI * 0.8)
 
-		# Use full distance range
-		var distance = randf_range(MIN_SPAWN_DISTANCE, MAX_SPAWN_DISTANCE)
+		# Use closer distance range for animals (so players see them)
+		var distance = randf_range(20.0, 45.0)
 
 		var spawn_offset = Vector3(
 			cos(angle) * distance,
