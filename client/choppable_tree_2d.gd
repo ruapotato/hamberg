@@ -95,11 +95,16 @@ func take_damage_local(damage: float) -> bool:
 	# Spawn hit particles
 	_spawn_hit_particles()
 
-	# Create health bar on first damage
+	# Create health bar on first damage — position above the tree sprite
 	if not health_bar:
 		health_bar = HEALTH_BAR_SCENE.instantiate()
 		add_child(health_bar)
-		health_bar.set_height_offset(3.0)
+		# Scale health bar height to tree size
+		var sprite = get_node_or_null("TreeSprite")
+		var tree_height := 2.5
+		if sprite and sprite.texture:
+			tree_height = sprite.texture.get_height() * sprite.pixel_size * sprite.scale.y + 0.3
+		health_bar.set_height_offset(tree_height)
 
 	# Update health bar
 	if health_bar:
