@@ -2899,11 +2899,7 @@ func respawn_at(spawn_position: Vector3) -> void:
 	# Re-enable physics (for all instances)
 	set_physics_process(true)
 
-	# Reset camera if this is the local player
-	if is_local_player:
-		# Camera will follow the repositioned player automatically
-		# Re-hide body sprite (death animation may have changed visibility)
-		_hide_local_body_sprite()
+	# Reset camera if this is the local player — camera follows automatically
 
 ## Enable game loaded state (called when loading is complete)
 func set_game_loaded(loaded: bool) -> void:
