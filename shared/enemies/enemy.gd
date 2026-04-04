@@ -1439,3 +1439,26 @@ func _disable_attack_hitbox() -> void:
 	var collision_shape = attack_hitbox.get_node_or_null("CollisionShape3D")
 	if collision_shape:
 		collision_shape.set_deferred("disabled", true)
+
+# ============================================================================
+# BUILDING ATTACK (Night raids)
+# ============================================================================
+
+## Attack a nearby building (called by EnemySpawner during night raids)
+func attack_building(building: Node3D) -> void:
+	if is_dead or not is_instance_valid(building):
+		return
+
+	# Face the building
+	var dir = (building.global_position - global_position).normalized()
+	if dir.length() > 0.01:
+		target_rotation_y = atan2(dir.x, dir.z)
+
+	# Deal damage
+	var damage = 10.0
+	if weapon_data and "damage" in weapon_data:
+		damage = weapon_data.damage
+
+	if building.has_method("take_damage"):
+		building.take_damage(damage)
+		print("[Enemy] %s attacked building %s for %.1f damage" % [enemy_name, building.name, damage])

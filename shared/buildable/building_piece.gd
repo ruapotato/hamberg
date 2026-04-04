@@ -14,16 +14,59 @@ var current_health: float = 100.0
 var is_preview: bool = false  # Ghost preview in build mode
 var can_place: bool = true  # Whether current position is valid
 
+# Building health system
+var _damage_shake_timer: float = 0.0
+var _is_damage_shaking: bool = false
+var _original_position: Vector3 = Vector3.ZERO
+var _health_bar: Node3D = null
+const HEALTH_BAR_SCENE = preload("res://shared/health_bar_3d.tscn")
+
+# Health values by piece type (set in _ready)
+const PIECE_HEALTH_VALUES: Dictionary = {
+	"wooden_wall": 200.0,
+	"wooden_door": 150.0,
+	"wooden_floor": 200.0,
+	"wooden_beam": 150.0,
+	"wooden_roof_26": 150.0,
+	"wooden_roof_45": 150.0,
+	"wooden_stairs": 150.0,
+	"workbench": 100.0,
+	"fireplace": 120.0,
+	"cooking_station": 100.0,
+	"chest": 80.0,
+}
+
 # Snap points for piece-to-piece attachment
 # Each snap point has: position (local), normal (direction away from piece), and type (what can attach)
 var snap_points: Array[Dictionary] = []
 
 func _ready() -> void:
+	# Set health based on piece type
+	if PIECE_HEALTH_VALUES.has(piece_name):
+		max_health = PIECE_HEALTH_VALUES[piece_name]
 	current_health = max_health
+	_original_position = position
 	_setup_snap_points()
 
 	if is_preview:
 		_setup_preview_mode()
+	else:
+		# Add to player_buildings group for raid targeting
+		add_to_group("player_buildings")
+
+func _process(delta: float) -> void:
+	if _is_damage_shaking:
+		_damage_shake_timer += delta
+		var t = _damage_shake_timer / 0.2
+		if t >= 1.0:
+			_is_damage_shaking = false
+			position = _original_position
+		else:
+			position = _original_position + Vector3(
+				sin(_damage_shake_timer * 40.0) * 0.05 * (1.0 - t),
+				0,
+				cos(_damage_shake_timer * 30.0) * 0.03 * (1.0 - t)
+			)
 
 ## Set up snap points based on piece type
 func _setup_snap_points() -> void:
@@ -174,9 +217,25 @@ func set_preview_valid(valid: bool, is_snapped: bool = false) -> void:
 			if mat and mat is StandardMaterial3D:
 				mat.albedo_color = Color(color_tint.r, color_tint.g, color_tint.b, alpha)
 
-## Take damage (SERVER-SIDE)
+## Take damage from enemies or other sources
 func take_damage(damage: float) -> bool:
 	current_health -= damage
+
+	# Visual feedback: shake on hit
+	_is_damage_shaking = true
+	_damage_shake_timer = 0.0
+	_original_position = global_position if not _is_damage_shaking else _original_position
+
+	# Visual feedback: tint based on health
+	_update_damage_tint()
+
+	# Show health bar
+	if not _health_bar:
+		_health_bar = HEALTH_BAR_SCENE.instantiate()
+		add_child(_health_bar)
+		_health_bar.set_height_offset(grid_size.y + 0.5)
+	if _health_bar:
+		_health_bar.update_health(current_health, max_health)
 
 	if current_health <= 0.0:
 		_on_destroyed()
@@ -184,7 +243,52 @@ func take_damage(damage: float) -> bool:
 
 	return false
 
+## Update mesh tint based on remaining health
+func _update_damage_tint() -> void:
+	var health_pct = current_health / max_health
+	var tint: Color
+	if health_pct < 0.25:
+		tint = Color(1.0, 0.3, 0.3)  # Red at very low health
+	elif health_pct < 0.5:
+		tint = Color(1.0, 0.6, 0.4)  # Orange at half health
+	else:
+		tint = Color(1.0, 1.0, 1.0)  # Normal
+
+	for child in get_children():
+		if child is MeshInstance3D:
+			var mat = child.get_surface_override_material(0)
+			if not mat:
+				mat = child.mesh.surface_get_material(0) if child.mesh else null
+			if mat and mat is StandardMaterial3D:
+				var new_mat = mat.duplicate()
+				new_mat.albedo_color = tint
+				child.set_surface_override_material(0, new_mat)
+
 ## Called when destroyed
 func _on_destroyed() -> void:
 	print("[BuildingPiece] %s destroyed!" % piece_name)
+
+	# Drop some materials back
+	var drop_items: Dictionary = {}
+	match piece_name:
+		"wooden_wall", "wooden_floor", "wooden_door", "wooden_stairs":
+			drop_items = {"wood": 1}
+		"wooden_beam":
+			drop_items = {"wood": 1}
+		"wooden_roof_26", "wooden_roof_45":
+			drop_items = {"wood": 1}
+		"workbench":
+			drop_items = {"wood": 2, "stone": 1}
+		"fireplace", "cooking_station":
+			drop_items = {"stone": 1}
+
+	# Give dropped items to nearby players
+	if not drop_items.is_empty():
+		var players = get_tree().get_nodes_in_group("local_player")
+		if players.size() > 0:
+			var player = players[0]
+			for item_name in drop_items:
+				if player.has_method("pickup_item"):
+					player.pickup_item(item_name, drop_items[item_name])
+
 	queue_free()

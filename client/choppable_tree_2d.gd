@@ -25,9 +25,34 @@ const HEALTH_BAR_SCENE = preload("res://shared/health_bar_3d.tscn")
 # Reference to spawner for cleanup
 var spawner: Node = null
 
+# VFX state
+var _shake_timer: float = 0.0
+var _shake_duration: float = 0.3
+var _is_shaking: bool = false
+var _sprite_ref: Sprite3D = null  # Cached sprite reference
+var _damage_tint_tween: Tween = null
+var _is_falling: bool = false
+
 
 func _ready() -> void:
 	add_to_group("destructible_trees")
+	# Cache the sprite reference (added by EnvironmentSpawner2D)
+	for child in get_children():
+		if child is Sprite3D:
+			_sprite_ref = child
+			break
+
+
+func _process(delta: float) -> void:
+	if _is_shaking and _sprite_ref:
+		_shake_timer += delta
+		var t = _shake_timer / _shake_duration
+		if t >= 1.0:
+			_is_shaking = false
+			_sprite_ref.position.x = 0.0
+		else:
+			# Sine wave decay shake
+			_sprite_ref.position.x = sin(_shake_timer * 30.0) * 0.1 * (1.0 - t)
 
 
 func get_object_type() -> String:
@@ -60,6 +85,16 @@ func take_damage_local(damage: float) -> bool:
 	# Play chop sound
 	SoundManager.play_sound_varied("tree_chop", global_position)
 
+	# Start shake effect
+	_is_shaking = true
+	_shake_timer = 0.0
+
+	# Flash white on hit (damage tint)
+	_flash_damage_tint()
+
+	# Spawn hit particles
+	_spawn_hit_particles()
+
 	# Create health bar on first damage
 	if not health_bar:
 		health_bar = HEALTH_BAR_SCENE.instantiate()
@@ -77,6 +112,52 @@ func take_damage_local(damage: float) -> bool:
 	return false
 
 
+func _flash_damage_tint() -> void:
+	if not _sprite_ref:
+		return
+	# Kill any existing tint tween
+	if _damage_tint_tween and _damage_tint_tween.is_valid():
+		_damage_tint_tween.kill()
+	# Flash white
+	_sprite_ref.modulate = Color(3.0, 3.0, 3.0, 1.0)
+	_damage_tint_tween = create_tween()
+	_damage_tint_tween.tween_property(_sprite_ref, "modulate", Color(1.0, 1.0, 1.0, 1.0), 0.1)
+
+
+func _spawn_hit_particles() -> void:
+	var particles = GPUParticles3D.new()
+	particles.emitting = true
+	particles.amount = 10
+	particles.lifetime = 0.3
+	particles.one_shot = true
+	particles.explosiveness = 1.0
+
+	# Process material for particle behavior
+	var mat = ParticleProcessMaterial.new()
+	mat.direction = Vector3(0, 1, 0)
+	mat.spread = 45.0
+	mat.initial_velocity_min = 2.0
+	mat.initial_velocity_max = 4.0
+	mat.gravity = Vector3(0, -9.8, 0)
+	mat.color = Color(0.55, 0.35, 0.15)  # Brown wood color
+	particles.process_material = mat
+
+	# Draw pass - small sphere mesh
+	var mesh = SphereMesh.new()
+	mesh.radius = 0.03
+	mesh.height = 0.06
+	particles.draw_pass_1 = mesh
+
+	# Position at hit point (center of tree, slightly up)
+	particles.position = Vector3(0, 1.5, 0)
+
+	add_child(particles)
+
+	# Auto-remove after particles finish
+	var timer = get_tree().create_timer(0.5)
+	timer.timeout.connect(func(): if is_instance_valid(particles): particles.queue_free())
+
+
 func _on_destroyed() -> void:
 	is_destroyed = true
 	print("[ChoppableTree2D] Tree destroyed! Dropping: %s" % resource_drops)
@@ -90,7 +171,7 @@ func _on_destroyed() -> void:
 			if player.has_method("pickup_item"):
 				player.pickup_item(item_name, amount)
 
-	# Play destruction effect
+	# Play destruction effect (fall animation)
 	_play_destruction_effect()
 
 
@@ -98,9 +179,17 @@ func _play_destruction_effect() -> void:
 	# Play tree fall sound
 	SoundManager.play_sound_varied("tree_fall", global_position)
 
-	# Scale-down animation then hide (return to pool)
+	_is_falling = true
+	_is_shaking = false
+	if _sprite_ref:
+		_sprite_ref.position.x = 0.0
+
+	# Fall animation: tilt 90 degrees over 1 second, then scale down and remove
 	var tween := create_tween()
-	tween.tween_property(self, "scale", Vector3.ZERO, 0.3).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_IN)
+	# Random fall direction
+	var fall_dir = 1.0 if randf() > 0.5 else -1.0
+	tween.tween_property(self, "rotation:z", fall_dir * PI / 2.0, 1.0).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	tween.parallel().tween_property(self, "scale:y", 0.0, 0.5).set_delay(0.5)
 	tween.tween_callback(_return_to_pool)
 
 
@@ -108,8 +197,13 @@ func _return_to_pool() -> void:
 	# Hide and reset for pool reuse
 	visible = false
 	is_destroyed = false
+	_is_falling = false
 	current_health = max_health
 	scale = Vector3.ONE
+	rotation = Vector3.ZERO
+	if _sprite_ref:
+		_sprite_ref.position.x = 0.0
+		_sprite_ref.modulate = Color(1, 1, 1, 1)
 	if health_bar:
 		health_bar.queue_free()
 		health_bar = null

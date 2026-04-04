@@ -93,6 +93,16 @@ func _setup_enemy_spawner() -> void:
 	add_child(spawner)
 	print("[Server] Enemy spawner initialized")
 
+## Setup village spawner (server-only, generates world structures)
+func _setup_village_spawner() -> void:
+	var VillageSpawner = preload("res://server/village_spawner.gd")
+	var spawner = VillageSpawner.new()
+	spawner.name = "VillageSpawner"
+	add_child(spawner)
+	if world_config:
+		spawner.initialize(world_config.seed)
+	print("[Server] Village spawner initialized")
+
 ## Load or create world configuration
 func _load_or_create_world() -> void:
 	# Check environment variable for custom world name
@@ -142,6 +152,9 @@ func start_server(port: int = 7777, max_players: int = 10) -> void:
 
 	# Load world state (buildables, etc.)
 	_load_world_state()
+
+	# Generate villages (deterministic from seed, skips already-saved ones)
+	_setup_village_spawner()
 
 	if NetworkManager.start_server(port, max_players):
 		is_running = true

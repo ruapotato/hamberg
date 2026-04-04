@@ -68,11 +68,23 @@ const ANIMAL_SPAWN_CHECK_INTERVAL: float = 4.0  # Check every 4 seconds (more fr
 const MAX_ANIMALS_PER_PLAYER: int = 6  # More animals for a lively world
 var animal_spawn_timer: float = 0.0
 
+# Night raid parameters
+const RAID_SPAWN_INTERVAL: float = 8.0  # Spawn raid wave every 8 seconds at night
+const RAID_BASE_ZOMBIES: int = 3  # Base zombies per raid wave
+const RAID_ZOMBIES_PER_DAY: int = 2  # Extra zombies per day survived
+const RAID_SPAWN_DISTANCE: float = 30.0  # Distance from buildings to spawn raid zombies
+const RAID_BUILDING_DAMAGE: float = 5.0  # Damage per hit to buildings
+const RAID_ATTACK_INTERVAL: float = 2.0  # Seconds between building attacks
+
 # Tracking
 var spawn_timer: float = 0.0
 var dark_forest_spawn_timer: float = 0.0  # Separate faster timer for dark forest
 var night_spawn_timer: float = 0.0  # Faster spawn timer for nighttime
 var state_sync_timer: float = 0.0
+var raid_spawn_timer: float = 0.0
+var was_night_last_frame: bool = false
+var current_day: int = 1
+var raid_active: bool = false
 
 # Day/night cycle reference
 var day_night_cycle: Node = null
@@ -135,6 +147,9 @@ func _process(delta: float) -> void:
 		if animal_spawn_timer >= ANIMAL_SPAWN_CHECK_INTERVAL:
 			animal_spawn_timer = 0.0
 			_check_animal_spawns()
+
+	# Night raid system
+	_update_night_raid(delta, is_night)
 
 	# Update state sync timer
 	state_sync_timer += delta
@@ -803,3 +818,135 @@ func _is_night_time() -> bool:
 		var hour = day_night_cycle.current_hour
 		return hour < 6.0 or hour >= 20.0  # Night is 8pm to 6am
 	return false
+
+# ============================================================================
+# NIGHT RAID SYSTEM
+# ============================================================================
+
+## Update night raid state - spawn extra zombies that target player buildings
+func _update_night_raid(delta: float, is_night: bool) -> void:
+	# Detect night start / day transition
+	if is_night and not was_night_last_frame:
+		# Night just started - begin a raid!
+		raid_active = true
+		raid_spawn_timer = 0.0
+		print("[EnemySpawner] NIGHT RAID STARTED! Day %d" % current_day)
+	elif not is_night and was_night_last_frame:
+		# Dawn - raid ends, advance day counter
+		raid_active = false
+		current_day += 1
+		print("[EnemySpawner] Night raid ended. Now day %d" % current_day)
+	was_night_last_frame = is_night
+
+	if not raid_active:
+		return
+
+	# Find player-placed buildings
+	var buildings = get_tree().get_nodes_in_group("player_buildings")
+	if buildings.is_empty():
+		return  # No buildings to raid
+
+	# Spawn raid waves periodically
+	raid_spawn_timer += delta
+	if raid_spawn_timer >= RAID_SPAWN_INTERVAL:
+		raid_spawn_timer = 0.0
+		_spawn_raid_wave(buildings)
+
+	# Make existing raid zombies attack nearby buildings
+	_update_raid_attacks(delta, buildings)
+
+## Spawn a wave of raid zombies near player buildings
+func _spawn_raid_wave(buildings: Array[Node]) -> void:
+	if not server_node or not "spawned_players" in server_node:
+		return
+
+	# Calculate how many zombies to spawn
+	var zombie_count = RAID_BASE_ZOMBIES + (current_day - 1) * RAID_ZOMBIES_PER_DAY
+	zombie_count = mini(zombie_count, 15)  # Cap at 15 per wave
+
+	# Get terrain world for height queries
+	var terrain_world = null
+	if server_node and server_node.has_node("World/TerrainWorld"):
+		terrain_world = server_node.get_node("World/TerrainWorld")
+
+	# Pick a random building as the raid target
+	var target_building = buildings[randi() % buildings.size()]
+	if not is_instance_valid(target_building):
+		return
+
+	var target_pos = target_building.global_position
+
+	# Find a host peer (closest player)
+	var host_peer = _find_closest_player_peer(target_pos)
+	if host_peer == 0:
+		return
+
+	print("[EnemySpawner] RAID WAVE: Spawning %d zombies near building at %s" % [zombie_count, target_pos])
+
+	for i in range(zombie_count):
+		# Spawn in a ring around the building
+		var angle = randf() * TAU
+		var dist = randf_range(RAID_SPAWN_DISTANCE * 0.8, RAID_SPAWN_DISTANCE * 1.2)
+		var spawn_pos = target_pos + Vector3(cos(angle) * dist, 0, sin(angle) * dist)
+
+		# Get terrain height
+		if terrain_world and terrain_world.has_method("get_terrain_height_at"):
+			var height = terrain_world.get_terrain_height_at(Vector2(spawn_pos.x, spawn_pos.z))
+			spawn_pos.y = height + 1.0
+		else:
+			spawn_pos.y = target_pos.y + 1.0
+
+		# Pick zombie subtype (prefer brutes and walkers for raids)
+		var subtype = _pick_random_zombie_type()
+		_spawn_enemy(ZOMBIE_SCENE, spawn_pos, host_peer, true, subtype)
+
+## Find the closest player peer to a world position
+func _find_closest_player_peer(pos: Vector3) -> int:
+	if not server_node or not "spawned_players" in server_node:
+		return 0
+
+	var closest_peer: int = 0
+	var closest_dist: float = INF
+
+	for peer_id in server_node.spawned_players:
+		var player = server_node.spawned_players[peer_id]
+		if not player or not is_instance_valid(player):
+			continue
+		var d = player.global_position.distance_to(pos)
+		if d < closest_dist:
+			closest_dist = d
+			closest_peer = peer_id
+
+	return closest_peer
+
+## Make raid zombies attack nearby buildings
+func _update_raid_attacks(delta: float, buildings: Array[Node]) -> void:
+	for enemy in spawned_enemies:
+		if not enemy or not is_instance_valid(enemy):
+			continue
+		if enemy.is_dead:
+			continue
+		if not enemy.is_in_group("night_enemy"):
+			continue
+
+		# Check if this zombie is close to any building
+		for building in buildings:
+			if not is_instance_valid(building):
+				continue
+			var dist = enemy.global_position.distance_to(building.global_position)
+			if dist < 3.0:
+				# Zombie is in melee range of a building - deal damage
+				# Use a timer stored on the enemy to rate-limit attacks
+				if not "building_attack_timer" in enemy:
+					enemy.set_meta("building_attack_timer", 0.0)
+				var timer = enemy.get_meta("building_attack_timer", 0.0)
+				timer += delta
+				if timer >= RAID_ATTACK_INTERVAL:
+					timer = 0.0
+					# Deal damage to building
+					if building.has_method("take_damage"):
+						var damage = RAID_BUILDING_DAMAGE * (1.0 + (current_day - 1) * 0.2)
+						building.take_damage(damage)
+						print("[EnemySpawner] Raid zombie attacked %s for %.1f damage" % [building.name, damage])
+				enemy.set_meta("building_attack_timer", timer)
+				break  # Only attack one building at a time

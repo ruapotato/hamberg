@@ -20,6 +20,7 @@ var debug_console_scene := preload("res://client/ui/debug_console.tscn")
 var chest_ui_scene := preload("res://client/ui/chest_ui.tscn")
 var shop_ui_scene := preload("res://client/ui/shop_ui.tscn")
 var build_controls_hint_scene := preload("res://client/ui/build_controls_hint.tscn")
+var task_menu_scene := preload("res://client/ui/task_menu.tscn")
 
 # Enemy scenes
 var gahnome_scene := preload("res://shared/enemies/gahnome.tscn")
@@ -100,6 +101,7 @@ var interact_held_time: float = 0.0
 
 # Build controls hint UI
 var build_controls_hint_ui: Control = null
+var task_menu_ui: Control = null
 var interact_target_chest: Node = null
 const QUICK_SORT_HOLD_TIME: float = 0.5  # Hold E for 0.5s to quick-sort
 var ping_indicator_script = preload("res://client/ping_indicator.gd")
@@ -242,6 +244,10 @@ func _ready() -> void:
 	# Create build controls hint UI
 	build_controls_hint_ui = build_controls_hint_scene.instantiate()
 	canvas_layer.add_child(build_controls_hint_ui)
+
+	# Create task menu UI (Tab to toggle)
+	task_menu_ui = task_menu_scene.instantiate()
+	canvas_layer.add_child(task_menu_ui)
 
 	# Hide HUD initially
 	hud.visible = false
@@ -1131,6 +1137,11 @@ func _setup_inventory_ui(player: Node3D) -> void:
 	build_menu_ui.hide_menu()  # Start hidden
 	print("[Client] Build menu UI created")
 
+	# Link task menu to player
+	if task_menu_ui and task_menu_ui.has_method("set_player"):
+		task_menu_ui.set_player(player)
+		print("[Client] Task menu linked to player")
+
 	# Refresh displays periodically to sync with inventory changes
 	var refresh_timer = Timer.new()
 	refresh_timer.wait_time = 0.1  # Refresh every 100ms
@@ -1139,6 +1150,9 @@ func _setup_inventory_ui(player: Node3D) -> void:
 			hotbar_ui.refresh_display()
 		if inventory_panel_ui and is_instance_valid(inventory_panel_ui) and inventory_panel_ui.is_inventory_open():
 			inventory_panel_ui.refresh_display()
+		# Check task completion periodically
+		if task_menu_ui and is_instance_valid(task_menu_ui) and task_menu_ui.has_method("check_tasks"):
+			task_menu_ui.check_tasks()
 	)
 	add_child(refresh_timer)
 	refresh_timer.start()
