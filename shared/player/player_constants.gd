@@ -58,27 +58,27 @@ const STUN_DAMAGE_MULTIPLIER: float = 1.5  # Extra damage when stunned
 # =============================================================================
 # STAMINA
 # =============================================================================
-const BASE_STAMINA: float = 50.0  # Base stamina without food
+const BASE_STAMINA: float = 100.0  # Base stamina without food
 const MAX_STAMINA: float = 200.0  # Maximum possible with best food
-const STAMINA_REGEN_RATE: float = 6.0  # Per second (reduced from 15)
-const STAMINA_REGEN_DELAY: float = 1.0  # Delay after use
-const SPRINT_STAMINA_DRAIN: float = 10.0  # Per second
-const JUMP_STAMINA_COST: float = 10.0
-const EXHAUSTED_RECOVERY_THRESHOLD: float = 0.10  # 10% to recover
-const EXHAUSTED_SPEED_MULTIPLIER: float = 0.8  # 80% speed when exhausted (less punishing)
+const STAMINA_REGEN_RATE: float = 9.0  # Per second - fast recovery like Valheim
+const STAMINA_REGEN_DELAY: float = 0.5  # Short delay after use
+const SPRINT_STAMINA_DRAIN: float = 5.0  # Per second - sprinting should be cheap
+const JUMP_STAMINA_COST: float = 8.0
+const EXHAUSTED_RECOVERY_THRESHOLD: float = 0.05  # 5% to recover (nearly instant)
+const EXHAUSTED_SPEED_MULTIPLIER: float = 0.85  # 85% speed when exhausted (less punishing)
 
 # =============================================================================
 # BRAIN POWER (MAGIC)
 # =============================================================================
-const BASE_BRAIN_POWER: float = 25.0  # Base BP without food
-const MAX_BRAIN_POWER: float = 150.0  # Maximum possible with best food
-const BRAIN_POWER_REGEN_RATE: float = 5.0  # Per second (reduced from 10)
-const BRAIN_POWER_REGEN_DELAY: float = 2.0  # Delay after use
+const BASE_BRAIN_POWER: float = 100.0  # Base BP without food
+const MAX_BRAIN_POWER: float = 200.0  # Maximum possible with best food
+const BRAIN_POWER_REGEN_RATE: float = 5.0  # Per second
+const BRAIN_POWER_REGEN_DELAY: float = 1.0  # Short delay after use
 
 # =============================================================================
 # HEALTH
 # =============================================================================
-const BASE_HEALTH: float = 25.0  # Base health without food (fragile!)
+const BASE_HEALTH: float = 50.0  # Base health without food
 const MAX_HEALTH: float = 200.0  # Maximum possible with best food
 const FALL_DEATH_TIME: float = 15.0  # Seconds below ground before death
 

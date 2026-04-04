@@ -30,7 +30,7 @@ const JUMP_VELOCITY: float = 10.0
 const ACCELERATION: float = 10.0
 const FRICTION: float = 8.0
 const AIR_CONTROL: float = 0.3
-const head_height: float = 1.50
+const head_height: float = .1
 const STEP_HEIGHT: float = 0.35  # Maximum height player can step up without jumping (stairs, floor boards)
 
 # Gravity
@@ -1269,7 +1269,7 @@ func _handle_special_attack() -> void:
 
 ## Knife special: Lunge forward jab (high damage, high stamina, moves player forward)
 func _special_attack_knife_lunge(weapon_data: WeaponData, camera: Camera3D) -> void:
-	var stamina_cost: float = 25.0  # High stamina cost
+	var stamina_cost: float = 15.0  # Moderate stamina cost
 	var damage: float = weapon_data.damage * 2.5  # 2.5x damage for lunge
 	var knockback: float = weapon_data.knockback * 1.5
 	var attack_range: float = 7.0  # Longer range for lunge
@@ -1324,7 +1324,7 @@ func _special_attack_knife_lunge(weapon_data: WeaponData, camera: Camera3D) -> v
 
 ## Sword special: Stab forward (piercing jab attack - longer and slower than third swipe)
 func _special_attack_sword_stab(weapon_data: WeaponData, camera: Camera3D) -> void:
-	var stamina_cost: float = 20.0
+	var stamina_cost: float = 15.0
 	var damage: float = weapon_data.damage * 2.2  # 2.2x damage for powerful jab
 	var knockback: float = weapon_data.knockback * 0.5  # Less knockback, more penetration
 	var attack_range: float = 6.5  # Longer range for jab
@@ -1358,7 +1358,7 @@ func _special_attack_sword_stab(weapon_data: WeaponData, camera: Camera3D) -> vo
 
 ## Axe special: Spinning whirlwind attack (360 degree spin, hits everything around)
 func _special_attack_axe_spin(weapon_data: WeaponData, camera: Camera3D) -> void:
-	var stamina_cost: float = 35.0  # High stamina cost for powerful spin
+	var stamina_cost: float = 20.0  # Moderate stamina cost for spin
 	var damage: float = weapon_data.damage * 1.5  # 1.5x damage during spin
 	var knockback: float = weapon_data.knockback * 2.0  # Double knockback, sends enemies flying
 	var attack_range: float = 4.0  # Close range spin
@@ -1396,7 +1396,7 @@ func _special_attack_axe_spin(weapon_data: WeaponData, camera: Camera3D) -> void
 
 ## Fire wand special: Area fire effect around the player (defensive fire ring)
 func _special_attack_fire_wand_area(weapon_data: WeaponData, _camera: Camera3D) -> void:
-	var brain_power_cost: float = 25.0  # Moderate brain power cost
+	var brain_power_cost: float = 15.0  # Reasonable brain power cost
 	var damage: float = weapon_data.damage * 0.4  # 0.4x damage per tick (low DoT)
 	var area_radius: float = 3.5  # 3.5 meter radius defensive ring
 	var duration: float = 3.0  # 3 seconds of burning

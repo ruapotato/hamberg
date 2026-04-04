@@ -494,8 +494,8 @@ func _place_tree(tree_body: StaticBody3D, pos: Vector3, tree_type: String) -> vo
 	# Reset tree health/state for pool reuse (if choppable)
 	if tree_body.has_method("get_object_type"):
 		tree_body.is_destroyed = false
-		# Bigger trees have more health
-		tree_body.max_health = 60.0 + scale_var * 40.0
+		# Bigger trees have more health (small=20, large=60)
+		tree_body.max_health = 20.0 + scale_var * 40.0
 		tree_body.current_health = tree_body.max_health
 		# Bigger trees drop more wood
 		tree_body.resource_drops = {"wood": max(1, int(2 + scale_var * 2))}

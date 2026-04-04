@@ -50,13 +50,13 @@ func _initialize_items() -> void:
 	_register_resource("arrows", "Arrows", "Wooden arrows tipped with stone. Ammunition for bows.", 50, 0.1)
 
 	# Cooked food (consumable)
-	_register_food("cooked_venison", "Cooked Venison", "Hearty deer meat. Increases max health and regenerates HP over time.", 20, 1.5, 25.0, 15.0, 10.0, 600.0, 1.5)
-	_register_food("cooked_pork", "Cooked Pork", "Savory pig meat. Increases max stamina and regenerates HP over time.", 20, 2.0, 15.0, 25.0, 10.0, 600.0, 1.0)
-	_register_food("cooked_mutton", "Cooked Mutton", "Tender sheep meat. Balanced nutrition and regenerates HP over time.", 20, 1.8, 20.0, 20.0, 15.0, 600.0, 1.2)
+	_register_food("cooked_venison", "Cooked Venison", "Hearty deer meat. Increases max health and regenerates HP over time.", 20, 1.5, 40.0, 20.0, 10.0, 900.0, 2.0)
+	_register_food("cooked_pork", "Cooked Pork", "Savory pig meat. Increases max stamina and regenerates HP over time.", 20, 2.0, 20.0, 40.0, 10.0, 900.0, 1.5)
+	_register_food("cooked_mutton", "Cooked Mutton", "Tender sheep meat. Balanced nutrition and regenerates HP over time.", 20, 1.8, 30.0, 30.0, 20.0, 900.0, 1.8)
 
 	# Potions (consumable)
-	_register_food("healing_potion", "Healing Potion", "A restorative potion brewed from glowing spores. Quickly restores health.", 10, 0.5, 40.0, 0.0, 0.0, 30.0, 10.0)
-	_register_food("stamina_potion", "Stamina Potion", "An energizing potion brewed from fungal essence. Quickly restores stamina.", 10, 0.5, 0.0, 40.0, 0.0, 30.0, 0.0)
+	_register_food("healing_potion", "Healing Potion", "A restorative potion brewed from glowing spores. Quickly restores health.", 10, 0.5, 50.0, 0.0, 0.0, 30.0, 12.0)
+	_register_food("stamina_potion", "Stamina Potion", "An energizing potion brewed from fungal essence. Quickly restores stamina.", 10, 0.5, 0.0, 50.0, 0.0, 30.0, 0.0)
 
 	# Basic tools (no workbench required)
 	_register_tool("hammer", "Hammer", "Used for building structures.", 1)
@@ -153,12 +153,12 @@ func _register_weapon_fists() -> void:
 	weapon.display_name = "Fists"
 	weapon.description = "Your bare hands. Low damage, no cost."
 	weapon.weapon_type = WeaponData.WeaponType.MELEE_ONE_HAND
-	weapon.damage = 10.0
+	weapon.damage = 5.0
 	weapon.damage_type = WeaponData.DamageType.BLUNT
 	weapon.attack_speed = 2.0  # Fast punches
 	weapon.knockback = 5.0  # Moderate knockback
 	weapon.durability = 999999  # Infinite durability
-	weapon.stamina_cost = 5.0  # Low stamina cost
+	weapon.stamina_cost = 3.0  # Very low stamina cost
 	weapon.parry_window = 0.15  # Short parry window for fists (skilled timing required)
 	weapon.tool_type = "blunt"  # Can break small things, but not chop trees
 	weapon.weight = 0.0
@@ -188,12 +188,12 @@ func _register_weapon_club() -> void:
 	weapon.display_name = "Wooden Club"
 	weapon.description = "A simple wooden club. Basic blunt damage."
 	weapon.weapon_type = WeaponData.WeaponType.MELEE_ONE_HAND
-	weapon.damage = 12.0  # Slightly better than fists
+	weapon.damage = 10.0  # Slightly better than fists
 	weapon.damage_type = WeaponData.DamageType.BLUNT
 	weapon.attack_speed = 1.3  # Medium speed
 	weapon.knockback = 8.0  # Good knockback
 	weapon.durability = 80
-	weapon.stamina_cost = 8.0
+	weapon.stamina_cost = 6.0
 	weapon.tool_type = "blunt"  # Good for breaking things, can split logs
 	weapon.weight = 2.5
 	# Uses fists animation/no scene for now - simple club
@@ -211,7 +211,7 @@ func _register_weapon_stone_sword() -> void:
 	weapon.attack_speed = 1.5  # 1.5 attacks per second (medium speed)
 	weapon.knockback = 5.0
 	weapon.durability = 100
-	weapon.stamina_cost = 10.0
+	weapon.stamina_cost = 8.0
 	weapon.weight = 3.0
 	weapon.weapon_scene = load("res://shared/weapons/stone_sword.tscn")
 	items["stone_sword"] = weapon
@@ -222,12 +222,12 @@ func _register_weapon_stone_axe() -> void:
 	weapon.display_name = "Stone Axe (Head Smasher)"
 	weapon.description = "A heavy two-handed axe. Slow but devastating. Required for chopping trees."
 	weapon.weapon_type = WeaponData.WeaponType.MELEE_TWO_HAND
-	weapon.damage = 15.0  # Balanced for trees and combat
+	weapon.damage = 20.0  # Primary tree chopper - 2-3 hits for small tree
 	weapon.damage_type = WeaponData.DamageType.SLASH
 	weapon.attack_speed = 0.8  # Slower than sword
 	weapon.knockback = 15.0  # High knockback
 	weapon.durability = 120
-	weapon.stamina_cost = 20.0  # 2x stamina cost
+	weapon.stamina_cost = 12.0  # Reasonable stamina for tree chopping
 	weapon.tool_type = "axe"  # Can chop trees!
 	weapon.weight = 6.0
 	weapon.weapon_scene = load("res://shared/weapons/stone_axe.tscn")
@@ -239,12 +239,12 @@ func _register_weapon_stone_knife() -> void:
 	weapon.display_name = "Stone Knife"
 	weapon.description = "A quick and light blade. Fast attacks, low damage."
 	weapon.weapon_type = WeaponData.WeaponType.MELEE_ONE_HAND
-	weapon.damage = 8.0  # 0.5x sword damage
+	weapon.damage = 8.0  # Fast but lower damage
 	weapon.damage_type = WeaponData.DamageType.PIERCE
 	weapon.attack_speed = 2.5  # Very fast
 	weapon.knockback = 2.0
 	weapon.durability = 80
-	weapon.stamina_cost = 5.0  # 0.5x stamina cost
+	weapon.stamina_cost = 4.0  # Very cheap per swing
 	weapon.weight = 1.0
 	weapon.weapon_scene = load("res://shared/weapons/stone_knife.tscn")
 	items["stone_knife"] = weapon
@@ -255,12 +255,12 @@ func _register_weapon_fire_wand() -> void:
 	weapon.display_name = "Fire Wand"
 	weapon.description = "A magical wand that shoots fireballs. Uses Brain Power (BP) instead of stamina."
 	weapon.weapon_type = WeaponData.WeaponType.MAGIC
-	weapon.damage = 12.0
+	weapon.damage = 15.0
 	weapon.damage_type = WeaponData.DamageType.FIRE
 	weapon.attack_speed = 1.0
 	weapon.knockback = 3.0
 	weapon.durability = 60
-	weapon.stamina_cost = 15.0  # For magic weapons, this is actually brain power cost
+	weapon.stamina_cost = 10.0  # For magic weapons, this is actually brain power cost
 	weapon.spell_name = "fireball"  # Maps to SpellRegistry
 	weapon.projectile_speed = 30.0
 	weapon.weight = 1.5
@@ -274,12 +274,12 @@ func _register_weapon_bow() -> void:
 	weapon.display_name = "Hunting Bow"
 	weapon.description = "A simple wooden bow. Physical ranged damage."
 	weapon.weapon_type = WeaponData.WeaponType.RANGED
-	weapon.damage = 10.0
+	weapon.damage = 12.0
 	weapon.damage_type = WeaponData.DamageType.PIERCE
 	weapon.attack_speed = 0.8
 	weapon.knockback = 5.0
 	weapon.durability = 100
-	weapon.stamina_cost = 8.0
+	weapon.stamina_cost = 6.0
 	weapon.projectile_speed = 40.0
 	weapon.weight = 2.0
 	weapon.weapon_scene = load("res://shared/weapons/bow.tscn")
@@ -293,7 +293,7 @@ func _register_weapon_iron_sword() -> void:
 	weapon.display_name = "Iron Sword"
 	weapon.description = "A sturdy iron sword. Better damage than stone."
 	weapon.weapon_type = WeaponData.WeaponType.MELEE_ONE_HAND
-	weapon.damage = 22.0
+	weapon.damage = 25.0
 	weapon.damage_type = WeaponData.DamageType.SLASH
 	weapon.attack_speed = 1.5
 	weapon.knockback = 6.0
@@ -309,12 +309,12 @@ func _register_weapon_iron_axe() -> void:
 	weapon.display_name = "Iron Axe"
 	weapon.description = "A heavy iron axe. Chops trees faster and hits harder."
 	weapon.weapon_type = WeaponData.WeaponType.MELEE_TWO_HAND
-	weapon.damage = 22.0
+	weapon.damage = 30.0
 	weapon.damage_type = WeaponData.DamageType.SLASH
 	weapon.attack_speed = 0.9
 	weapon.knockback = 16.0
 	weapon.durability = 180
-	weapon.stamina_cost = 18.0
+	weapon.stamina_cost = 14.0
 	weapon.tool_type = "axe"
 	weapon.weight = 6.5
 	weapon.weapon_scene = load("res://shared/weapons/iron_axe.tscn")
@@ -326,12 +326,12 @@ func _register_weapon_iron_pickaxe() -> void:
 	weapon.display_name = "Iron Pickaxe"
 	weapon.description = "A sturdy iron pickaxe. Mines faster than stone."
 	weapon.weapon_type = WeaponData.WeaponType.MELEE_ONE_HAND
-	weapon.damage = 12.0
+	weapon.damage = 15.0
 	weapon.damage_type = WeaponData.DamageType.PIERCE
 	weapon.attack_speed = 1.0
 	weapon.knockback = 3.0
 	weapon.durability = 180
-	weapon.stamina_cost = 8.0
+	weapon.stamina_cost = 7.0
 	weapon.tool_type = "pickaxe"
 	weapon.weight = 5.0
 	weapon.weapon_scene = load("res://shared/weapons/iron_pickaxe.tscn")
@@ -715,12 +715,12 @@ func _register_lightning_wand() -> void:
 	weapon.display_name = "Lightning Wand"
 	weapon.description = "A crackling wand that unleashes chain lightning. Uses Brain Power (BP).\nLightning arcs between nearby enemies."
 	weapon.weapon_type = WeaponData.WeaponType.MAGIC
-	weapon.damage = 15.0  # Tier 2 - slightly higher base damage
+	weapon.damage = 18.0  # Tier 2 - higher base damage
 	weapon.damage_type = WeaponData.DamageType.LIGHTNING
 	weapon.attack_speed = 0.8  # Slower but hits multiple targets
 	weapon.knockback = 4.0
 	weapon.durability = 50
-	weapon.stamina_cost = 20.0  # Higher BP cost for tier 2
+	weapon.stamina_cost = 15.0  # Tier 2 BP cost
 	weapon.spell_name = "chain_lightning"  # Maps to SpellRegistry
 	weapon.projectile_speed = 60.0
 	weapon.weight = 1.5
@@ -739,7 +739,7 @@ func _register_arcane_wand() -> void:
 	weapon.attack_speed = 1.2
 	weapon.knockback = 2.0
 	weapon.durability = 60
-	weapon.stamina_cost = 10.0  # Low BP cost for tier 1
+	weapon.stamina_cost = 8.0  # Low BP cost for tier 1
 	weapon.spell_name = "magic_missile"  # Maps to SpellRegistry
 	weapon.projectile_speed = 45.0
 	weapon.weight = 1.0
@@ -758,7 +758,7 @@ func _register_nature_wand() -> void:
 	weapon.attack_speed = 0.8
 	weapon.knockback = 1.0
 	weapon.durability = 70
-	weapon.stamina_cost = 15.0
+	weapon.stamina_cost = 12.0
 	weapon.spell_name = "vine_grasp"  # Maps to SpellRegistry
 	weapon.weight = 1.5
 	weapon.weapon_scene = load("res://shared/weapons/nature_wand.tscn")
@@ -776,7 +776,7 @@ func _register_dark_wand() -> void:
 	weapon.attack_speed = 1.0
 	weapon.knockback = 2.0
 	weapon.durability = 45  # Fragile, dark magic corrodes
-	weapon.stamina_cost = 18.0  # Tier 2 BP cost
+	weapon.stamina_cost = 14.0  # Tier 2 BP cost
 	weapon.spell_name = "soul_drain"  # Maps to SpellRegistry
 	weapon.weight = 1.5
 	weapon.weapon_scene = load("res://shared/weapons/dark_wand.tscn")
@@ -794,7 +794,7 @@ func _register_holy_wand() -> void:
 	weapon.attack_speed = 0.9
 	weapon.knockback = 3.0
 	weapon.durability = 65
-	weapon.stamina_cost = 18.0
+	weapon.stamina_cost = 14.0
 	weapon.spell_name = "divine_light"  # Maps to SpellRegistry
 	weapon.weight = 1.5
 	weapon.weapon_scene = load("res://shared/weapons/holy_wand.tscn")
@@ -813,7 +813,7 @@ func _register_ice_wand() -> void:
 	weapon.attack_speed = 1.5
 	weapon.knockback = 3.0
 	weapon.durability = 80
-	weapon.stamina_cost = 12.0  # Uses brain power for magic
+	weapon.stamina_cost = 10.0  # Uses brain power for magic
 	weapon.spell_name = "ice_shard"  # Maps to SpellRegistry
 	weapon.weight = 1.5
 	weapon.weapon_scene = load("res://shared/weapons/ice_wand.tscn")

@@ -33,7 +33,7 @@ var is_skittish: bool = false  # If true, flees when player gets too close
 func _ready() -> void:
 	# Default passive animal stats (override in subclasses)
 	enemy_name = "Animal"
-	max_health = 30.0
+	max_health = 20.0
 	move_speed = 3.0
 	charge_speed = 0.0  # No charging
 	strafe_speed = 2.0

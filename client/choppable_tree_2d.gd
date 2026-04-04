@@ -5,8 +5,8 @@ extends StaticBody3D
 ## When hit with an axe, they take damage and drop wood when destroyed.
 
 # Tree stats
-var max_health: float = 80.0
-var current_health: float = 80.0
+var max_health: float = 30.0
+var current_health: float = 30.0
 var is_destroyed: bool = false
 
 # Interface compatibility (matches EnvironmentalObject)

@@ -25,7 +25,7 @@ func _ready() -> void:
 
 	# Then override with sheep-specific values
 	enemy_name = "Unicorn Sheep"
-	max_health = 40.0  # Tougher than regular sheep
+	max_health = 20.0  # Can fight back, but not very tanky
 	move_speed = 2.8
 	strafe_speed = 2.2
 	loot_table = {"raw_mutton": 2}
