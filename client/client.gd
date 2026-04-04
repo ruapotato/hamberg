@@ -1084,8 +1084,8 @@ func _setup_camera_follow(player: Node3D) -> void:
 	camera_controller.name = "CameraController"
 	player.add_child(camera_controller)
 
-	# Position camera controller at shoulder/neck height for better third-person view
-	camera_controller.position = Vector3(0, 1.2, 0)
+	# Camera controller at player origin — spring arm handles eye height
+	camera_controller.position = Vector3.ZERO
 
 	print("[Client] Camera controller attached to local player")
 

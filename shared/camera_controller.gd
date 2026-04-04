@@ -13,7 +13,7 @@ enum CameraMode { FIRST_PERSON, THIRD_PERSON }
 @export var zoom_speed: float = 0.5
 @export var min_pitch: float = -89.0
 @export var max_pitch: float = 89.0
-@export var first_person_eye_height: float = 1.3  # Below head center so you see body, not top of head
+@export var first_person_eye_height: float = 1.42  # Just below head center (head at y=1.498)
 @export var third_person_height_offset: float = 0.5
 
 # Camera components
