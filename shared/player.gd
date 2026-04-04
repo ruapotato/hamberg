@@ -2049,29 +2049,56 @@ func _setup_player_body() -> void:
 
 func _setup_first_person_arms() -> void:
 	"""Hide billboard sprite for local player and add first-person arms + wand on camera."""
+	print("[Player] _setup_first_person_arms() called, is_local_player=%s" % is_local_player)
+
+	# Only set up for local player
+	if not is_local_player:
+		print("[Player] Not local player, skipping first-person arms")
+		return
+
+	# Don't create twice
+	if first_person_arms != null:
+		return
+
 	# Hide the billboard sprite (other players will still see it via network, but local camera won't)
 	if body_container:
 		var billboard_sprite = body_container.get_node_or_null("BodySprite")
 		if billboard_sprite:
 			billboard_sprite.visible = false
+			print("[Player] Hid billboard BodySprite for local player")
+		else:
+			print("[Player] WARNING: No BodySprite found in body_container")
+	else:
+		print("[Player] WARNING: No body_container found")
 
 	# Create first-person arms attached to camera
-	var camera_controller := get_node_or_null("CameraController")
-	if not camera_controller:
-		push_warning("[Player] No CameraController found for first-person arms")
+	var cam_controller := get_node_or_null("CameraController")
+	if not cam_controller:
+		print("[Player] WARNING: No CameraController child found, children: %s" % str(get_children().map(func(c): return c.name)))
 		return
 
-	var camera: Camera3D = camera_controller.get_camera()
-	if not camera:
-		push_warning("[Player] No Camera3D found for first-person arms")
+	if not cam_controller.has_method("get_camera"):
+		print("[Player] WARNING: CameraController has no get_camera() method")
 		return
+
+	var camera: Camera3D = cam_controller.get_camera()
+	if not camera:
+		print("[Player] WARNING: CameraController.get_camera() returned null")
+		return
+
+	print("[Player] Found Camera3D: %s (path: %s)" % [camera.name, camera.get_path()])
 
 	var arms_script = load("res://shared/player/first_person_arms.gd")
+	if not arms_script:
+		print("[Player] WARNING: Failed to load first_person_arms.gd")
+		return
+
 	first_person_arms = Node3D.new()
 	first_person_arms.set_script(arms_script)
 	first_person_arms.name = "FirstPersonArms"
 	camera.add_child(first_person_arms)
-	print("[Player] First-person arms created (arm + wand sprites on camera)")
+	print("[Player] First-person arms created and added as child of Camera3D (%s)" % camera.get_path())
+	print("[Player] FirstPersonArms children after _ready: %s" % str(first_person_arms.get_children().map(func(c): return c.name)))
 
 ## Update first-person arms wand color based on equipped weapon's damage type
 func _update_first_person_arms_color() -> void:
@@ -3119,6 +3146,10 @@ func _update_weapon_visual() -> void:
 	if weapon_wrist_pivot:
 		weapon_wrist_pivot.queue_free()
 		weapon_wrist_pivot = null
+
+	# Local player uses FirstPersonArms for weapon display, skip the 3D weapon sprite
+	if is_local_player:
+		return
 
 	# Get equipped weapon
 	var weapon_id = equipment.get_equipped_item(Equipment.EquipmentSlot.MAIN_HAND)
