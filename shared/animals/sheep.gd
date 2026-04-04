@@ -52,14 +52,27 @@ func _setup_body() -> void:
 
 	var sprite = DirectionalSpriteScript.new()
 	sprite.name = "BodySprite"
-	sprite.pixel_size = 0.025
 	sprite.alpha_cut = SpriteBase3D.ALPHA_CUT_OPAQUE_PREPASS
 	sprite.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
-	var tex_side = TextureGenerator.generate_sheep_texture("side")
-	var tex_front = TextureGenerator.generate_sheep_texture("front")
-	var tex_back = TextureGenerator.generate_sheep_texture("back")
-	sprite.texture = tex_side
-	sprite.set_textures_4dir(tex_front, tex_back, tex_side, tex_side)
+
+	# Try aalib sprites first, fall back to procedural
+	var aalib = SpriteLoader.load_character_sprites("sheep")
+	if aalib.size() > 0 and aalib.get("front") != null:
+		sprite.pixel_size = 0.0025  # 639px * 0.0025 = ~1.6 units tall
+		sprite.texture = aalib.get("left", aalib["front"])
+		sprite.set_textures_4dir(
+			aalib["front"],
+			aalib["back"],
+			aalib.get("left", aalib["front"]),
+			aalib.get("right", aalib["front"])
+		)
+	else:
+		sprite.pixel_size = 0.025
+		var tex_side = TextureGenerator.generate_sheep_texture("side")
+		var tex_front = TextureGenerator.generate_sheep_texture("front")
+		var tex_back = TextureGenerator.generate_sheep_texture("back")
+		sprite.texture = tex_side
+		sprite.set_textures_4dir(tex_front, tex_back, tex_side, tex_side)
 
 	# Position sprite so bottom is at ground level
 	var sprite_height = sprite.texture.get_height() if sprite.texture else 32

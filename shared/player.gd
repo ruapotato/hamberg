@@ -2013,21 +2013,32 @@ func _setup_player_body() -> void:
 	# Create the DirectionalSprite billboard
 	var sprite := DirectionalSpriteScript.new()
 	sprite.name = "BodySprite"
-	sprite.pixel_size = 0.025
 	sprite.alpha_cut = SpriteBase3D.ALPHA_CUT_OPAQUE_PREPASS
 	sprite.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
 
-	# Generate the mage texture from TextureGenerator autoload
-	var tex_front = TextureGenerator.generate_mage_texture("blue", 0, "front")
-	var tex_back = TextureGenerator.generate_mage_texture("blue", 0, "back")
-	var tex_side = TextureGenerator.generate_mage_texture("blue", 0, "side")
-	sprite.texture = tex_front
-	sprite.set_textures_4dir(tex_front, tex_back, tex_side, tex_side)
-
-	# Position sprite so feet are at ground level
-	# Texture is 64x96 pixels, pixel_size=0.025, so height = 96 * 0.025 = 2.4 units
-	# Sprite origin is at center, so offset up by half height to put feet at y=0
-	sprite.position = Vector3(0, 1.2, 0)
+	# Try aalib sprites first, fall back to procedural
+	var aalib = SpriteLoader.load_character_sprites("mage")
+	if aalib.size() > 0 and aalib.get("front") != null:
+		sprite.pixel_size = 0.002  # 1002px * 0.002 = ~2.0 units tall
+		sprite.texture = aalib["front"]
+		sprite.set_textures_4dir(
+			aalib["front"],
+			aalib["back"],
+			aalib.get("left", aalib["front"]),
+			aalib.get("right", aalib["front"])
+		)
+		var sprite_height = aalib["front"].get_height() * sprite.pixel_size
+		sprite.position = Vector3(0, sprite_height * 0.5, 0)
+	else:
+		# Fallback: procedural mage texture
+		sprite.pixel_size = 0.025
+		var tex_front = TextureGenerator.generate_mage_texture("blue", 0, "front")
+		var tex_back = TextureGenerator.generate_mage_texture("blue", 0, "back")
+		var tex_side = TextureGenerator.generate_mage_texture("blue", 0, "side")
+		sprite.texture = tex_front
+		sprite.set_textures_4dir(tex_front, tex_back, tex_side, tex_side)
+		# Texture is 64x96 pixels, pixel_size=0.025, so height = 96 * 0.025 = 2.4 units
+		sprite.position = Vector3(0, 1.2, 0)
 
 	body_container.add_child(sprite)
 

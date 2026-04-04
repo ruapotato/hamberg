@@ -976,15 +976,29 @@ func _setup_body() -> void:
 	# Directional Billboard Sprite3D (Paper Mario style)
 	var sprite = DirectionalSpriteScript.new()
 	sprite.name = "Sprite"
-	sprite.pixel_size = 0.025
 	sprite.alpha_cut = SpriteBase3D.ALPHA_CUT_OPAQUE_PREPASS
 	sprite.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
-	var enemy_tex = _create_sprite_texture()
-	sprite.texture = enemy_tex
-	sprite.set_textures_4dir(enemy_tex, enemy_tex, enemy_tex, enemy_tex)
-	# Position so bottom of sprite is at ground level
-	# 64px tall * 0.025 pixel_size = 1.6 units total height, center at half
-	sprite.position = Vector3(0, 0.8, 0)
+
+	# Try aalib skeleton sprites for gahnome, fall back to procedural
+	var aalib = SpriteLoader.load_character_sprites("skeleton")
+	if aalib.size() > 0 and aalib.get("front") != null:
+		sprite.pixel_size = 0.002  # 1002px * 0.002 = ~2.0 units tall
+		sprite.texture = aalib["front"]
+		sprite.set_textures_4dir(
+			aalib["front"],
+			aalib["back"],
+			aalib.get("left", aalib["front"]),
+			aalib.get("right", aalib["front"])
+		)
+		var sprite_height = aalib["front"].get_height() * sprite.pixel_size
+		sprite.position = Vector3(0, sprite_height * 0.5, 0)
+	else:
+		sprite.pixel_size = 0.025
+		var enemy_tex = _create_sprite_texture()
+		sprite.texture = enemy_tex
+		sprite.set_textures_4dir(enemy_tex, enemy_tex, enemy_tex, enemy_tex)
+		# 64px tall * 0.025 pixel_size = 1.6 units total height, center at half
+		sprite.position = Vector3(0, 0.8, 0)
 	body_container.add_child(sprite)
 
 	head_base_height = 0.0  # No 3D head to bob

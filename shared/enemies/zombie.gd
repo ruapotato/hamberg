@@ -85,7 +85,7 @@ func _apply_zombie_type() -> void:
 func set_zombie_type(type: String) -> void:
 	zombie_type = type
 
-## Override body setup to use ZombieTextureGenerator sprites
+## Override body setup to use aalib sprites or ZombieTextureGenerator fallback
 func _setup_body() -> void:
 	body_container = Node3D.new()
 	body_container.name = "BodyContainer"
@@ -95,19 +95,39 @@ func _setup_body() -> void:
 	# Directional Billboard Sprite3D (Paper Mario style)
 	var sprite = DirectionalSpriteScript.new()
 	sprite.name = "Sprite"
-	sprite.pixel_size = 0.02
 	sprite.alpha_cut = SpriteBase3D.ALPHA_CUT_OPAQUE_PREPASS
 	sprite.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
 
-	# Get zombie textures for all angles from the autoload generator
-	var tex_front = ZombieTextureGenerator.get_zombie_texture(zombie_type, "front")
-	var tex_back = ZombieTextureGenerator.get_zombie_texture(zombie_type, "back")
-	var tex_side = ZombieTextureGenerator.get_zombie_texture(zombie_type, "side")
-	sprite.texture = tex_front
-	sprite.set_textures_4dir(tex_front, tex_back, tex_side, tex_side)
+	# Map zombie_type to aalib sprite name
+	var sprite_name_map = {
+		"walker": "zombie_walker",
+		"runner": "zombie_runner",
+		"brute": "zombie_brute",
+	}
+	var aalib_name = sprite_name_map.get(zombie_type, "")
+	var aalib = SpriteLoader.load_character_sprites(aalib_name) if aalib_name != "" else {}
 
-	# Zombie textures are 64x96, pixel_size 0.02 -> 1.92 units tall, center at half
-	var sprite_height = 96.0 * 0.02  # 1.92
+	var sprite_height: float
+	if aalib.size() > 0 and aalib.get("front") != null:
+		sprite.pixel_size = 0.002  # 1002px * 0.002 = ~2.0 units tall
+		sprite.texture = aalib["front"]
+		sprite.set_textures_4dir(
+			aalib["front"],
+			aalib["back"],
+			aalib.get("left", aalib["front"]),
+			aalib.get("right", aalib["front"])
+		)
+		sprite_height = aalib["front"].get_height() * sprite.pixel_size
+	else:
+		# Fallback: procedural ZombieTextureGenerator
+		sprite.pixel_size = 0.02
+		var tex_front = ZombieTextureGenerator.get_zombie_texture(zombie_type, "front")
+		var tex_back = ZombieTextureGenerator.get_zombie_texture(zombie_type, "back")
+		var tex_side = ZombieTextureGenerator.get_zombie_texture(zombie_type, "side")
+		sprite.texture = tex_front
+		sprite.set_textures_4dir(tex_front, tex_back, tex_side, tex_side)
+		sprite_height = 96.0 * 0.02  # 1.92
+
 	sprite.position = Vector3(0, sprite_height * 0.5, 0)
 
 	# Scale brutes up and runners slightly smaller

@@ -27,6 +27,7 @@ DebugSettings="*res://shared/debug_settings.gd"
 TextureGenerator="*res://shared/autoload/texture_generator.gd"
 ZombieTextureGenerator="*res://shared/autoload/zombie_texture_generator.gd"
 SpellRegistry="*res://shared/autoload/spell_registry.gd"
+SpriteLoader="*res://shared/autoload/sprite_loader.gd"
 
 [display]
 
