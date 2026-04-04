@@ -1405,3 +1405,27 @@ func rpc_broadcast_thrown_rock(position: Array, direction: Array, speed: float, 
 		var pos = Vector3(position[0], position[1], position[2])
 		var dir = Vector3(direction[0], direction[1], direction[2])
 		client_node.spawn_visual_thrown_rock(pos, dir, speed, damage, thrower_network_id)
+
+# ============================================================================
+# SERVER NOTIFICATIONS
+# ============================================================================
+
+## SERVER -> CLIENT: Send a notification message to a specific client (or all)
+@rpc("authority", "call_remote", "reliable")
+func rpc_server_notification(message: String, duration: float = 5.0) -> void:
+	if is_server:
+		return
+
+	var client_node := get_node_or_null("/root/Main/Client")
+	if client_node and client_node.has_method("receive_server_notification"):
+		client_node.receive_server_notification(message, duration)
+
+## SERVER -> ALL CLIENTS: Send current weather state for gameplay effects
+@rpc("authority", "call_remote", "unreliable_ordered")
+func rpc_sync_weather_state(weather_name: String, is_raining: bool, is_storming: bool, is_foggy: bool) -> void:
+	if is_server:
+		return
+
+	var client_node := get_node_or_null("/root/Main/Client")
+	if client_node and client_node.has_method("receive_weather_state"):
+		client_node.receive_weather_state(weather_name, is_raining, is_storming, is_foggy)

@@ -619,6 +619,15 @@ func _apply_movement(input_data: Dictionary, delta: float) -> void:
 	if is_spinning:
 		target_speed *= 0.3
 
+	# Apply weather speed modifier (rain/storm slows movement)
+	if is_local_player:
+		var client_node = get_node_or_null("/root/Main/Client")
+		if client_node:
+			if "server_weather_storming" in client_node and client_node.server_weather_storming:
+				target_speed *= 0.8  # 20% speed reduction in storms
+			elif "server_weather_raining" in client_node and client_node.server_weather_raining:
+				target_speed *= 0.9  # 10% speed reduction in rain
+
 	var control_factor := 1.0 if is_on_floor() else AIR_CONTROL
 
 	# Horizontal movement (skip if lunging - lunge controls movement)

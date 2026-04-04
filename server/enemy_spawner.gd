@@ -76,6 +76,24 @@ const RAID_SPAWN_DISTANCE: float = 30.0  # Distance from buildings to spawn raid
 const RAID_BUILDING_DAMAGE: float = 5.0  # Damage per hit to buildings
 const RAID_ATTACK_INTERVAL: float = 2.0  # Seconds between building attacks
 
+# Weather-affected spawning parameters
+const WEATHER_SYNC_INTERVAL: float = 5.0  # Sync weather state to clients every 5 seconds
+const LIGHTNING_CHECK_INTERVAL: float = 10.0  # Check for lightning strikes every 10 seconds
+const LIGHTNING_DAMAGE: float = 15.0  # Small damage from lightning
+const LIGHTNING_CHANCE: float = 0.3  # 30% chance per check during storms
+
+# Base-building raid parameters
+const BASE_CLUSTER_RADIUS: float = 30.0  # Units to consider buildings "clustered" as a base
+const RAID_WARNING_TIME: float = 30.0  # Seconds before raid to send warning
+const DUSK_HOUR: float = 18.0  # 6pm - dusk starts
+const PRE_NIGHTFALL_HOUR: float = 19.0  # 1 hour before nightfall (20:00)
+
+# Proximity-aware difficulty zones (distance from world origin)
+const ZONE_SAFE_MAX: float = 100.0       # 0-100: only walkers
+const ZONE_MEDIUM_MAX: float = 300.0     # 100-300: walkers + runners
+const ZONE_HARD_MAX: float = 500.0       # 300-500: all types including brutes
+# 500+: mage zombies and exploders too
+
 # Tracking
 var spawn_timer: float = 0.0
 var dark_forest_spawn_timer: float = 0.0  # Separate faster timer for dark forest
@@ -85,9 +103,14 @@ var raid_spawn_timer: float = 0.0
 var was_night_last_frame: bool = false
 var current_day: int = 1
 var raid_active: bool = false
+var weather_sync_timer: float = 0.0
+var lightning_timer: float = 0.0
+var raid_warning_sent: bool = false  # Track if we already sent the raid warning this cycle
+var last_base_level_per_player: Dictionary = {}  # peer_id -> last known base level (for threshold alerts)
 
 # Day/night cycle reference
 var day_night_cycle: Node = null
+var weather_manager: Node = null
 var spawned_enemies: Array[Node] = []
 var enemy_paths: Dictionary = {}  # Node -> NodePath (cached for performance)
 var enemy_network_ids: Dictionary = {}  # Node -> int (network ID)
@@ -119,13 +142,35 @@ func _process(delta: float) -> void:
 	if not day_night_cycle:
 		_find_day_night_cycle()
 
+	# Find weather manager if we don't have it
+	if not weather_manager:
+		_find_weather_manager()
+
 	var is_night = _is_night_time()
+	var is_raining = _is_weather_raining()
+	var is_foggy = _is_weather_foggy()
+
+	# Sync weather state to clients periodically (for movement speed effects)
+	weather_sync_timer += delta
+	if weather_sync_timer >= WEATHER_SYNC_INTERVAL:
+		weather_sync_timer = 0.0
+		_sync_weather_to_clients()
+
+	# Lightning strikes during storms
+	if _is_weather_storming():
+		lightning_timer += delta
+		if lightning_timer >= LIGHTNING_CHECK_INTERVAL:
+			lightning_timer = 0.0
+			_check_lightning_strikes()
 
 	# Update spawn timer (normal biomes)
 	spawn_timer += delta
 
+	# Weather affects spawn interval: rain/storms = 50% faster zombie spawns
+	var weather_spawn_multiplier = 0.5 if is_raining else 1.0
 	# Use faster spawn interval at night
 	var current_spawn_interval = NIGHT_SPAWN_CHECK_INTERVAL if is_night else SPAWN_CHECK_INTERVAL
+	current_spawn_interval *= weather_spawn_multiplier
 
 	if spawn_timer >= current_spawn_interval:
 		spawn_timer = 0.0
@@ -136,19 +181,23 @@ func _process(delta: float) -> void:
 
 	# Dark forest is even faster at night
 	var dark_forest_interval = DARK_FOREST_SPAWN_CHECK_INTERVAL * (0.5 if is_night else 1.0)
+	dark_forest_interval *= weather_spawn_multiplier
 	if dark_forest_spawn_timer >= dark_forest_interval:
 		dark_forest_spawn_timer = 0.0
 		_check_spawns(true, is_night)  # Dark forest spawns only
 
-	# Update animal spawn timer (animals don't spawn at night - they hide!)
-	if not is_night:
+	# Update animal spawn timer
+	# Animals don't spawn at night - they hide!
+	# Animals also hide during rain/storms
+	var animals_should_hide = is_night or is_raining
+	if not animals_should_hide:
 		animal_spawn_timer += delta
 
 		if animal_spawn_timer >= ANIMAL_SPAWN_CHECK_INTERVAL:
 			animal_spawn_timer = 0.0
 			_check_animal_spawns()
 
-	# Night raid system
+	# Night raid system (now base-level aware)
 	_update_night_raid(delta, is_night)
 
 	# Update state sync timer
@@ -253,6 +302,11 @@ func _spawn_enemy_near_player(player: Node, peer_id: int = 0, is_dark_forest: bo
 		min_dist = MIN_SPAWN_DISTANCE
 		max_dist = MAX_SPAWN_DISTANCE
 
+	# Fog: enemies spawn much closer (surprise attacks - halved distances)
+	if _is_weather_foggy():
+		min_dist *= 0.5
+		max_dist *= 0.5
+
 	# Try multiple times to find a valid spawn position with terrain collision
 	for attempt in range(5):
 		# Prefer spawning behind the player
@@ -296,9 +350,10 @@ func _spawn_enemy_near_player(player: Node, peer_id: int = 0, is_dark_forest: bo
 		var zombie_subtype = ""
 
 		if randf() < 0.5:
-			# Spawn a zombie (all biomes)
+			# Spawn a zombie (all biomes) - type depends on distance from origin
 			enemy_scene = ZOMBIE_SCENE
-			zombie_subtype = _pick_random_zombie_type()
+			var dist_from_origin = Vector2(spawn_position.x, spawn_position.z).length()
+			zombie_subtype = _pick_zombie_type_for_distance(dist_from_origin)
 			enemy_type_name = "Zombie"
 		elif biome in DARK_FOREST_BIOMES:
 			enemy_scene = SPORELING_SCENE
@@ -820,49 +875,180 @@ func _is_night_time() -> bool:
 	return false
 
 # ============================================================================
-# NIGHT RAID SYSTEM
+# NIGHT RAID SYSTEM (BASE-LEVEL AWARE)
 # ============================================================================
 
-## Update night raid state - spawn extra zombies that target player buildings
-func _update_night_raid(delta: float, is_night: bool) -> void:
-	# Detect night start / day transition
-	if is_night and not was_night_last_frame:
-		# Night just started - begin a raid!
-		raid_active = true
-		raid_spawn_timer = 0.0
-		print("[EnemySpawner] NIGHT RAID STARTED! Day %d" % current_day)
-	elif not is_night and was_night_last_frame:
-		# Dawn - raid ends, advance day counter
-		raid_active = false
-		current_day += 1
-		print("[EnemySpawner] Night raid ended. Now day %d" % current_day)
-	was_night_last_frame = is_night
+## Get the current hour from day/night cycle (0-24)
+func _get_current_hour() -> float:
+	if not day_night_cycle:
+		return 12.0
+	if "current_hour" in day_night_cycle:
+		return day_night_cycle.current_hour
+	return 12.0
 
-	if not raid_active:
-		return
+## Count player buildings in a cluster around a position
+## Returns the effective base level (workbenches count as +2)
+func _get_base_level_near(position: Vector3) -> int:
+	var buildings = get_tree().get_nodes_in_group("player_buildings")
+	var level := 0
+	for building in buildings:
+		if not is_instance_valid(building):
+			continue
+		var dist = building.global_position.distance_to(position)
+		if dist <= BASE_CLUSTER_RADIUS:
+			level += 1
+			# Workbenches count as +2 (1 base + 2 bonus = 3 effective)
+			if building.is_in_group("workbenches"):
+				level += 2
+	return level
+
+## Determine raid tier from base level:
+## 0 buildings = no raids (tier 0)
+## 1-3 = small raids at night only (tier 1)
+## 4-7 = medium raids, start 1 hour before nightfall (tier 2)
+## 8+ = large raids, can happen at dusk too (tier 3)
+func _get_raid_tier(base_level: int) -> int:
+	if base_level <= 0:
+		return 0
+	elif base_level <= 3:
+		return 1
+	elif base_level <= 7:
+		return 2
+	else:
+		return 3
+
+## Check if it's raid time based on the raid tier
+func _is_raid_time(tier: int) -> bool:
+	if tier <= 0:
+		return false
+	var hour = _get_current_hour()
+	var is_night = hour < 6.0 or hour >= 20.0
+	match tier:
+		1:
+			# Small raids: night only
+			return is_night
+		2:
+			# Medium raids: start 1 hour before nightfall (19:00+) through night
+			return is_night or hour >= PRE_NIGHTFALL_HOUR
+		3:
+			# Large raids: dusk (18:00+) through night
+			return is_night or hour >= DUSK_HOUR
+	return false
+
+## Update night raid state - now base-level aware
+func _update_night_raid(delta: float, is_night: bool) -> void:
+	# Detect day transition for day counter
+	if is_night and not was_night_last_frame:
+		raid_warning_sent = false
+		print("[EnemySpawner] Night started. Day %d" % current_day)
+	elif not is_night and was_night_last_frame:
+		raid_active = false
+		raid_warning_sent = false
+		current_day += 1
+		print("[EnemySpawner] Dawn. Now day %d" % current_day)
+	was_night_last_frame = is_night
 
 	# Find player-placed buildings
 	var buildings = get_tree().get_nodes_in_group("player_buildings")
 	if buildings.is_empty():
+		raid_active = false
 		return  # No buildings to raid
 
-	# Spawn raid waves periodically
+	# Find the highest base level among all player clusters
+	var max_base_level := 0
+	var raid_center := Vector3.ZERO
+	if server_node and "spawned_players" in server_node:
+		for peer_id in server_node.spawned_players:
+			var player = server_node.spawned_players[peer_id]
+			if not player or not is_instance_valid(player):
+				continue
+			var base_level = _get_base_level_near(player.global_position)
+
+			# Check if base level crossed a threshold - send notification
+			var last_level = last_base_level_per_player.get(peer_id, 0)
+			var last_tier = _get_raid_tier(last_level)
+			var new_tier = _get_raid_tier(base_level)
+			if new_tier > last_tier and new_tier >= 2:
+				# Base grew past a threshold - warn the player
+				var warning_msg = "Your settlement has attracted attention..."
+				if new_tier >= 3:
+					warning_msg = "Your fortress draws the gaze of powerful enemies..."
+				NetworkManager.rpc_server_notification.rpc_id(peer_id, warning_msg, 7.0)
+				print("[EnemySpawner] Base level alert for peer %d: tier %d -> %d (level %d)" % [peer_id, last_tier, new_tier, base_level])
+			last_base_level_per_player[peer_id] = base_level
+
+			if base_level > max_base_level:
+				max_base_level = base_level
+				raid_center = player.global_position
+
+	var tier = _get_raid_tier(max_base_level)
+	var should_raid = _is_raid_time(tier)
+
+	# Send raid warning 30 seconds before raid time
+	if not raid_active and not raid_warning_sent and tier > 0:
+		var hour = _get_current_hour()
+		var warning_hour := 20.0  # Default: warn before nightfall
+		if tier >= 3:
+			warning_hour = DUSK_HOUR
+		elif tier >= 2:
+			warning_hour = PRE_NIGHTFALL_HOUR
+
+		# Check if we're in the warning window (roughly 30 game-seconds before raid)
+		# Approximate: warn ~0.5 hours before raid time
+		var warn_before = warning_hour - 0.5
+		if hour >= warn_before and hour < warning_hour and not is_night:
+			raid_warning_sent = true
+			_send_raid_warning()
+
+	if should_raid and not raid_active:
+		raid_active = true
+		raid_spawn_timer = 0.0
+		print("[EnemySpawner] RAID STARTED! Tier %d, base level %d, day %d" % [tier, max_base_level, current_day])
+	elif not should_raid and raid_active:
+		raid_active = false
+
+	if not raid_active:
+		return
+
+	# Spawn raid waves periodically - scale with tier
 	raid_spawn_timer += delta
 	if raid_spawn_timer >= RAID_SPAWN_INTERVAL:
 		raid_spawn_timer = 0.0
-		_spawn_raid_wave(buildings)
+		_spawn_raid_wave(buildings, tier, max_base_level)
 
 	# Make existing raid zombies attack nearby buildings
 	_update_raid_attacks(delta, buildings)
 
-## Spawn a wave of raid zombies near player buildings
-func _spawn_raid_wave(buildings: Array[Node]) -> void:
+## Send raid warning to all connected players
+func _send_raid_warning() -> void:
+	if not server_node or not "spawned_players" in server_node:
+		return
+	var message = "The ground trembles... something approaches!"
+	for peer_id in server_node.spawned_players:
+		NetworkManager.rpc_server_notification.rpc_id(peer_id, message, 8.0)
+	print("[EnemySpawner] Sent raid warning to all players")
+
+## Spawn a wave of raid zombies near player buildings (tier-scaled)
+func _spawn_raid_wave(buildings: Array[Node], tier: int, base_level: int) -> void:
 	if not server_node or not "spawned_players" in server_node:
 		return
 
-	# Calculate how many zombies to spawn
-	var zombie_count = RAID_BASE_ZOMBIES + (current_day - 1) * RAID_ZOMBIES_PER_DAY
-	zombie_count = mini(zombie_count, 15)  # Cap at 15 per wave
+	# Calculate zombie count based on tier and day
+	var base_count: int
+	match tier:
+		1:
+			base_count = RAID_BASE_ZOMBIES  # Small: 3 base
+		2:
+			base_count = RAID_BASE_ZOMBIES + 3  # Medium: 6 base
+		3:
+			base_count = RAID_BASE_ZOMBIES + 7  # Large: 10 base
+		_:
+			return
+
+	var zombie_count = base_count + (current_day - 1) * RAID_ZOMBIES_PER_DAY
+	# Cap based on tier
+	var max_cap = 8 if tier == 1 else (15 if tier == 2 else 25)
+	zombie_count = mini(zombie_count, max_cap)
 
 	# Get terrain world for height queries
 	var terrain_world = null
@@ -881,7 +1067,7 @@ func _spawn_raid_wave(buildings: Array[Node]) -> void:
 	if host_peer == 0:
 		return
 
-	print("[EnemySpawner] RAID WAVE: Spawning %d zombies near building at %s" % [zombie_count, target_pos])
+	print("[EnemySpawner] RAID WAVE (tier %d): Spawning %d zombies near building at %s" % [tier, zombie_count, target_pos])
 
 	for i in range(zombie_count):
 		# Spawn in a ring around the building
@@ -896,8 +1082,18 @@ func _spawn_raid_wave(buildings: Array[Node]) -> void:
 		else:
 			spawn_pos.y = target_pos.y + 1.0
 
-		# Pick zombie subtype (prefer brutes and walkers for raids)
-		var subtype = _pick_random_zombie_type()
+		# Pick zombie subtype - higher tiers get tougher enemies
+		var subtype: String
+		if tier >= 3:
+			# Large raids: include brutes, mages, exploders
+			var dist_from_origin = Vector2(target_pos.x, target_pos.z).length()
+			subtype = _pick_zombie_type_for_distance(maxf(dist_from_origin, ZONE_HARD_MAX))
+		elif tier >= 2:
+			# Medium raids: walkers, runners, some brutes
+			var dist_from_origin = Vector2(target_pos.x, target_pos.z).length()
+			subtype = _pick_zombie_type_for_distance(maxf(dist_from_origin, ZONE_MEDIUM_MAX + 50.0))
+		else:
+			subtype = _pick_random_zombie_type()
 		_spawn_enemy(ZOMBIE_SCENE, spawn_pos, host_peer, true, subtype)
 
 ## Find the closest player peer to a world position
@@ -950,3 +1146,110 @@ func _update_raid_attacks(delta: float, buildings: Array[Node]) -> void:
 						print("[EnemySpawner] Raid zombie attacked %s for %.1f damage" % [building.name, damage])
 				enemy.set_meta("building_attack_timer", timer)
 				break  # Only attack one building at a time
+
+# ============================================================================
+# WEATHER HELPERS
+# ============================================================================
+
+## Find the WeatherManager node
+func _find_weather_manager() -> void:
+	var weather_managers = get_tree().get_nodes_in_group("weather_manager")
+	if weather_managers.size() > 0:
+		weather_manager = weather_managers[0]
+		print("[EnemySpawner] Found WeatherManager")
+
+## Check if it's currently raining or storming
+func _is_weather_raining() -> bool:
+	if not weather_manager:
+		return false
+	if weather_manager.has_method("is_raining_or_storming"):
+		return weather_manager.is_raining_or_storming()
+	return false
+
+## Check if it's currently storming (heavy rain/storm/blizzard)
+func _is_weather_storming() -> bool:
+	if not weather_manager:
+		return false
+	if weather_manager.has_method("is_storming"):
+		return weather_manager.is_storming()
+	return false
+
+## Check if it's currently foggy
+func _is_weather_foggy() -> bool:
+	if not weather_manager:
+		return false
+	if weather_manager.has_method("is_foggy"):
+		return weather_manager.is_foggy()
+	return false
+
+## Sync weather state to all clients (for gameplay effects like movement speed)
+func _sync_weather_to_clients() -> void:
+	if not weather_manager:
+		return
+	var weather_name = weather_manager.get_weather_name() if weather_manager.has_method("get_weather_name") else "unknown"
+	var is_raining = _is_weather_raining()
+	var is_storming = _is_weather_storming()
+	var is_foggy = _is_weather_foggy()
+	NetworkManager.rpc_sync_weather_state.rpc(weather_name, is_raining, is_storming, is_foggy)
+
+## Check for lightning strikes near players during storms
+func _check_lightning_strikes() -> void:
+	if not server_node or not "spawned_players" in server_node:
+		return
+	if randf() > LIGHTNING_CHANCE:
+		return  # No strike this check
+
+	for peer_id in server_node.spawned_players:
+		var player = server_node.spawned_players[peer_id]
+		if not player or not is_instance_valid(player):
+			continue
+		# Lightning strikes near player (5-15 units away), small damage
+		var strike_dist = randf_range(5.0, 15.0)
+		var strike_angle = randf() * TAU
+		var strike_pos = player.global_position + Vector3(cos(strike_angle) * strike_dist, 0, sin(strike_angle) * strike_dist)
+
+		# 10% chance lightning actually hits the player (small damage)
+		if randf() < 0.1:
+			NetworkManager.rpc_enemy_damage_player.rpc_id(peer_id, LIGHTNING_DAMAGE, 0, [0.0, 0.0, 0.0])
+			NetworkManager.rpc_server_notification.rpc_id(peer_id, "Lightning strikes nearby!", 3.0)
+			print("[EnemySpawner] Lightning struck player %d for %.0f damage!" % [peer_id, LIGHTNING_DAMAGE])
+
+# ============================================================================
+# PROXIMITY-AWARE ZOMBIE TYPE SELECTION
+# ============================================================================
+
+## Pick zombie type based on distance from world origin
+## Closer to origin = safer (only walkers), further = more dangerous types
+func _pick_zombie_type_for_distance(distance_from_origin: float) -> String:
+	if distance_from_origin <= ZONE_SAFE_MAX:
+		# Safe zone: only walkers
+		return "walker"
+	elif distance_from_origin <= ZONE_MEDIUM_MAX:
+		# Medium zone: walkers + runners
+		var roll = randf()
+		if roll < 0.65:
+			return "walker"
+		else:
+			return "runner"
+	elif distance_from_origin <= ZONE_HARD_MAX:
+		# Hard zone: walkers + runners + brutes
+		var roll = randf()
+		if roll < 0.40:
+			return "walker"
+		elif roll < 0.70:
+			return "runner"
+		else:
+			return "brute"
+	else:
+		# Dangerous zone (500+): all types including mage zombies and exploders
+		var roll = randf()
+		if roll < 0.30:
+			return "walker"
+		elif roll < 0.55:
+			return "runner"
+		elif roll < 0.75:
+			return "brute"
+		elif roll < 0.90:
+			return "mage_zombie"
+		else:
+			return "exploder"

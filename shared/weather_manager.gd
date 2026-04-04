@@ -755,6 +755,18 @@ func set_weather_by_name(name: String) -> bool:
 		return true
 	return false
 
+## Check if it's currently raining or storming (any precipitation except snow)
+func is_raining_or_storming() -> bool:
+	return current_weather in [WeatherType.LIGHT_RAIN, WeatherType.RAIN, WeatherType.HEAVY_RAIN, WeatherType.STORM]
+
+## Check if it's currently storming (heavy rain/storm/blizzard)
+func is_storming() -> bool:
+	return current_weather in [WeatherType.STORM, WeatherType.BLIZZARD]
+
+## Check if it's currently foggy
+func is_foggy() -> bool:
+	return current_weather == WeatherType.FOG
+
 ## Get current weather name
 func get_weather_name() -> String:
 	return WEATHER_NAMES.get(current_weather, "unknown")

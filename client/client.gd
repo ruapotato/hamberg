@@ -1362,6 +1362,26 @@ func _show_discovery_notification(message: String) -> void:
 			notification_label.text = ""
 
 # ============================================================================
+# SERVER NOTIFICATIONS
+# ============================================================================
+
+## Receive a notification from the server (raid warnings, base alerts, etc.)
+func receive_server_notification(message: String, duration: float = 5.0) -> void:
+	print("[Client] Server notification: %s" % message)
+	_show_discovery_notification(message)
+
+## Receive weather state from server for gameplay effects (movement speed, etc.)
+## Weather state is tracked so the local player can apply speed modifiers
+var server_weather_raining: bool = false
+var server_weather_storming: bool = false
+var server_weather_foggy: bool = false
+
+func receive_weather_state(weather_name: String, is_raining: bool, is_storming: bool, is_foggy: bool) -> void:
+	server_weather_raining = is_raining
+	server_weather_storming = is_storming
+	server_weather_foggy = is_foggy
+
+# ============================================================================
 # WORLD CONFIGURATION
 # ============================================================================
 
