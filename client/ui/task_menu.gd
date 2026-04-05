@@ -7,14 +7,15 @@ extends Control
 # Task definition: {id, description, check_func_name}
 const TASKS: Array[Dictionary] = [
 	{"id": "collect_wood", "description": "Punch bushes to collect wood"},
-	{"id": "collect_stone", "description": "Collect stone from rocks"},
-	{"id": "craft_stone_axe", "description": "Craft a Stone Axe (workbench needed)"},
-	{"id": "build_workbench", "description": "Build a Workbench"},
-	{"id": "craft_stone_knife", "description": "Craft a Stone Knife"},
-	{"id": "build_shelter", "description": "Build a Shelter (walls + roof)"},
-	{"id": "build_fireplace", "description": "Build a Fireplace"},
-	{"id": "cook_meat", "description": "Cook meat at the Fireplace"},
-	{"id": "craft_fire_wand", "description": "Craft a Fire Wand"},
+	{"id": "collect_stone", "description": "Punch rocks to collect stone"},
+	{"id": "craft_stone_axe", "description": "Craft a Stone Axe (4 wood + 4 stone)"},
+	{"id": "chop_tree", "description": "Chop down a tree with your axe"},
+	{"id": "build_workbench", "description": "Build a Workbench (10 wood)"},
+	{"id": "craft_stone_knife", "description": "Craft a Stone Knife at the Workbench"},
+	{"id": "build_shelter", "description": "Build walls and a roof for shelter"},
+	{"id": "build_fireplace", "description": "Build a Fireplace (5 stone, 2 wood)"},
+	{"id": "cook_meat", "description": "Hunt an animal and cook the meat"},
+	{"id": "craft_fire_wand", "description": "Craft a Fire Wand at the Workbench"},
 	{"id": "survive_first_night", "description": "Survive the first night"},
 ]
 
@@ -146,6 +147,9 @@ func _check_task(task_id: String, inventory: Node) -> bool:
 			return inventory and inventory.has_item("stone", 1)
 		"craft_stone_axe":
 			return inventory and inventory.has_item("stone_axe", 1)
+		"chop_tree":
+			# Check if player has more than 5 wood (means they chopped a tree, not just bushes)
+			return inventory and inventory.has_item("wood", 8)
 		"build_workbench":
 			var workbenches = get_tree().get_nodes_in_group("workbenches")
 			return workbenches.size() > 0
