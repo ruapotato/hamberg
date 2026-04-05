@@ -122,6 +122,9 @@ func _on_destroyed() -> void:
 		var amount: int = resource_drops[item_name]
 		var loot_id: String = (tree_id + "_" + item_name) if tree_id != "" else ("bush_loot_%d_%s" % [get_instance_id(), item_name])
 		NetworkManager.rpc_request_pickup_item.rpc_id(1, item_name, amount, loot_id)
+		# Floating loot text
+		var color := FloatingText.color_for_resource(item_name)
+		FloatingText.spawn(get_tree().current_scene, global_position, "+%d %s" % [amount, item_name.capitalize()], color)
 
 	# Hide bush and disable collision
 	visible = false

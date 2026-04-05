@@ -53,6 +53,11 @@ var status_label: Label = null  # Reference to status label for messages
 # Input cooldown
 var placement_cooldown: float = 0.0  # Prevents accidental placement after menu selection
 
+# Status message auto-clear timer
+var _status_clear_timer: float = 0.0
+var _status_clear_active: bool = false
+const STATUS_MESSAGE_DURATION: float = 3.0
+
 # Workbench requirement
 var requires_workbench: bool = true  # Whether building requires being near a workbench
 var workbench_range: float = 20.0  # How close you need to be to a workbench
@@ -124,6 +129,13 @@ func _process(delta: float) -> void:
 	# Tick down placement cooldown
 	if placement_cooldown > 0.0:
 		placement_cooldown -= delta
+
+	# Tick down status message auto-clear timer
+	if _status_clear_active:
+		_status_clear_timer -= delta
+		if _status_clear_timer <= 0.0:
+			_status_clear_active = false
+			_clear_status_message()
 
 	# PERFORMANCE: Throttle workbench proximity check
 	_workbench_check_timer += delta
@@ -1212,9 +1224,9 @@ func _handle_input() -> void:
 						if not inv.has_item(res_name, costs[res_name]):
 							missing.append("%d %s" % [costs[res_name], res_name])
 			if missing.size() > 0:
-				_set_status_message("Need: %s" % ", ".join(missing))
+				_set_status_message("Need: %s" % ", ".join(missing), Color.RED)
 			else:
-				_set_status_message("Can't place here")
+				_set_status_message("Can't place here", Color.RED)
 			return
 		# Valid placement — proceed
 		# Check if build menu is open
@@ -1349,7 +1361,7 @@ func _update_workbench_proximity() -> void:
 	# Update status message only when building something other than workbench
 	if requires_workbench and current_piece_name != "workbench":
 		if not is_near_workbench:
-			_set_status_message("Not in range of workbench")
+			_set_status_message("Not in range of workbench", Color.YELLOW)
 		elif was_near_workbench != is_near_workbench:
 			# Just entered range, clear the message
 			_clear_status_message()
@@ -1370,14 +1382,21 @@ func _check_near_workbench() -> bool:
 
 	return false
 
-## Set status message on UI
-func _set_status_message(message: String) -> void:
+## Set status message on UI with optional color and auto-clear timer
+func _set_status_message(message: String, color: Color = Color.WHITE) -> void:
 	if status_label:
 		status_label.text = message
 		status_label.visible = true
+		status_label.add_theme_font_size_override("font_size", 28)
+		status_label.modulate = color
+		# Start auto-clear timer
+		_status_clear_timer = STATUS_MESSAGE_DURATION
+		_status_clear_active = true
 
 ## Clear status message
 func _clear_status_message() -> void:
 	if status_label:
 		status_label.text = ""
 		status_label.visible = false
+		status_label.modulate = Color.WHITE
+	_status_clear_active = false

@@ -178,6 +178,9 @@ func _on_destroyed() -> void:
 		var amount: int = resource_drops[item_name]
 		var loot_id: String = tree_id_str + "_" + item_name
 		NetworkManager.rpc_request_pickup_item.rpc_id(1, item_name, amount, loot_id)
+		# Floating loot text
+		var color := FloatingText.color_for_resource(item_name)
+		FloatingText.spawn(get_tree().current_scene, global_position, "+%d %s" % [amount, item_name.capitalize()], color)
 
 	# Play destruction effect (fall animation)
 	_play_destruction_effect()
