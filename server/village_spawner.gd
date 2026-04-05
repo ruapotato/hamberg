@@ -61,70 +61,90 @@ const LOOT_RARE: Array = [
 # Each entry: {"type": piece_name, "pos": Vector3, "rot": float}
 # Positions are relative to the village origin. rot is Y rotation in radians.
 
-# SMALL_HUT: 2x1 floor, 4 walls, door, roof, chest
+# SMALL_HUT: 4x2 meter enclosed room (2x1 floor tiles)
+# Floor spans x=-1..+3, z=-1..+1. Walls on edges, door on south-east.
 var SMALL_HUT: Array = [
-	# Floors
+	# Floors (two 2x2 tiles side by side along X)
 	{"type": "wooden_floor", "pos": Vector3(0, 0, 0), "rot": 0.0},
 	{"type": "wooden_floor", "pos": Vector3(2, 0, 0), "rot": 0.0},
-	# Walls
-	{"type": "wooden_wall", "pos": Vector3(-1, 0, 0), "rot": 0.0},
-	{"type": "wooden_wall", "pos": Vector3(3, 0, 0), "rot": 0.0},
-	{"type": "wooden_wall", "pos": Vector3(1, 0, -1), "rot": PI / 2.0},
-	{"type": "wooden_wall", "pos": Vector3(1, 0, 1), "rot": PI / 2.0},
-	# Door (replaces one wall section)
-	{"type": "wooden_door", "pos": Vector3(2, 0, 1), "rot": PI / 2.0},
+	# North walls (along X at z=-1, two segments to cover 4m width)
+	{"type": "wooden_wall", "pos": Vector3(0, 1, -1), "rot": 0.0},
+	{"type": "wooden_wall", "pos": Vector3(2, 1, -1), "rot": 0.0},
+	# South wall + door (along X at z=+1)
+	{"type": "wooden_wall", "pos": Vector3(0, 1, 1), "rot": 0.0},
+	{"type": "wooden_door", "pos": Vector3(2, 1, 1), "rot": 0.0},
+	# West wall (along Z at x=-1)
+	{"type": "wooden_wall", "pos": Vector3(-1, 1, 0), "rot": PI / 2.0},
+	# East wall (along Z at x=+3)
+	{"type": "wooden_wall", "pos": Vector3(3, 1, 0), "rot": PI / 2.0},
 	# Roof
 	{"type": "wooden_roof_26", "pos": Vector3(0, 2, 0), "rot": 0.0},
 	{"type": "wooden_roof_26", "pos": Vector3(2, 2, 0), "rot": 0.0},
-	# Loot chest
-	{"type": "chest", "pos": Vector3(0.5, 0.3, 0), "rot": 0.0},
+	# Loot chest inside
+	{"type": "chest", "pos": Vector3(1, 0.3, 0), "rot": 0.0},
 	# Fireplace outside as landmark
 	{"type": "fireplace", "pos": Vector3(1, 0, 3), "rot": 0.0},
 ]
 
-# WATCHTOWER: elevated platform on beams with chest on top
+# WATCHTOWER: elevated 2x2 platform on 4 beams, 3 walled sides, stairs up
+# Single floor tile at y=4. Beams at the 4 corners of the floor edge.
+# Floor spans x=-1..+1, z=-1..+1 at y=4. South side open for access.
 var WATCHTOWER: Array = [
-	# Base beams (4 corners)
+	# Base beams at floor corners (vertical posts from ground to platform)
 	{"type": "wooden_beam", "pos": Vector3(-1, 0, -1), "rot": 0.0},
 	{"type": "wooden_beam", "pos": Vector3(1, 0, -1), "rot": 0.0},
 	{"type": "wooden_beam", "pos": Vector3(-1, 0, 1), "rot": 0.0},
 	{"type": "wooden_beam", "pos": Vector3(1, 0, 1), "rot": 0.0},
 	# Elevated floor
-	{"type": "wooden_floor", "pos": Vector3(0, 3, 0), "rot": 0.0},
-	# Walls on top (3 sides, one open for access)
-	{"type": "wooden_wall", "pos": Vector3(-1, 3, 0), "rot": 0.0},
-	{"type": "wooden_wall", "pos": Vector3(1, 3, 0), "rot": 0.0},
-	{"type": "wooden_wall", "pos": Vector3(0, 3, -1), "rot": PI / 2.0},
-	# Stairs leading up
+	{"type": "wooden_floor", "pos": Vector3(0, 4, 0), "rot": 0.0},
+	# Walls on platform (3 sides — north, west, east; south open for stairs)
+	# North wall (along X at z=-1)
+	{"type": "wooden_wall", "pos": Vector3(0, 5, -1), "rot": 0.0},
+	# West wall (along Z at x=-1)
+	{"type": "wooden_wall", "pos": Vector3(-1, 5, 0), "rot": PI / 2.0},
+	# East wall (along Z at x=+1)
+	{"type": "wooden_wall", "pos": Vector3(1, 5, 0), "rot": PI / 2.0},
+	# Stairs leading up from south side
 	{"type": "wooden_stairs", "pos": Vector3(0, 0, 2), "rot": 0.0},
-	# Chest on top
-	{"type": "chest", "pos": Vector3(0, 3.3, 0), "rot": 0.0},
+	# Chest on platform
+	{"type": "chest", "pos": Vector3(0, 4.3, 0), "rot": 0.0},
 	# Fireplace at base as landmark
-	{"type": "fireplace", "pos": Vector3(2, 0, 0), "rot": 0.0},
+	{"type": "fireplace", "pos": Vector3(2, 0, 2), "rot": 0.0},
 ]
 
-# CAMPSITE: fireplace + L-shape wind break + chest
+# CAMPSITE: open-air L-shaped windbreak, no floor, no roof
+# Two walls along Z (west side) and one wall along X (north side) form an L.
+# Fireplace and chest sheltered in the inner corner.
 var CAMPSITE: Array = [
-	# L-shape walls (wind break)
-	{"type": "wooden_wall", "pos": Vector3(-1, 0, 0), "rot": 0.0},
-	{"type": "wooden_wall", "pos": Vector3(-1, 0, -2), "rot": 0.0},
-	{"type": "wooden_wall", "pos": Vector3(0, 0, -3), "rot": PI / 2.0},
-	# Fireplace (visible landmark)
-	{"type": "fireplace", "pos": Vector3(0, 0, 0), "rot": 0.0},
-	# Loot chest
-	{"type": "chest", "pos": Vector3(0, 0.0, -1.5), "rot": 0.0},
+	# L-shape walls (windbreak)
+	# West arm: two wall segments along Z at x=-1 (covering z=-1..+1 and z=-3..-1)
+	{"type": "wooden_wall", "pos": Vector3(-1, 1, 0), "rot": PI / 2.0},
+	{"type": "wooden_wall", "pos": Vector3(-1, 1, -2), "rot": PI / 2.0},
+	# North arm: one wall segment along X at z=-3
+	{"type": "wooden_wall", "pos": Vector3(0, 1, -3), "rot": 0.0},
+	# Fireplace in the sheltered corner
+	{"type": "fireplace", "pos": Vector3(0, 0, -1), "rot": 0.0},
+	# Loot chest next to fireplace
+	{"type": "chest", "pos": Vector3(1, 0.0, -1), "rot": 0.0},
 ]
 
-# RUINS: partial walls, no roof, exposed chest (easy loot)
+# RUINS: partially destroyed building — some floor, broken walls, no roof
+# Remnant of a structure: 1-2 floor tiles, 2-3 walls at various angles.
 var RUINS: Array = [
-	# Partial walls (broken building)
-	{"type": "wooden_wall", "pos": Vector3(-1, 0, 0), "rot": 0.0},
-	{"type": "wooden_wall", "pos": Vector3(1, 0, -1), "rot": PI / 2.0},
-	{"type": "wooden_wall", "pos": Vector3(2, 0, 0), "rot": PI / 4.0},  # Fallen/angled wall
-	# Exposed chest
-	{"type": "chest", "pos": Vector3(0.5, 0.0, 0), "rot": 0.3},
-	# Fireplace (old campfire, still burning as landmark)
-	{"type": "fireplace", "pos": Vector3(0, 0, 2), "rot": 0.0},
+	# Partial floor (one intact tile, one missing)
+	{"type": "wooden_floor", "pos": Vector3(0, 0, 0), "rot": 0.0},
+	{"type": "wooden_floor", "pos": Vector3(2, 0, 0), "rot": 0.0},
+	# Remaining walls — some intact on edges, one tilted/fallen
+	# North wall still standing (along X at z=-1)
+	{"type": "wooden_wall", "pos": Vector3(0, 1, -1), "rot": 0.0},
+	# West wall still standing (along Z at x=-1)
+	{"type": "wooden_wall", "pos": Vector3(-1, 1, 0), "rot": PI / 2.0},
+	# Fallen/tilted wall (was the east wall, now leaning)
+	{"type": "wooden_wall", "pos": Vector3(3, 0.7, 0), "rot": PI / 4.0},
+	# Exposed chest amid the rubble
+	{"type": "chest", "pos": Vector3(1, 0.3, 0), "rot": 0.3},
+	# Old campfire still burning as landmark
+	{"type": "fireplace", "pos": Vector3(1, 0, 3), "rot": 0.0},
 ]
 
 # Map of template name -> template array
