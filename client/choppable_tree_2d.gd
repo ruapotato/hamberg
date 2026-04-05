@@ -176,7 +176,7 @@ func _on_destroyed() -> void:
 	var tree_id_str: String = get_meta("tree_id", "tree_%d" % get_instance_id())
 	for item_name in resource_drops:
 		var amount: int = resource_drops[item_name]
-		var loot_id := tree_id_str + "_" + item_name
+		var loot_id: String = tree_id_str + "_" + item_name
 		NetworkManager.rpc_request_pickup_item.rpc_id(1, item_name, amount, loot_id)
 
 	# Play destruction effect (fall animation)
