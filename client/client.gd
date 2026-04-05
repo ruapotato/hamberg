@@ -1961,16 +1961,16 @@ func spawn_resource_drops(resources: Dictionary, position: Vector3, network_ids:
 
 ## Remove a resource item by network ID (when another player picks it up)
 func remove_resource_item(net_id: String) -> void:
-	print("[Client] remove_resource_item called with net_id: %s" % net_id)
+	# 2D object loot (trees/bushes/rocks) has no world item to remove — skip silently
+	if net_id.begins_with("2d"):
+		return
+
 	# Find item by network_id in the world
 	var item_name = "Item_%s" % net_id
 	var item = world.get_node_or_null(item_name)
 
 	if item and is_instance_valid(item):
-		print("[Client] Removing picked up item: %s" % item_name)
 		item.queue_free()
-	else:
-		print("[Client] WARNING: Could not find item %s to remove (world children: %d)" % [item_name, world.get_child_count()])
 
 ## Spawn a fallen log at the given position (from a chopped truffula tree)
 func spawn_fallen_log(position: Vector3, rotation_y: float, network_id: String) -> void:

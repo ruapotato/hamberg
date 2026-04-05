@@ -27,7 +27,7 @@ var available_pieces: Dictionary = {
 }
 
 var is_active: bool = false
-var current_piece_name: String = "wooden_wall"
+var current_piece_name: String = "workbench"
 var current_piece_index: int = 0
 var piece_names: Array = []
 
@@ -65,6 +65,12 @@ const WORKBENCH_CHECK_INTERVAL: float = 0.3  # Check every 0.3 seconds instead o
 func _ready() -> void:
 	piece_names = available_pieces.keys()
 	piece_names.sort()
+	# Default to workbench
+	for i in piece_names.size():
+		if piece_names[i] == "workbench":
+			current_piece_index = i
+			current_piece_name = "workbench"
+			break
 	_setup_audio()
 
 func _setup_audio() -> void:
@@ -1193,8 +1199,24 @@ func _handle_input() -> void:
 	if Input.is_action_just_pressed("destroy_object"):
 		_try_destroy_buildable()
 
-	# Place with left click (but not if build menu is open or during cooldown)
-	if Input.is_action_just_pressed("attack") and can_place_current and ghost_preview:
+	# Place with left click
+	if Input.is_action_just_pressed("attack") and ghost_preview:
+		if not can_place_current:
+			# Show why placement failed
+			var costs = CraftingRecipes.BUILDING_COSTS.get(current_piece_name, {})
+			var missing: Array[String] = []
+			if player:
+				var inv = player.get_node_or_null("Inventory")
+				if inv:
+					for res_name in costs:
+						if not inv.has_item(res_name, costs[res_name]):
+							missing.append("%d %s" % [costs[res_name], res_name])
+			if missing.size() > 0:
+				_set_status_message("Need: %s" % ", ".join(missing))
+			else:
+				_set_status_message("Can't place here")
+			return
+		# Valid placement — proceed
 		# Check if build menu is open
 		if build_menu and build_menu.is_open:
 			return  # Don't place while menu is open
