@@ -21,11 +21,15 @@ var _elapsed: float = 0.0
 
 
 func _ready() -> void:
-	_start_y = global_position.y
 	_elapsed = 0.0
+	# _start_y is set after global_position is assigned (see first _process frame)
 
 
 func _process(delta: float) -> void:
+	# Capture start position on first frame (global_position is set after add_child)
+	if _elapsed == 0.0:
+		_start_y = global_position.y
+
 	_elapsed += delta
 	var t: float = _elapsed / DURATION
 
