@@ -117,14 +117,11 @@ func _on_destroyed() -> void:
 	if tree_id != "":
 		NetworkManager.rpc_notify_2d_object_destroyed.rpc_id(1, tree_id)
 
-	# Give items directly to local player
-	var players = get_tree().get_nodes_in_group("local_player")
-	if players.size() > 0:
-		var player = players[0]
-		for item_name in resource_drops:
-			var amount: int = resource_drops[item_name]
-			if player.has_method("pickup_item"):
-				player.pickup_item(item_name, amount)
+	# Request items from server (server-authoritative inventory)
+	for item_name in resource_drops:
+		var amount: int = resource_drops[item_name]
+		var loot_id := tree_id + "_" + item_name if tree_id != "" else "bush_loot_%d" % get_instance_id()
+		NetworkManager.rpc_request_pickup_item.rpc_id(1, item_name, amount, loot_id)
 
 	# Hide bush and disable collision
 	visible = false
