@@ -2379,6 +2379,76 @@ func _draw_sheep_back(img: Image, wool_white: Color, wool_light: Color, wool_sha
 
 
 
+# ============================================
+# BUSH TEXTURE (32x32 pixels)
+# ============================================
+func generate_bush_texture() -> ImageTexture:
+	var cache_key := "bush"
+	if texture_cache.has(cache_key):
+		return texture_cache[cache_key]
+
+	var img := Image.create(32, 32, false, Image.FORMAT_RGBA8)
+	img.fill(Color(0, 0, 0, 0))
+
+	var cx := 16
+	var cy := 20  # Center slightly low (ground plant)
+
+	# Draw some brown twigs first (behind the leaves)
+	var twig_color := Color(0.4, 0.28, 0.15)
+	for twig in range(5):
+		var tx: int = cx - 6 + twig * 3
+		for ty in range(cy - 4, cy + 6):
+			if tx >= 0 and tx < 32 and ty >= 0 and ty < 32:
+				if randf() > 0.3:
+					_px(img, tx, ty, twig_color * (0.8 + randf() * 0.2))
+
+	# Draw leafy bush shape - wide, low ellipse with irregular edges
+	var leaf_colors := [
+		Color(0.2, 0.5, 0.18),   # Dark green
+		Color(0.28, 0.58, 0.22), # Medium green
+		Color(0.35, 0.65, 0.25), # Light green
+		Color(0.22, 0.45, 0.15), # Deep green
+	]
+
+	# Main bush body - multiple overlapping ellipses for organic shape
+	var clusters := [
+		Vector2(cx, cy),           # Center
+		Vector2(cx - 5, cy + 1),   # Left
+		Vector2(cx + 5, cy + 1),   # Right
+		Vector2(cx - 2, cy - 3),   # Upper left
+		Vector2(cx + 2, cy - 3),   # Upper right
+	]
+
+	for cluster in clusters:
+		var rx: float = 8.0 + randf() * 3.0
+		var ry: float = 5.0 + randf() * 2.0
+		for y in range(32):
+			for x in range(32):
+				var dx: float = (x - cluster.x) / rx
+				var dy: float = (y - cluster.y) / ry
+				var dist: float = dx * dx + dy * dy
+				# Add noise to edge for organic look
+				var noise: float = sin(x * 1.5) * 0.15 + cos(y * 2.0) * 0.1
+				if dist + noise < 1.0:
+					var leaf_col: Color = leaf_colors[randi() % leaf_colors.size()]
+					var shade: float = 0.75 + randf() * 0.25
+					# Lighter on top for sunlight effect
+					var sun: float = (1.0 - float(y) / 32.0) * 0.15
+					_px(img, x, y, leaf_col * (shade + sun))
+
+	# Add a few highlight spots (berries or light leaves)
+	for _i in range(4):
+		var hx: int = cx - 6 + randi() % 13
+		var hy: int = cy - 4 + randi() % 8
+		if hx >= 0 and hx < 32 and hy >= 0 and hy < 32:
+			var highlight := Color(0.4, 0.7, 0.3)
+			_px(img, hx, hy, highlight)
+
+	var tex := ImageTexture.create_from_image(img)
+	texture_cache[cache_key] = tex
+	return tex
+
+
 # Clear cache if needed
 func clear_cache() -> void:
 	texture_cache.clear()

@@ -46,7 +46,8 @@ func _initialize_items() -> void:
 	_register_resource("deer_leather", "Deer Leather", "Supple tan leather from deer. Surprisingly light.", 30, 0.8)
 
 	# Crafted resources
-	_register_resource("rope", "Rope", "A length of rope made from resin. Useful for building and crafting.", 50, 0.5)
+	_register_resource("plant_fiber", "Plant Fiber", "Fibrous plant material gathered from bushes. Used for rope and bandages.", 50, 0.2)
+	_register_resource("rope", "Rope", "A length of rope made from plant fiber. Useful for building and crafting.", 50, 0.5)
 	_register_resource("arrows", "Arrows", "Wooden arrows tipped with stone. Ammunition for bows.", 50, 0.1)
 
 	# Cooked food (consumable)
@@ -57,6 +58,7 @@ func _initialize_items() -> void:
 	# Potions (consumable)
 	_register_food("healing_potion", "Healing Potion", "A restorative potion brewed from glowing spores. Quickly restores health.", 10, 0.5, 50.0, 0.0, 0.0, 30.0, 12.0)
 	_register_food("stamina_potion", "Stamina Potion", "An energizing potion brewed from fungal essence. Quickly restores stamina.", 10, 0.5, 0.0, 50.0, 0.0, 30.0, 0.0)
+	_register_food("bandage", "Bandage", "A simple bandage made from plant fiber. Instantly heals 10 HP.", 20, 0.2, 10.0, 0.0, 0.0, 1.0, 10.0)
 
 	# Basic tools (no workbench required)
 	_register_tool("hammer", "Hammer", "Used for building structures.", 1)

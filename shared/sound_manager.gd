@@ -66,6 +66,7 @@ var sounds := {
 	"wood_split": "res://audio/generated/rock_break.wav",  # Reuse for splitting
 	"wood_break": "res://audio/generated/rock_break.wav",  # Reuse for breaking
 	"bush_hit": "res://audio/generated/tree_chop.wav",  # Reuse for hitting sprouts
+	"bush_break": "res://audio/generated/bush_break.wav",
 	"wrong_tool": "res://audio/generated/ui_error.wav",  # Use UI error for wrong tool
 	"rock_break": "res://audio/generated/rock_break.wav",
 	"place_block": "res://audio/generated/place_block.wav",

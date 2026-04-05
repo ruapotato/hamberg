@@ -11,11 +11,13 @@ signal environment_ready()
 @export var update_radius: float = 40.0  # Respawn when player moves this far
 @export var tree_density: float = 0.025
 @export var rock_density: float = 0.015
+@export var bush_density: float = 0.03
 @export var grass_density: float = 0.06
 
 @export_group("Object Limits")
 @export var max_trees: int = 600
 @export var max_rocks: int = 250
+@export var max_bushes: int = 400
 @export var max_grass: int = 800
 
 # Internal state
@@ -26,16 +28,19 @@ var rng: RandomNumberGenerator = RandomNumberGenerator.new()
 
 # Object pools
 var tree_pool: Array[StaticBody3D] = []
+var bush_pool: Array[StaticBody3D] = []
 var rock_pool: Array[Sprite3D] = []
 var grass_pool: Array[Sprite3D] = []
 
 # Active objects tracking
 var active_trees: Dictionary = {}
+var active_bushes: Dictionary = {}
 var active_rocks: Dictionary = {}
 var active_grass: Dictionary = {}
 
 # Texture references (only front view used - trees are billboard sprites)
 var tree_textures_front: Dictionary = {}
+var bush_texture: ImageTexture = null
 var rock_texture: ImageTexture = null
 var grass_texture: ImageTexture = null
 
@@ -78,6 +83,18 @@ const BIOME_HAS_GRASS: Dictionary = {
 	"mountain": false,
 	"desert": false,
 	"wizardland": true,
+	"hell": false,
+}
+
+# Bush spawning by biome
+const BIOME_HAS_BUSHES: Dictionary = {
+	"valley": true,
+	"meadow": true,
+	"dark_forest": true,
+	"swamp": true,
+	"mountain": false,
+	"desert": false,
+	"wizardland": false,
 	"hell": false,
 }
 
@@ -151,7 +168,8 @@ func _generate_textures() -> void:
 							   "ember_tree", "dark_oak"]
 		for tree_type in all_tree_types:
 			tree_textures_front[tree_type] = tex_gen.generate_tree_texture(tree_type, "front")
-		print("[EnvironmentSpawner2D] Generated %d tree textures (front only, billboard)" % all_tree_types.size())
+		bush_texture = tex_gen.generate_bush_texture()
+		print("[EnvironmentSpawner2D] Generated %d tree textures + bush texture (front only, billboard)" % all_tree_types.size())
 	else:
 		_generate_fallback_textures()
 
@@ -236,6 +254,13 @@ func _create_object_pools() -> void:
 		add_child(tree)
 		tree_pool.append(tree)
 
+	# Create bush pool - each bush is a StaticBody3D with collision (interactable)
+	for _i in range(max_bushes):
+		var bush = _create_bush_body()
+		bush.visible = false
+		add_child(bush)
+		bush_pool.append(bush)
+
 	# Create rock pool
 	for _i in range(max_rocks):
 		var sprite = _create_billboard_sprite()
@@ -254,7 +279,7 @@ func _create_object_pools() -> void:
 		add_child(sprite)
 		grass_pool.append(sprite)
 
-	print("[EnvironmentSpawner2D] Created pools: %d trees, %d rocks, %d grass" % [max_trees, max_rocks, max_grass])
+	print("[EnvironmentSpawner2D] Created pools: %d trees, %d bushes, %d rocks, %d grass" % [max_trees, max_bushes, max_rocks, max_grass])
 
 
 func _create_tree_body() -> StaticBody3D:
@@ -285,6 +310,33 @@ func _create_tree_body() -> StaticBody3D:
 	return body
 
 
+func _create_bush_body() -> StaticBody3D:
+	var CollectibleBush2D = preload("res://client/collectible_bush_2d.gd")
+	var body = StaticBody3D.new()
+	body.set_script(CollectibleBush2D)
+	body.collision_layer = TREE_COLLISION_LAYER
+	body.collision_mask = 0
+
+	# Small box collision for bush
+	var collision = CollisionShape3D.new()
+	var box = BoxShape3D.new()
+	box.size = Vector3(0.6, 0.5, 0.6)
+	collision.shape = box
+	collision.position = Vector3(0, 0.25, 0)
+	body.add_child(collision)
+
+	# Billboard Sprite3D
+	var sprite = Sprite3D.new()
+	sprite.billboard = BaseMaterial3D.BILLBOARD_FIXED_Y
+	sprite.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
+	sprite.alpha_cut = SpriteBase3D.ALPHA_CUT_DISCARD
+	sprite.render_priority = 0
+	sprite.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	body.add_child(sprite)
+
+	return body
+
+
 func _create_billboard_sprite() -> Sprite3D:
 	var sprite = Sprite3D.new()
 	sprite.billboard = BaseMaterial3D.BILLBOARD_FIXED_Y
@@ -300,18 +352,23 @@ func _spawn_environment_around(center: Vector3) -> void:
 
 	# Clear tracking
 	active_trees.clear()
+	active_bushes.clear()
 	active_rocks.clear()
 	active_grass.clear()
 
-	# Hide all pooled objects
+	# Hide all pooled objects (skip bushes waiting to respawn)
 	for obj in tree_pool:
 		obj.visible = false
+	for obj in bush_pool:
+		if not obj.is_destroyed:
+			obj.visible = false
 	for obj in rock_pool:
 		obj.visible = false
 	for obj in grass_pool:
 		obj.visible = false
 
 	var tree_idx = 0
+	var bush_idx = 0
 	var rock_idx = 0
 	var grass_idx = 0
 
@@ -407,6 +464,33 @@ func _spawn_environment_around(center: Vector3) -> void:
 			active_rocks[grid_key + "_r" + str(_r)] = rock_pool[rock_idx]
 			rock_idx += 1
 
+		# Spawn bushes (interactable, only in biomes with bushes)
+		if BIOME_HAS_BUSHES.get(biome, false):
+			var num_bushes = int(cell_area * bush_density * (0.5 + rng.randf()))
+			for _b in range(num_bushes):
+				if bush_idx >= max_bushes:
+					break
+
+				# Skip bushes that are destroyed (waiting to respawn)
+				while bush_idx < max_bushes and bush_pool[bush_idx].is_destroyed:
+					bush_idx += 1
+				if bush_idx >= max_bushes:
+					break
+
+				var local_x = rng.randf() * GRID_SIZE
+				var local_z = rng.randf() * GRID_SIZE
+				var world_x = grid_x * GRID_SIZE + local_x
+				var world_z = grid_z * GRID_SIZE + local_z
+
+				var height = _get_terrain_height(world_x, world_z)
+				if height < 0 or height > 50:
+					continue
+
+				var pos = Vector3(world_x, height, world_z)
+				_place_bush(bush_pool[bush_idx], pos, biome)
+				active_bushes[grid_key + "_b" + str(_b)] = bush_pool[bush_idx]
+				bush_idx += 1
+
 		# Spawn grass (only near player, only in biomes with grass)
 		if dist < spawn_radius * 0.5 and BIOME_HAS_GRASS.get(biome, true):
 			var num_grass = int(cell_area * grass_density * (0.5 + rng.randf()))
@@ -428,8 +512,8 @@ func _spawn_environment_around(center: Vector3) -> void:
 				active_grass[grid_key + "_g" + str(_g)] = grass_pool[grass_idx]
 				grass_idx += 1
 
-	print("[EnvironmentSpawner2D] Spawned %d trees, %d rocks, %d grass around (%.0f, %.0f)" % [
-		tree_idx, rock_idx, grass_idx, center.x, center.z
+	print("[EnvironmentSpawner2D] Spawned %d trees, %d bushes, %d rocks, %d grass around (%.0f, %.0f)" % [
+		tree_idx, bush_idx, rock_idx, grass_idx, center.x, center.z
 	])
 
 
@@ -502,6 +586,45 @@ func _place_tree(tree_body: StaticBody3D, pos: Vector3, tree_type: String) -> vo
 		tree_body.scale = Vector3.ONE
 
 	tree_body.visible = true
+
+
+func _place_bush(bush_body: StaticBody3D, pos: Vector3, biome: String = "valley") -> void:
+	var sprite = bush_body.get_child(1)  # Child 0 = collision, child 1 = billboard Sprite3D
+	if not sprite:
+		return
+
+	sprite.texture = bush_texture
+	sprite.pixel_size = 0.025  # Slightly larger than grass, smaller than trees
+
+	var scale_var = 0.7 + rng.randf() * 0.6  # Range: 0.7 to 1.3
+	sprite.scale = Vector3.ONE * scale_var
+
+	# Tint based on biome grass colors (bushes match biome vegetation)
+	var bush_color: Color = BIOME_GRASS_COLORS.get(biome, BIOME_GRASS_COLORS["valley"])
+	bush_color = bush_color.lightened(rng.randf() * 0.2 - 0.1)
+	sprite.modulate = bush_color
+
+	var tex_height = bush_texture.get_height() if bush_texture else 32
+	var world_height = tex_height * sprite.pixel_size * scale_var
+	sprite.position = Vector3(0, world_height * 0.4, 0)
+
+	bush_body.position = pos
+	bush_body.rotation.y = rng.randf() * TAU
+
+	# Update collision shape based on scale
+	var collision: CollisionShape3D = bush_body.get_child(0) as CollisionShape3D
+	if collision and collision.shape is BoxShape3D:
+		var box: BoxShape3D = collision.shape
+		box.size = Vector3(0.6 * scale_var, 0.5 * scale_var, 0.6 * scale_var)
+		collision.position = Vector3(0, 0.25 * scale_var, 0)
+
+	# Reset bush state for pool reuse
+	if bush_body.has_method("get_object_type"):
+		bush_body.is_destroyed = false
+		bush_body.current_health = bush_body.max_health
+		bush_body.scale = Vector3.ONE
+
+	bush_body.visible = true
 
 
 func _place_rock(sprite: Sprite3D, pos: Vector3, biome: String = "valley") -> void:

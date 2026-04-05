@@ -65,7 +65,8 @@ func _initialize_recipes() -> void:
 	add_recipe("charcoal", 3, {"wood": 5}, "fireplace")
 
 	# Crafted resources (no station)
-	add_recipe("rope", 1, {"resin": 3})
+	add_recipe("rope", 1, {"plant_fiber": 3})
+	add_recipe("bandage", 1, {"plant_fiber": 2})
 	add_recipe("arrows", 10, {"wood": 2, "stone": 1})
 
 	# Tier 2 Weapons - Iron (workbench required)
