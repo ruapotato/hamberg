@@ -1,5 +1,4 @@
 extends Node3D
-class_name FloatingText
 
 ## FloatingText - RPG-style loot popup that rises and fades out
 ## Usage: FloatingText.spawn(parent_node, world_position, "+1 Wood", Color.GREEN)

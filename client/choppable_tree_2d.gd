@@ -1,5 +1,7 @@
 extends StaticBody3D
 
+const FloatingText = preload("res://client/ui/floating_text.gd")
+
 ## ChoppableTree2D - Adds damage/interaction to 2D billboard trees
 ## These are client-side trees spawned by EnvironmentSpawner2D.
 ## When hit with an axe, they take damage and drop wood when destroyed.
@@ -179,7 +181,7 @@ func _on_destroyed() -> void:
 		var loot_id: String = tree_id_str + "_" + item_name
 		NetworkManager.rpc_request_pickup_item.rpc_id(1, item_name, amount, loot_id)
 		# Floating loot text
-		var color := FloatingText.color_for_resource(item_name)
+		var color: Color = FloatingText.color_for_resource(item_name)
 		FloatingText.spawn(get_tree().current_scene, global_position, "+%d %s" % [amount, item_name.capitalize()], color)
 
 	# Play destruction effect (fall animation)
