@@ -6,7 +6,7 @@ extends Control
 
 # Task definition: {id, description, check_func_name}
 const TASKS: Array[Dictionary] = [
-	{"id": "collect_wood", "description": "Punch a tree to collect wood"},
+	{"id": "collect_wood", "description": "Punch bushes to collect wood"},
 	{"id": "collect_stone", "description": "Collect stone from rocks"},
 	{"id": "craft_stone_axe", "description": "Craft a Stone Axe (workbench needed)"},
 	{"id": "build_workbench", "description": "Build a Workbench"},
