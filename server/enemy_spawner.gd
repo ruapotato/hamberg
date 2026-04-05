@@ -721,7 +721,6 @@ func _check_animal_spawns() -> void:
 		return
 
 	var players = server_node.spawned_players
-	print("[EnemySpawner] Checking animal spawns for %d players" % players.size())
 
 	# For each player, check if we need to spawn animals
 	for peer_id in players:
@@ -731,7 +730,6 @@ func _check_animal_spawns() -> void:
 
 		# Count animals near this player
 		var nearby_animals = _count_nearby_animals(player.global_position)
-		print("[EnemySpawner] Player %d has %d/%d nearby animals" % [peer_id, nearby_animals, MAX_ANIMALS_PER_PLAYER])
 
 		# Spawn animals if below threshold
 		if nearby_animals < MAX_ANIMALS_PER_PLAYER:

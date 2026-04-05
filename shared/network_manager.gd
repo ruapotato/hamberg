@@ -700,13 +700,17 @@ func rpc_request_pickup_item(item_name: String, amount: int, network_id: String)
 ## CLIENT -> SERVER: Request to craft an item (server validates and updates inventory)
 @rpc("any_peer", "call_remote", "reliable")
 func rpc_request_craft(recipe_name: String) -> void:
+	print("[NetworkManager] rpc_request_craft received: %s (is_server=%s)" % [recipe_name, multiplayer.is_server()])
 	if not multiplayer.is_server():
 		return
 
 	var peer_id := multiplayer.get_remote_sender_id()
+	print("[NetworkManager] Craft request from peer %d: %s" % [peer_id, recipe_name])
 	var server_node := get_node_or_null("/root/Main/Server")
 	if server_node and server_node.has_method("handle_craft_request"):
 		server_node.handle_craft_request(peer_id, recipe_name)
+	else:
+		print("[NetworkManager] ERROR: Server node not found or missing handle_craft_request!")
 
 ## CLIENT -> SERVER: Request manual save
 @rpc("any_peer", "call_remote", "reliable")

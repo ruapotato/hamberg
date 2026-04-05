@@ -35,26 +35,30 @@ func _initialize_recipes() -> void:
 	recipes.clear()
 
 	# Basic starting tools (no workbench required - shown in Tab menu)
-	add_recipe("hammer", 1, {"wood": 10})
+	add_recipe("hammer", 1, {"wood": 5})  # First tool - used to place workbench
 	add_recipe("torch", 1, {"wood": 1, "resin": 1})
-	add_recipe("club", 1, {"wood": 6})
-	add_recipe("stone_axe", 1, {"wood": 4, "stone": 4})  # Basic axe for chopping trees - no workbench!
+	add_recipe("bandage", 1, {"plant_fiber": 2})
+
+	# Workbench-required crafting resources
+	add_recipe("rope", 1, {"plant_fiber": 3}, "workbench")
 
 	# Tools (workbench required)
+	add_recipe("stone_axe", 1, {"wood": 4, "stone": 4}, "workbench")
 	add_recipe("stone_pickaxe", 1, {"wood": 5, "stone": 10}, "workbench")
 	add_recipe("stone_hoe", 1, {"wood": 5, "stone": 5}, "workbench")
 
 	# Tier 1 Weapons - Wood & Stone (workbench required)
 	add_recipe("stone_sword", 1, {"wood": 10, "stone": 5}, "workbench")
-	# Note: stone_axe is now a basic recipe (no workbench) for early game bootstrapping
 	add_recipe("stone_knife", 1, {"wood": 5, "stone": 2}, "workbench")
 	add_recipe("fire_wand", 1, {"wood": 3, "resin": 7}, "workbench")
+	add_recipe("ice_wand", 1, {"wood": 5, "stone": 5}, "workbench")  # Tier 1 - ice themed
 	add_recipe("arcane_wand", 1, {"wood": 5, "stone": 3}, "workbench")  # Tier 1 - cheap
 	add_recipe("nature_wand", 1, {"wood": 8, "resin": 5}, "workbench")  # Tier 2 - wood-heavy for nature theme
 	add_recipe("holy_wand", 1, {"wood": 5, "stone": 5, "copper": 3}, "workbench")  # Tier 2 - needs some metal
 	add_recipe("lightning_wand", 1, {"wood": 5, "copper": 5, "iron": 3}, "workbench")  # Tier 2 - needs metal
 	add_recipe("dark_wand", 1, {"wood": 3, "charcoal": 5, "iron": 3}, "workbench")  # Tier 2 - dark materials
-	add_recipe("bow", 1, {"wood": 10, "resin": 1}, "workbench")
+	add_recipe("bow", 1, {"wood": 8, "rope": 3}, "workbench")
+	add_recipe("arrows", 10, {"wood": 2, "stone": 1}, "workbench")
 
 	# Shields (workbench required)
 	add_recipe("tower_shield", 1, {"wood": 15}, "workbench")
@@ -63,11 +67,6 @@ func _initialize_recipes() -> void:
 
 	# Charcoal (fireplace required)
 	add_recipe("charcoal", 3, {"wood": 5}, "fireplace")
-
-	# Crafted resources (no station)
-	add_recipe("rope", 1, {"plant_fiber": 3})
-	add_recipe("bandage", 1, {"plant_fiber": 2})
-	add_recipe("arrows", 10, {"wood": 2, "stone": 1})
 
 	# Tier 2 Weapons - Iron (workbench required)
 	add_recipe("iron_sword", 1, {"iron": 3, "wood": 2}, "workbench")
