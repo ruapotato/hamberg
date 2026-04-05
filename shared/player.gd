@@ -1677,11 +1677,6 @@ func _handle_terrain_modification_input(input_data: Dictionary) -> bool:
 
 	# Check if any terrain action applies
 	if not is_pickaxe and not is_hoe:
-		# Debug: Show what's equipped when player tries to use terrain tools
-		if main_hand_id.is_empty():
-			print("[Player] No terrain tool - nothing equipped to main hand")
-		else:
-			print("[Player] No terrain tool - equipped: %s" % main_hand_id)
 		return false  # No terrain tool, proceed with normal combat
 
 	# Debug: Confirm terrain tool is equipped
