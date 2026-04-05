@@ -2086,7 +2086,7 @@ func _setup_player_body() -> void:
 		shadow_head.mesh = sphere
 		var mat := StandardMaterial3D.new()
 		mat.albedo_color = Color(0.9, 0.8, 0.7)  # Skin tone
-		mat.cull_mode = BaseMaterial3D.CULL_FRONT  # Cull front faces — invisible from inside
+		mat.cull_mode = BaseMaterial3D.CULL_BACK  # Default culling — invisible from inside, visible from outside for shadows
 		shadow_head.material_override = mat
 		shadow_head.position = head_node.position
 		body_container.add_child(shadow_head)
