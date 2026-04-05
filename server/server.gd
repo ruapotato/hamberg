@@ -33,6 +33,9 @@ var dynamic_objects: Dictionary = {} # network_id -> {type, position, health, ma
 # Resource item pickup tracking (prevents duplicate pickups)
 var picked_up_items: Dictionary = {} # network_id -> true (items that have already been picked up)
 
+# 2D billboard object persistence (destroyed trees/bushes)
+var destroyed_2d_objects: Dictionary = {} # object_id -> true
+
 # Counter for generating unique resource item IDs (prevents duplicates when items spawn same frame)
 var resource_item_counter: int = 0
 
@@ -229,6 +232,7 @@ func _auto_save() -> void:
 	_save_all_players()
 	_save_world_state()
 	_save_environmental_chunks()
+	_save_destroyed_2d_objects()
 	print("[Server] Auto-save complete")
 
 func _broadcast_player_states() -> void:
@@ -1120,6 +1124,7 @@ func handle_manual_save_request(peer_id: int) -> void:
 	_save_all_players()
 	_save_world_state()
 	_save_environmental_chunks()
+	_save_destroyed_2d_objects()
 	print("[Server] Manual save complete")
 
 	# Notify all clients that save is complete
@@ -1173,6 +1178,7 @@ func _execute_console_command(command: String) -> void:
 			_save_all_players()
 			_save_world_state()
 			_save_environmental_chunks()
+			_save_destroyed_2d_objects()
 			print("[Server] Save complete")
 
 		"shutdown":
@@ -1182,6 +1188,72 @@ func _execute_console_command(command: String) -> void:
 
 		_:
 			print("[Server] Unknown command: %s" % cmd)
+
+# ============================================================================
+# 2D BILLBOARD OBJECT PERSISTENCE (trees, bushes)
+# ============================================================================
+
+## Handle a 2D billboard object being destroyed (client -> server RPC)
+func handle_2d_object_destroyed(peer_id: int, object_id: String) -> void:
+	if destroyed_2d_objects.has(object_id):
+		return  # Already tracked
+
+	destroyed_2d_objects[object_id] = true
+	print("[Server] 2D object destroyed: %s (by peer %d)" % [object_id, peer_id])
+
+	# Broadcast to all OTHER clients so they hide it too
+	for other_peer_id in spawned_players:
+		if other_peer_id != peer_id:
+			NetworkManager.rpc_broadcast_2d_object_destroyed.rpc_id(other_peer_id, object_id)
+
+	# Save to disk
+	_save_destroyed_2d_objects()
+
+
+func _save_destroyed_2d_objects() -> void:
+	if not world_config:
+		return
+
+	var file_path = "user://worlds/%s/destroyed_2d_objects.json" % world_config.world_name
+	var json_string = JSON.stringify(destroyed_2d_objects.keys(), "\t")
+
+	var file = FileAccess.open(file_path, FileAccess.WRITE)
+	if file == null:
+		push_error("[Server] Failed to save destroyed 2D objects: %s" % file_path)
+		return
+
+	file.store_string(json_string)
+	file.close()
+
+
+func _load_destroyed_2d_objects() -> void:
+	if not world_config:
+		return
+
+	var file_path = "user://worlds/%s/destroyed_2d_objects.json" % world_config.world_name
+	if not FileAccess.file_exists(file_path):
+		return
+
+	var file = FileAccess.open(file_path, FileAccess.READ)
+	if file == null:
+		push_error("[Server] Failed to load destroyed 2D objects: %s" % file_path)
+		return
+
+	var json_string = file.get_as_text()
+	file.close()
+
+	var json = JSON.new()
+	if json.parse(json_string) != OK:
+		push_error("[Server] Failed to parse destroyed 2D objects JSON")
+		return
+
+	var data = json.data
+	if typeof(data) == TYPE_ARRAY:
+		destroyed_2d_objects.clear()
+		for id in data:
+			destroyed_2d_objects[id] = true
+		print("[Server] Loaded %d destroyed 2D objects from disk" % destroyed_2d_objects.size())
+
 
 # ============================================================================
 # PERSISTENCE METHODS
@@ -1200,6 +1272,9 @@ func _load_world_state() -> void:
 
 	# Terrain chunks are now loaded directly from ChunkManager
 	# No need to load modified_terrain_chunks from world state
+
+	# Load destroyed 2D billboard objects (trees/bushes)
+	_load_destroyed_2d_objects()
 
 	# TODO: Load other world state (time_of_day, global_events, etc.)
 
@@ -1421,6 +1496,11 @@ func _spawn_player_with_data(peer_id: int, player_data: Dictionary) -> void:
 
 	# Send full character data (including map pins) to client
 	NetworkManager.rpc_send_character_data.rpc_id(peer_id, player_data)
+
+	# Send destroyed 2D billboard objects (trees/bushes) to client
+	if not destroyed_2d_objects.is_empty():
+		NetworkManager.rpc_sync_destroyed_2d_objects.rpc_id(peer_id, PackedStringArray(destroyed_2d_objects.keys()))
+		print("[Server] Sent %d destroyed 2D objects to player %d" % [destroyed_2d_objects.size(), peer_id])
 
 	# Load map pins for this player
 	player_map_pins[peer_id] = player_data.get("map_pins", [])

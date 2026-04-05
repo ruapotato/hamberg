@@ -1429,3 +1429,41 @@ func rpc_sync_weather_state(weather_name: String, is_raining: bool, is_storming:
 	var client_node := get_node_or_null("/root/Main/Client")
 	if client_node and client_node.has_method("receive_weather_state"):
 		client_node.receive_weather_state(weather_name, is_raining, is_storming, is_foggy)
+
+
+# ============================================================================
+# 2D BILLBOARD OBJECT PERSISTENCE (trees, bushes)
+# ============================================================================
+
+## CLIENT -> SERVER: Notify that a 2D billboard object was destroyed
+@rpc("any_peer", "call_remote", "reliable")
+func rpc_notify_2d_object_destroyed(object_id: String) -> void:
+	if not multiplayer.is_server():
+		return
+
+	var peer_id := multiplayer.get_remote_sender_id()
+	var server_node := get_node_or_null("/root/Main/Server")
+	if server_node and server_node.has_method("handle_2d_object_destroyed"):
+		server_node.handle_2d_object_destroyed(peer_id, object_id)
+
+
+## SERVER -> CLIENT: Bulk sync all destroyed 2D object IDs on connect
+@rpc("authority", "call_remote", "reliable")
+func rpc_sync_destroyed_2d_objects(object_ids: PackedStringArray) -> void:
+	if is_server:
+		return
+
+	var client_node := get_node_or_null("/root/Main/Client")
+	if client_node and client_node.has_method("receive_destroyed_2d_objects"):
+		client_node.receive_destroyed_2d_objects(object_ids)
+
+
+## SERVER -> ALL CLIENTS: Broadcast that a 2D object was just destroyed (real-time)
+@rpc("authority", "call_remote", "reliable")
+func rpc_broadcast_2d_object_destroyed(object_id: String) -> void:
+	if is_server:
+		return
+
+	var client_node := get_node_or_null("/root/Main/Client")
+	if client_node and client_node.has_method("receive_2d_object_destroyed"):
+		client_node.receive_2d_object_destroyed(object_id)

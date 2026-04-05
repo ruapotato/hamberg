@@ -167,6 +167,11 @@ func _on_destroyed() -> void:
 	is_destroyed = true
 	print("[ChoppableTree2D] Tree destroyed! Dropping: %s" % resource_drops)
 
+	# Notify server that this tree was destroyed (for persistence)
+	var tree_id = get_meta("tree_id", "")
+	if tree_id != "":
+		NetworkManager.rpc_notify_2d_object_destroyed.rpc_id(1, tree_id)
+
 	# Give items directly to local player
 	var players = get_tree().get_nodes_in_group("local_player")
 	if players.size() > 0:

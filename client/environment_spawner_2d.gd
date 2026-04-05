@@ -38,6 +38,12 @@ var active_bushes: Dictionary = {}
 var active_rocks: Dictionary = {}
 var active_grass: Dictionary = {}
 
+# Destroyed object tracking (synced from server)
+var destroyed_object_ids: Dictionary = {}  # tree_id/bush_id -> true
+
+# Map from tree_id -> pool object for runtime removal
+var id_to_object: Dictionary = {}  # tree_id/bush_id -> StaticBody3D
+
 # Texture references (only front view used - trees are billboard sprites)
 var tree_textures_front: Dictionary = {}
 var bush_texture: ImageTexture = null
@@ -355,6 +361,7 @@ func _spawn_environment_around(center: Vector3) -> void:
 	active_bushes.clear()
 	active_rocks.clear()
 	active_grass.clear()
+	id_to_object.clear()
 
 	# Hide all pooled objects (skip bushes waiting to respawn)
 	for obj in tree_pool:
@@ -411,6 +418,7 @@ func _spawn_environment_around(center: Vector3) -> void:
 		var num_trees = int(cell_area * tree_density * biome_density_mult * (0.5 + rng.randf()))
 		var cell_tree_positions: Array[Vector2] = []
 		var min_tree_spacing: float = 2.5  # Minimum distance between trees in a cell
+		var tree_idx_in_cell: int = 0
 
 		for _t in range(num_trees):
 			if tree_idx >= max_trees:
@@ -427,6 +435,7 @@ func _spawn_environment_around(center: Vector3) -> void:
 					too_close = true
 					break
 			if too_close:
+				tree_idx_in_cell += 1
 				continue
 
 			cell_tree_positions.append(candidate)
@@ -435,12 +444,23 @@ func _spawn_environment_around(center: Vector3) -> void:
 
 			var height = _get_terrain_height(world_x, world_z)
 			if height < -10 or height > 80:
+				tree_idx_in_cell += 1
+				continue
+
+			# Deterministic tree ID based on grid cell + index within cell
+			var tree_id := "2dt_%d_%d_%d" % [grid_x, grid_z, tree_idx_in_cell]
+			tree_idx_in_cell += 1
+
+			# Skip trees that were destroyed (synced from server)
+			if destroyed_object_ids.has(tree_id):
 				continue
 
 			var pos = Vector3(world_x, height, world_z)
 			var tree_type = _get_tree_type_for_biome(biome)
 
 			_place_tree(tree_pool[tree_idx], pos, tree_type)
+			tree_pool[tree_idx].set_meta("tree_id", tree_id)
+			id_to_object[tree_id] = tree_pool[tree_idx]
 			active_trees[grid_key + "_t" + str(_t)] = tree_pool[tree_idx]
 			tree_idx += 1
 
@@ -467,6 +487,7 @@ func _spawn_environment_around(center: Vector3) -> void:
 		# Spawn bushes (interactable, only in biomes with bushes)
 		if BIOME_HAS_BUSHES.get(biome, false):
 			var num_bushes = int(cell_area * bush_density * (0.5 + rng.randf()))
+			var bush_idx_in_cell: int = 0
 			for _b in range(num_bushes):
 				if bush_idx >= max_bushes:
 					break
@@ -484,10 +505,21 @@ func _spawn_environment_around(center: Vector3) -> void:
 
 				var height = _get_terrain_height(world_x, world_z)
 				if height < 0 or height > 50:
+					bush_idx_in_cell += 1
+					continue
+
+				# Deterministic bush ID based on grid cell + index within cell
+				var bush_id := "2db_%d_%d_%d" % [grid_x, grid_z, bush_idx_in_cell]
+				bush_idx_in_cell += 1
+
+				# Skip bushes that were destroyed (synced from server)
+				if destroyed_object_ids.has(bush_id):
 					continue
 
 				var pos = Vector3(world_x, height, world_z)
 				_place_bush(bush_pool[bush_idx], pos, biome)
+				bush_pool[bush_idx].set_meta("tree_id", bush_id)
+				id_to_object[bush_id] = bush_pool[bush_idx]
 				active_bushes[grid_key + "_b" + str(_b)] = bush_pool[bush_idx]
 				bush_idx += 1
 
@@ -660,3 +692,28 @@ func _place_grass(sprite: Sprite3D, pos: Vector3, biome: String = "valley") -> v
 	sprite.position = pos + Vector3(0, grass_height * 0.35, 0)
 	sprite.rotation.y = rng.randf() * TAU
 	sprite.visible = true
+
+
+## Bulk set destroyed object IDs from server sync (called on connect)
+func set_destroyed_objects(ids: Array) -> void:
+	destroyed_object_ids.clear()
+	for id in ids:
+		destroyed_object_ids[id] = true
+	print("[EnvironmentSpawner2D] Received %d destroyed object IDs from server" % ids.size())
+	# Re-spawn environment to apply destroyed state
+	if player and is_instance_valid(player):
+		_spawn_environment_around(player.global_position)
+
+
+## Mark a single object as destroyed at runtime (real-time broadcast from server)
+func mark_object_destroyed(object_id: String) -> void:
+	destroyed_object_ids[object_id] = true
+	# If the object is currently visible, hide it
+	if id_to_object.has(object_id):
+		var obj = id_to_object[object_id]
+		if obj and is_instance_valid(obj):
+			obj.visible = false
+			# Disable collision
+			var col = obj.get_child(0) as CollisionShape3D
+			if col:
+				col.disabled = true

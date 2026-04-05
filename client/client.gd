@@ -132,6 +132,9 @@ var fog_wall_manager: Node3D = null
 var env_spawner_2d: Node3D = null
 var EnvironmentSpawner2DScript = preload("res://client/environment_spawner_2d.gd")
 
+# Destroyed 2D billboard objects (synced from server, passed to env_spawner_2d)
+var destroyed_2d_object_ids: Dictionary = {}  # object_id -> true
+
 # Cached Shnarken NPCs (avoid expensive tree traversal every frame)
 var cached_shnarkens: Array = []
 var shnarken_cache_timer: float = 0.0
@@ -418,6 +421,7 @@ func _on_client_disconnected() -> void:
 
 	# Clean up environmental objects
 	_cleanup_environmental_objects()
+	destroyed_2d_object_ids.clear()
 
 	# Stop music
 	if music_manager:
@@ -1382,6 +1386,30 @@ func receive_weather_state(weather_name: String, is_raining: bool, is_storming: 
 	server_weather_foggy = is_foggy
 
 # ============================================================================
+# 2D BILLBOARD OBJECT PERSISTENCE (trees, bushes)
+# ============================================================================
+
+## Receive bulk list of destroyed 2D object IDs from server on connect
+func receive_destroyed_2d_objects(object_ids: PackedStringArray) -> void:
+	destroyed_2d_object_ids.clear()
+	for id in object_ids:
+		destroyed_2d_object_ids[id] = true
+	print("[Client] Received %d destroyed 2D object IDs from server" % object_ids.size())
+
+	# Pass to environment spawner if it exists
+	if env_spawner_2d and is_instance_valid(env_spawner_2d):
+		env_spawner_2d.set_destroyed_objects(Array(object_ids))
+
+
+## Receive real-time notification that another player destroyed a 2D object
+func receive_2d_object_destroyed(object_id: String) -> void:
+	destroyed_2d_object_ids[object_id] = true
+
+	# Tell the spawner to hide this object immediately
+	if env_spawner_2d and is_instance_valid(env_spawner_2d):
+		env_spawner_2d.mark_object_destroyed(object_id)
+
+# ============================================================================
 # WORLD CONFIGURATION
 # ============================================================================
 
@@ -1402,6 +1430,10 @@ func receive_world_config(world_data: Dictionary) -> void:
 			env_spawner_2d = EnvironmentSpawner2DScript.new()
 			env_spawner_2d.name = "EnvironmentSpawner2D"
 			world.add_child(env_spawner_2d)
+
+			# Apply any destroyed object IDs that arrived before spawner was created
+			if not destroyed_2d_object_ids.is_empty():
+				env_spawner_2d.set_destroyed_objects(destroyed_2d_object_ids.keys())
 
 		# Initialize map system with BiomeGenerator
 		_initialize_map_system()

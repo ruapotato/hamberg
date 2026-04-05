@@ -112,6 +112,11 @@ func _on_destroyed() -> void:
 	is_destroyed = true
 	print("[CollectibleBush2D] Bush destroyed! Dropping: %s" % resource_drops)
 
+	# Notify server that this bush was destroyed (for persistence)
+	var tree_id = get_meta("tree_id", "")
+	if tree_id != "":
+		NetworkManager.rpc_notify_2d_object_destroyed.rpc_id(1, tree_id)
+
 	# Give items directly to local player
 	var players = get_tree().get_nodes_in_group("local_player")
 	if players.size() > 0:
@@ -121,14 +126,17 @@ func _on_destroyed() -> void:
 			if player.has_method("pickup_item"):
 				player.pickup_item(item_name, amount)
 
-	# Hide bush and start respawn timer
+	# Hide bush and disable collision
 	visible = false
-	# Disable collision while hidden
 	var col = get_child(0) as CollisionShape3D
 	if col:
 		col.disabled = true
-	_waiting_respawn = true
-	respawn_timer = RESPAWN_TIME
+
+	# If this bush has a persistent ID, it stays destroyed (server tracks it)
+	# Otherwise fall back to local respawn timer
+	if tree_id == "":
+		_waiting_respawn = true
+		respawn_timer = RESPAWN_TIME
 
 
 func _respawn() -> void:
