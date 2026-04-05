@@ -29,7 +29,7 @@ var rng: RandomNumberGenerator = RandomNumberGenerator.new()
 # Object pools
 var tree_pool: Array[StaticBody3D] = []
 var bush_pool: Array[StaticBody3D] = []
-var rock_pool: Array[Sprite3D] = []
+var rock_pool: Array[StaticBody3D] = []
 var grass_pool: Array[Sprite3D] = []
 
 # Active objects tracking
@@ -208,6 +208,14 @@ func _generate_fallback_textures() -> void:
 
 
 func _generate_rock_texture() -> void:
+	# Check for user-edited PNG override
+	var tex_gen = get_node_or_null("/root/TextureGenerator")
+	if tex_gen:
+		var override = tex_gen._check_override("rock")
+		if override:
+			rock_texture = override
+			return
+
 	var img = Image.create(48, 48, false, Image.FORMAT_RGBA8)
 	img.fill(Color(0, 0, 0, 0))
 
@@ -226,10 +234,22 @@ func _generate_rock_texture() -> void:
 				var color = Color(shade * 0.6, shade * 0.58, shade * 0.55)
 				img.set_pixel(x, y, color)
 
+	# Save for user editing
+	if tex_gen:
+		tex_gen._save_texture_png("rock", img)
+
 	rock_texture = ImageTexture.create_from_image(img)
 
 
 func _generate_grass_texture() -> void:
+	# Check for user-edited PNG override
+	var tex_gen = get_node_or_null("/root/TextureGenerator")
+	if tex_gen:
+		var override = tex_gen._check_override("grass")
+		if override:
+			grass_texture = override
+			return
+
 	var img = Image.create(32, 48, false, Image.FORMAT_RGBA8)
 	img.fill(Color(0, 0, 0, 0))
 
@@ -249,6 +269,10 @@ func _generate_grass_texture() -> void:
 					var shade = 0.3 + progress * 0.4 + randf() * 0.1
 					img.set_pixel(px, py, Color(shade * 0.5, shade, shade * 0.4))
 
+	# Save for user editing
+	if tex_gen:
+		tex_gen._save_texture_png("grass", img)
+
 	grass_texture = ImageTexture.create_from_image(img)
 
 
@@ -267,14 +291,12 @@ func _create_object_pools() -> void:
 		add_child(bush)
 		bush_pool.append(bush)
 
-	# Create rock pool
+	# Create rock pool - each rock is a StaticBody3D with collision (interactable)
 	for _i in range(max_rocks):
-		var sprite = _create_billboard_sprite()
-		sprite.texture = rock_texture
-		sprite.pixel_size = 0.03
-		sprite.visible = false
-		add_child(sprite)
-		rock_pool.append(sprite)
+		var rock = _create_rock_body()
+		rock.visible = false
+		add_child(rock)
+		rock_pool.append(rock)
 
 	# Create grass pool
 	for _i in range(max_grass):
@@ -343,6 +365,33 @@ func _create_bush_body() -> StaticBody3D:
 	return body
 
 
+func _create_rock_body() -> StaticBody3D:
+	var CollectibleRock2D = preload("res://client/collectible_rock_2d.gd")
+	var body = StaticBody3D.new()
+	body.set_script(CollectibleRock2D)
+	body.collision_layer = TREE_COLLISION_LAYER
+	body.collision_mask = 0
+
+	# Small sphere collision for rock
+	var collision = CollisionShape3D.new()
+	var sphere = SphereShape3D.new()
+	sphere.radius = 0.35
+	collision.shape = sphere
+	collision.position = Vector3(0, 0.2, 0)
+	body.add_child(collision)
+
+	# Billboard Sprite3D
+	var sprite = Sprite3D.new()
+	sprite.billboard = BaseMaterial3D.BILLBOARD_FIXED_Y
+	sprite.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
+	sprite.alpha_cut = SpriteBase3D.ALPHA_CUT_DISCARD
+	sprite.render_priority = 0
+	sprite.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	body.add_child(sprite)
+
+	return body
+
+
 func _create_billboard_sprite() -> Sprite3D:
 	var sprite = Sprite3D.new()
 	sprite.billboard = BaseMaterial3D.BILLBOARD_FIXED_Y
@@ -370,7 +419,8 @@ func _spawn_environment_around(center: Vector3) -> void:
 		if not obj.is_destroyed:
 			obj.visible = false
 	for obj in rock_pool:
-		obj.visible = false
+		if not obj.is_destroyed:
+			obj.visible = false
 	for obj in grass_pool:
 		obj.visible = false
 
@@ -464,9 +514,16 @@ func _spawn_environment_around(center: Vector3) -> void:
 			active_trees[grid_key + "_t" + str(_t)] = tree_pool[tree_idx]
 			tree_idx += 1
 
-		# Spawn rocks
+		# Spawn rocks (interactable, persistent)
 		var num_rocks = int(cell_area * rock_density * (0.5 + rng.randf()))
+		var rock_idx_in_cell: int = 0
 		for _r in range(num_rocks):
+			if rock_idx >= max_rocks:
+				break
+
+			# Skip rocks that are destroyed (already mined)
+			while rock_idx < max_rocks and rock_pool[rock_idx].is_destroyed:
+				rock_idx += 1
 			if rock_idx >= max_rocks:
 				break
 
@@ -477,10 +534,21 @@ func _spawn_environment_around(center: Vector3) -> void:
 
 			var height = _get_terrain_height(world_x, world_z)
 			if height < -100:
+				rock_idx_in_cell += 1
+				continue
+
+			# Deterministic rock ID based on grid cell + index within cell
+			var rock_id := "2dr_%d_%d_%d" % [grid_x, grid_z, rock_idx_in_cell]
+			rock_idx_in_cell += 1
+
+			# Skip rocks that were destroyed (synced from server)
+			if destroyed_object_ids.has(rock_id):
 				continue
 
 			var pos = Vector3(world_x, height, world_z)
 			_place_rock(rock_pool[rock_idx], pos, biome)
+			rock_pool[rock_idx].set_meta("tree_id", rock_id)
+			id_to_object[rock_id] = rock_pool[rock_idx]
 			active_rocks[grid_key + "_r" + str(_r)] = rock_pool[rock_idx]
 			rock_idx += 1
 
@@ -659,7 +727,12 @@ func _place_bush(bush_body: StaticBody3D, pos: Vector3, biome: String = "valley"
 	bush_body.visible = true
 
 
-func _place_rock(sprite: Sprite3D, pos: Vector3, biome: String = "valley") -> void:
+func _place_rock(rock_body: StaticBody3D, pos: Vector3, biome: String = "valley") -> void:
+	var sprite = rock_body.get_child(1)  # Child 0 = collision, child 1 = billboard Sprite3D
+	if not sprite:
+		return
+
+	sprite.texture = rock_texture
 	sprite.pixel_size = 0.04
 	var scale_var = 0.3 + rng.randf() * 1.7  # Range: 0.3 to 2.0 (wider variety)
 	sprite.scale = Vector3.ONE * scale_var
@@ -674,9 +747,25 @@ func _place_rock(sprite: Sprite3D, pos: Vector3, biome: String = "valley") -> vo
 	sprite.modulate = rock_color
 
 	var rock_height = 48 * sprite.pixel_size * scale_var
-	sprite.position = pos + Vector3(0, rock_height * 0.25, 0)
-	sprite.rotation.y = rng.randf() * TAU
-	sprite.visible = true
+	sprite.position = Vector3(0, rock_height * 0.25, 0)
+
+	rock_body.position = pos
+	rock_body.rotation.y = rng.randf() * TAU
+
+	# Update collision shape based on scale
+	var collision: CollisionShape3D = rock_body.get_child(0) as CollisionShape3D
+	if collision and collision.shape is SphereShape3D:
+		var sphere: SphereShape3D = collision.shape
+		sphere.radius = 0.35 * scale_var
+		collision.position = Vector3(0, 0.2 * scale_var, 0)
+
+	# Reset rock state for pool reuse
+	if rock_body.has_method("get_object_type"):
+		rock_body.is_destroyed = false
+		rock_body.current_health = rock_body.max_health
+		rock_body.scale = Vector3.ONE
+
+	rock_body.visible = true
 
 
 func _place_grass(sprite: Sprite3D, pos: Vector3, biome: String = "valley") -> void:

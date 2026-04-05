@@ -1,9 +1,14 @@
 extends Node
 ## Procedural Texture Generator - Creates all 2D pixel art textures
 ## Generates epic mage, zombie, tree, and spell textures
+## Auto-exports generated environment textures as PNGs for hand-editing.
+## If a PNG override exists on disk, it is loaded instead of regenerating.
 
 # Texture cache
 var texture_cache: Dictionary = {}
+
+# Directory where environment texture PNGs are saved/loaded
+const TEXTURE_EXPORT_DIR := "res://assets/textures/environment/"
 
 # Color palettes
 const MAGE_ROBES := {
@@ -46,7 +51,38 @@ const TREE_COLORS := {
 }
 
 func _ready() -> void:
+	_ensure_export_dir()
 	print("[TextureGenerator] Ready - generating textures on demand")
+
+
+## Ensure the texture export directory exists
+func _ensure_export_dir() -> void:
+	if not DirAccess.dir_exists_absolute(TEXTURE_EXPORT_DIR):
+		DirAccess.make_dir_recursive_absolute(TEXTURE_EXPORT_DIR)
+		print("[TextureGenerator] Created texture export directory: %s" % TEXTURE_EXPORT_DIR)
+
+
+## Check for a user-edited PNG override. Returns the texture if found, null otherwise.
+func _check_override(cache_key: String) -> ImageTexture:
+	var override_path = TEXTURE_EXPORT_DIR + cache_key + ".png"
+	if FileAccess.file_exists(override_path):
+		var override_img = Image.load_from_file(override_path)
+		if override_img:
+			print("[TextureGenerator] Loaded override texture: %s" % override_path)
+			return ImageTexture.create_from_image(override_img)
+	return null
+
+
+## Save a generated image to disk as PNG for user editing
+func _save_texture_png(cache_key: String, img: Image) -> void:
+	_ensure_export_dir()
+	var export_path = TEXTURE_EXPORT_DIR + cache_key + ".png"
+	if not FileAccess.file_exists(export_path):
+		var err = img.save_png(export_path)
+		if err == OK:
+			print("[TextureGenerator] Exported texture: %s" % export_path)
+		else:
+			print("[TextureGenerator] Failed to export texture: %s (error %d)" % [export_path, err])
 
 # ============================================
 # MAGE PLAYER TEXTURES (64x96 pixels)
@@ -665,6 +701,12 @@ func generate_tree_texture(tree_type: String = "oak", view_angle: String = "fron
 	if texture_cache.has(cache_key):
 		return texture_cache[cache_key]
 
+	# Check for user-edited PNG override
+	var override = _check_override(cache_key)
+	if override:
+		texture_cache[cache_key] = override
+		return override
+
 	var img := Image.create(64, 128, false, Image.FORMAT_RGBA8)
 	var tree_data: Dictionary = TREE_COLORS.get(tree_type, TREE_COLORS["oak"])
 	var trunk_color: Color = tree_data["trunk"]
@@ -728,6 +770,7 @@ func generate_tree_texture(tree_type: String = "oak", view_angle: String = "fron
 			_:
 				_draw_oak_tree(img, cx, by, trunk_color, leaves_color)
 
+	_save_texture_png(cache_key, img)
 	var tex := ImageTexture.create_from_image(img)
 	texture_cache[cache_key] = tex
 	return tex
@@ -2387,6 +2430,12 @@ func generate_bush_texture() -> ImageTexture:
 	if texture_cache.has(cache_key):
 		return texture_cache[cache_key]
 
+	# Check for user-edited PNG override
+	var override = _check_override(cache_key)
+	if override:
+		texture_cache[cache_key] = override
+		return override
+
 	var img := Image.create(32, 32, false, Image.FORMAT_RGBA8)
 	img.fill(Color(0, 0, 0, 0))
 
@@ -2444,6 +2493,7 @@ func generate_bush_texture() -> ImageTexture:
 			var highlight := Color(0.4, 0.7, 0.3)
 			_px(img, hx, hy, highlight)
 
+	_save_texture_png(cache_key, img)
 	var tex := ImageTexture.create_from_image(img)
 	texture_cache[cache_key] = tex
 	return tex

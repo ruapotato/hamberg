@@ -94,9 +94,9 @@ func _ready() -> void:
 		_vbox.add_child(label)
 		_task_labels.append(label)
 
-	# Start hidden
-	_panel.visible = false
-	_is_visible = false
+	# Start visible so players see tasks immediately (Tab to hide)
+	_panel.visible = true
+	_is_visible = true
 
 
 func _unhandled_input(event: InputEvent) -> void:
