@@ -659,8 +659,8 @@ func _place_tree(tree_body: StaticBody3D, pos: Vector3, tree_type: String) -> vo
 	var tint = Color(1.0 - blue_shift * 0.3, 1.0 - blue_shift * 0.2, 1.0 + blue_shift) * brightness
 	sprite.modulate = tint
 
-	# Position sprite so base sits on ground
-	sprite.position = Vector3(0, world_height * 0.48 * scale_var, 0)
+	# Position sprite so base sits slightly INTO the ground (prevents hovering)
+	sprite.position = Vector3(0, world_height * 0.42 * scale_var, 0)
 
 	# Position body at ground level
 	tree_body.position = pos
@@ -706,7 +706,7 @@ func _place_bush(bush_body: StaticBody3D, pos: Vector3, biome: String = "valley"
 
 	var tex_height = bush_texture.get_height() if bush_texture else 32
 	var world_height = tex_height * sprite.pixel_size * scale_var
-	sprite.position = Vector3(0, world_height * 0.4, 0)
+	sprite.position = Vector3(0, world_height * 0.35, 0)
 
 	bush_body.position = pos
 	bush_body.rotation.y = rng.randf() * TAU
