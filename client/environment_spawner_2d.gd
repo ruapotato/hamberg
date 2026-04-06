@@ -14,11 +14,14 @@ signal environment_ready()
 @export var bush_density: float = 0.03
 @export var grass_density: float = 0.06
 
+@export var decor_density: float = 0.04
+
 @export_group("Object Limits")
 @export var max_trees: int = 600
 @export var max_rocks: int = 250
 @export var max_bushes: int = 400
 @export var max_grass: int = 800
+@export var max_decor: int = 300
 
 # Internal state
 var terrain_world: Node = null
@@ -31,12 +34,14 @@ var tree_pool: Array[StaticBody3D] = []
 var bush_pool: Array[StaticBody3D] = []
 var rock_pool: Array[StaticBody3D] = []
 var grass_pool: Array[Sprite3D] = []
+var decor_pool: Array[Sprite3D] = []
 
 # Active objects tracking
 var active_trees: Dictionary = {}
 var active_bushes: Dictionary = {}
 var active_rocks: Dictionary = {}
 var active_grass: Dictionary = {}
+var active_decor: Dictionary = {}
 
 # Destroyed object tracking (synced from server)
 var destroyed_object_ids: Dictionary = {}  # tree_id/bush_id -> true
@@ -49,6 +54,7 @@ var tree_textures_front: Dictionary = {}
 var bush_texture: ImageTexture = null
 var rock_texture: ImageTexture = null
 var grass_texture: ImageTexture = null
+var decor_textures: Dictionary = {}  # name -> ImageTexture
 
 # Grid-based spawning
 const GRID_SIZE: float = 8.0
@@ -58,13 +64,13 @@ const TREE_COLLISION_LAYER: int = 1
 
 # Tree types by biome
 const BIOME_TREES: Dictionary = {
-	"valley": ["oak", "oak", "pine", "magic"],
+	"valley": ["oak", "oak", "pine", "magic", "willow", "birch", "cherry_blossom"],
 	"meadow": ["oak", "pine", "pine", "oak"],
-	"dark_forest": ["dark_oak", "dark_oak", "swamp", "dead"],
-	"swamp": ["swamp", "swamp", "dead", "swamp"],
-	"mountain": ["frost_pine", "frost_pine", "pine", "dead"],
+	"dark_forest": ["dark_oak", "dark_oak", "swamp", "dead", "mushroom_giant", "baobab"],
+	"swamp": ["swamp", "swamp", "dead", "swamp", "willow"],
+	"mountain": ["frost_pine", "frost_pine", "pine", "dead", "birch"],
 	"desert": ["cactus", "cactus", "palm", "dead"],
-	"wizardland": ["crystal_tree", "crystal_tree", "magic", "crystal_tree"],
+	"wizardland": ["crystal_tree", "crystal_tree", "magic", "crystal_tree", "cherry_blossom", "mushroom_giant"],
 	"hell": ["ember_tree", "ember_tree", "dead", "ember_tree"],
 }
 
@@ -102,6 +108,18 @@ const BIOME_HAS_BUSHES: Dictionary = {
 	"desert": false,
 	"wizardland": false,
 	"hell": false,
+}
+
+# Decoration types by biome (small visual-only objects)
+const BIOME_DECOR: Dictionary = {
+	"valley": ["fern", "flower_blue", "flower_gold", "mushroom_small", "stump", "log"],
+	"meadow": ["flower_blue", "flower_gold", "tall_grass", "fern"],
+	"dark_forest": ["mushroom_small", "fern", "log", "stump", "cattail"],
+	"swamp": ["cattail", "cattail", "mushroom_small", "log", "fern"],
+	"mountain": ["crystal_cluster", "stump", "flower_blue"],
+	"desert": [],
+	"wizardland": ["crystal_cluster", "crystal_cluster", "flower_gold", "mushroom_small"],
+	"hell": [],
 }
 
 # Biome rock colors - Hollow Knight blue world
@@ -171,7 +189,9 @@ func _generate_textures() -> void:
 	if tex_gen:
 		var all_tree_types := ["oak", "pine", "dead", "magic", "swamp",
 							   "cactus", "palm", "frost_pine", "crystal_tree",
-							   "ember_tree", "dark_oak"]
+							   "ember_tree", "dark_oak",
+							   "willow", "birch", "baobab", "cherry_blossom",
+							   "mushroom_giant"]
 		for tree_type in all_tree_types:
 			tree_textures_front[tree_type] = tex_gen.generate_tree_texture(tree_type, "front")
 		bush_texture = tex_gen.generate_bush_texture()
@@ -181,6 +201,7 @@ func _generate_textures() -> void:
 
 	_generate_rock_texture()
 	_generate_grass_texture()
+	_load_decor_textures()
 
 
 func _generate_fallback_textures() -> void:
@@ -203,7 +224,9 @@ func _generate_fallback_textures() -> void:
 	var tex = ImageTexture.create_from_image(img)
 	for tree_type in ["oak", "pine", "dead", "magic", "swamp",
 					   "cactus", "palm", "frost_pine", "crystal_tree",
-					   "ember_tree", "dark_oak"]:
+					   "ember_tree", "dark_oak",
+					   "willow", "birch", "baobab", "cherry_blossom",
+					   "mushroom_giant"]:
 		tree_textures_front[tree_type] = tex
 
 
@@ -276,6 +299,20 @@ func _generate_grass_texture() -> void:
 	grass_texture = ImageTexture.create_from_image(img)
 
 
+func _load_decor_textures() -> void:
+	var decor_names := ["fern", "flower_blue", "flower_gold", "tall_grass",
+						"cattail", "mushroom_small", "crystal_cluster",
+						"log", "stump"]
+	var env_dir := "res://assets/textures/environment/"
+	for dname in decor_names:
+		var path := env_dir + dname + ".png"
+		if FileAccess.file_exists(path):
+			var img := Image.load_from_file(path)
+			if img:
+				decor_textures[dname] = ImageTexture.create_from_image(img)
+	print("[EnvironmentSpawner2D] Loaded %d decoration textures" % decor_textures.size())
+
+
 func _create_object_pools() -> void:
 	# Create tree pool - each tree is a StaticBody3D with collision
 	for _i in range(max_trees):
@@ -307,7 +344,14 @@ func _create_object_pools() -> void:
 		add_child(sprite)
 		grass_pool.append(sprite)
 
-	print("[EnvironmentSpawner2D] Created pools: %d trees, %d bushes, %d rocks, %d grass" % [max_trees, max_bushes, max_rocks, max_grass])
+	# Create decoration pool (visual-only billboard sprites)
+	for _i in range(max_decor):
+		var sprite = _create_billboard_sprite()
+		sprite.visible = false
+		add_child(sprite)
+		decor_pool.append(sprite)
+
+	print("[EnvironmentSpawner2D] Created pools: %d trees, %d bushes, %d rocks, %d grass, %d decor" % [max_trees, max_bushes, max_rocks, max_grass, max_decor])
 
 
 func _create_tree_body() -> StaticBody3D:
@@ -410,6 +454,7 @@ func _spawn_environment_around(center: Vector3) -> void:
 	active_bushes.clear()
 	active_rocks.clear()
 	active_grass.clear()
+	active_decor.clear()
 	id_to_object.clear()
 
 	# Hide all pooled objects (skip bushes waiting to respawn)
@@ -423,11 +468,14 @@ func _spawn_environment_around(center: Vector3) -> void:
 			obj.visible = false
 	for obj in grass_pool:
 		obj.visible = false
+	for obj in decor_pool:
+		obj.visible = false
 
 	var tree_idx = 0
 	var bush_idx = 0
 	var rock_idx = 0
 	var grass_idx = 0
+	var decor_idx = 0
 
 	# Collect grid cells sorted by distance
 	var grid_radius = int(spawn_radius / GRID_SIZE)
@@ -612,8 +660,34 @@ func _spawn_environment_around(center: Vector3) -> void:
 				active_grass[grid_key + "_g" + str(_g)] = grass_pool[grass_idx]
 				grass_idx += 1
 
-	print("[EnvironmentSpawner2D] Spawned %d trees, %d bushes, %d rocks, %d grass around (%.0f, %.0f)" % [
-		tree_idx, bush_idx, rock_idx, grass_idx, center.x, center.z
+		# Spawn decorations (visual-only, near player, biome-dependent)
+		var biome_decor: Array = BIOME_DECOR.get(biome, [])
+		if dist < spawn_radius * 0.5 and biome_decor.size() > 0 and decor_textures.size() > 0:
+			var num_decor = int(cell_area * decor_density * (0.3 + rng.randf()))
+			for _d in range(num_decor):
+				if decor_idx >= max_decor:
+					break
+
+				var decor_type: String = biome_decor[rng.randi() % biome_decor.size()]
+				if not decor_textures.has(decor_type):
+					continue
+
+				var local_x = rng.randf() * GRID_SIZE
+				var local_z = rng.randf() * GRID_SIZE
+				var world_x = grid_x * GRID_SIZE + local_x
+				var world_z = grid_z * GRID_SIZE + local_z
+
+				var height = _get_terrain_height(world_x, world_z)
+				if height < 0 or height > 50:
+					continue
+
+				var pos = Vector3(world_x, height, world_z)
+				_place_decor(decor_pool[decor_idx], pos, decor_type)
+				active_decor[grid_key + "_d" + str(_d)] = decor_pool[decor_idx]
+				decor_idx += 1
+
+	print("[EnvironmentSpawner2D] Spawned %d trees, %d bushes, %d rocks, %d grass, %d decor around (%.0f, %.0f)" % [
+		tree_idx, bush_idx, rock_idx, grass_idx, decor_idx, center.x, center.z
 	])
 
 
@@ -776,6 +850,28 @@ func _place_grass(sprite: Sprite3D, pos: Vector3, biome: String = "valley") -> v
 
 	var grass_height = 48 * sprite.pixel_size * scale_var
 	sprite.position = pos + Vector3(0, grass_height * 0.35, 0)
+	sprite.rotation.y = rng.randf() * TAU
+	sprite.visible = true
+
+
+func _place_decor(sprite: Sprite3D, pos: Vector3, decor_type: String) -> void:
+	var tex = decor_textures.get(decor_type)
+	if not tex:
+		return
+
+	sprite.texture = tex
+	sprite.pixel_size = 0.012  # Decoration textures are 128x128
+	var scale_var = 0.5 + rng.randf() * 1.0  # Range: 0.5 to 1.5
+	sprite.scale = Vector3.ONE * scale_var
+
+	# Blue-only tint
+	var blue_shift = rng.randf() * 0.1
+	var brightness = 0.85 + rng.randf() * 0.3
+	sprite.modulate = Color(1.0 - blue_shift * 0.25, 1.0 - blue_shift * 0.15, 1.0 + blue_shift) * brightness
+
+	var tex_height = tex.get_height() if tex else 128
+	var world_height = tex_height * sprite.pixel_size * scale_var
+	sprite.position = pos + Vector3(0, world_height * 0.35, 0)
 	sprite.rotation.y = rng.randf() * TAU
 	sprite.visible = true
 
