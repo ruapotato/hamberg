@@ -305,7 +305,7 @@ float multi_octave_noise(vec2 p) {
 }
 
 // ============================================================================
-// GRASS DETAIL FUNCTIONS - Creates realistic grass-like visual pattern
+// MYCELIUM NETWORK FUNCTIONS - Voronoi-based tendrils with animated gold sparks
 // ============================================================================
 
 // Hash function for pseudo-random values
@@ -319,178 +319,76 @@ float hash21(vec2 p) {
 	return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
 }
 
-// Grass blade shape - creates a thin vertical blade with pointed tip
-// Returns intensity (0-1) where 1 is the blade, 0 is between blades
-float blade_shape(vec2 uv, float blade_width, float blade_height, float bend) {
-	// Blade tapers from base to tip
-	float taper = 1.0 - (uv.y / blade_height);
-	taper = max(0.0, taper);
-	float current_width = blade_width * (0.3 + 0.7 * taper);
-
-	// Blade bends more at the top
-	float bend_amount = bend * uv.y * uv.y / (blade_height * blade_height);
-	float blade_x = uv.x - bend_amount;
-
-	// Distance from blade center
-	float dist = abs(blade_x) / current_width;
-
-	// Soft blade edge
-	float blade = 1.0 - smoothstep(0.3, 1.0, dist);
-
-	// Fade at top (pointed tip)
-	blade *= smoothstep(blade_height, blade_height * 0.85, uv.y);
-
-	// Only draw within blade height
-	blade *= step(0.0, uv.y) * step(uv.y, blade_height);
-
-	return blade;
-}
-
-// Single grass clump - multiple blades emanating from a point
-// PERFORMANCE: Reduced from 5 blades to 3 blades per clump
-float grass_clump(vec2 p, vec2 clump_center, float wind_phase, float clump_size) {
-	vec2 local = p - clump_center;
-
-	float total = 0.0;
-
-	// PERFORMANCE: Generate 2-3 blades per clump (was 3-5)
-	float blade_count = 2.0 + hash21(clump_center);
-
-	for (float i = 0.0; i < 3.0; i++) {
-		if (i >= blade_count) break;
-
-		// Randomize blade properties
-		vec2 seed = clump_center + vec2(i * 17.31, i * 23.17);
-		vec2 rnd = hash22(seed);
-
-		// Blade offset from clump center
-		float angle = (i / blade_count) * 6.28 + rnd.x * 0.5;
-		float offset_dist = rnd.y * clump_size * 0.3;
-		vec2 blade_base = vec2(cos(angle), sin(angle)) * offset_dist;
-
-		// Blade dimensions
-		float blade_height = clump_size * (0.6 + rnd.x * 0.4);
-		float blade_width = clump_size * 0.08 * (0.7 + rnd.y * 0.3);
-
-		// Wind bend - varies by blade and time
-		float wind_strength = 0.3 + rnd.x * 0.4;
-		float wind = sin(wind_phase + rnd.y * 6.28 + local.x * 0.5) * wind_strength;
-		wind *= clump_size * 0.5;
-
-		// Transform to blade-local coordinates
-		vec2 blade_local = local - blade_base;
-
-		// Create pseudo-3D effect: blade "height" mapped to pattern
-		float dist_from_base = length(blade_local);
-		float blade_y = dist_from_base;
-		float blade_x = blade_local.x * 0.5 + blade_local.y * 0.5;
-
-		float blade = blade_shape(vec2(blade_x, blade_y), blade_width, blade_height, wind);
-
-		// Combine blades
-		total = max(total, blade * (0.7 + 0.3 * (1.0 - i / blade_count)));
-	}
-
-	return clamp(total, 0.0, 1.0);
-}
-
-// Structure to hold grass rendering info
-struct GrassInfo {
-	float coverage;      // How much grass (0-1)
-	float height;        // Relative height on blade (0=base, 1=tip)
-	float shadow;        // Shadow between blades
-	float wind_bend;     // Current wind bend amount
+// Structure for mycelium network rendering
+struct MyceliumInfo {
+	float tendril;       // 0-1: how much tendril is at this pixel
+	float node;          // 0-1: junction node intensity
+	float spark;         // 0-1: traveling gold spark intensity
+	float glow;          // 0-1: ambient glow from nearby sparks
 };
 
-// Main grass pattern function - creates a field of grass clumps
-// PERFORMANCE: Reduced from 3x3 grid with 2 clumps to 2x2 grid with 1 clump (was 18 checks, now 4)
-GrassInfo get_grass_pattern(vec2 world_xz, float anim_time) {
-	GrassInfo info;
-	info.coverage = 0.0;
-	info.height = 0.0;
-	info.shadow = 0.0;
-	info.wind_bend = 0.0;
+// Mycelium network pattern - Voronoi-based tendrils with animated gold sparks
+MyceliumInfo get_mycelium_pattern(vec2 world_xz, float anim_time) {
+	MyceliumInfo info;
+	info.tendril = 0.0;
+	info.node = 0.0;
+	info.spark = 0.0;
+	info.glow = 0.0;
 
-	// Scale for grass (larger = bigger clumps, more spread out)
-	float grass_scale = 3.0;  // Increased for efficiency
-	vec2 scaled_pos = world_xz / grass_scale;
+	float scale = 2.0;  // Size of mycelium cells
+	vec2 pos = world_xz / scale;
+	vec2 cell = floor(pos);
+	vec2 frac_pos = fract(pos);
 
-	// Wind parameters (simplified)
-	float wind_phase = anim_time * 1.2 + world_xz.x * 0.02;
+	// Check 3x3 neighborhood for nearest two cell points
+	float min_dist1 = 10.0;
+	float min_dist2 = 10.0;
+	vec2 nearest_point = vec2(0.0);
 
-	// Grid-based clump placement with jitter
-	vec2 grid_cell = floor(scaled_pos);
+	for (int dx = -1; dx <= 1; dx++) {
+		for (int dy = -1; dy <= 1; dy++) {
+			vec2 neighbor = vec2(float(dx), float(dy));
+			vec2 point = hash22(cell + neighbor);  // Random point in cell
+			vec2 diff = neighbor + point - frac_pos;
+			float d = length(diff);
 
-	float total_grass = 0.0;
-	float total_height = 0.0;
-	float weight_sum = 0.0;
-
-	// PERFORMANCE: Check only 2x2 nearby cells with 1 clump each (was 3x3 with 2 clumps)
-	for (int dx = 0; dx <= 1; dx++) {
-		for (int dy = 0; dy <= 1; dy++) {
-			vec2 cell = grid_cell + vec2(float(dx), float(dy));
-			vec2 rnd = hash22(cell);
-
-			// Skip some cells for variation
-			if (rnd.x > 0.8) continue;
-
-			// Clump position with jitter
-			vec2 clump_pos = (cell + hash22(cell + 0.5)) * grass_scale;
-
-			// Clump size variation
-			float clump_size = grass_scale * (0.7 + rnd.y * 0.5);
-
-			// Distance check for early exit
-			float dist = length(world_xz - clump_pos);
-			if (dist > clump_size * 1.2) continue;
-
-			// Get grass from this clump
-			float grass = grass_clump(world_xz, clump_pos, wind_phase, clump_size);
-
-			if (grass > 0.01) {
-				float h = clamp(dist / clump_size, 0.0, 1.0);
-				total_height += h * grass;
-				weight_sum += grass;
-				total_grass = max(total_grass, grass);
+			if (d < min_dist1) {
+				min_dist2 = min_dist1;
+				min_dist1 = d;
+				nearest_point = cell + neighbor + point;
+			} else if (d < min_dist2) {
+				min_dist2 = d;
 			}
 		}
 	}
 
-	info.coverage = total_grass;
-	info.height = weight_sum > 0.0 ? total_height / weight_sum : 0.0;
+	// Tendril: edge between two nearest cells (Worley noise edge)
+	float edge = min_dist2 - min_dist1;
+	info.tendril = 1.0 - smoothstep(0.0, 0.08, edge);  // Thin tendrils
 
-	// Simplified shadow calculation
-	info.shadow = (1.0 - info.height) * 0.2 * info.coverage;
+	// Node: at the cell points themselves
+	info.node = 1.0 - smoothstep(0.0, 0.12, min_dist1);
 
-	// Wind bend visualization
-	info.wind_bend = sin(wind_phase) * 0.5 + 0.5;
+	// Animated spark: travels along tendrils over time
+	// Use the nearest point's hash to create a spark timing per tendril
+	float spark_phase = hash21(nearest_point * 7.31) * 6.28;
+	float spark_speed = 1.5 + hash21(nearest_point * 3.17) * 2.0;
+	float spark_time = sin(anim_time * spark_speed + spark_phase);
+	// Spark appears at peak of sin wave (narrow window)
+	float spark_intensity = pow(max(0.0, spark_time), 8.0);
+	// Only show spark on tendrils
+	info.spark = spark_intensity * info.tendril;
+
+	// Ambient glow: larger soft glow around active sparks
+	float glow_time = sin(anim_time * spark_speed * 0.5 + spark_phase + 0.5);
+	info.glow = pow(max(0.0, glow_time), 4.0) * (1.0 - smoothstep(0.0, 0.25, min_dist1));
 
 	return info;
 }
 
-// Get grass detail for fragment shader
+// Get grass detail for fragment shader (legacy stub - kept for backward compatibility)
 float get_grass_detail(vec2 xz_pos, float flatness, int biome_idx, float anim_time) {
-	// Only show grass on flat terrain
-	float slope_factor = smoothstep(0.80, 0.95, flatness);
-	if (slope_factor < 0.01) return 0.0;
-
-	// Grass intensity varies by biome
-	float biome_grass_intensity = 0.0;
-	if (biome_idx == 0) biome_grass_intensity = 1.0;       // Valley - lots of grass
-	else if (biome_idx == 1) biome_grass_intensity = 0.3;  // Dark forest - some grass
-	else if (biome_idx == 2) biome_grass_intensity = 0.5;  // Swamp - muddy grass
-	else if (biome_idx == 3) biome_grass_intensity = 0.0;  // Mountain - no grass (snow)
-	else if (biome_idx == 4) biome_grass_intensity = 0.0;  // Desert - no grass
-	else if (biome_idx == 5) biome_grass_intensity = 0.4;  // Wizardland - magical grass
-	else if (biome_idx == 6) biome_grass_intensity = 0.0;  // Hell - no grass
-
-	if (biome_grass_intensity < 0.01) return 0.0;
-
-	// Get detailed grass pattern
-	GrassInfo grass = get_grass_pattern(xz_pos, anim_time);
-
-	// Combine factors
-	return grass.coverage * slope_factor * biome_grass_intensity;
+	return 0.0;
 }
 
 // ============================================================================
@@ -627,35 +525,16 @@ ForestFloorInfo get_forest_floor_pattern(vec2 world_xz, float anim_time) {
 	return info;
 }
 
-// Enhanced grass detail that returns full info for advanced coloring
-GrassInfo get_grass_detail_full(vec2 xz_pos, float flatness, int biome_idx, float anim_time) {
-	GrassInfo result;
-	result.coverage = 0.0;
-	result.height = 0.0;
-	result.shadow = 0.0;
-	result.wind_bend = 0.0;
-
-	// Only show grass on flat terrain
-	float slope_factor = smoothstep(0.80, 0.95, flatness);
-	if (slope_factor < 0.01) return result;
-
-	// Grass intensity varies by biome
-	float biome_grass_intensity = 0.0;
-	if (biome_idx == 0) biome_grass_intensity = 1.0;
-	else if (biome_idx == 1) biome_grass_intensity = 0.3;
-	else if (biome_idx == 2) biome_grass_intensity = 0.5;
-	else if (biome_idx == 3) biome_grass_intensity = 0.0;
-	else if (biome_idx == 4) biome_grass_intensity = 0.0;
-	else if (biome_idx == 5) biome_grass_intensity = 0.4;
-	else if (biome_idx == 6) biome_grass_intensity = 0.0;
-
-	if (biome_grass_intensity < 0.01) return result;
-
-	// Get full grass info
-	result = get_grass_pattern(xz_pos, anim_time);
-	result.coverage *= slope_factor * biome_grass_intensity;
-
-	return result;
+// Get mycelium intensity for a biome (which biomes show the network)
+float get_mycelium_intensity(int biome_idx) {
+	if (biome_idx == 0) return 1.0;       // Valley - full mycelium
+	else if (biome_idx == 1) return 0.0;   // Dark forest - uses mushroom pattern instead
+	else if (biome_idx == 2) return 0.5;   // Swamp - some mycelium
+	else if (biome_idx == 3) return 0.0;   // Mountain - no mycelium (snow)
+	else if (biome_idx == 4) return 0.0;   // Desert - no mycelium
+	else if (biome_idx == 5) return 0.4;   // Wizardland - magical mycelium
+	else if (biome_idx == 6) return 0.0;   // Hell - no mycelium
+	return 0.0;
 }
 
 // ============================================================================
@@ -865,44 +744,44 @@ void fragment() {
 				color = mix(color, floor_color, blend_strength);
 			}
 		} else {
-			// === OTHER BIOMES - GRASS BLADES ===
-			GrassInfo grass_info = get_grass_detail_full(xz_pos, flatness, current_biome, time);
+			// === OTHER BIOMES - MYCELIUM NETWORK ===
+			float myc_intensity = get_mycelium_intensity(current_biome);
+			float slope_factor = smoothstep(0.80, 0.95, flatness);
 
-			if (grass_info.coverage > 0.01) {
-				// === GRASS BLADE COLORING ===
-				vec3 blade_base_color = grass_color * 0.6;
-				vec3 blade_tip_color = grass_color * 1.2;
-				blade_tip_color = mix(blade_tip_color, blade_tip_color * vec3(1.05, 1.1, 0.85), 0.4);
+			if (myc_intensity > 0.01 && slope_factor > 0.01) {
+				MyceliumInfo myc = get_mycelium_pattern(xz_pos, time);
 
-				float height_factor = grass_info.height;
-				vec3 blade_color = mix(blade_base_color, blade_tip_color, height_factor);
+				if (myc.tendril > 0.01 || myc.node > 0.01) {
+					float strength = myc_intensity * slope_factor;
 
-				// Inter-blade shadows
-				float shadow_factor = grass_info.shadow * grass_info.coverage;
-				blade_color *= (1.0 - shadow_factor * 0.4);
+					// Tendril color: slightly brighter blue than base terrain
+					vec3 tendril_color = grass_color * 1.3;
 
-				// Subsurface scattering
-				float sss_strength = height_factor * grass_info.coverage * 0.25;
-				vec3 sss_color = grass_color * vec3(1.1, 1.2, 0.9) * 1.3;
-				blade_color = mix(blade_color, sss_color, sss_strength * grass_info.wind_bend);
+					// Node color: bright blue at junctions
+					vec3 node_color = grass_color * 1.8;
 
-				// Wind highlight
-				float wind_highlight = grass_info.wind_bend * grass_info.coverage * 0.15;
-				blade_color *= (1.0 + wind_highlight);
+					// Gold spark color
+					vec3 spark_color = vec3(1.0, 0.79, 0.0);  // #ffca00
+					vec3 spark_glow = vec3(1.0, 0.88, 0.4);   // Softer gold glow
 
-				// Specular-like highlight on blade tips
-				if (height_factor > 0.75 && grass_info.coverage > 0.5) {
-					float tip_spec = (height_factor - 0.75) * 4.0 * grass_info.coverage;
-					blade_color = mix(blade_color, vec3(1.0), tip_spec * 0.08);
+					// Apply tendril
+					float tendril_blend = myc.tendril * 0.6 * strength;
+					color = mix(color, tendril_color, tendril_blend);
+
+					// Apply nodes (brighter at junctions)
+					float node_blend = myc.node * 0.5 * strength;
+					color = mix(color, node_color, node_blend);
+
+					// Apply traveling gold spark
+					if (myc.spark > 0.01) {
+						color = mix(color, spark_color, myc.spark * 0.9 * strength);
+					}
+
+					// Apply ambient gold glow
+					if (myc.glow > 0.01) {
+						color = mix(color, spark_glow, myc.glow * 0.15 * strength);
+					}
 				}
-
-				// Blend with base terrain
-				float blend_strength = smoothstep(0.0, 0.6, grass_info.coverage);
-				color = mix(color, blade_color, blend_strength);
-
-				// Edge darkening
-				float edge_factor = smoothstep(0.0, 0.2, grass_info.coverage);
-				color *= mix(0.92, 1.0, edge_factor);
 			}
 		}
 	}
