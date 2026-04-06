@@ -1,6 +1,6 @@
 extends Node
-## Procedural Texture Generator - Creates all 2D pixel art textures
-## Generates epic mage, zombie, tree, and spell textures
+## Procedural Texture Generator - Vector-art style with complementary color palette
+## Generates mage, zombie, tree, bush, weapon, and spell textures
 ## Auto-exports generated environment textures as PNGs for hand-editing.
 ## If a PNG override exists on disk, it is loaded instead of regenerating.
 
@@ -10,7 +10,36 @@ var texture_cache: Dictionary = {}
 # Directory where environment texture PNGs are saved/loaded
 const TEXTURE_EXPORT_DIR := "res://assets/textures/environment/"
 
-# Color palettes
+# ============================================
+# COMPLEMENTARY COLOR PALETTE
+# ============================================
+
+# Primary blue spectrum (white -> blue -> black)
+const P_WHITE = Color(0.92, 0.94, 1.0)
+const P_LIGHTER = Color(0.7, 0.78, 1.0)
+const P_LIGHT = Color(0.45, 0.55, 1.0)
+const P_MED = Color(0.0, 0.204, 1.0)       # #0034ff
+const P_DARK = Color(0.0, 0.1, 0.5)
+const P_DARKER = Color(0.0, 0.06, 0.3)
+const P_BLACK = Color(0.0, 0.03, 0.15)
+
+# Secondary metallic gold spectrum (white -> gold -> black)
+const S_WHITE = Color(1.0, 0.98, 0.9)
+const S_HIGHLIGHT = Color(1.0, 0.95, 0.7)  # Metallic specular highlight
+const S_LIGHT = Color(1.0, 0.88, 0.4)
+const S_MED = Color(1.0, 0.792, 0.0)       # #ffca00
+const S_DARK = Color(0.6, 0.47, 0.0)
+const S_DARKER = Color(0.35, 0.27, 0.0)
+const S_BLACK = Color(0.18, 0.14, 0.0)
+
+# Neutrals
+const N_WHITE = Color(0.9, 0.9, 0.92)
+const N_LIGHT = Color(0.7, 0.68, 0.72)
+const N_MED = Color(0.45, 0.43, 0.48)
+const N_DARK = Color(0.22, 0.2, 0.26)
+const N_BLACK = Color(0.08, 0.07, 0.1)
+
+# Color palettes (mage/zombie unchanged)
 const MAGE_ROBES := {
 	"blue": [Color(0.2, 0.3, 0.7), Color(0.3, 0.4, 0.8), Color(0.15, 0.2, 0.5)],
 	"red": [Color(0.7, 0.2, 0.2), Color(0.8, 0.3, 0.3), Color(0.5, 0.15, 0.15)],
@@ -33,21 +62,6 @@ const ZOMBIE_COLORS := {
 	"brute": [Color(0.45, 0.4, 0.35), Color(0.55, 0.5, 0.45), Color(0.35, 0.3, 0.25)],
 	"mage_zombie": [Color(0.35, 0.3, 0.5), Color(0.45, 0.4, 0.6), Color(0.25, 0.2, 0.4)],
 	"exploder": [Color(0.6, 0.4, 0.3), Color(0.7, 0.5, 0.35), Color(0.5, 0.3, 0.2)],
-}
-
-const TREE_COLORS := {
-	"oak": {"trunk": Color(0.4, 0.3, 0.2), "leaves": Color(0.2, 0.5, 0.2)},
-	"pine": {"trunk": Color(0.35, 0.25, 0.15), "leaves": Color(0.1, 0.4, 0.2)},
-	"dead": {"trunk": Color(0.3, 0.25, 0.2), "leaves": Color(0.4, 0.35, 0.3)},
-	"magic": {"trunk": Color(0.3, 0.2, 0.4), "leaves": Color(0.5, 0.3, 0.7)},
-	"swamp": {"trunk": Color(0.25, 0.3, 0.2), "leaves": Color(0.3, 0.4, 0.25)},
-	# Biome-specific trees
-	"cactus": {"trunk": Color(0.3, 0.55, 0.25), "leaves": Color(0.35, 0.6, 0.3)},  # Desert
-	"palm": {"trunk": Color(0.5, 0.4, 0.25), "leaves": Color(0.25, 0.5, 0.2)},  # Desert
-	"frost_pine": {"trunk": Color(0.45, 0.5, 0.55), "leaves": Color(0.85, 0.9, 0.95)},  # Mountain
-	"crystal_tree": {"trunk": Color(0.4, 0.3, 0.5), "leaves": Color(0.9, 0.4, 1.0)},  # Wizardland
-	"ember_tree": {"trunk": Color(0.15, 0.08, 0.05), "leaves": Color(0.9, 0.3, 0.1)},  # Hell
-	"dark_oak": {"trunk": Color(0.15, 0.12, 0.1), "leaves": Color(0.05, 0.15, 0.1)},  # Dark Forest
 }
 
 func _ready() -> void:
@@ -111,6 +125,10 @@ func generate_mage_texture(robe_color: String = "blue", skin_idx: int = 0, view_
 	var tex := ImageTexture.create_from_image(img)
 	texture_cache[cache_key] = tex
 	return tex
+
+# ============================================
+# LEGACY PIXEL-ART HELPERS (kept for mage/zombie/animal/spell/weapon)
+# ============================================
 
 # --- Helper: safe pixel set ---
 func _px(img: Image, x: int, y: int, c: Color) -> void:
@@ -176,7 +194,7 @@ func _draw_line(img: Image, x0: int, y0: int, x1: int, y1: int, color: Color) ->
 			cy += sy
 
 # --- Helper: apply 1-pixel outline around all non-transparent pixels ---
-func _apply_outline(img: Image, outline_color: Color) -> void:
+func _apply_outline(img: Image, outline_color: Color = P_BLACK) -> void:
 	var w := img.get_width()
 	var h := img.get_height()
 	var edge_pixels: Array = []
@@ -224,6 +242,109 @@ func _apply_lighting(img: Image) -> void:
 				c.g = clampf(c.g * factor, 0, 1)
 				c.b = clampf(c.b * factor, 0, 1)
 				img.set_pixel(x, y, c)
+
+# ============================================
+# VECTOR ART AA DRAWING HELPERS
+# ============================================
+
+# Anti-aliased filled circle with smooth edges
+func _aa_circle(img: Image, cx: float, cy: float, radius: float, color: Color) -> void:
+	var r_int: int = int(radius) + 2
+	for dy in range(-r_int, r_int + 1):
+		for dx in range(-r_int, r_int + 1):
+			var px: int = int(cx) + dx
+			var py: int = int(cy) + dy
+			if px < 0 or px >= img.get_width() or py < 0 or py >= img.get_height():
+				continue
+			var dist: float = sqrt(float(dx * dx + dy * dy))
+			var a: float = clampf(radius - dist + 0.5, 0.0, 1.0)
+			if a > 0.005:
+				var existing: Color = img.get_pixel(px, py)
+				img.set_pixel(px, py, existing.blend(Color(color.r, color.g, color.b, color.a * a)))
+
+# Anti-aliased filled ellipse
+func _aa_ellipse(img: Image, cx: float, cy: float, rx: float, ry: float, color: Color) -> void:
+	var mr: int = int(max(rx, ry)) + 2
+	for dy in range(-mr, mr + 1):
+		for dx in range(-mr, mr + 1):
+			var px: int = int(cx) + dx
+			var py: int = int(cy) + dy
+			if px < 0 or px >= img.get_width() or py < 0 or py >= img.get_height():
+				continue
+			var ndx: float = float(dx) / max(rx, 0.1)
+			var ndy: float = float(dy) / max(ry, 0.1)
+			var dist: float = sqrt(ndx * ndx + ndy * ndy)
+			var a: float = clampf(1.0 - dist + 0.03, 0.0, 1.0)
+			if a > 0.005:
+				var existing: Color = img.get_pixel(px, py)
+				img.set_pixel(px, py, existing.blend(Color(color.r, color.g, color.b, color.a * a)))
+
+# Vertical gradient-filled rectangle
+func _gradient_rect(img: Image, x: int, y: int, w: int, h: int, top: Color, bot: Color) -> void:
+	for py in range(y, y + h):
+		if py < 0 or py >= img.get_height(): continue
+		var t: float = float(py - y) / max(h - 1, 1)
+		var c: Color = top.lerp(bot, t)
+		for px in range(x, x + w):
+			if px >= 0 and px < img.get_width():
+				var existing: Color = img.get_pixel(px, py)
+				img.set_pixel(px, py, existing.blend(c))
+
+# Anti-aliased gradient ellipse (top color to bottom color)
+func _aa_ellipse_gradient(img: Image, cx: float, cy: float, rx: float, ry: float, color_top: Color, color_bottom: Color) -> void:
+	var mr: int = int(max(rx, ry)) + 2
+	for dy in range(-mr, mr + 1):
+		for dx in range(-mr, mr + 1):
+			var px: int = int(cx) + dx
+			var py: int = int(cy) + dy
+			if px < 0 or px >= img.get_width() or py < 0 or py >= img.get_height():
+				continue
+			var ndx: float = float(dx) / max(rx, 0.1)
+			var ndy: float = float(dy) / max(ry, 0.1)
+			var dist: float = sqrt(ndx * ndx + ndy * ndy)
+			var a: float = clampf(1.0 - dist + 0.03, 0.0, 1.0)
+			if a > 0.005:
+				var t: float = clampf((float(dy) + ry) / (2.0 * ry), 0.0, 1.0)
+				var color: Color = color_top.lerp(color_bottom, t)
+				var existing: Color = img.get_pixel(px, py)
+				img.set_pixel(px, py, existing.blend(Color(color.r, color.g, color.b, color.a * a)))
+
+# Anti-aliased line with thickness
+func _aa_line(img: Image, x0: float, y0: float, x1: float, y1: float, color: Color, thickness: float = 1.5) -> void:
+	var ddx := x1 - x0
+	var ddy := y1 - y0
+	var length := sqrt(ddx * ddx + ddy * ddy)
+	if length < 0.01:
+		return
+	var half_t := thickness / 2.0
+	var min_px := int(min(x0, x1) - half_t) - 1
+	var max_px := int(max(x0, x1) + half_t) + 1
+	var min_py := int(min(y0, y1) - half_t) - 1
+	var max_py := int(max(y0, y1) + half_t) + 1
+	for py in range(min_py, max_py + 1):
+		for px in range(min_px, max_px + 1):
+			if px < 0 or px >= img.get_width() or py < 0 or py >= img.get_height():
+				continue
+			var lpx := float(px) - x0
+			var lpy := float(py) - y0
+			var along := (lpx * ddx + lpy * ddy) / (length * length)
+			along = clampf(along, 0.0, 1.0)
+			var closest_x := x0 + along * ddx
+			var closest_y := y0 + along * ddy
+			var dist := sqrt((float(px) - closest_x) * (float(px) - closest_x) + (float(py) - closest_y) * (float(py) - closest_y))
+			var a := clampf(half_t - dist + 0.5, 0.0, 1.0)
+			if a > 0.005:
+				var existing := img.get_pixel(px, py)
+				img.set_pixel(px, py, existing.blend(Color(color.r, color.g, color.b, color.a * a)))
+
+# Metallic gold highlight - bright specular spot
+func _metallic_highlight(img: Image, cx: float, cy: float, radius: float) -> void:
+	_aa_circle(img, cx - radius * 0.2, cy - radius * 0.3, radius * 0.4, Color(S_HIGHLIGHT.r, S_HIGHLIGHT.g, S_HIGHLIGHT.b, 0.6))
+	_aa_circle(img, cx - radius * 0.1, cy - radius * 0.2, radius * 0.2, Color(1.0, 1.0, 0.95, 0.4))
+
+# Soft shadow beneath an object
+func _soft_shadow(img: Image, cx: float, cy: float, rx: float, ry: float) -> void:
+	_aa_ellipse(img, cx + 1, cy + 2, rx, ry, Color(0, 0, 0, 0.15))
 
 # ============================================
 # MAGE DRAWING FUNCTIONS
@@ -694,7 +815,7 @@ func _draw_zombie_head(img: Image, cx: int, y: int, colors: Array, tilted: bool)
 			img.set_pixel(px, y + 4, colors[2] * 0.5)
 
 # ============================================
-# TREE TEXTURES (Billboard 2D trees)
+# TREE TEXTURES (128x256 Billboard 2D trees)
 # ============================================
 func generate_tree_texture(tree_type: String = "oak", view_angle: String = "front") -> ImageTexture:
 	var cache_key := "tree_%s_%s" % [tree_type, view_angle]
@@ -707,699 +828,499 @@ func generate_tree_texture(tree_type: String = "oak", view_angle: String = "fron
 		texture_cache[cache_key] = override
 		return override
 
-	var img := Image.create(64, 128, false, Image.FORMAT_RGBA8)
-	var tree_data: Dictionary = TREE_COLORS.get(tree_type, TREE_COLORS["oak"])
-	var trunk_color: Color = tree_data["trunk"]
-	var leaves_color: Color = tree_data["leaves"]
-
+	var img := Image.create(128, 256, false, Image.FORMAT_RGBA8)
 	img.fill(Color(0, 0, 0, 0))
 
-	var cx := 32
-	var by := 124
+	var cx := 64
+	var by := 248
 
 	if view_angle == "side":
 		match tree_type:
 			"oak":
-				_draw_oak_tree_side(img, cx, by, trunk_color, leaves_color)
+				_draw_oak_tree_side(img, cx, by)
 			"pine":
-				_draw_pine_tree_side(img, cx, by, trunk_color, leaves_color)
+				_draw_pine_tree_side(img, cx, by)
 			"dead":
-				_draw_dead_tree_side(img, cx, by, trunk_color)
+				_draw_dead_tree_side(img, cx, by)
 			"magic":
-				_draw_magic_tree_side(img, cx, by, trunk_color, leaves_color)
+				_draw_magic_tree_side(img, cx, by)
 			"swamp":
-				_draw_swamp_tree_side(img, cx, by, trunk_color, leaves_color)
+				_draw_swamp_tree_side(img, cx, by)
 			"cactus":
-				_draw_cactus_side(img, cx, by, trunk_color)
+				_draw_cactus_side(img, cx, by)
 			"palm":
-				_draw_palm_tree_side(img, cx, by, trunk_color, leaves_color)
+				_draw_palm_tree_side(img, cx, by)
 			"frost_pine":
-				_draw_frost_pine_side(img, cx, by, trunk_color, leaves_color)
+				_draw_frost_pine_side(img, cx, by)
 			"crystal_tree":
-				_draw_crystal_tree_side(img, cx, by, trunk_color, leaves_color)
+				_draw_crystal_tree_side(img, cx, by)
 			"ember_tree":
-				_draw_ember_tree_side(img, cx, by, trunk_color, leaves_color)
+				_draw_ember_tree_side(img, cx, by)
 			"dark_oak":
-				_draw_dark_oak_side(img, cx, by, trunk_color, leaves_color)
+				_draw_dark_oak_side(img, cx, by)
 			_:
-				_draw_oak_tree_side(img, cx, by, trunk_color, leaves_color)
+				_draw_oak_tree_side(img, cx, by)
 	else:
 		match tree_type:
 			"oak":
-				_draw_oak_tree(img, cx, by, trunk_color, leaves_color)
+				_draw_oak_tree(img, cx, by)
 			"pine":
-				_draw_pine_tree(img, cx, by, trunk_color, leaves_color)
+				_draw_pine_tree(img, cx, by)
 			"dead":
-				_draw_dead_tree(img, cx, by, trunk_color)
+				_draw_dead_tree(img, cx, by)
 			"magic":
-				_draw_magic_tree(img, cx, by, trunk_color, leaves_color)
+				_draw_magic_tree(img, cx, by)
 			"swamp":
-				_draw_swamp_tree(img, cx, by, trunk_color, leaves_color)
+				_draw_swamp_tree(img, cx, by)
 			"cactus":
-				_draw_cactus(img, cx, by, trunk_color)
+				_draw_cactus(img, cx, by)
 			"palm":
-				_draw_palm_tree(img, cx, by, trunk_color, leaves_color)
+				_draw_palm_tree(img, cx, by)
 			"frost_pine":
-				_draw_frost_pine(img, cx, by, trunk_color, leaves_color)
+				_draw_frost_pine(img, cx, by)
 			"crystal_tree":
-				_draw_crystal_tree(img, cx, by, trunk_color, leaves_color)
+				_draw_crystal_tree(img, cx, by)
 			"ember_tree":
-				_draw_ember_tree(img, cx, by, trunk_color, leaves_color)
+				_draw_ember_tree(img, cx, by)
 			"dark_oak":
-				_draw_dark_oak(img, cx, by, trunk_color, leaves_color)
+				_draw_dark_oak(img, cx, by)
 			_:
-				_draw_oak_tree(img, cx, by, trunk_color, leaves_color)
+				_draw_oak_tree(img, cx, by)
 
 	_save_texture_png(cache_key, img)
 	var tex := ImageTexture.create_from_image(img)
 	texture_cache[cache_key] = tex
 	return tex
 
-func _draw_oak_tree(img: Image, cx: int, by: int, trunk: Color, leaves: Color) -> void:
-	# Trunk
-	for y in range(by - 50, by):
-		var width: int = 4 + int((by - y) * 0.03)
-		for dx in range(-width, width + 1):
-			var px := cx + dx
-			if px >= 0 and px < 64:
-				var shade: float = 0.8 + randf() * 0.2
-				img.set_pixel(px, y, trunk * shade)
+# ============================================
+# TREE FRONT-VIEW DRAWING FUNCTIONS (128x256)
+# ============================================
 
-	# Leafy canopy (multiple clusters)
-	var centers := [Vector2i(cx, by - 70), Vector2i(cx - 12, by - 60), Vector2i(cx + 12, by - 60)]
-	for center in centers:
-		for dy in range(-25, 20):
-			for dx in range(-20, 21):
-				if dx * dx + dy * dy < 350 + randf() * 100:
-					var px: int = center.x + dx
-					var py: int = center.y + dy
-					if px >= 0 and px < 64 and py >= 0 and py < 128:
-						var shade: float = 0.7 + randf() * 0.3
-						var existing: Color = img.get_pixel(px, py)
-						if existing.a < 0.5:
-							img.set_pixel(px, py, leaves * shade)
+func _draw_oak_tree(img: Image, cx: int, by: int) -> void:
+	# Soft shadow at base
+	_soft_shadow(img, cx, by - 2, 18, 5)
 
-func _draw_pine_tree(img: Image, cx: int, by: int, trunk: Color, leaves: Color) -> void:
-	# Trunk
-	for y in range(by - 35, by):
-		for dx in range(-3, 4):
-			var px := cx + dx
-			if px >= 0 and px < 64:
-				img.set_pixel(px, y, trunk * (0.85 + randf() * 0.15))
+	# Wide S_DARKER trunk with S_DARK highlight
+	_gradient_rect(img, cx - 8, by - 100, 16, 100, S_DARK, S_DARKER)
+	# Trunk highlight stripe
+	_gradient_rect(img, cx - 3, by - 95, 6, 90, S_DARK, S_DARKER)
 
-	# Triangular pine layers - triangles point UP (wide at bottom, narrow at top)
+	# 3 overlapping P_DARK canopy ellipses
+	_aa_ellipse(img, cx - 20, by - 120, 32, 28, P_DARK)
+	_aa_ellipse(img, cx + 20, by - 120, 32, 28, P_DARK)
+	_aa_ellipse(img, cx, by - 140, 36, 32, P_DARK)
+
+	# P_MED highlight ellipse offset upper-left
+	_aa_ellipse(img, cx - 8, by - 148, 24, 20, P_MED)
+
+	# Small S_MED metallic dots scattered
+	for i in range(12):
+		var dx := randi_range(-30, 30)
+		var dy := randi_range(-170, -100)
+		_aa_circle(img, cx + dx, by + dy, 1.5, S_MED)
+
+	_metallic_highlight(img, cx - 10, by - 150, 30.0)
+
+func _draw_pine_tree(img: Image, cx: int, by: int) -> void:
+	_soft_shadow(img, cx, by - 2, 14, 4)
+
+	# S_DARKER trunk
+	_gradient_rect(img, cx - 5, by - 70, 10, 70, S_DARK, S_DARKER)
+
+	# 4 stacked P_DARK triangular layers (ellipses narrowing upward)
 	for layer in range(4):
-		var layer_base_y: int = by - 45 - layer * 18  # Bottom of this layer
-		var layer_height: int = 25
-		var layer_width: int = 25 - layer * 4
-		for y in range(layer_base_y - layer_height, layer_base_y):
-			var progress: float = float(layer_base_y - y) / float(layer_height)  # 0 at bottom, 1 at top
-			var width: int = int(layer_width * (1.0 - progress))  # Wide at bottom, narrow at top
-			for dx in range(-width, width + 1):
-				var px := cx + dx
-				if px >= 0 and px < 64 and y >= 0 and y < 128:
-					var shade: float = 0.75 + randf() * 0.25
-					img.set_pixel(px, y, leaves * shade)
+		var layer_y := by - 80 - layer * 38
+		var layer_rx := 40.0 - layer * 8.0
+		var layer_ry := 24.0 - layer * 3.0
+		_aa_ellipse(img, cx, layer_y, layer_rx, layer_ry, P_DARK)
+		# Darker bottom edge
+		_aa_ellipse(img, cx, layer_y + 6, layer_rx - 4, layer_ry * 0.5, P_DARKER)
 
-func _draw_dead_tree(img: Image, cx: int, by: int, trunk: Color) -> void:
-	# Gnarled trunk
-	for y in range(by - 80, by):
-		var twist: int = int(sin(y * 0.1) * 3)
-		var width: int = 3 + int((by - y) * 0.02)
-		for dx in range(-width, width + 1):
-			var px := cx + dx + twist
-			if px >= 0 and px < 64:
-				img.set_pixel(px, y, trunk * (0.7 + randf() * 0.3))
+	# P_LIGHT frost tips on top layer
+	_aa_ellipse(img, cx, by - 192, 18, 10, P_LIGHT)
+	# Peak
+	_aa_circle(img, cx, by - 205, 6, P_LIGHT)
 
-	# Dead branches
-	var branches := [
-		{"start": Vector2i(cx, by - 60), "dir": Vector2i(15, -20)},
-		{"start": Vector2i(cx, by - 50), "dir": Vector2i(-18, -15)},
-		{"start": Vector2i(cx, by - 40), "dir": Vector2i(12, -25)},
-		{"start": Vector2i(cx, by - 70), "dir": Vector2i(-10, -18)},
-	]
-	for branch in branches:
-		_draw_branch(img, branch["start"], branch["dir"], trunk, 8)
+func _draw_dead_tree(img: Image, cx: int, by: int) -> void:
+	_soft_shadow(img, cx, by - 2, 12, 4)
 
-func _draw_branch(img: Image, start: Vector2i, dir: Vector2i, color: Color, length: int) -> void:
-	for i in range(length):
-		var t: float = i / float(length)
-		var px: int = start.x + int(dir.x * t)
-		var py: int = start.y + int(dir.y * t)
-		var width: int = max(1, 3 - i / 3)
-		for dx in range(-width, width + 1):
-			var ppx := px + dx
-			if ppx >= 0 and ppx < 64 and py >= 0 and py < 128:
-				img.set_pixel(ppx, py, color * (0.8 + randf() * 0.2))
+	# N_DARK twisted trunk (series of offset circles down)
+	for i in range(30):
+		var t := float(i) / 30.0
+		var twist := sin(t * 4.0) * 6.0
+		var y_pos := by - i * 5.5
+		var radius := 6.0 - t * 2.5
+		_aa_circle(img, cx + twist, y_pos, radius, N_DARK)
 
-func _draw_magic_tree(img: Image, cx: int, by: int, trunk: Color, leaves: Color) -> void:
-	# Glowing trunk
-	for y in range(by - 60, by):
-		var width: int = 4 + int((by - y) * 0.025)
-		for dx in range(-width, width + 1):
-			var px := cx + dx
-			if px >= 0 and px < 64:
-				var glow: Color = trunk.lerp(Color(0.6, 0.3, 0.8), randf() * 0.3)
-				img.set_pixel(px, y, glow)
+	# N_MED bare branch lines (thin ellipses)
+	_aa_line(img, cx, by - 120, cx + 30, by - 160, N_MED, 3.0)
+	_aa_line(img, cx, by - 100, cx - 35, by - 140, N_MED, 3.0)
+	_aa_line(img, cx + 5, by - 80, cx + 25, by - 130, N_MED, 2.5)
+	_aa_line(img, cx - 3, by - 140, cx - 20, by - 175, N_MED, 2.0)
+	# Sub-branches
+	_aa_line(img, cx + 30, by - 160, cx + 42, by - 175, N_LIGHT, 1.5)
+	_aa_line(img, cx - 35, by - 140, cx - 45, by - 155, N_LIGHT, 1.5)
 
-	# Mystical canopy with sparkles
-	for dy in range(-55, 10):
-		for dx in range(-22, 23):
-			if dx * dx + dy * dy < 400 + randf() * 150:
-				var px := cx + dx
-				var py := by - 75 + dy
-				if px >= 0 and px < 64 and py >= 0 and py < 128:
-					var is_sparkle: bool = randf() < 0.05
-					var color: Color = leaves if not is_sparkle else Color(1, 0.9, 1.0)
-					img.set_pixel(px, py, color * (0.7 + randf() * 0.3))
+func _draw_magic_tree(img: Image, cx: int, by: int) -> void:
+	_soft_shadow(img, cx, by - 2, 16, 5)
 
-func _draw_swamp_tree(img: Image, cx: int, by: int, trunk: Color, leaves: Color) -> void:
-	# Twisted trunk with roots
-	for y in range(by - 55, by):
-		var twist: int = int(sin(y * 0.15) * 4)
-		var width: int = 3 + int((by - y) * 0.02) + (2 if y > by - 10 else 0)
-		for dx in range(-width, width + 1):
-			var px := cx + dx + twist
-			if px >= 0 and px < 64:
-				img.set_pixel(px, y, trunk * (0.7 + randf() * 0.2))
+	# P_DARK trunk with P_MED glow
+	_gradient_rect(img, cx - 7, by - 120, 14, 120, P_MED, P_DARK)
+	# Glow stripe
+	_gradient_rect(img, cx - 3, by - 115, 6, 110, P_LIGHT, P_MED)
 
-	# Scraggly moss-covered canopy
-	for dy in range(-40, 15):
-		for dx in range(-18, 19):
-			var dist: float = sqrt(dx * dx + dy * dy)
-			if dist < 25 + randf() * 10:
-				var px := cx + dx
-				var py := by - 70 + dy
-				if px >= 0 and px < 64 and py >= 0 and py < 128 and randf() > 0.15:
-					# Moss-like variation
-					var moss: Color = leaves.lerp(Color(0.4, 0.45, 0.3), randf() * 0.4)
-					img.set_pixel(px, py, moss)
+	# P_MED canopy with P_LIGHT sparkle dots
+	_aa_ellipse(img, cx, by - 150, 38, 34, P_MED)
+	_aa_ellipse(img, cx - 10, by - 155, 28, 26, P_LIGHT)
 
-	# Hanging moss
-	for x in range(cx - 15, cx + 16, 3):
-		if randf() > 0.4:
-			var hang_length: int = randi_range(8, 20)
-			for y in range(by - 55, by - 55 + hang_length):
-				if x >= 0 and x < 64 and y >= 0 and y < 128:
-					img.set_pixel(x, y, Color(0.35, 0.4, 0.3, 0.8))
+	# P_LIGHT sparkle dots
+	for i in range(20):
+		var dx := randi_range(-32, 32)
+		var dy := randi_range(-185, -120)
+		_aa_circle(img, cx + dx, by + dy, 1.2, P_LIGHT)
 
-func _draw_cactus(img: Image, cx: int, by: int, trunk: Color) -> void:
-	# Main cactus body
-	for y in range(by - 70, by):
-		var width: int = 6 - int(abs(y - (by - 35)) * 0.03)
-		width = max(4, width)
-		for dx in range(-width, width + 1):
-			var px := cx + dx
-			if px >= 0 and px < 64:
-				var shade: float = 0.8 + randf() * 0.2
-				img.set_pixel(px, y, trunk * shade)
+	# S_MED metallic highlight specs
+	for i in range(8):
+		var dx := randi_range(-25, 25)
+		var dy := randi_range(-175, -130)
+		_aa_circle(img, cx + dx, by + dy, 1.8, S_MED)
+
+	_metallic_highlight(img, cx - 5, by - 160, 25.0)
+
+func _draw_swamp_tree(img: Image, cx: int, by: int) -> void:
+	_soft_shadow(img, cx, by - 2, 14, 5)
+
+	# N_DARK trunk
+	for i in range(25):
+		var t := float(i) / 25.0
+		var twist := sin(t * 5.0) * 8.0
+		var y_pos := by - i * 4.5
+		var radius := 7.0 - t * 2.0
+		_aa_circle(img, cx + twist, y_pos, radius, N_DARK)
+
+	# Murky mix P_DARK + S_DARK canopy
+	_aa_ellipse(img, cx, by - 130, 34, 30, P_DARK)
+	_aa_ellipse(img, cx + 5, by - 125, 28, 24, S_DARK)
+	_aa_ellipse(img, cx - 8, by - 140, 26, 22, P_DARK)
+
+	# Thin N_MED hanging lines (moss)
+	for i in range(10):
+		var mx := cx - 28 + i * 6
+		var top_y := by - 110 + randi_range(0, 15)
+		var hang := randi_range(15, 40)
+		_aa_line(img, mx, top_y, mx + randi_range(-2, 2), top_y + hang, N_MED, 1.0)
+
+func _draw_cactus(img: Image, cx: int, by: int) -> void:
+	_soft_shadow(img, cx, by - 2, 12, 4)
+
+	# Body of S_DARK with S_MED highlight stripe
+	_aa_ellipse(img, cx, by - 70, 14, 68, S_DARK)
+	# Highlight stripe down center
+	_aa_ellipse(img, cx - 2, by - 70, 5, 62, S_MED)
 
 	# Left arm
-	var arm_y := by - 50
-	for i in range(15):
-		var px := cx - 8 - int(i * 0.3)
-		var py := arm_y - i
-		for dx in range(-3, 4):
-			if px + dx >= 0 and px + dx < 64 and py >= 0:
-				img.set_pixel(px + dx, py, trunk * (0.85 + randf() * 0.15))
-	# Left arm vertical part
-	for i in range(20):
-		var px := cx - 12
-		var py := arm_y - 15 + i
-		for dx in range(-3, 4):
-			if px + dx >= 0 and px + dx < 64 and py >= 0:
-				img.set_pixel(px + dx, py, trunk * (0.85 + randf() * 0.15))
+	_aa_ellipse(img, cx - 22, by - 100, 8, 20, S_DARK)
+	_aa_line(img, cx - 10, by - 95, cx - 22, by - 105, S_DARK, 8.0)
+	_aa_ellipse(img, cx - 23, by - 103, 3, 14, S_MED)
 
 	# Right arm
-	arm_y = by - 40
-	for i in range(12):
-		var px := cx + 8 + int(i * 0.2)
-		var py := arm_y - i
-		for dx in range(-3, 4):
-			if px + dx >= 0 and px + dx < 64 and py >= 0:
-				img.set_pixel(px + dx, py, trunk * (0.85 + randf() * 0.15))
-	# Right arm vertical
-	for i in range(25):
-		var px := cx + 10
-		var py := arm_y - 12 + i
-		for dx in range(-3, 4):
-			if px + dx >= 0 and px + dx < 64 and py >= 0 and py < 128:
-				img.set_pixel(px + dx, py, trunk * (0.85 + randf() * 0.15))
+	_aa_ellipse(img, cx + 20, by - 80, 8, 22, S_DARK)
+	_aa_line(img, cx + 10, by - 78, cx + 20, by - 85, S_DARK, 8.0)
+	_aa_ellipse(img, cx + 19, by - 83, 3, 16, S_MED)
 
-func _draw_palm_tree(img: Image, cx: int, by: int, trunk: Color, leaves: Color) -> void:
-	# Curved trunk
-	for y in range(by - 80, by):
-		var curve: int = int(sin((y - (by - 80)) * 0.03) * 8)
-		var width: int = 3 + int((by - y) * 0.015)
-		for dx in range(-width, width + 1):
-			var px := cx + dx + curve
-			if px >= 0 and px < 64:
-				var ring: float = 0.85 + (sin(y * 0.5) * 0.1)
-				img.set_pixel(px, y, trunk * ring)
+	# Small S_LIGHT dot specular highlights
+	for i in range(8):
+		var dy := randi_range(-130, -15)
+		_aa_circle(img, cx - 4 + randi_range(0, 3), by + dy, 1.5, S_LIGHT)
 
-	# Palm fronds (radiating leaves)
-	var frond_base_x := cx + int(sin((by - 80 - (by - 80)) * 0.03) * 8)
-	var frond_base_y := by - 85
-	for frond in range(7):
-		var angle := (frond - 3) * 0.5
-		for i in range(35):
-			var droop: float = i * i * 0.008
-			var fx := frond_base_x + int(cos(angle) * i * 1.5)
-			var fy := frond_base_y + int(sin(angle) * i * 0.5 + droop)
-			var width: int = max(1, 4 - i / 10)
-			for dx in range(-width, width + 1):
-				if fx + dx >= 0 and fx + dx < 64 and fy >= 0 and fy < 128:
-					img.set_pixel(fx + dx, fy, leaves * (0.7 + randf() * 0.3))
+func _draw_palm_tree(img: Image, cx: int, by: int) -> void:
+	_soft_shadow(img, cx, by - 2, 14, 4)
 
-func _draw_frost_pine(img: Image, cx: int, by: int, trunk: Color, leaves: Color) -> void:
-	# Icy trunk
-	for y in range(by - 30, by):
-		for dx in range(-2, 3):
-			var px := cx + dx
-			if px >= 0 and px < 64:
-				var ice: Color = trunk.lerp(Color(0.9, 0.95, 1.0), randf() * 0.3)
-				img.set_pixel(px, y, ice)
+	# Curved S_DARKER trunk (stack of offset circles curving)
+	for i in range(35):
+		var t := float(i) / 35.0
+		var curve := sin(t * 1.2) * 16.0
+		var y_pos := by - i * 5.0
+		var radius := 5.5 - t * 2.0
+		_aa_circle(img, cx + curve, y_pos, radius, S_DARKER)
+		# Ring texture
+		if i % 3 == 0:
+			_aa_circle(img, cx + curve, y_pos, radius + 0.5, Color(S_BLACK.r, S_BLACK.g, S_BLACK.b, 0.3))
 
-	# Snow-covered pine layers - triangles point UP (wide at bottom, narrow at top)
+	var top_x := cx + sin(1.0 * 1.2) * 16.0
+	var top_y := by - 175.0
+
+	# P_DARK frond ellipses radiating from top
+	for f in range(7):
+		var angle := (f - 3) * 0.45
+		var frond_len := 45.0
+		var droop := 20.0
+		var end_x := top_x + cos(angle) * frond_len
+		var end_y := top_y + sin(angle) * frond_len * 0.3 + droop
+		var mid_x := (top_x + end_x) / 2.0
+		var mid_y := (top_y + end_y) / 2.0 - 5.0
+		_aa_ellipse(img, mid_x, mid_y, frond_len * 0.4, 5, P_DARK)
+		_aa_line(img, top_x, top_y, end_x, end_y, P_DARK, 3.0)
+
+	# S_MED coconut dots
+	_aa_circle(img, top_x - 4, top_y + 8, 4, S_MED)
+	_aa_circle(img, top_x + 5, top_y + 6, 3.5, S_MED)
+	_aa_circle(img, top_x + 1, top_y + 10, 3, S_DARK)
+
+func _draw_frost_pine(img: Image, cx: int, by: int) -> void:
+	_soft_shadow(img, cx, by - 2, 14, 4)
+
+	# P_DARKER trunk
+	_gradient_rect(img, cx - 4, by - 60, 8, 60, P_DARK, P_DARKER)
+
+	# P_LIGHT layers with P_WHITE snow caps
 	for layer in range(5):
-		var layer_base_y: int = by - 40 - layer * 15  # Bottom of this layer
-		var layer_height: int = 20
-		var layer_width: int = 22 - layer * 3
-		for y in range(layer_base_y - layer_height, layer_base_y):
-			var progress: float = float(layer_base_y - y) / float(layer_height)  # 0 at bottom, 1 at top
-			var width: int = int(layer_width * (1.0 - progress))  # Wide at bottom, narrow at top
-			for dx in range(-width, width + 1):
-				var px := cx + dx
-				if px >= 0 and px < 64 and y >= 0 and y < 128:
-					# Snow on top (near tip), darker underneath
-					var snow_amount: float = progress * 0.7  # More snow near the top
-					var color: Color = leaves.lerp(Color(1, 1, 1), snow_amount * 0.6)
-					img.set_pixel(px, y, color * (0.85 + randf() * 0.15))
+		var layer_y := by - 75 - layer * 32
+		var layer_rx := 42.0 - layer * 6.0
+		var layer_ry := 20.0 - layer * 2.0
+		# Main layer
+		_aa_ellipse(img, cx, layer_y, layer_rx, layer_ry, P_LIGHT)
+		# Snow cap on top
+		_aa_ellipse(img, cx, layer_y - layer_ry * 0.5, layer_rx * 0.9, layer_ry * 0.4, P_WHITE)
 
-	# Snow cap at very top
-	for dy in range(-8, 0):
-		var width: int = 3 - abs(dy) / 3
-		for dx in range(-width, width + 1):
-			var px := cx + dx
-			var py := by - 115 + dy
-			if px >= 0 and px < 64 and py >= 0:
-				img.set_pixel(px, py, Color(1, 1, 1))
+	# Snow peak
+	_aa_circle(img, cx, by - 240, 8, P_WHITE)
+	_aa_circle(img, cx, by - 245, 4, Color(1, 1, 1))
 
-func _draw_crystal_tree(img: Image, cx: int, by: int, trunk: Color, leaves: Color) -> void:
-	# Crystalline trunk
-	for y in range(by - 50, by):
-		var width: int = 3 + int((by - y) * 0.02)
-		for dx in range(-width, width + 1):
-			var px := cx + dx
-			if px >= 0 and px < 64:
-				var sparkle: Color = trunk.lerp(Color(1, 0.8, 1), randf() * 0.4)
-				img.set_pixel(px, y, sparkle)
+func _draw_crystal_tree(img: Image, cx: int, by: int) -> void:
+	_soft_shadow(img, cx, by - 2, 14, 5)
 
-	# Magical crystal canopy with intense glow
-	for dy in range(-60, 5):
-		for dx in range(-20, 21):
-			if dx * dx + dy * dy < 380 + randf() * 120:
-				var px := cx + dx
-				var py := by - 75 + dy
-				if px >= 0 and px < 64 and py >= 0 and py < 128:
-					var is_sparkle: bool = randf() < 0.15
-					var is_bright: bool = randf() < 0.1
-					var color: Color
-					if is_bright:
-						color = Color(1, 1, 1)  # Bright white sparkle
-					elif is_sparkle:
-						color = Color(1, 0.7, 1.0)  # Pink sparkle
-					else:
-						color = leaves * (0.8 + randf() * 0.4)
-					img.set_pixel(px, py, color)
+	# P_MED trunk
+	_gradient_rect(img, cx - 6, by - 100, 12, 100, P_LIGHT, P_MED)
 
-func _draw_ember_tree(img: Image, cx: int, by: int, trunk: Color, leaves: Color) -> void:
-	# Charred trunk with glowing cracks
-	for y in range(by - 70, by):
-		var width: int = 4 + int((by - y) * 0.025)
-		for dx in range(-width, width + 1):
-			var px := cx + dx
-			if px >= 0 and px < 64:
-				var is_ember: bool = randf() < 0.1
-				var color: Color
-				if is_ember:
-					color = Color(1, 0.4, 0.1)  # Glowing ember
-				else:
-					color = trunk * (0.7 + randf() * 0.2)
-				img.set_pixel(px, y, color)
+	# P_LIGHT canopy
+	_aa_ellipse(img, cx, by - 145, 36, 34, P_LIGHT)
+	_aa_ellipse(img, cx - 12, by - 150, 26, 26, P_LIGHTER)
 
-	# Flame-like canopy
-	for dy in range(-45, 15):
-		for dx in range(-18, 19):
-			var dist: float = sqrt(dx * dx + dy * dy)
-			if dist < 22 + randf() * 8:
-				var px := cx + dx
-				var py := by - 80 + dy
-				if px >= 0 and px < 64 and py >= 0 and py < 128:
-					var flame_t: float = dist / 25.0
-					var color: Color = Color(1, 0.9, 0.3).lerp(leaves, flame_t)
-					if randf() < 0.2:
-						color = Color(1, 0.5, 0.1)  # Hot spots
-					img.set_pixel(px, py, color * (0.7 + randf() * 0.3))
+	# P_WHITE sparkles (metallic crystal effect)
+	for i in range(15):
+		var dx := randi_range(-30, 30)
+		var dy := randi_range(-180, -115)
+		_aa_circle(img, cx + dx, by + dy, 2.0, P_WHITE)
 
-func _draw_dark_oak(img: Image, cx: int, by: int, trunk: Color, leaves: Color) -> void:
-	# Very dark twisted trunk
-	for y in range(by - 60, by):
-		var twist: int = int(sin(y * 0.08) * 5)
-		var width: int = 5 + int((by - y) * 0.03)
-		for dx in range(-width, width + 1):
-			var px := cx + dx + twist
-			if px >= 0 and px < 64:
-				img.set_pixel(px, y, trunk * (0.6 + randf() * 0.3))
+	# S_HIGHLIGHT sparkles
+	for i in range(10):
+		var dx := randi_range(-28, 28)
+		var dy := randi_range(-175, -120)
+		_aa_circle(img, cx + dx, by + dy, 1.5, S_HIGHLIGHT)
 
-	# Very dark, dense canopy
-	var centers := [Vector2i(cx, by - 75), Vector2i(cx - 14, by - 60), Vector2i(cx + 14, by - 60)]
-	for center in centers:
-		for dy in range(-30, 25):
-			for dx in range(-22, 23):
-				if dx * dx + dy * dy < 450 + randf() * 150:
-					var px: int = center.x + dx
-					var py: int = center.y + dy
-					if px >= 0 and px < 64 and py >= 0 and py < 128:
-						var existing: Color = img.get_pixel(px, py)
-						if existing.a < 0.5:
-							# Very dark green, almost black
-							var shade: float = 0.5 + randf() * 0.4
-							img.set_pixel(px, py, leaves * shade)
+	_metallic_highlight(img, cx - 8, by - 155, 28.0)
 
-	# Occasional glowing eye or mushroom
-	if randf() < 0.3:
-		var eye_x := cx + randi_range(-10, 10)
-		var eye_y := by - 50 + randi_range(-10, 10)
-		if eye_x >= 0 and eye_x < 64 and eye_y >= 0 and eye_y < 128:
-			img.set_pixel(eye_x, eye_y, Color(0.3, 1, 0.4))
+func _draw_ember_tree(img: Image, cx: int, by: int) -> void:
+	_soft_shadow(img, cx, by - 2, 14, 5)
+
+	# N_DARK trunk with S_MED crack lines
+	_gradient_rect(img, cx - 7, by - 140, 14, 140, N_DARK, N_BLACK)
+	# Crack lines
+	for i in range(6):
+		var y_start := by - 20 - i * 20
+		_aa_line(img, cx - 3 + randi_range(-2, 2), y_start, cx + randi_range(-4, 4), y_start - 15, S_MED, 1.5)
+
+	# S_LIGHT canopy with S_MED hot center
+	_aa_ellipse(img, cx, by - 170, 34, 30, S_LIGHT)
+	_aa_ellipse(img, cx, by - 172, 22, 20, S_MED)
+	# Hot core
+	_aa_ellipse(img, cx - 5, by - 175, 12, 10, S_HIGHLIGHT)
+
+	# Ember particles
+	for i in range(10):
+		var dx := randi_range(-28, 28)
+		var dy := randi_range(-200, -145)
+		_aa_circle(img, cx + dx, by + dy, 1.5, S_LIGHT)
+
+func _draw_dark_oak(img: Image, cx: int, by: int) -> void:
+	_soft_shadow(img, cx, by - 2, 18, 5)
+
+	# P_BLACK trunk
+	_gradient_rect(img, cx - 10, by - 120, 20, 120, P_DARKER, P_BLACK)
+
+	# P_DARKER dense canopy
+	_aa_ellipse(img, cx - 22, by - 130, 30, 28, P_DARKER)
+	_aa_ellipse(img, cx + 22, by - 130, 30, 28, P_DARKER)
+	_aa_ellipse(img, cx, by - 155, 38, 34, P_DARKER)
+	# Even darker inner mass
+	_aa_ellipse(img, cx, by - 148, 28, 26, P_BLACK)
+
+	# Tiny S_MED eye dot
+	_aa_circle(img, cx + randi_range(-10, 10), by - 145, 2.5, S_MED)
 
 # ============================================
-# TREE SIDE-VIEW DRAWING FUNCTIONS
+# TREE SIDE-VIEW DRAWING FUNCTIONS (128x256)
 # ============================================
-# Side views shift the trunk off-center and narrow the canopy to give depth
-# when the DirectionalSprite switches angles as the camera orbits.
 
-func _draw_oak_tree_side(img: Image, cx: int, by: int, trunk: Color, leaves: Color) -> void:
-	# Trunk shifted left
+func _draw_oak_tree_side(img: Image, cx: int, by: int) -> void:
+	var tcx := cx - 16
+	_soft_shadow(img, tcx, by - 2, 14, 4)
+	_gradient_rect(img, tcx - 7, by - 100, 14, 100, S_DARK, S_DARKER)
+	_gradient_rect(img, tcx - 2, by - 95, 4, 90, S_DARK, S_DARKER)
+	var canopy_cx := cx - 8
+	_aa_ellipse(img, canopy_cx, by - 135, 28, 30, P_DARK)
+	_aa_ellipse(img, canopy_cx - 10, by - 125, 22, 22, P_DARK)
+	_aa_ellipse(img, canopy_cx + 5, by - 145, 24, 22, P_MED)
+	for i in range(8):
+		var dx := randi_range(-22, 22)
+		var dy := randi_range(-165, -105)
+		_aa_circle(img, canopy_cx + dx, by + dy, 1.5, S_MED)
+	_metallic_highlight(img, canopy_cx - 8, by - 148, 22.0)
+
+func _draw_pine_tree_side(img: Image, cx: int, by: int) -> void:
 	var tcx := cx - 8
-	for y in range(by - 50, by):
-		var width: int = 4 + int((by - y) * 0.03)
-		for dx in range(-width, width + 1):
-			var px := tcx + dx
-			if px >= 0 and px < 64:
-				var shade: float = 0.8 + randf() * 0.2
-				img.set_pixel(px, y, trunk * shade)
-
-	# Narrower, taller oval canopy offset to match trunk
-	var canopy_cx := cx - 4
-	for dy in range(-30, 20):
-		for dx in range(-14, 15):
-			# Oval: narrower horizontally, taller vertically
-			if (dx * dx) / 180.0 + (dy * dy) / 500.0 < 1.0 + randf() * 0.15:
-				var px: int = canopy_cx + dx
-				var py: int = by - 70 + dy
-				if px >= 0 and px < 64 and py >= 0 and py < 128:
-					var shade: float = 0.7 + randf() * 0.3
-					img.set_pixel(px, py, leaves * shade)
-
-func _draw_pine_tree_side(img: Image, cx: int, by: int, trunk: Color, leaves: Color) -> void:
-	# Trunk shifted slightly left
-	var tcx := cx - 4
-	for y in range(by - 35, by):
-		for dx in range(-3, 4):
-			var px := tcx + dx
-			if px >= 0 and px < 64:
-				img.set_pixel(px, y, trunk * (0.85 + randf() * 0.15))
-
-	# Narrower triangular pine layers
+	_soft_shadow(img, tcx, by - 2, 10, 3)
+	_gradient_rect(img, tcx - 4, by - 70, 8, 70, S_DARK, S_DARKER)
 	for layer in range(4):
-		var layer_base_y: int = by - 45 - layer * 18
-		var layer_height: int = 25
-		var layer_width: int = 18 - layer * 3  # Narrower than front (25 -> 18)
-		for y in range(layer_base_y - layer_height, layer_base_y):
-			var progress: float = float(layer_base_y - y) / float(layer_height)
-			var width: int = int(layer_width * (1.0 - progress))
-			for dx in range(-width, width + 1):
-				var px := tcx + dx
-				if px >= 0 and px < 64 and y >= 0 and y < 128:
-					var shade: float = 0.75 + randf() * 0.25
-					img.set_pixel(px, y, leaves * shade)
+		var layer_y := by - 80 - layer * 38
+		var layer_rx := 30.0 - layer * 6.0
+		var layer_ry := 22.0 - layer * 3.0
+		_aa_ellipse(img, tcx, layer_y, layer_rx, layer_ry, P_DARK)
+		_aa_ellipse(img, tcx, layer_y + 5, layer_rx - 4, layer_ry * 0.4, P_DARKER)
+	_aa_ellipse(img, tcx, by - 192, 14, 8, P_LIGHT)
 
-func _draw_dead_tree_side(img: Image, cx: int, by: int, trunk: Color) -> void:
-	# Trunk shifted left with different twist
+func _draw_dead_tree_side(img: Image, cx: int, by: int) -> void:
+	var tcx := cx - 12
+	_soft_shadow(img, tcx, by - 2, 10, 3)
+	for i in range(30):
+		var t := float(i) / 30.0
+		var twist := sin(t * 5.0) * 4.0
+		var y_pos := by - i * 5.5
+		var radius := 5.5 - t * 2.0
+		_aa_circle(img, tcx + twist, y_pos, radius, N_DARK)
+	_aa_line(img, tcx, by - 120, tcx + 35, by - 150, N_MED, 2.5)
+	_aa_line(img, tcx, by - 100, tcx - 25, by - 140, N_MED, 2.5)
+	_aa_line(img, tcx + 5, by - 80, tcx + 30, by - 120, N_MED, 2.0)
+	_aa_line(img, tcx + 35, by - 150, tcx + 45, by - 165, N_LIGHT, 1.5)
+	_aa_line(img, tcx - 25, by - 140, tcx - 35, by - 155, N_LIGHT, 1.5)
+
+func _draw_magic_tree_side(img: Image, cx: int, by: int) -> void:
+	var tcx := cx - 16
+	_soft_shadow(img, tcx, by - 2, 12, 4)
+	_gradient_rect(img, tcx - 6, by - 120, 12, 120, P_MED, P_DARK)
+	_gradient_rect(img, tcx - 2, by - 115, 4, 110, P_LIGHT, P_MED)
+	var canopy_cx := cx - 8
+	_aa_ellipse(img, canopy_cx, by - 148, 30, 28, P_MED)
+	_aa_ellipse(img, canopy_cx - 6, by - 152, 22, 20, P_LIGHT)
+	for i in range(14):
+		var dx := randi_range(-24, 24)
+		var dy := randi_range(-178, -125)
+		_aa_circle(img, canopy_cx + dx, by + dy, 1.2, P_LIGHT)
+	for i in range(6):
+		var dx := randi_range(-20, 20)
+		var dy := randi_range(-170, -130)
+		_aa_circle(img, canopy_cx + dx, by + dy, 1.8, S_MED)
+
+func _draw_swamp_tree_side(img: Image, cx: int, by: int) -> void:
+	var tcx := cx - 12
+	_soft_shadow(img, tcx, by - 2, 12, 4)
+	for i in range(25):
+		var t := float(i) / 25.0
+		var twist := sin(t * 4.0) * 6.0
+		var y_pos := by - i * 4.5
+		var radius := 6.0 - t * 1.5
+		_aa_circle(img, tcx + twist, y_pos, radius, N_DARK)
+	var canopy_cx := cx - 6
+	_aa_ellipse(img, canopy_cx, by - 128, 26, 24, P_DARK)
+	_aa_ellipse(img, canopy_cx + 4, by - 122, 20, 18, S_DARK)
+	for i in range(7):
+		var mx := canopy_cx - 20 + i * 6
+		var top_y := by - 108 + randi_range(0, 12)
+		var hang := randi_range(12, 32)
+		_aa_line(img, mx, top_y, mx + randi_range(-2, 2), top_y + hang, N_MED, 1.0)
+
+func _draw_cactus_side(img: Image, cx: int, by: int) -> void:
+	_soft_shadow(img, cx, by - 2, 10, 3)
+	# Main body narrower from side
+	_aa_ellipse(img, cx, by - 70, 11, 65, S_DARK)
+	_aa_ellipse(img, cx - 2, by - 70, 4, 58, S_MED)
+	# One arm visible from side
+	_aa_ellipse(img, cx - 18, by - 100, 7, 18, S_DARK)
+	_aa_line(img, cx - 8, by - 95, cx - 18, by - 103, S_DARK, 7.0)
+	_aa_ellipse(img, cx - 19, by - 103, 2.5, 12, S_MED)
+	for i in range(5):
+		var dy := randi_range(-125, -20)
+		_aa_circle(img, cx - 3 + randi_range(0, 2), by + dy, 1.2, S_LIGHT)
+
+func _draw_palm_tree_side(img: Image, cx: int, by: int) -> void:
+	_soft_shadow(img, cx, by - 2, 12, 3)
+	for i in range(35):
+		var t := float(i) / 35.0
+		var curve := sin(t * 1.0) * 22.0
+		var y_pos := by - i * 5.0
+		var radius := 5.0 - t * 1.8
+		_aa_circle(img, cx + curve, y_pos, radius, S_DARKER)
+		if i % 3 == 0:
+			_aa_circle(img, cx + curve, y_pos, radius + 0.5, Color(S_BLACK.r, S_BLACK.g, S_BLACK.b, 0.3))
+	var top_x := cx + sin(1.0) * 22.0
+	var top_y := by - 175.0
+	for f in range(5):
+		var angle := (f - 2) * 0.55
+		var frond_len := 38.0
+		var droop := 18.0
+		var end_x := top_x + cos(angle) * frond_len
+		var end_y := top_y + sin(angle) * frond_len * 0.3 + droop
+		var mid_x := (top_x + end_x) / 2.0
+		var mid_y := (top_y + end_y) / 2.0 - 4.0
+		_aa_ellipse(img, mid_x, mid_y, frond_len * 0.35, 4, P_DARK)
+		_aa_line(img, top_x, top_y, end_x, end_y, P_DARK, 2.5)
+	_aa_circle(img, top_x - 3, top_y + 7, 3.5, S_MED)
+	_aa_circle(img, top_x + 4, top_y + 5, 3, S_MED)
+
+func _draw_frost_pine_side(img: Image, cx: int, by: int) -> void:
 	var tcx := cx - 6
-	for y in range(by - 80, by):
-		var twist: int = int(sin(y * 0.12) * 2)
-		var width: int = 3 + int((by - y) * 0.02)
-		for dx in range(-width, width + 1):
-			var px := tcx + dx + twist
-			if px >= 0 and px < 64:
-				img.set_pixel(px, y, trunk * (0.7 + randf() * 0.3))
-
-	# Branches reaching in different directions from side view
-	var branches := [
-		{"start": Vector2i(tcx, by - 60), "dir": Vector2i(20, -15)},
-		{"start": Vector2i(tcx, by - 50), "dir": Vector2i(-12, -20)},
-		{"start": Vector2i(tcx, by - 40), "dir": Vector2i(18, -10)},
-		{"start": Vector2i(tcx, by - 70), "dir": Vector2i(14, -22)},
-	]
-	for branch in branches:
-		_draw_branch(img, branch["start"], branch["dir"], trunk, 8)
-
-func _draw_magic_tree_side(img: Image, cx: int, by: int, trunk: Color, leaves: Color) -> void:
-	# Trunk shifted left
-	var tcx := cx - 8
-	for y in range(by - 60, by):
-		var width: int = 4 + int((by - y) * 0.025)
-		for dx in range(-width, width + 1):
-			var px := tcx + dx
-			if px >= 0 and px < 64:
-				var glow: Color = trunk.lerp(Color(0.6, 0.3, 0.8), randf() * 0.3)
-				img.set_pixel(px, y, glow)
-
-	# Narrower mystical canopy
-	var canopy_cx := cx - 4
-	for dy in range(-55, 10):
-		for dx in range(-16, 17):
-			if dx * dx + dy * dy < 300 + randf() * 120:
-				var px := canopy_cx + dx
-				var py := by - 75 + dy
-				if px >= 0 and px < 64 and py >= 0 and py < 128:
-					var is_sparkle: bool = randf() < 0.05
-					var color: Color = leaves if not is_sparkle else Color(1, 0.9, 1.0)
-					img.set_pixel(px, py, color * (0.7 + randf() * 0.3))
-
-func _draw_swamp_tree_side(img: Image, cx: int, by: int, trunk: Color, leaves: Color) -> void:
-	# Trunk shifted left with different twist
-	var tcx := cx - 6
-	for y in range(by - 55, by):
-		var twist: int = int(sin(y * 0.12) * 3)
-		var width: int = 3 + int((by - y) * 0.02) + (2 if y > by - 10 else 0)
-		for dx in range(-width, width + 1):
-			var px := tcx + dx + twist
-			if px >= 0 and px < 64:
-				img.set_pixel(px, y, trunk * (0.7 + randf() * 0.2))
-
-	# Narrower scraggly canopy
-	var canopy_cx := cx - 3
-	for dy in range(-40, 15):
-		for dx in range(-13, 14):
-			var dist: float = sqrt(dx * dx + dy * dy)
-			if dist < 20 + randf() * 8:
-				var px := canopy_cx + dx
-				var py := by - 70 + dy
-				if px >= 0 and px < 64 and py >= 0 and py < 128 and randf() > 0.15:
-					var moss: Color = leaves.lerp(Color(0.4, 0.45, 0.3), randf() * 0.4)
-					img.set_pixel(px, py, moss)
-
-	# Hanging moss (fewer strands from side)
-	for x in range(canopy_cx - 10, canopy_cx + 11, 4):
-		if randf() > 0.5:
-			var hang_length: int = randi_range(6, 16)
-			for y in range(by - 55, by - 55 + hang_length):
-				if x >= 0 and x < 64 and y >= 0 and y < 128:
-					img.set_pixel(x, y, Color(0.35, 0.4, 0.3, 0.8))
-
-func _draw_cactus_side(img: Image, cx: int, by: int, trunk: Color) -> void:
-	# Main body - narrower from side
-	for y in range(by - 70, by):
-		var width: int = 5 - int(abs(y - (by - 35)) * 0.03)
-		width = max(3, width)
-		for dx in range(-width, width + 1):
-			var px := cx + dx
-			if px >= 0 and px < 64:
-				var shade: float = 0.8 + randf() * 0.2
-				img.set_pixel(px, y, trunk * shade)
-
-	# Only one arm visible from side (the left arm, appearing in front)
-	var arm_y := by - 50
-	for i in range(12):
-		var px := cx - 6 - int(i * 0.2)
-		var py := arm_y - i
-		for dx in range(-3, 4):
-			if px + dx >= 0 and px + dx < 64 and py >= 0:
-				img.set_pixel(px + dx, py, trunk * (0.85 + randf() * 0.15))
-	# Arm vertical part
-	for i in range(18):
-		var px := cx - 9
-		var py := arm_y - 12 + i
-		for dx in range(-3, 4):
-			if px + dx >= 0 and px + dx < 64 and py >= 0 and py < 128:
-				img.set_pixel(px + dx, py, trunk * (0.85 + randf() * 0.15))
-
-func _draw_palm_tree_side(img: Image, cx: int, by: int, trunk: Color, leaves: Color) -> void:
-	# Curved trunk - curve goes to one side only (more pronounced)
-	for y in range(by - 80, by):
-		var curve: int = int(sin((y - (by - 80)) * 0.025) * 12)
-		var width: int = 3 + int((by - y) * 0.015)
-		for dx in range(-width, width + 1):
-			var px := cx + dx + curve
-			if px >= 0 and px < 64:
-				var ring: float = 0.85 + (sin(y * 0.5) * 0.1)
-				img.set_pixel(px, y, trunk * ring)
-
-	# Palm fronds from side - more stacked, less spread
-	var frond_base_x := cx + int(sin((0) * 0.025) * 12)
-	var frond_base_y := by - 85
-	for frond in range(5):
-		var angle := (frond - 2) * 0.6
-		for i in range(30):
-			var droop: float = i * i * 0.01
-			var fx := frond_base_x + int(cos(angle) * i * 1.2)
-			var fy := frond_base_y + int(sin(angle) * i * 0.4 + droop)
-			var width: int = max(1, 3 - i / 10)
-			for dx in range(-width, width + 1):
-				if fx + dx >= 0 and fx + dx < 64 and fy >= 0 and fy < 128:
-					img.set_pixel(fx + dx, fy, leaves * (0.7 + randf() * 0.3))
-
-func _draw_frost_pine_side(img: Image, cx: int, by: int, trunk: Color, leaves: Color) -> void:
-	# Trunk shifted slightly left
-	var tcx := cx - 3
-	for y in range(by - 30, by):
-		for dx in range(-2, 3):
-			var px := tcx + dx
-			if px >= 0 and px < 64:
-				var ice: Color = trunk.lerp(Color(0.9, 0.95, 1.0), randf() * 0.3)
-				img.set_pixel(px, y, ice)
-
-	# Narrower snow-covered layers
+	_soft_shadow(img, tcx, by - 2, 10, 3)
+	_gradient_rect(img, tcx - 3, by - 60, 6, 60, P_DARK, P_DARKER)
 	for layer in range(5):
-		var layer_base_y: int = by - 40 - layer * 15
-		var layer_height: int = 20
-		var layer_width: int = 16 - layer * 2  # Narrower than front (22 -> 16)
-		for y in range(layer_base_y - layer_height, layer_base_y):
-			var progress: float = float(layer_base_y - y) / float(layer_height)
-			var width: int = int(layer_width * (1.0 - progress))
-			for dx in range(-width, width + 1):
-				var px := tcx + dx
-				if px >= 0 and px < 64 and y >= 0 and y < 128:
-					var snow_amount: float = progress * 0.7
-					var color: Color = leaves.lerp(Color(1, 1, 1), snow_amount * 0.6)
-					img.set_pixel(px, y, color * (0.85 + randf() * 0.15))
+		var layer_y := by - 75 - layer * 32
+		var layer_rx := 32.0 - layer * 5.0
+		var layer_ry := 18.0 - layer * 2.0
+		_aa_ellipse(img, tcx, layer_y, layer_rx, layer_ry, P_LIGHT)
+		_aa_ellipse(img, tcx, layer_y - layer_ry * 0.5, layer_rx * 0.85, layer_ry * 0.35, P_WHITE)
+	_aa_circle(img, tcx, by - 238, 5, P_WHITE)
 
-	# Snow cap
-	for dy in range(-8, 0):
-		var width: int = 2 - abs(dy) / 4
-		for dx in range(-width, width + 1):
-			var px := tcx + dx
-			var py := by - 115 + dy
-			if px >= 0 and px < 64 and py >= 0:
-				img.set_pixel(px, py, Color(1, 1, 1))
+func _draw_crystal_tree_side(img: Image, cx: int, by: int) -> void:
+	var tcx := cx - 14
+	_soft_shadow(img, tcx, by - 2, 12, 4)
+	_gradient_rect(img, tcx - 5, by - 100, 10, 100, P_LIGHT, P_MED)
+	var canopy_cx := cx - 6
+	_aa_ellipse(img, canopy_cx, by - 143, 28, 28, P_LIGHT)
+	_aa_ellipse(img, canopy_cx - 8, by - 148, 20, 20, P_LIGHTER)
+	for i in range(10):
+		var dx := randi_range(-22, 22)
+		var dy := randi_range(-172, -118)
+		_aa_circle(img, canopy_cx + dx, by + dy, 1.8, P_WHITE)
+	for i in range(7):
+		var dx := randi_range(-20, 20)
+		var dy := randi_range(-168, -122)
+		_aa_circle(img, canopy_cx + dx, by + dy, 1.3, S_HIGHLIGHT)
 
-func _draw_crystal_tree_side(img: Image, cx: int, by: int, trunk: Color, leaves: Color) -> void:
-	# Trunk shifted left
-	var tcx := cx - 7
-	for y in range(by - 50, by):
-		var width: int = 3 + int((by - y) * 0.02)
-		for dx in range(-width, width + 1):
-			var px := tcx + dx
-			if px >= 0 and px < 64:
-				var sparkle: Color = trunk.lerp(Color(1, 0.8, 1), randf() * 0.4)
-				img.set_pixel(px, y, sparkle)
+func _draw_ember_tree_side(img: Image, cx: int, by: int) -> void:
+	var tcx := cx - 14
+	_soft_shadow(img, tcx, by - 2, 12, 4)
+	_gradient_rect(img, tcx - 6, by - 140, 12, 140, N_DARK, N_BLACK)
+	for i in range(5):
+		var y_start := by - 20 - i * 22
+		_aa_line(img, tcx - 2 + randi_range(-2, 2), y_start, tcx + randi_range(-3, 3), y_start - 14, S_MED, 1.5)
+	var canopy_cx := cx - 6
+	_aa_ellipse(img, canopy_cx, by - 168, 28, 24, S_LIGHT)
+	_aa_ellipse(img, canopy_cx, by - 170, 18, 16, S_MED)
+	_aa_ellipse(img, canopy_cx - 4, by - 172, 10, 8, S_HIGHLIGHT)
+	for i in range(7):
+		var dx := randi_range(-22, 22)
+		var dy := randi_range(-192, -148)
+		_aa_circle(img, canopy_cx + dx, by + dy, 1.3, S_LIGHT)
 
-	# Narrower crystal canopy
-	var canopy_cx := cx - 3
-	for dy in range(-60, 5):
-		for dx in range(-15, 16):
-			if dx * dx + dy * dy < 280 + randf() * 100:
-				var px := canopy_cx + dx
-				var py := by - 75 + dy
-				if px >= 0 and px < 64 and py >= 0 and py < 128:
-					var is_sparkle: bool = randf() < 0.15
-					var is_bright: bool = randf() < 0.1
-					var color: Color
-					if is_bright:
-						color = Color(1, 1, 1)
-					elif is_sparkle:
-						color = Color(1, 0.7, 1.0)
-					else:
-						color = leaves * (0.8 + randf() * 0.4)
-					img.set_pixel(px, py, color)
-
-func _draw_ember_tree_side(img: Image, cx: int, by: int, trunk: Color, leaves: Color) -> void:
-	# Trunk shifted left
-	var tcx := cx - 7
-	for y in range(by - 70, by):
-		var width: int = 4 + int((by - y) * 0.025)
-		for dx in range(-width, width + 1):
-			var px := tcx + dx
-			if px >= 0 and px < 64:
-				var is_ember: bool = randf() < 0.1
-				var color: Color
-				if is_ember:
-					color = Color(1, 0.4, 0.1)
-				else:
-					color = trunk * (0.7 + randf() * 0.2)
-				img.set_pixel(px, y, color)
-
-	# Narrower flame canopy
-	var canopy_cx := cx - 3
-	for dy in range(-45, 15):
-		for dx in range(-13, 14):
-			var dist: float = sqrt(dx * dx + dy * dy)
-			if dist < 18 + randf() * 6:
-				var px := canopy_cx + dx
-				var py := by - 80 + dy
-				if px >= 0 and px < 64 and py >= 0 and py < 128:
-					var flame_t: float = dist / 20.0
-					var color: Color = Color(1, 0.9, 0.3).lerp(leaves, flame_t)
-					if randf() < 0.2:
-						color = Color(1, 0.5, 0.1)
-					img.set_pixel(px, py, color * (0.7 + randf() * 0.3))
-
-func _draw_dark_oak_side(img: Image, cx: int, by: int, trunk: Color, leaves: Color) -> void:
-	# Trunk shifted left with different twist
-	var tcx := cx - 8
-	for y in range(by - 60, by):
-		var twist: int = int(sin(y * 0.1) * 3)
-		var width: int = 5 + int((by - y) * 0.03)
-		for dx in range(-width, width + 1):
-			var px := tcx + dx + twist
-			if px >= 0 and px < 64:
-				img.set_pixel(px, y, trunk * (0.6 + randf() * 0.3))
-
-	# Narrower, taller dark canopy
-	var canopy_cx := cx - 4
-	var centers := [Vector2i(canopy_cx, by - 75), Vector2i(canopy_cx - 8, by - 62)]
-	for center in centers:
-		for dy in range(-30, 25):
-			for dx in range(-16, 17):
-				if dx * dx + dy * dy < 350 + randf() * 120:
-					var px: int = center.x + dx
-					var py: int = center.y + dy
-					if px >= 0 and px < 64 and py >= 0 and py < 128:
-						var existing: Color = img.get_pixel(px, py)
-						if existing.a < 0.5:
-							var shade: float = 0.5 + randf() * 0.4
-							img.set_pixel(px, py, leaves * shade)
-
-	# Occasional glowing eye
-	if randf() < 0.3:
-		var eye_x := canopy_cx + randi_range(-8, 8)
-		var eye_y := by - 50 + randi_range(-10, 10)
-		if eye_x >= 0 and eye_x < 64 and eye_y >= 0 and eye_y < 128:
-			img.set_pixel(eye_x, eye_y, Color(0.3, 1, 0.4))
+func _draw_dark_oak_side(img: Image, cx: int, by: int) -> void:
+	var tcx := cx - 16
+	_soft_shadow(img, tcx, by - 2, 14, 4)
+	_gradient_rect(img, tcx - 9, by - 120, 18, 120, P_DARKER, P_BLACK)
+	var canopy_cx := cx - 8
+	_aa_ellipse(img, canopy_cx, by - 148, 30, 30, P_DARKER)
+	_aa_ellipse(img, canopy_cx - 12, by - 130, 22, 22, P_DARKER)
+	_aa_ellipse(img, canopy_cx, by - 142, 22, 22, P_BLACK)
+	_aa_circle(img, canopy_cx + randi_range(-8, 8), by - 142, 2.0, S_MED)
 
 # ============================================
 # SPELL EFFECT TEXTURES
@@ -2420,10 +2341,8 @@ func _draw_sheep_back(img: Image, wool_white: Color, wool_light: Color, wool_sha
 	_apply_lighting(img)
 
 
-
-
 # ============================================
-# BUSH TEXTURE (32x32 pixels)
+# BUSH TEXTURE (64x64 pixels)
 # ============================================
 func generate_bush_texture() -> ImageTexture:
 	var cache_key := "bush"
@@ -2436,62 +2355,36 @@ func generate_bush_texture() -> ImageTexture:
 		texture_cache[cache_key] = override
 		return override
 
-	var img := Image.create(32, 32, false, Image.FORMAT_RGBA8)
+	var img := Image.create(64, 64, false, Image.FORMAT_RGBA8)
 	img.fill(Color(0, 0, 0, 0))
 
-	var cx := 16
-	var cy := 20  # Center slightly low (ground plant)
+	var cx := 32.0
+	var cy := 38.0
 
-	# Draw some brown twigs first (behind the leaves)
-	var twig_color := Color(0.4, 0.28, 0.15)
-	for twig in range(5):
-		var tx: int = cx - 6 + twig * 3
-		for ty in range(cy - 4, cy + 6):
-			if tx >= 0 and tx < 32 and ty >= 0 and ty < 32:
-				if randf() > 0.3:
-					_px(img, tx, ty, twig_color * (0.8 + randf() * 0.2))
+	# Soft shadow at base
+	_soft_shadow(img, cx, 56, 20, 5)
 
-	# Draw leafy bush shape - wide, low ellipse with irregular edges
-	var leaf_colors := [
-		Color(0.2, 0.5, 0.18),   # Dark green
-		Color(0.28, 0.58, 0.22), # Medium green
-		Color(0.35, 0.65, 0.25), # Light green
-		Color(0.22, 0.45, 0.15), # Deep green
-	]
+	# S_DARKER twig lines behind leaves
+	for i in range(6):
+		var tx := cx - 12 + i * 5
+		_aa_line(img, tx, cy + 4, tx + randi_range(-3, 3), cy - 8 + randi_range(-3, 3), S_DARKER, 1.5)
 
-	# Main bush body - multiple overlapping ellipses for organic shape
-	var clusters := [
-		Vector2(cx, cy),           # Center
-		Vector2(cx - 5, cy + 1),   # Left
-		Vector2(cx + 5, cy + 1),   # Right
-		Vector2(cx - 2, cy - 3),   # Upper left
-		Vector2(cx + 2, cy - 3),   # Upper right
-	]
+	# 3-4 overlapping P_DARK ellipses
+	_aa_ellipse(img, cx, cy, 22, 16, P_DARK)
+	_aa_ellipse(img, cx - 8, cy + 2, 16, 13, P_DARK)
+	_aa_ellipse(img, cx + 8, cy + 2, 16, 13, P_DARK)
+	_aa_ellipse(img, cx - 3, cy - 5, 18, 12, P_DARK)
 
-	for cluster in clusters:
-		var rx: float = 8.0 + randf() * 3.0
-		var ry: float = 5.0 + randf() * 2.0
-		for y in range(32):
-			for x in range(32):
-				var dx: float = (x - cluster.x) / rx
-				var dy: float = (y - cluster.y) / ry
-				var dist: float = dx * dx + dy * dy
-				# Add noise to edge for organic look
-				var noise: float = sin(x * 1.5) * 0.15 + cos(y * 2.0) * 0.1
-				if dist + noise < 1.0:
-					var leaf_col: Color = leaf_colors[randi() % leaf_colors.size()]
-					var shade: float = 0.75 + randf() * 0.25
-					# Lighter on top for sunlight effect
-					var sun: float = (1.0 - float(y) / 32.0) * 0.15
-					_px(img, x, y, leaf_col * (shade + sun))
+	# Lighter highlight on top
+	_aa_ellipse(img, cx - 4, cy - 6, 12, 8, P_MED)
 
-	# Add a few highlight spots (berries or light leaves)
-	for _i in range(4):
-		var hx: int = cx - 6 + randi() % 13
-		var hy: int = cy - 4 + randi() % 8
-		if hx >= 0 and hx < 32 and hy >= 0 and hy < 32:
-			var highlight := Color(0.4, 0.7, 0.3)
-			_px(img, hx, hy, highlight)
+	# S_MED metallic berry dots
+	for i in range(7):
+		var bx := cx + randi_range(-16, 16)
+		var b_y := cy + randi_range(-10, 8)
+		_aa_circle(img, bx, b_y, 2.0, S_MED)
+
+	_metallic_highlight(img, cx - 6, cy - 8, 16.0)
 
 	_save_texture_png(cache_key, img)
 	var tex := ImageTexture.create_from_image(img)
