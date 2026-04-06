@@ -34,7 +34,7 @@ var rng: RandomNumberGenerator = RandomNumberGenerator.new()
 var tree_pool: Array[StaticBody3D] = []
 var bush_pool: Array[StaticBody3D] = []
 var rock_pool: Array[StaticBody3D] = []
-var grass_pool: Array[Sprite3D] = []
+var grass_pool: Array[StaticBody3D] = []
 var decor_pool: Array[Sprite3D] = []
 var forageable_pool: Array[StaticBody3D] = []
 
@@ -127,6 +127,11 @@ const BIOME_DECOR: Dictionary = {
 
 # Forageable drops - forageables use collectible_bush_2d mechanics
 const FORAGEABLE_DROPS: Dictionary = {
+	"flower_blue": {"plant_fiber": 1},
+	"flower_gold": {"plant_fiber": 1},
+	"fern": {"plant_fiber": 2},
+	"tall_grass": {"plant_fiber": 1},
+	"cattail": {"plant_fiber": 1},
 	"blueberry_bush": {"blueberry": 2},
 	"carrot_plant": {"carrot": 1, "carrot_seed": 1},
 	"shadow_mushroom": {"dark_mushroom": 2},
@@ -372,14 +377,12 @@ func _create_object_pools() -> void:
 		add_child(rock)
 		rock_pool.append(rock)
 
-	# Create grass pool
+	# Create grass pool - each grass is a StaticBody3D with collision (collectible)
 	for _i in range(max_grass):
-		var sprite = _create_billboard_sprite()
-		sprite.texture = grass_texture
-		sprite.pixel_size = 0.015
-		sprite.visible = false
-		add_child(sprite)
-		grass_pool.append(sprite)
+		var grass = _create_grass_body()
+		grass.visible = false
+		add_child(grass)
+		grass_pool.append(grass)
 
 	# Create decoration pool (visual-only billboard sprites)
 	for _i in range(max_decor):
@@ -517,6 +520,34 @@ func _create_forageable_body() -> StaticBody3D:
 	return body
 
 
+func _create_grass_body() -> StaticBody3D:
+	var CollectibleBush2D = preload("res://client/collectible_bush_2d.gd")
+	var body = StaticBody3D.new()
+	body.set_script(CollectibleBush2D)
+	body.collision_layer = TREE_COLLISION_LAYER
+	body.collision_mask = 0
+
+	# Small box collision for grass
+	var collision = CollisionShape3D.new()
+	var box = BoxShape3D.new()
+	box.size = Vector3(0.3, 0.3, 0.3)
+	collision.shape = box
+	collision.position = Vector3(0, 0.15, 0)
+	body.add_child(collision)
+
+	# Billboard Sprite3D
+	var sprite = Sprite3D.new()
+	sprite.billboard = BaseMaterial3D.BILLBOARD_FIXED_Y
+	sprite.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
+	sprite.alpha_cut = SpriteBase3D.ALPHA_CUT_DISCARD
+	sprite.render_priority = 0
+	sprite.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	sprite.texture = grass_texture
+	body.add_child(sprite)
+
+	return body
+
+
 func _spawn_environment_around(center: Vector3) -> void:
 	last_spawn_center = center
 
@@ -539,7 +570,8 @@ func _spawn_environment_around(center: Vector3) -> void:
 		if not obj.is_destroyed:
 			obj.visible = false
 	for obj in grass_pool:
-		obj.visible = false
+		if not obj.is_destroyed:
+			obj.visible = false
 	for obj in decor_pool:
 		obj.visible = false
 	for obj in forageable_pool:
@@ -718,7 +750,14 @@ func _spawn_environment_around(center: Vector3) -> void:
 		# Spawn grass (only near player, only in biomes with grass)
 		if dist < spawn_radius * 0.5 and BIOME_HAS_GRASS.get(biome, true):
 			var num_grass = int(cell_area * grass_density * (0.5 + rng.randf()))
+			var grass_idx_in_cell: int = 0
 			for _g in range(num_grass):
+				if grass_idx >= max_grass:
+					break
+
+				# Skip grass that is destroyed (waiting to respawn)
+				while grass_idx < max_grass and grass_pool[grass_idx].is_destroyed:
+					grass_idx += 1
 				if grass_idx >= max_grass:
 					break
 
@@ -729,10 +768,21 @@ func _spawn_environment_around(center: Vector3) -> void:
 
 				var height = _get_terrain_height(world_x, world_z)
 				if height < 0 or height > 50:
+					grass_idx_in_cell += 1
+					continue
+
+				# Deterministic grass ID based on grid cell + index within cell
+				var grass_id := "2dg_%d_%d_%d" % [grid_x, grid_z, grass_idx_in_cell]
+				grass_idx_in_cell += 1
+
+				# Skip grass that was destroyed (synced from server)
+				if destroyed_object_ids.has(grass_id):
 					continue
 
 				var pos = Vector3(world_x, height, world_z)
 				_place_grass(grass_pool[grass_idx], pos, biome)
+				grass_pool[grass_idx].set_meta("tree_id", grass_id)
+				id_to_object[grass_id] = grass_pool[grass_idx]
 				active_grass[grid_key + "_g" + str(_g)] = grass_pool[grass_idx]
 				grass_idx += 1
 
@@ -945,7 +995,12 @@ func _place_rock(rock_body: StaticBody3D, pos: Vector3, biome: String = "valley"
 	rock_body.visible = true
 
 
-func _place_grass(sprite: Sprite3D, pos: Vector3, biome: String = "valley") -> void:
+func _place_grass(grass_body: StaticBody3D, pos: Vector3, biome: String = "valley") -> void:
+	var sprite = grass_body.get_child(1)  # Child 0 = collision, child 1 = billboard Sprite3D
+	if not sprite:
+		return
+
+	sprite.texture = grass_texture
 	sprite.pixel_size = 0.012  # Grass textures are 64x128 now
 	var scale_var = 0.4 + rng.randf() * 1.2  # Range: 0.4 to 1.6
 	sprite.scale = Vector3.ONE * scale_var
@@ -956,9 +1011,26 @@ func _place_grass(sprite: Sprite3D, pos: Vector3, biome: String = "valley") -> v
 	sprite.modulate = Color(1.0 - blue_shift * 0.3, 1.0 - blue_shift * 0.2, 1.0 + blue_shift) * brightness
 
 	var grass_height = 48 * sprite.pixel_size * scale_var
-	sprite.position = pos + Vector3(0, grass_height * 0.35, 0)
-	sprite.rotation.y = rng.randf() * TAU
-	sprite.visible = true
+	sprite.position = Vector3(0, grass_height * 0.35, 0)
+
+	grass_body.position = pos
+	grass_body.rotation.y = rng.randf() * TAU
+
+	# Update collision shape based on scale
+	var collision: CollisionShape3D = grass_body.get_child(0) as CollisionShape3D
+	if collision and collision.shape is BoxShape3D:
+		var box: BoxShape3D = collision.shape
+		box.size = Vector3(0.3 * scale_var, 0.3 * scale_var, 0.3 * scale_var)
+		collision.position = Vector3(0, 0.15 * scale_var, 0)
+
+	# Reset grass state for pool reuse
+	if grass_body.has_method("get_object_type"):
+		grass_body.is_destroyed = false
+		grass_body.current_health = grass_body.max_health
+		grass_body.resource_drops = {"plant_fiber": 1}
+		grass_body.scale = Vector3.ONE
+
+	grass_body.visible = true
 
 
 func _place_decor(sprite: Sprite3D, pos: Vector3, decor_type: String) -> void:
