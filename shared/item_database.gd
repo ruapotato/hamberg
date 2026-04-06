@@ -50,15 +50,66 @@ func _initialize_items() -> void:
 	_register_resource("rope", "Rope", "A length of rope made from plant fiber. Useful for building and crafting.", 50, 0.5)
 	_register_resource("arrows", "Arrows", "Wooden arrows tipped with stone. Ammunition for bows.", 50, 0.1)
 
+	# Valley biome foods
+	_register_resource("blueberry", "Blueberry", "A small bright berry found in valley bushes. Eat raw for a small HP boost.", 20, 0.1)
+	_register_resource("carrot", "Carrot", "An orange root vegetable. Eat raw or cook for a better buff.", 20, 0.3)
+	_register_resource("carrot_seed", "Carrot Seed", "A plantable seed that grows into carrots.", 50, 0.05)
+
+	# Dark Forest biome foods
+	_register_resource("dark_mushroom", "Shadow Mushroom", "A dark mushroom from the forest depths. Slightly poisonous but boosts brain power.", 20, 0.2)
+	_register_resource("nightshade_berry", "Nightshade Berry", "A poisonous berry. Dangerous raw but useful in potions.", 20, 0.1)
+	_register_resource("truffle", "Truffle", "A rare and valuable mushroom found underground. Prized delicacy.", 20, 0.3)
+	_register_resource("fungal_seed", "Fungal Spore Seed", "A plantable spore that grows into mushrooms.", 50, 0.05)
+
+	# Swamp biome foods
+	_register_resource("swamp_root", "Bog Root", "A tough root pulled from the swamp. Eat raw for stamina.", 20, 0.4)
+	_register_resource("marsh_herb", "Marsh Herb", "A healing herb that thrives in wetlands. Useful in potions.", 20, 0.2)
+	_register_resource("lotus_seed", "Lotus Seed", "A plantable seed from the swamp lotus.", 50, 0.05)
+
+	# Mountain biome foods
+	_register_resource("frost_berry", "Frost Berry", "An icy blue berry from the mountains. Grants cold resistance.", 20, 0.1)
+	_register_resource("alpine_herb", "Alpine Herb", "A potent healing herb from high altitudes.", 20, 0.2)
+	_register_resource("ice_crystal_seed", "Ice Crystal Seed", "A plantable crystalline seed from the mountains.", 50, 0.1)
+
+	# Desert biome foods
+	_register_resource("prickly_fruit", "Prickly Fruit", "A juicy fruit from desert cacti. Restores stamina.", 20, 0.3)
+	_register_resource("desert_sage", "Desert Sage", "A fragrant desert herb. Boosts brain power.", 20, 0.2)
+	_register_resource("sun_seed", "Sun Seed", "A heat-resistant plantable seed from the desert.", 50, 0.05)
+
+	# Wizardland biome foods
+	_register_resource("mana_fruit", "Mana Fruit", "A glowing fruit saturated with magical energy. Large brain power boost.", 20, 0.3)
+	_register_resource("arcane_herb", "Arcane Herb", "A mystical herb used in spell crafting.", 20, 0.2)
+	_register_resource("crystal_seed", "Crystal Seed", "A crystalline plantable seed infused with magic.", 50, 0.1)
+
+	# Hell biome foods
+	_register_resource("ember_pepper", "Ember Pepper", "A fiery pepper from the underworld. Grants fire resistance and damage boost.", 20, 0.2)
+	_register_resource("brimstone_root", "Brimstone Root", "A sulfurous root from hellish terrain. Crafting ingredient.", 20, 0.3)
+	_register_resource("ash_seed", "Ash Seed", "A heat-hardened plantable seed from the inferno.", 50, 0.05)
+
 	# Cooked food (consumable)
 	_register_food("cooked_venison", "Cooked Venison", "Hearty deer meat. Increases max health and regenerates HP over time.", 20, 1.5, 40.0, 20.0, 10.0, 900.0, 2.0)
 	_register_food("cooked_pork", "Cooked Pork", "Savory pig meat. Increases max stamina and regenerates HP over time.", 20, 2.0, 20.0, 40.0, 10.0, 900.0, 1.5)
 	_register_food("cooked_mutton", "Cooked Mutton", "Tender sheep meat. Balanced nutrition and regenerates HP over time.", 20, 1.8, 30.0, 30.0, 20.0, 900.0, 1.8)
 
+	# Cooked biome foods
+	_register_food("cooked_carrot", "Cooked Carrot", "A roasted carrot. Boosts health and stamina.", 20, 0.3, 25.0, 15.0, 5.0, 600.0, 1.5)
+	_register_food("cooked_truffle", "Cooked Truffle", "A seared truffle. Excellent balanced nutrition.", 20, 0.3, 35.0, 25.0, 25.0, 900.0, 2.0)
+	_register_food("cooked_frost_berry", "Cooked Frost Berry", "Frost berries warmed into a jam. Cold resistance and health.", 20, 0.1, 20.0, 10.0, 15.0, 600.0, 1.5)
+	_register_food("cooked_prickly_fruit", "Cooked Prickly Fruit", "Roasted cactus fruit. Great stamina food.", 20, 0.3, 15.0, 35.0, 5.0, 600.0, 1.0)
+	_register_food("cooked_mana_fruit", "Cooked Mana Fruit", "Simmered mana fruit. Massive brain power boost.", 20, 0.3, 15.0, 10.0, 45.0, 900.0, 1.5)
+	_register_food("cooked_ember_pepper", "Cooked Ember Pepper", "A roasted ember pepper. Fire resistance and damage boost.", 20, 0.2, 20.0, 15.0, 10.0, 600.0, 1.5)
+
 	# Potions (consumable)
 	_register_food("healing_potion", "Healing Potion", "A restorative potion brewed from glowing spores. Quickly restores health.", 10, 0.5, 50.0, 0.0, 0.0, 30.0, 12.0)
 	_register_food("stamina_potion", "Stamina Potion", "An energizing potion brewed from fungal essence. Quickly restores stamina.", 10, 0.5, 0.0, 50.0, 0.0, 30.0, 0.0)
 	_register_food("bandage", "Bandage", "A simple bandage made from plant fiber. Instantly heals 10 HP.", 20, 0.2, 10.0, 0.0, 0.0, 1.0, 10.0)
+
+	# Biome potions
+	_register_food("antidote_potion", "Antidote Potion", "Cures poison and restores health. Brewed from marsh herbs.", 10, 0.5, 30.0, 0.0, 0.0, 30.0, 8.0)
+	_register_food("mana_potion", "Mana Potion", "A powerful potion that restores brain power. Brewed from arcane herbs.", 10, 0.5, 0.0, 0.0, 60.0, 30.0, 0.0)
+	_register_food("fire_resistance_potion", "Fire Resistance Potion", "Grants temporary fire resistance. Brewed from ember peppers.", 10, 0.5, 15.0, 15.0, 0.0, 120.0, 1.0)
+	_register_food("frost_resistance_potion", "Frost Resistance Potion", "Grants temporary cold resistance. Brewed from frost berries.", 10, 0.5, 15.0, 15.0, 0.0, 120.0, 1.0)
+	_register_food("speed_potion", "Speed Potion", "Greatly boosts stamina recovery. Brewed from desert sage.", 10, 0.5, 0.0, 60.0, 0.0, 60.0, 0.0)
 
 	# Basic tools (no workbench required)
 	_register_tool("hammer", "Hammer", "Used for building structures.", 1)

@@ -68,6 +68,14 @@ func _initialize_recipes() -> void:
 	# Charcoal (fireplace required)
 	add_recipe("charcoal", 3, {"wood": 5}, "fireplace")
 
+	# Cooking biome foods (fireplace required)
+	add_recipe("cooked_carrot", 1, {"carrot": 1}, "fireplace")
+	add_recipe("cooked_truffle", 1, {"truffle": 1}, "fireplace")
+	add_recipe("cooked_frost_berry", 1, {"frost_berry": 2}, "fireplace")
+	add_recipe("cooked_prickly_fruit", 1, {"prickly_fruit": 1}, "fireplace")
+	add_recipe("cooked_mana_fruit", 1, {"mana_fruit": 1}, "fireplace")
+	add_recipe("cooked_ember_pepper", 1, {"ember_pepper": 1}, "fireplace")
+
 	# Tier 2 Weapons - Iron (workbench required)
 	add_recipe("iron_sword", 1, {"iron": 3, "wood": 2}, "workbench")
 	add_recipe("iron_axe", 1, {"iron": 3, "wood": 2}, "workbench")
@@ -76,6 +84,13 @@ func _initialize_recipes() -> void:
 	# Potions (workbench required)
 	add_recipe("healing_potion", 1, {"glowing_spore": 3, "resin": 1}, "workbench")
 	add_recipe("stamina_potion", 1, {"fungal_essence": 2, "resin": 1}, "workbench")
+
+	# Biome potions (workbench required)
+	add_recipe("antidote_potion", 1, {"marsh_herb": 2, "nightshade_berry": 1}, "workbench")
+	add_recipe("mana_potion", 1, {"arcane_herb": 2, "mana_fruit": 1}, "workbench")
+	add_recipe("fire_resistance_potion", 1, {"ember_pepper": 2, "brimstone_root": 1}, "workbench")
+	add_recipe("frost_resistance_potion", 1, {"frost_berry": 2, "alpine_herb": 1}, "workbench")
+	add_recipe("speed_potion", 1, {"desert_sage": 2, "prickly_fruit": 1}, "workbench")
 
 	# Bone Armor Set (workbench required) - mid-tier from zombie drops
 	add_recipe("bone_armor_helmet", 1, {"bone": 4, "deer_leather": 2}, "workbench")

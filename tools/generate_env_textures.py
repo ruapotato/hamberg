@@ -2229,6 +2229,807 @@ def generate_boulder(w=96, h=96):
     save_surface(surface, "boulder.png")
 
 
+# ── Forageable generators ────────────────────────────────────────────────────
+
+def generate_blueberry_bush(w=128, h=128):
+    """Small bush with bright blue berry clusters and gold accent berries."""
+    surface, ctx = make_surface(w, h)
+    cx, cy = w / 2, h * 0.6
+
+    # Dark blue stems
+    ctx.set_line_width(2.5)
+    for angle in [-0.4, -0.1, 0.15, 0.35]:
+        ctx.move_to(cx + angle * 12, h - 8)
+        ctx.line_to(cx + angle * 20, cy + 8)
+        set_color(ctx, BARK_SHADOW)
+        ctx.stroke()
+
+    # Blue leaf clusters (smaller than regular bush)
+    blobs = [
+        (cx, cy, 24),
+        (cx - 22, cy + 6, 18),
+        (cx + 22, cy + 6, 18),
+        (cx - 12, cy - 12, 16),
+        (cx + 12, cy - 12, 16),
+        (cx, cy + 12, 20),
+    ]
+    for bx, by, br in blobs:
+        draw_radial_circle(ctx, bx, by, br, LEAF_MED, LEAF_DARK)
+
+    # Highlight on top blobs
+    for bx, by, br in blobs[:2]:
+        draw_radial_circle(ctx, bx - 2, by - 2, br * 0.35,
+                           LEAF_BRIGHT, LEAF_MED, 0.5, 0.0)
+
+    # Bright blue berries (main feature)
+    BERRY_BRIGHT = (0.3, 0.45, 1.0)
+    BERRY_DARK = (0.15, 0.25, 0.75)
+    for _ in range(10):
+        bx = cx + random.uniform(-26, 26)
+        by = cy + random.uniform(-14, 14)
+        br = random.uniform(3, 5)
+        draw_radial_circle(ctx, bx, by, br, BERRY_BRIGHT, BERRY_DARK, 0.9, 0.9)
+        # Tiny highlight
+        draw_circle(ctx, bx - 1, by - 1, br * 0.3, WHITE, 0.5)
+
+    save_surface(surface, "blueberry_bush.png")
+
+
+def generate_carrot_plant(w=128, h=128):
+    """Leafy blue-green top with gold-orange carrot peeking from ground."""
+    surface, ctx = make_surface(w, h)
+    cx, cy_base = w / 2, h - 8
+
+    # Carrot body (gold, partially in ground)
+    carrot_top_y = cy_base - 30
+    ctx.move_to(cx - 8, carrot_top_y)
+    ctx.line_to(cx + 8, carrot_top_y)
+    ctx.line_to(cx + 2, cy_base + 5)
+    ctx.line_to(cx - 2, cy_base + 5)
+    ctx.close_path()
+    pat = cairo.LinearGradient(cx, carrot_top_y, cx, cy_base)
+    pat.add_color_stop_rgb(0, *GOLD_BRIGHT)
+    pat.add_color_stop_rgb(0.7, *GOLD_PRIMARY)
+    pat.add_color_stop_rgb(1, *GOLD_DARK)
+    ctx.set_source(pat)
+    ctx.fill()
+
+    # Carrot lines
+    ctx.set_line_width(0.8)
+    for i in range(3):
+        y = carrot_top_y + 8 + i * 7
+        ctx.move_to(cx - 6 + i, y)
+        ctx.line_to(cx + 6 - i, y)
+        set_color(ctx, GOLD_DARK, 0.4)
+        ctx.stroke()
+
+    # Leafy fronds (blue)
+    for angle_offset in [-0.6, -0.3, 0.0, 0.3, 0.6]:
+        leaf_tip_x = cx + angle_offset * 35
+        leaf_tip_y = carrot_top_y - 45 + abs(angle_offset) * 15
+        ctx.move_to(cx, carrot_top_y)
+        ctx.curve_to(cx + angle_offset * 10, carrot_top_y - 20,
+                     leaf_tip_x - angle_offset * 5, leaf_tip_y + 10,
+                     leaf_tip_x, leaf_tip_y)
+        ctx.line_to(leaf_tip_x + 2, leaf_tip_y + 3)
+        ctx.curve_to(leaf_tip_x - angle_offset * 3, leaf_tip_y + 15,
+                     cx + angle_offset * 8, carrot_top_y - 10,
+                     cx, carrot_top_y)
+        ctx.close_path()
+        shade = random.uniform(0, 0.15)
+        set_color(ctx, (LEAF_MED[0] + shade, LEAF_MED[1] + shade, LEAF_MED[2]))
+        ctx.fill()
+
+    save_surface(surface, "carrot_plant.png")
+
+
+def generate_shadow_mushroom(w=128, h=128):
+    """Dark blue mushroom cluster with faint gold spots."""
+    surface, ctx = make_surface(w, h)
+    cx, cy_base = w / 2, h - 8
+
+    DARK_CAP = (0.06, 0.08, 0.28)
+    DARK_CAP_LIGHT = (0.12, 0.16, 0.42)
+    DARK_STEM = (0.15, 0.18, 0.35)
+
+    # Draw 3 mushrooms of different sizes
+    mushrooms = [
+        (cx - 18, cy_base, 0.7),
+        (cx + 15, cy_base, 0.85),
+        (cx, cy_base, 1.0),
+    ]
+    for mx, my, scale in mushrooms:
+        stem_w = 8 * scale
+        stem_h = 30 * scale
+        stem_y = my - stem_h
+
+        # Stem
+        pat = cairo.LinearGradient(mx, stem_y, mx, my)
+        pat.add_color_stop_rgb(0, *DARK_STEM)
+        pat.add_color_stop_rgb(1, *(DARK_STEM[0] * 0.7, DARK_STEM[1] * 0.7, DARK_STEM[2] * 0.7))
+        ctx.move_to(mx - stem_w * 0.4, stem_y + 3)
+        ctx.line_to(mx - stem_w * 0.55, my)
+        ctx.line_to(mx + stem_w * 0.55, my)
+        ctx.line_to(mx + stem_w * 0.4, stem_y + 3)
+        ctx.close_path()
+        ctx.set_source(pat)
+        ctx.fill()
+
+        # Cap
+        cap_rx = 22 * scale
+        cap_ry = 16 * scale
+        cap_cy = stem_y + 5 * scale
+
+        pat = cairo.RadialGradient(mx - 5 * scale, cap_cy - cap_ry * 0.3, cap_ry * 0.1,
+                                   mx, cap_cy, cap_rx)
+        pat.add_color_stop_rgb(0, *DARK_CAP_LIGHT)
+        pat.add_color_stop_rgb(1, *DARK_CAP)
+        ctx.save()
+        ctx.translate(mx, cap_cy)
+        ctx.scale(cap_rx, cap_ry)
+        ctx.arc(0, 0, 1, math.pi, 0)
+        ctx.restore()
+        ctx.set_source(pat)
+        ctx.fill()
+
+        # Faint gold spots
+        for _ in range(3):
+            sx = mx + random.uniform(-cap_rx * 0.5, cap_rx * 0.5)
+            sy = cap_cy - random.uniform(cap_ry * 0.2, cap_ry * 0.7)
+            sr = random.uniform(2, 4) * scale
+            draw_circle(ctx, sx, sy, sr, GOLD_DARK, random.uniform(0.2, 0.4))
+
+    save_surface(surface, "shadow_mushroom.png")
+
+
+def generate_nightshade_bush(w=128, h=128):
+    """Dark spiky bush with small purple-blue berries."""
+    surface, ctx = make_surface(w, h)
+    cx, cy = w / 2, h * 0.6
+
+    NIGHTSHADE_DARK = (0.05, 0.04, 0.22)
+    NIGHTSHADE_MED = (0.1, 0.08, 0.35)
+    BERRY_PURPLE = (0.3, 0.15, 0.55)
+    BERRY_BRIGHT = (0.45, 0.25, 0.7)
+
+    # Spiky dark stems
+    ctx.set_line_width(2)
+    for angle in [-0.6, -0.3, 0.0, 0.3, 0.6]:
+        tip_x = cx + angle * 40
+        tip_y = cy - 25 + abs(angle) * 10
+        ctx.move_to(cx + angle * 5, h - 8)
+        ctx.line_to(tip_x, tip_y)
+        set_color(ctx, NIGHTSHADE_DARK)
+        ctx.stroke()
+
+    # Dark leaf blobs
+    blobs = [
+        (cx, cy, 22),
+        (cx - 20, cy + 5, 16),
+        (cx + 20, cy + 5, 16),
+        (cx - 10, cy - 14, 14),
+        (cx + 10, cy - 14, 14),
+    ]
+    for bx, by, br in blobs:
+        draw_radial_circle(ctx, bx, by, br, NIGHTSHADE_MED, NIGHTSHADE_DARK)
+
+    # Spiky tips
+    for _ in range(8):
+        sx = cx + random.uniform(-28, 28)
+        sy = cy + random.uniform(-20, 10)
+        length = random.uniform(8, 15)
+        angle = random.uniform(-math.pi, -0.3)
+        ctx.move_to(sx, sy)
+        ctx.line_to(sx + math.cos(angle) * length, sy + math.sin(angle) * length)
+        ctx.set_line_width(1.5)
+        set_color(ctx, NIGHTSHADE_DARK)
+        ctx.stroke()
+
+    # Purple berries
+    for _ in range(6):
+        bx = cx + random.uniform(-22, 22)
+        by = cy + random.uniform(-10, 12)
+        br = random.uniform(2.5, 4)
+        draw_radial_circle(ctx, bx, by, br, BERRY_BRIGHT, BERRY_PURPLE, 0.85, 0.85)
+        draw_circle(ctx, bx - 0.5, by - 0.5, br * 0.25, WHITE, 0.3)
+
+    save_surface(surface, "nightshade_bush.png")
+
+
+def generate_frost_berry_bush(w=128, h=128):
+    """Icy blue bush with bright pale blue berries and frost crystals."""
+    surface, ctx = make_surface(w, h)
+    cx, cy = w / 2, h * 0.6
+
+    ICY_LIGHT = (0.65, 0.75, 1.0)
+    ICY_MED = (0.4, 0.55, 0.9)
+    ICY_DARK = (0.2, 0.35, 0.7)
+    FROST_WHITE = (0.85, 0.9, 1.0)
+
+    # Stems
+    ctx.set_line_width(2)
+    for angle in [-0.35, -0.1, 0.15, 0.4]:
+        ctx.move_to(cx + angle * 10, h - 8)
+        ctx.line_to(cx + angle * 22, cy + 5)
+        set_color(ctx, ICY_DARK)
+        ctx.stroke()
+
+    # Icy leaf blobs
+    blobs = [
+        (cx, cy, 25),
+        (cx - 24, cy + 5, 18),
+        (cx + 24, cy + 5, 18),
+        (cx - 12, cy - 14, 17),
+        (cx + 12, cy - 14, 17),
+        (cx, cy + 14, 20),
+    ]
+    for bx, by, br in blobs:
+        draw_radial_circle(ctx, bx, by, br, ICY_MED, ICY_DARK)
+
+    # Frost highlights
+    for bx, by, br in blobs[:3]:
+        draw_radial_circle(ctx, bx - 2, by - 2, br * 0.3,
+                           FROST_WHITE, ICY_LIGHT, 0.4, 0.0)
+
+    # Pale blue berries
+    for _ in range(8):
+        bx = cx + random.uniform(-26, 26)
+        by = cy + random.uniform(-12, 12)
+        br = random.uniform(3, 5)
+        draw_radial_circle(ctx, bx, by, br, FROST_WHITE, ICY_LIGHT, 0.9, 0.8)
+        draw_circle(ctx, bx - 1, by - 1, br * 0.3, WHITE, 0.6)
+
+    # Small frost crystal accents
+    ctx.set_line_width(1.0)
+    for _ in range(4):
+        fx = cx + random.uniform(-20, 20)
+        fy = cy + random.uniform(-18, 8)
+        for a in range(6):
+            angle = a * math.pi / 3
+            ctx.move_to(fx, fy)
+            ctx.line_to(fx + math.cos(angle) * 4, fy + math.sin(angle) * 4)
+        set_color(ctx, FROST_WHITE, 0.5)
+        ctx.stroke()
+
+    save_surface(surface, "frost_berry_bush.png")
+
+
+def generate_sage_plant(w=128, h=128):
+    """Tall desert herb with gold-tipped leaves."""
+    surface, ctx = make_surface(w, h)
+    cx, cy_base = w / 2, h - 8
+
+    # Main stem
+    ctx.set_line_width(3)
+    ctx.move_to(cx, cy_base)
+    ctx.line_to(cx, cy_base - 70)
+    set_color(ctx, BARK_MED)
+    ctx.stroke()
+
+    # Side stems
+    stems = [
+        (cx, cy_base - 20, cx - 25, cy_base - 40),
+        (cx, cy_base - 30, cx + 22, cy_base - 50),
+        (cx, cy_base - 45, cx - 18, cy_base - 60),
+        (cx, cy_base - 55, cx + 15, cy_base - 70),
+    ]
+    ctx.set_line_width(2)
+    for x0, y0, x1, y1 in stems:
+        ctx.move_to(x0, y0)
+        ctx.line_to(x1, y1)
+        set_color(ctx, BARK_MED)
+        ctx.stroke()
+
+    # Leaves with gold tips
+    for x0, y0, x1, y1 in stems:
+        # Leaf shape
+        ctx.move_to(x1, y1)
+        ctx.curve_to(x1 - 8, y1 - 5, x1 + 8, y1 - 12, x1, y1 - 18)
+        ctx.curve_to(x1 + 8, y1 - 5, x1 - 8, y1 + 2, x1, y1)
+        ctx.close_path()
+        set_color(ctx, LEAF_MED)
+        ctx.fill()
+
+        # Gold tip
+        draw_circle(ctx, x1, y1 - 16, 3, GOLD_PRIMARY, 0.8)
+        draw_circle(ctx, x1, y1 - 16, 1.5, GOLD_BRIGHT, 0.5)
+
+    # Top leaves with gold
+    for offset in [-6, 0, 6]:
+        tip_y = cy_base - 80
+        ctx.move_to(cx + offset, cy_base - 65)
+        ctx.curve_to(cx + offset - 5, tip_y + 5, cx + offset + 5, tip_y + 2, cx + offset, tip_y)
+        ctx.curve_to(cx + offset + 5, tip_y + 5, cx + offset - 5, tip_y + 8, cx + offset, cy_base - 65)
+        ctx.close_path()
+        set_color(ctx, LEAF_LIGHT)
+        ctx.fill()
+        draw_circle(ctx, cx + offset, tip_y, 2.5, GOLD_PRIMARY, 0.7)
+
+    save_surface(surface, "sage_plant.png")
+
+
+def generate_mana_fruit_tree(w=128, h=128):
+    """Small tree with glowing blue-gold fruits."""
+    surface, ctx = make_surface(w, h)
+    cx, cy_base = w / 2, h - 5
+
+    # Short trunk
+    trunk_w, trunk_h = 12, 40
+    trunk_x = cx - trunk_w / 2
+    trunk_y = cy_base - trunk_h
+    draw_trunk_gradient(ctx, trunk_x, trunk_y, trunk_w, trunk_h,
+                        BARK_MED, BARK_DARK)
+
+    # Small root flare
+    for side in [-1, 1]:
+        ctx.move_to(cx + side * trunk_w / 2, cy_base)
+        ctx.line_to(cx + side * (trunk_w / 2 + 6), cy_base + 2)
+        ctx.line_to(cx + side * trunk_w / 2, cy_base - 5)
+        ctx.close_path()
+        set_color(ctx, BARK_DARK)
+        ctx.fill()
+
+    # Canopy blobs
+    canopy_cy = trunk_y - 5
+    blobs = [
+        (cx, canopy_cy, 28),
+        (cx - 22, canopy_cy + 5, 20),
+        (cx + 22, canopy_cy + 5, 20),
+        (cx - 10, canopy_cy - 18, 17),
+        (cx + 10, canopy_cy - 18, 17),
+    ]
+    for bx, by, br in blobs:
+        draw_radial_circle(ctx, bx, by, br, LEAF_LIGHT, LEAF_DARK)
+
+    # Highlights
+    for bx, by, br in blobs[:2]:
+        draw_radial_circle(ctx, bx - 3, by - 3, br * 0.35,
+                           LEAF_BRIGHT, LEAF_MED, 0.4, 0.0)
+
+    # Glowing mana fruits (blue-gold)
+    for _ in range(5):
+        fx = cx + random.uniform(-24, 24)
+        fy = canopy_cy + random.uniform(-12, 12)
+        fr = random.uniform(4, 6)
+        # Outer glow
+        draw_radial_circle(ctx, fx, fy, fr * 2.0,
+                           GOLD_BRIGHT, BLUE_LIGHT, 0.2, 0.0)
+        # Fruit body
+        draw_radial_circle(ctx, fx, fy, fr, GOLD_BRIGHT, GOLD_PRIMARY, 0.9, 0.85)
+        # Highlight
+        draw_circle(ctx, fx - 1, fy - 1, fr * 0.3, GOLD_SPEC, 0.6)
+
+    save_surface(surface, "mana_fruit_tree.png")
+
+
+def generate_ember_pepper_plant(w=128, h=128):
+    """Dark plant with bright gold pepper shapes."""
+    surface, ctx = make_surface(w, h)
+    cx, cy_base = w / 2, h - 8
+
+    EMBER_DARK = (0.06, 0.03, 0.15)
+    EMBER_STEM = (0.1, 0.06, 0.22)
+
+    # Main stem
+    ctx.set_line_width(3)
+    ctx.move_to(cx, cy_base)
+    ctx.curve_to(cx - 3, cy_base - 25, cx + 3, cy_base - 50, cx, cy_base - 65)
+    set_color(ctx, EMBER_STEM)
+    ctx.stroke()
+
+    # Side branches
+    branches = [
+        (cx, cy_base - 20, cx - 25, cy_base - 35),
+        (cx, cy_base - 30, cx + 28, cy_base - 42),
+        (cx, cy_base - 45, cx - 20, cy_base - 55),
+        (cx, cy_base - 55, cx + 18, cy_base - 65),
+    ]
+    ctx.set_line_width(2)
+    for x0, y0, x1, y1 in branches:
+        ctx.move_to(x0, y0)
+        ctx.line_to(x1, y1)
+        set_color(ctx, EMBER_STEM)
+        ctx.stroke()
+
+    # Dark leaves
+    for x0, y0, x1, y1 in branches:
+        ctx.move_to(x1, y1)
+        dx = (x1 - x0) * 0.3
+        ctx.curve_to(x1 + dx - 5, y1 - 8, x1 + dx + 5, y1 - 3, x1, y1)
+        set_color(ctx, EMBER_DARK, 0.7)
+        ctx.fill()
+
+    # Pepper shapes (gold, elongated)
+    peppers = [
+        (cx - 22, cy_base - 33, -0.3),
+        (cx + 25, cy_base - 40, 0.2),
+        (cx - 17, cy_base - 53, -0.15),
+        (cx + 15, cy_base - 63, 0.25),
+        (cx + 3, cy_base - 70, 0.0),
+    ]
+    for px, py, tilt in peppers:
+        ctx.save()
+        ctx.translate(px, py)
+        ctx.rotate(tilt)
+        # Pepper body
+        ctx.move_to(0, -8)
+        ctx.curve_to(-5, -6, -5, 6, -1, 10)
+        ctx.line_to(1, 10)
+        ctx.curve_to(5, 6, 5, -6, 0, -8)
+        ctx.close_path()
+        pat = cairo.LinearGradient(0, -8, 0, 10)
+        pat.add_color_stop_rgb(0, *GOLD_BRIGHT)
+        pat.add_color_stop_rgb(0.5, *GOLD_PRIMARY)
+        pat.add_color_stop_rgb(1, *GOLD_DARK)
+        ctx.set_source(pat)
+        ctx.fill()
+        # Stem cap
+        draw_circle(ctx, 0, -9, 3, EMBER_STEM, 0.8)
+        # Highlight
+        draw_circle(ctx, -1, -3, 1.5, GOLD_SPEC, 0.4)
+        ctx.restore()
+
+    save_surface(surface, "ember_pepper_plant.png")
+
+
+def generate_truffle_spot(w=128, h=128):
+    """Small dirt mound with a truffle peeking out, gold-brown tones."""
+    surface, ctx = make_surface(w, h)
+    cx, cy_base = w / 2, h - 15
+
+    # Dirt mound
+    ctx.save()
+    ctx.translate(cx, cy_base)
+    ctx.scale(35, 12)
+    ctx.arc(0, 0, 1, math.pi, 0)
+    ctx.restore()
+    pat = cairo.RadialGradient(cx - 5, cy_base - 5, 3, cx, cy_base, 35)
+    pat.add_color_stop_rgb(0, *BARK_LIGHT)
+    pat.add_color_stop_rgb(1, *BARK_DARK)
+    ctx.set_source(pat)
+    ctx.fill()
+
+    # Dirt texture dots
+    for _ in range(15):
+        dx = cx + random.uniform(-28, 28)
+        dy = cy_base + random.uniform(-8, 0)
+        draw_circle(ctx, dx, dy, random.uniform(1, 2.5), BARK_SHADOW, random.uniform(0.2, 0.4))
+
+    # Truffle body (gold-tinted lumpy sphere)
+    truffle_cx = cx + 3
+    truffle_cy = cy_base - 12
+    truffle_r = 14
+
+    draw_radial_circle(ctx, truffle_cx, truffle_cy, truffle_r,
+                       GOLD_DARK, BARK_DARK, 0.9, 0.9)
+    # Lumpy texture
+    for _ in range(6):
+        lx = truffle_cx + random.uniform(-8, 8)
+        ly = truffle_cy + random.uniform(-8, 5)
+        draw_circle(ctx, lx, ly, random.uniform(2, 4), GOLD_PRIMARY, random.uniform(0.15, 0.3))
+    # Highlight
+    draw_radial_circle(ctx, truffle_cx - 4, truffle_cy - 4, truffle_r * 0.35,
+                       GOLD_BRIGHT, GOLD_DARK, 0.35, 0.0)
+
+    save_surface(surface, "truffle_spot.png")
+
+
+def generate_bog_root_plant(w=128, h=128):
+    """Twisted root emerging from ground with blue-dark tones."""
+    surface, ctx = make_surface(w, h)
+    cx, cy_base = w / 2, h - 8
+
+    BOG_DARK = (0.08, 0.06, 0.2)
+    BOG_MED = (0.15, 0.12, 0.32)
+    BOG_LIGHT = (0.22, 0.2, 0.42)
+
+    # Ground line
+    ctx.move_to(10, cy_base)
+    ctx.line_to(w - 10, cy_base)
+    ctx.set_line_width(4)
+    set_color(ctx, BOG_DARK, 0.5)
+    ctx.stroke()
+
+    # Twisted roots emerging
+    roots = [
+        (cx - 15, cx - 25, -0.3),
+        (cx, cx + 5, 0.1),
+        (cx + 18, cx + 30, 0.25),
+    ]
+    for root_base_x, root_tip_x, curve in roots:
+        root_tip_y = cy_base - 55 - random.uniform(0, 15)
+        ctx.move_to(root_base_x - 5, cy_base)
+        ctx.curve_to(root_base_x - 5 + curve * 20, cy_base - 20,
+                     root_tip_x - 3, root_tip_y + 15,
+                     root_tip_x - 2, root_tip_y)
+        ctx.line_to(root_tip_x + 2, root_tip_y)
+        ctx.curve_to(root_tip_x + 3, root_tip_y + 15,
+                     root_base_x + 5 + curve * 20, cy_base - 20,
+                     root_base_x + 5, cy_base)
+        ctx.close_path()
+        pat = cairo.LinearGradient(root_base_x, cy_base, root_tip_x, root_tip_y)
+        pat.add_color_stop_rgb(0, *BOG_DARK)
+        pat.add_color_stop_rgb(0.5, *BOG_MED)
+        pat.add_color_stop_rgb(1, *BOG_LIGHT)
+        ctx.set_source(pat)
+        ctx.fill()
+
+        # Small tendrils
+        ctx.set_line_width(1.2)
+        for _ in range(2):
+            ty = root_tip_y + random.uniform(5, 20)
+            tx = root_tip_x + random.uniform(-8, 8)
+            ctx.move_to(tx, ty)
+            ctx.line_to(tx + random.uniform(-6, 6), ty - random.uniform(5, 10))
+            set_color(ctx, BOG_LIGHT, 0.6)
+            ctx.stroke()
+
+    save_surface(surface, "bog_root_plant.png")
+
+
+def generate_marsh_herb_plant(w=128, h=128):
+    """Wispy healing herb with blue leaves and gold pollen dots."""
+    surface, ctx = make_surface(w, h)
+    cx, cy_base = w / 2, h - 8
+
+    # Multiple thin stems
+    ctx.set_line_width(1.8)
+    stem_tops = []
+    for i in range(5):
+        sx = cx + (i - 2) * 12
+        top_y = cy_base - 50 - random.uniform(0, 20)
+        ctx.move_to(sx, cy_base)
+        ctx.curve_to(sx + random.uniform(-5, 5), cy_base - 20,
+                     sx + random.uniform(-8, 8), top_y + 15,
+                     sx, top_y)
+        set_color(ctx, BARK_MED)
+        ctx.stroke()
+        stem_tops.append((sx, top_y))
+
+    # Leaf pairs along stems
+    for sx, top_y in stem_tops:
+        for ly in range(int(cy_base - 15), int(top_y + 10), -15):
+            for side in [-1, 1]:
+                lx = sx + side * 10
+                ctx.move_to(sx, ly)
+                ctx.curve_to(sx + side * 5, ly - 3, lx, ly - 5, lx, ly - 2)
+                ctx.curve_to(lx, ly + 1, sx + side * 5, ly + 2, sx, ly)
+                ctx.close_path()
+                set_color(ctx, LEAF_MED)
+                ctx.fill()
+
+    # Gold pollen dots at tops
+    for sx, top_y in stem_tops:
+        for _ in range(3):
+            px = sx + random.uniform(-4, 4)
+            py = top_y + random.uniform(-3, 5)
+            draw_circle(ctx, px, py, random.uniform(1.5, 2.5), GOLD_PRIMARY, 0.7)
+
+    save_surface(surface, "marsh_herb_plant.png")
+
+
+def generate_alpine_herb_plant(w=128, h=128):
+    """Mountain herb with pale blue-white flowers and sturdy stems."""
+    surface, ctx = make_surface(w, h)
+    cx, cy_base = w / 2, h - 8
+
+    ALPINE_STEM = (0.3, 0.35, 0.55)
+    ALPINE_LEAF = (0.35, 0.45, 0.7)
+    ALPINE_FLOWER = (0.7, 0.78, 1.0)
+
+    # Sturdy stems
+    ctx.set_line_width(2.5)
+    stem_data = []
+    for i in range(4):
+        sx = cx + (i - 1.5) * 14
+        top_y = cy_base - 55 - random.uniform(0, 15)
+        ctx.move_to(sx, cy_base)
+        ctx.line_to(sx + random.uniform(-3, 3), top_y)
+        set_color(ctx, ALPINE_STEM)
+        ctx.stroke()
+        stem_data.append((sx, top_y))
+
+    # Broad leaves
+    for sx, top_y in stem_data:
+        for ly_offset in [15, 30]:
+            ly = cy_base - ly_offset
+            for side in [-1, 1]:
+                ctx.move_to(sx, ly)
+                ctx.curve_to(sx + side * 8, ly - 6,
+                             sx + side * 14, ly - 2,
+                             sx + side * 12, ly + 3)
+                ctx.curve_to(sx + side * 8, ly + 4,
+                             sx + side * 3, ly + 2,
+                             sx, ly)
+                ctx.close_path()
+                set_color(ctx, ALPINE_LEAF)
+                ctx.fill()
+
+    # Pale blue-white flower clusters at tops
+    for sx, top_y in stem_data:
+        for _ in range(4):
+            fx = sx + random.uniform(-5, 5)
+            fy = top_y + random.uniform(-3, 5)
+            fr = random.uniform(3, 5)
+            draw_radial_circle(ctx, fx, fy, fr, WHITE, ALPINE_FLOWER, 0.8, 0.7)
+            draw_circle(ctx, fx, fy, fr * 0.3, GOLD_PRIMARY, 0.5)
+
+    save_surface(surface, "alpine_herb_plant.png")
+
+
+def generate_arcane_herb_plant(w=128, h=128):
+    """Mystical herb with glowing blue stems and gold sparkle tips."""
+    surface, ctx = make_surface(w, h)
+    cx, cy_base = w / 2, h - 8
+
+    ARCANE_STEM = (0.15, 0.18, 0.55)
+    ARCANE_GLOW = (0.3, 0.35, 0.85)
+
+    # Glowing stems
+    stem_data = []
+    for i in range(5):
+        sx = cx + (i - 2) * 11
+        top_y = cy_base - 55 - random.uniform(0, 18)
+        # Glow behind stem
+        ctx.set_line_width(6)
+        ctx.move_to(sx, cy_base)
+        ctx.curve_to(sx + random.uniform(-8, 8), cy_base - 25,
+                     sx + random.uniform(-5, 5), top_y + 10,
+                     sx, top_y)
+        set_color(ctx, ARCANE_GLOW, 0.15)
+        ctx.stroke()
+        # Stem
+        ctx.set_line_width(2)
+        ctx.move_to(sx, cy_base)
+        ctx.curve_to(sx + random.uniform(-8, 8), cy_base - 25,
+                     sx + random.uniform(-5, 5), top_y + 10,
+                     sx, top_y)
+        set_color(ctx, ARCANE_STEM)
+        ctx.stroke()
+        stem_data.append((sx, top_y))
+
+    # Spiral leaves
+    for sx, top_y in stem_data:
+        for ly_offset in [12, 28]:
+            ly = cy_base - ly_offset
+            side = 1 if ly_offset % 2 == 0 else -1
+            ctx.move_to(sx, ly)
+            ctx.curve_to(sx + side * 6, ly - 8,
+                         sx + side * 12, ly - 4,
+                         sx + side * 10, ly + 1)
+            ctx.line_to(sx, ly)
+            ctx.close_path()
+            set_color(ctx, LEAF_DARK)
+            ctx.fill()
+
+    # Gold sparkle tips
+    for sx, top_y in stem_data:
+        # Outer glow
+        draw_radial_circle(ctx, sx, top_y, 6, GOLD_BRIGHT, ARCANE_GLOW, 0.3, 0.0)
+        # Sparkle
+        draw_circle(ctx, sx, top_y, 3, GOLD_PRIMARY, 0.85)
+        draw_circle(ctx, sx - 0.5, top_y - 0.5, 1.5, GOLD_SPEC, 0.5)
+
+    save_surface(surface, "arcane_herb_plant.png")
+
+
+def generate_brimstone_plant(w=128, h=128):
+    """Dark sulfurous plant with ember-like orange-gold tips."""
+    surface, ctx = make_surface(w, h)
+    cx, cy_base = w / 2, h - 8
+
+    BRIM_DARK = (0.06, 0.03, 0.12)
+    BRIM_STEM = (0.1, 0.06, 0.18)
+
+    # Gnarled stems
+    ctx.set_line_width(3)
+    stem_data = []
+    for i in range(4):
+        sx = cx + (i - 1.5) * 15
+        top_y = cy_base - 45 - random.uniform(0, 15)
+        mid_x = sx + random.uniform(-10, 10)
+        ctx.move_to(sx, cy_base)
+        ctx.curve_to(mid_x, cy_base - 20, mid_x, top_y + 10, sx + (mid_x - sx) * 0.3, top_y)
+        set_color(ctx, BRIM_STEM)
+        ctx.stroke()
+        stem_data.append((sx + (mid_x - sx) * 0.3, top_y))
+
+    # Dark spiky leaves
+    for sx, top_y in stem_data:
+        for offset in [-8, 0, 8]:
+            ly = top_y + abs(offset) + 5
+            ctx.move_to(sx, ly)
+            ctx.line_to(sx + offset, ly - 12)
+            ctx.line_to(sx + offset * 0.3, ly)
+            ctx.close_path()
+            set_color(ctx, BRIM_DARK, 0.7)
+            ctx.fill()
+
+    # Ember-like glowing tips
+    for sx, top_y in stem_data:
+        draw_radial_circle(ctx, sx, top_y, 5, GOLD_BRIGHT, GOLD_DARK, 0.7, 0.0)
+        draw_circle(ctx, sx, top_y, 2.5, GOLD_PRIMARY, 0.9)
+
+    # Smoke wisps
+    ctx.set_line_width(1.0)
+    for sx, top_y in stem_data[:2]:
+        for _ in range(2):
+            wy = top_y - random.uniform(3, 10)
+            wx = sx + random.uniform(-5, 5)
+            ctx.move_to(wx, wy)
+            ctx.curve_to(wx + 3, wy - 5, wx - 3, wy - 10, wx + 1, wy - 14)
+            set_color(ctx, GRAY_LIGHT, 0.15)
+            ctx.stroke()
+
+    save_surface(surface, "brimstone_plant.png")
+
+
+def generate_lotus_plant(w=128, h=128):
+    """Swamp lotus with broad blue petals and gold center."""
+    surface, ctx = make_surface(w, h)
+    cx, cy = w / 2, h * 0.55
+
+    LOTUS_LIGHT = (0.45, 0.55, 0.9)
+    LOTUS_MED = (0.3, 0.4, 0.75)
+    LOTUS_DARK = (0.15, 0.22, 0.5)
+
+    # Stem
+    ctx.set_line_width(3)
+    ctx.move_to(cx, h - 5)
+    ctx.curve_to(cx - 5, cy + 25, cx + 5, cy + 10, cx, cy + 5)
+    set_color(ctx, BARK_MED)
+    ctx.stroke()
+
+    # Lily pad (flat oval at base)
+    ctx.save()
+    ctx.translate(cx, h - 12)
+    ctx.scale(30, 8)
+    ctx.arc(0, 0, 1, 0, 2 * math.pi)
+    ctx.restore()
+    set_color(ctx, LEAF_DARK, 0.6)
+    ctx.fill()
+
+    # Petals (arranged in circle)
+    num_petals = 6
+    for i in range(num_petals):
+        angle = i * 2 * math.pi / num_petals - math.pi / 2
+        px = cx + math.cos(angle) * 18
+        py = cy + math.sin(angle) * 12
+        # Petal shape
+        ctx.move_to(cx, cy)
+        ctx.curve_to(cx + math.cos(angle - 0.3) * 12, cy + math.sin(angle - 0.3) * 10,
+                     px + math.cos(angle - 0.2) * 8, py + math.sin(angle - 0.2) * 6,
+                     px, py)
+        ctx.curve_to(px + math.cos(angle + 0.2) * 8, py + math.sin(angle + 0.2) * 6,
+                     cx + math.cos(angle + 0.3) * 12, cy + math.sin(angle + 0.3) * 10,
+                     cx, cy)
+        ctx.close_path()
+        shade = i * 0.03
+        set_color(ctx, (LOTUS_MED[0] + shade, LOTUS_MED[1] + shade, LOTUS_MED[2]))
+        ctx.fill()
+
+    # Inner petals (lighter)
+    for i in range(num_petals):
+        angle = i * 2 * math.pi / num_petals - math.pi / 2 + math.pi / num_petals
+        px = cx + math.cos(angle) * 10
+        py = cy + math.sin(angle) * 7
+        ctx.move_to(cx, cy)
+        ctx.curve_to(cx + math.cos(angle - 0.2) * 6, cy + math.sin(angle - 0.2) * 5,
+                     px, py, px, py)
+        ctx.curve_to(px, py,
+                     cx + math.cos(angle + 0.2) * 6, cy + math.sin(angle + 0.2) * 5,
+                     cx, cy)
+        ctx.close_path()
+        set_color(ctx, LOTUS_LIGHT)
+        ctx.fill()
+
+    # Gold center
+    draw_radial_circle(ctx, cx, cy, 6, GOLD_BRIGHT, GOLD_PRIMARY, 0.9, 0.8)
+    draw_circle(ctx, cx - 1, cy - 1, 2, GOLD_SPEC, 0.5)
+
+    save_surface(surface, "lotus_plant.png")
+
+
 # ── Main ─────────────────────────────────────────────────────────────────────
 
 def main():
@@ -2267,6 +3068,21 @@ def main():
         ("Mossy rock", generate_rock_mossy),
         ("Crystal rock", generate_rock_crystal),
         ("Boulder", generate_boulder),
+        ("Blueberry bush", generate_blueberry_bush),
+        ("Carrot plant", generate_carrot_plant),
+        ("Shadow mushroom", generate_shadow_mushroom),
+        ("Nightshade bush", generate_nightshade_bush),
+        ("Truffle spot", generate_truffle_spot),
+        ("Bog root plant", generate_bog_root_plant),
+        ("Marsh herb plant", generate_marsh_herb_plant),
+        ("Lotus plant", generate_lotus_plant),
+        ("Frost berry bush", generate_frost_berry_bush),
+        ("Alpine herb plant", generate_alpine_herb_plant),
+        ("Sage plant", generate_sage_plant),
+        ("Mana fruit tree", generate_mana_fruit_tree),
+        ("Arcane herb plant", generate_arcane_herb_plant),
+        ("Ember pepper plant", generate_ember_pepper_plant),
+        ("Brimstone plant", generate_brimstone_plant),
     ]
 
     for name, gen in generators:

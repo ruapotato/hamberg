@@ -22,6 +22,7 @@ signal environment_ready()
 @export var max_bushes: int = 400
 @export var max_grass: int = 800
 @export var max_decor: int = 300
+@export var max_forageables: int = 200
 
 # Internal state
 var terrain_world: Node = null
@@ -35,6 +36,7 @@ var bush_pool: Array[StaticBody3D] = []
 var rock_pool: Array[StaticBody3D] = []
 var grass_pool: Array[Sprite3D] = []
 var decor_pool: Array[Sprite3D] = []
+var forageable_pool: Array[StaticBody3D] = []
 
 # Active objects tracking
 var active_trees: Dictionary = {}
@@ -42,6 +44,7 @@ var active_bushes: Dictionary = {}
 var active_rocks: Dictionary = {}
 var active_grass: Dictionary = {}
 var active_decor: Dictionary = {}
+var active_forageables: Dictionary = {}
 
 # Destroyed object tracking (synced from server)
 var destroyed_object_ids: Dictionary = {}  # tree_id/bush_id -> true
@@ -110,16 +113,35 @@ const BIOME_HAS_BUSHES: Dictionary = {
 	"hell": false,
 }
 
-# Decoration types by biome (small visual-only objects)
+# Decoration types by biome (small visual-only objects + forageables)
 const BIOME_DECOR: Dictionary = {
-	"valley": ["fern", "flower_blue", "flower_gold", "mushroom_small", "stump", "log"],
+	"valley": ["fern", "flower_blue", "flower_gold", "mushroom_small", "stump", "log", "blueberry_bush", "carrot_plant"],
 	"meadow": ["flower_blue", "flower_gold", "tall_grass", "fern"],
-	"dark_forest": ["mushroom_small", "fern", "log", "stump", "cattail"],
-	"swamp": ["cattail", "cattail", "mushroom_small", "log", "fern"],
-	"mountain": ["crystal_cluster", "stump", "flower_blue"],
-	"desert": [],
-	"wizardland": ["crystal_cluster", "crystal_cluster", "flower_gold", "mushroom_small"],
-	"hell": [],
+	"dark_forest": ["mushroom_small", "fern", "log", "stump", "cattail", "shadow_mushroom", "nightshade_bush", "truffle_spot"],
+	"swamp": ["cattail", "cattail", "mushroom_small", "log", "fern", "bog_root_plant", "marsh_herb_plant", "lotus_plant"],
+	"mountain": ["crystal_cluster", "stump", "flower_blue", "frost_berry_bush", "alpine_herb_plant"],
+	"desert": ["sage_plant"],
+	"wizardland": ["crystal_cluster", "crystal_cluster", "flower_gold", "mushroom_small", "mana_fruit_tree", "arcane_herb_plant"],
+	"hell": ["ember_pepper_plant", "brimstone_plant"],
+}
+
+# Forageable drops - forageables use collectible_bush_2d mechanics
+const FORAGEABLE_DROPS: Dictionary = {
+	"blueberry_bush": {"blueberry": 2},
+	"carrot_plant": {"carrot": 1, "carrot_seed": 1},
+	"shadow_mushroom": {"dark_mushroom": 2},
+	"nightshade_bush": {"nightshade_berry": 1},
+	"truffle_spot": {"truffle": 1},
+	"bog_root_plant": {"swamp_root": 1},
+	"marsh_herb_plant": {"marsh_herb": 2},
+	"lotus_plant": {"lotus_seed": 1},
+	"frost_berry_bush": {"frost_berry": 2},
+	"alpine_herb_plant": {"alpine_herb": 1},
+	"sage_plant": {"desert_sage": 1},
+	"mana_fruit_tree": {"mana_fruit": 1},
+	"arcane_herb_plant": {"arcane_herb": 1},
+	"ember_pepper_plant": {"ember_pepper": 1},
+	"brimstone_plant": {"brimstone_root": 1},
 }
 
 # Biome rock colors - Hollow Knight blue world
@@ -302,14 +324,29 @@ func _generate_grass_texture() -> void:
 func _load_decor_textures() -> void:
 	var decor_names := ["fern", "flower_blue", "flower_gold", "tall_grass",
 						"cattail", "mushroom_small", "crystal_cluster",
-						"log", "stump"]
+						"log", "stump",
+						"blueberry_bush", "carrot_plant", "shadow_mushroom",
+						"nightshade_bush", "truffle_spot", "bog_root_plant",
+						"marsh_herb_plant", "lotus_plant", "frost_berry_bush",
+						"alpine_herb_plant", "sage_plant", "mana_fruit_tree",
+						"arcane_herb_plant", "ember_pepper_plant", "brimstone_plant"]
 	var env_dir := "res://assets/textures/environment/"
+	# Fallback textures for forageables that don't have their own PNG
+	var forageable_fallbacks: Dictionary = {}
 	for dname in decor_names:
 		var path: String = env_dir + dname + ".png"
 		if FileAccess.file_exists(path):
 			var img := Image.load_from_file(path)
 			if img:
 				decor_textures[dname] = ImageTexture.create_from_image(img)
+		elif forageable_fallbacks.has(dname) and decor_textures.has(forageable_fallbacks[dname]):
+			decor_textures[dname] = decor_textures[forageable_fallbacks[dname]]
+	# Second pass for fallbacks that reference textures loaded later
+	for dname in forageable_fallbacks:
+		if not decor_textures.has(dname):
+			var fallback: String = forageable_fallbacks[dname]
+			if decor_textures.has(fallback):
+				decor_textures[dname] = decor_textures[fallback]
 	print("[EnvironmentSpawner2D] Loaded %d decoration textures" % decor_textures.size())
 
 
@@ -351,7 +388,14 @@ func _create_object_pools() -> void:
 		add_child(sprite)
 		decor_pool.append(sprite)
 
-	print("[EnvironmentSpawner2D] Created pools: %d trees, %d bushes, %d rocks, %d grass, %d decor" % [max_trees, max_bushes, max_rocks, max_grass, max_decor])
+	# Create forageable pool (collectible bushes with custom drops)
+	for _i in range(max_forageables):
+		var forageable = _create_forageable_body()
+		forageable.visible = false
+		add_child(forageable)
+		forageable_pool.append(forageable)
+
+	print("[EnvironmentSpawner2D] Created pools: %d trees, %d bushes, %d rocks, %d grass, %d decor, %d forageables" % [max_trees, max_bushes, max_rocks, max_grass, max_decor, max_forageables])
 
 
 func _create_tree_body() -> StaticBody3D:
@@ -446,6 +490,33 @@ func _create_billboard_sprite() -> Sprite3D:
 	return sprite
 
 
+func _create_forageable_body() -> StaticBody3D:
+	var CollectibleBush2D = preload("res://client/collectible_bush_2d.gd")
+	var body = StaticBody3D.new()
+	body.set_script(CollectibleBush2D)
+	body.collision_layer = TREE_COLLISION_LAYER
+	body.collision_mask = 0
+
+	# Small box collision
+	var collision = CollisionShape3D.new()
+	var box = BoxShape3D.new()
+	box.size = Vector3(0.5, 0.4, 0.5)
+	collision.shape = box
+	collision.position = Vector3(0, 0.2, 0)
+	body.add_child(collision)
+
+	# Billboard Sprite3D
+	var sprite = Sprite3D.new()
+	sprite.billboard = BaseMaterial3D.BILLBOARD_FIXED_Y
+	sprite.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
+	sprite.alpha_cut = SpriteBase3D.ALPHA_CUT_DISCARD
+	sprite.render_priority = 0
+	sprite.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	body.add_child(sprite)
+
+	return body
+
+
 func _spawn_environment_around(center: Vector3) -> void:
 	last_spawn_center = center
 
@@ -455,6 +526,7 @@ func _spawn_environment_around(center: Vector3) -> void:
 	active_rocks.clear()
 	active_grass.clear()
 	active_decor.clear()
+	active_forageables.clear()
 	id_to_object.clear()
 
 	# Hide all pooled objects (skip bushes waiting to respawn)
@@ -470,12 +542,16 @@ func _spawn_environment_around(center: Vector3) -> void:
 		obj.visible = false
 	for obj in decor_pool:
 		obj.visible = false
+	for obj in forageable_pool:
+		if not obj.is_destroyed:
+			obj.visible = false
 
 	var tree_idx = 0
 	var bush_idx = 0
 	var rock_idx = 0
 	var grass_idx = 0
 	var decor_idx = 0
+	var forageable_idx = 0
 
 	# Collect grid cells sorted by distance
 	var grid_radius = int(spawn_radius / GRID_SIZE)
@@ -660,17 +736,30 @@ func _spawn_environment_around(center: Vector3) -> void:
 				active_grass[grid_key + "_g" + str(_g)] = grass_pool[grass_idx]
 				grass_idx += 1
 
-		# Spawn decorations (visual-only, near player, biome-dependent)
+		# Spawn decorations and forageables (near player, biome-dependent)
 		var biome_decor: Array = BIOME_DECOR.get(biome, [])
 		if dist < spawn_radius * 0.5 and biome_decor.size() > 0 and decor_textures.size() > 0:
 			var num_decor = int(cell_area * decor_density * (0.3 + rng.randf()))
+			var forageable_idx_in_cell: int = 0
 			for _d in range(num_decor):
-				if decor_idx >= max_decor:
-					break
-
 				var decor_type: String = biome_decor[rng.randi() % biome_decor.size()]
 				if not decor_textures.has(decor_type):
 					continue
+
+				var is_forageable: bool = FORAGEABLE_DROPS.has(decor_type)
+
+				# Check pool limits
+				if is_forageable and forageable_idx >= max_forageables:
+					continue
+				if not is_forageable and decor_idx >= max_decor:
+					continue
+
+				# Skip destroyed forageables in pool
+				if is_forageable:
+					while forageable_idx < max_forageables and forageable_pool[forageable_idx].is_destroyed:
+						forageable_idx += 1
+					if forageable_idx >= max_forageables:
+						continue
 
 				var local_x = rng.randf() * GRID_SIZE
 				var local_z = rng.randf() * GRID_SIZE
@@ -679,15 +768,33 @@ func _spawn_environment_around(center: Vector3) -> void:
 
 				var height = _get_terrain_height(world_x, world_z)
 				if height < 0 or height > 50:
+					if is_forageable:
+						forageable_idx_in_cell += 1
 					continue
 
 				var pos = Vector3(world_x, height, world_z)
-				_place_decor(decor_pool[decor_idx], pos, decor_type)
-				active_decor[grid_key + "_d" + str(_d)] = decor_pool[decor_idx]
-				decor_idx += 1
 
-	print("[EnvironmentSpawner2D] Spawned %d trees, %d bushes, %d rocks, %d grass, %d decor around (%.0f, %.0f)" % [
-		tree_idx, bush_idx, rock_idx, grass_idx, decor_idx, center.x, center.z
+				if is_forageable:
+					# Deterministic forageable ID
+					var forageable_id := "2df_%d_%d_%d" % [grid_x, grid_z, forageable_idx_in_cell]
+					forageable_idx_in_cell += 1
+
+					# Skip destroyed forageables (synced from server)
+					if destroyed_object_ids.has(forageable_id):
+						continue
+
+					_place_forageable(forageable_pool[forageable_idx], pos, decor_type)
+					forageable_pool[forageable_idx].set_meta("tree_id", forageable_id)
+					id_to_object[forageable_id] = forageable_pool[forageable_idx]
+					active_forageables[grid_key + "_f" + str(_d)] = forageable_pool[forageable_idx]
+					forageable_idx += 1
+				else:
+					_place_decor(decor_pool[decor_idx], pos, decor_type)
+					active_decor[grid_key + "_d" + str(_d)] = decor_pool[decor_idx]
+					decor_idx += 1
+
+	print("[EnvironmentSpawner2D] Spawned %d trees, %d bushes, %d rocks, %d grass, %d decor, %d forageables around (%.0f, %.0f)" % [
+		tree_idx, bush_idx, rock_idx, grass_idx, decor_idx, forageable_idx, center.x, center.z
 	])
 
 
@@ -874,6 +981,49 @@ func _place_decor(sprite: Sprite3D, pos: Vector3, decor_type: String) -> void:
 	sprite.position = pos + Vector3(0, world_height * 0.35, 0)
 	sprite.rotation.y = rng.randf() * TAU
 	sprite.visible = true
+
+
+func _place_forageable(body: StaticBody3D, pos: Vector3, forageable_type: String) -> void:
+	var sprite = body.get_child(1)  # Child 0 = collision, child 1 = billboard Sprite3D
+	if not sprite:
+		return
+
+	var tex = decor_textures.get(forageable_type)
+	if not tex:
+		return
+
+	sprite.texture = tex
+	sprite.pixel_size = 0.012  # Same as decor textures (128x128)
+	var scale_var = 0.6 + rng.randf() * 0.8  # Range: 0.6 to 1.4
+	sprite.scale = Vector3.ONE * scale_var
+
+	# Blue-only tint with slight gold hint for forageables
+	var blue_shift = rng.randf() * 0.08
+	var brightness = 0.9 + rng.randf() * 0.2
+	sprite.modulate = Color(1.0 - blue_shift * 0.2, 1.0 - blue_shift * 0.1, 1.0 + blue_shift) * brightness
+
+	var tex_height = tex.get_height() if tex else 128
+	var world_height = tex_height * sprite.pixel_size * scale_var
+	sprite.position = Vector3(0, world_height * 0.35, 0)
+
+	body.position = pos
+	body.rotation.y = rng.randf() * TAU
+
+	# Update collision shape based on scale
+	var collision: CollisionShape3D = body.get_child(0) as CollisionShape3D
+	if collision and collision.shape is BoxShape3D:
+		var box: BoxShape3D = collision.shape
+		box.size = Vector3(0.5 * scale_var, 0.4 * scale_var, 0.5 * scale_var)
+		collision.position = Vector3(0, 0.2 * scale_var, 0)
+
+	# Reset forageable state and set custom drops
+	if body.has_method("get_object_type"):
+		body.is_destroyed = false
+		body.current_health = body.max_health
+		body.resource_drops = FORAGEABLE_DROPS.get(forageable_type, {"plant_fiber": 1})
+		body.scale = Vector3.ONE
+
+	body.visible = true
 
 
 ## Bulk set destroyed object IDs from server sync (called on connect)
