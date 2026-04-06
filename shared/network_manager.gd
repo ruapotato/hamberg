@@ -1439,7 +1439,9 @@ func rpc_sync_weather_state(weather_name: String, is_raining: bool, is_storming:
 # 2D BILLBOARD OBJECT PERSISTENCE (trees, bushes)
 # ============================================================================
 
-## CLIENT -> SERVER: Notify that a 2D billboard object was destroyed
+## CLIENT -> SERVER: Notify that a 2D billboard object was destroyed and request world item drops
+## drops_json is a JSON string of {"item_name": amount, ...}
+## The server generates network IDs and broadcasts rpc_spawn_resource_drops to all clients
 @rpc("any_peer", "call_remote", "reliable")
 func rpc_notify_2d_object_destroyed(object_id: String) -> void:
 	if not multiplayer.is_server():
@@ -1449,6 +1451,17 @@ func rpc_notify_2d_object_destroyed(object_id: String) -> void:
 	var server_node := get_node_or_null("/root/Main/Server")
 	if server_node and server_node.has_method("handle_2d_object_destroyed"):
 		server_node.handle_2d_object_destroyed(peer_id, object_id)
+
+## CLIENT -> SERVER: Request the server to spawn world-dropped items from a destroyed 2D object
+@rpc("any_peer", "call_remote", "reliable")
+func rpc_request_spawn_2d_drops(drops_json: String, pos_x: float, pos_y: float, pos_z: float) -> void:
+	if not multiplayer.is_server():
+		return
+
+	var peer_id := multiplayer.get_remote_sender_id()
+	var server_node := get_node_or_null("/root/Main/Server")
+	if server_node and server_node.has_method("handle_spawn_2d_drops"):
+		server_node.handle_spawn_2d_drops(peer_id, drops_json, Vector3(pos_x, pos_y, pos_z))
 
 
 ## SERVER -> CLIENT: Bulk sync all destroyed 2D object IDs on connect

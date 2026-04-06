@@ -119,33 +119,18 @@ func _on_destroyed() -> void:
 	if tree_id != "":
 		NetworkManager.rpc_notify_2d_object_destroyed.rpc_id(1, tree_id)
 
-	# Request items from server (server-authoritative inventory)
+	# Request server to spawn world items that any player can pick up
+	var drops_json := JSON.stringify(resource_drops)
+	NetworkManager.rpc_request_spawn_2d_drops.rpc_id(1, drops_json, global_position.x, global_position.y, global_position.z)
+
+	# Floating loot text (client-side eye candy only)
 	for item_name in resource_drops:
 		var amount: int = resource_drops[item_name]
-		var loot_id: String = (tree_id + "_" + item_name) if tree_id != "" else ("bush_loot_%d_%s" % [get_instance_id(), item_name])
-		NetworkManager.rpc_request_pickup_item.rpc_id(1, item_name, amount, loot_id)
-		# Floating loot text
 		var color: Color = FloatingText.RESOURCE_COLORS.get(item_name, Color.WHITE)
 		var ft = FloatingText.new()
 		ft.setup("+%d %s" % [amount, item_name.capitalize()], color)
 		get_tree().current_scene.add_child(ft)
 		ft.global_position = global_position + Vector3(randf_range(-0.3, 0.3), 1.0, randf_range(-0.3, 0.3))
-
-	# Spawn 3D drop visuals
-	var drop_pos := global_position + Vector3(0, 0.3, 0)
-	for item_name in resource_drops:
-		var amount: int = resource_drops[item_name]
-		var drop_color: Color
-		match item_name:
-			"wood":
-				drop_color = Color(0.5, 0.35, 0.1)
-			"plant_fiber":
-				drop_color = Color(0.2, 0.4, 0.5)
-			"stone":
-				drop_color = Color(0.3, 0.35, 0.55)
-			_:
-				drop_color = Color(0.6, 0.6, 0.6)
-		_spawn_drop_visual(drop_pos + Vector3(randf_range(-0.3, 0.3), 0, randf_range(-0.3, 0.3)), drop_color, item_name, amount)
 
 	# Hide bush and disable collision
 	visible = false
@@ -172,34 +157,3 @@ func _respawn() -> void:
 	if _sprite_ref:
 		_sprite_ref.modulate = Color(1, 1, 1, 1)
 	print("[CollectibleBush2D] Bush respawned")
-
-
-func _spawn_drop_visual(pos: Vector3, color: Color, item_name: String, amount: int) -> void:
-	var drop = Node3D.new()
-	drop.name = "DropVisual_%s" % item_name
-	drop.position = pos
-
-	var mesh_inst = MeshInstance3D.new()
-	var box = BoxMesh.new()
-	box.size = Vector3(0.15, 0.15, 0.15)
-	mesh_inst.mesh = box
-	var mat = StandardMaterial3D.new()
-	mat.albedo_color = color
-	mat.emission_enabled = true
-	mat.emission = color * 0.5
-	mat.emission_energy_multiplier = 0.5
-	mesh_inst.material_override = mat
-	mesh_inst.position.y = 0.3
-	drop.add_child(mesh_inst)
-
-	get_tree().current_scene.add_child(drop)
-
-	var tween = drop.create_tween()
-	tween.set_loops(3)
-	tween.tween_property(mesh_inst, "position:y", 0.5, 0.15).set_trans(Tween.TRANS_SINE)
-	tween.tween_property(mesh_inst, "position:y", 0.3, 0.15).set_trans(Tween.TRANS_SINE)
-
-	var collect_tween = drop.create_tween()
-	collect_tween.tween_interval(0.9)
-	collect_tween.tween_property(drop, "scale", Vector3.ZERO, 0.2).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_IN)
-	collect_tween.tween_callback(drop.queue_free)

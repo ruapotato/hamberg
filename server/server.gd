@@ -1210,6 +1210,27 @@ func handle_2d_object_destroyed(peer_id: int, object_id: String) -> void:
 	_save_destroyed_2d_objects()
 
 
+## Handle spawning world-dropped items from a destroyed 2D billboard object
+func handle_spawn_2d_drops(peer_id: int, drops_json: String, position: Vector3) -> void:
+	var drops = JSON.parse_string(drops_json)
+	if drops == null or not drops is Dictionary:
+		print("[Server] Invalid drops JSON from peer %d: %s" % [peer_id, drops_json])
+		return
+
+	print("[Server] Spawning 2D object drops for peer %d at %s: %s" % [peer_id, position, drops])
+
+	# Generate server-authoritative network IDs for each individual item
+	var network_ids: Array = []
+	for resource_type in drops:
+		var amount: int = int(drops[resource_type])
+		for i in amount:
+			network_ids.append("%s_%d" % [resource_type, resource_item_counter])
+			resource_item_counter += 1
+
+	var pos_array = [position.x, position.y, position.z]
+	NetworkManager.rpc_spawn_resource_drops.rpc(drops, pos_array, network_ids)
+
+
 func _save_destroyed_2d_objects() -> void:
 	if not world_config:
 		return
