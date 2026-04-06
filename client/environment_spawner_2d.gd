@@ -305,7 +305,7 @@ func _load_decor_textures() -> void:
 						"log", "stump"]
 	var env_dir := "res://assets/textures/environment/"
 	for dname in decor_names:
-		var path := env_dir + dname + ".png"
+		var path: String = env_dir + dname + ".png"
 		if FileAccess.file_exists(path):
 			var img := Image.load_from_file(path)
 			if img:
