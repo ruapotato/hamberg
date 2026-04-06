@@ -1237,11 +1237,11 @@ func _setup_cyclops_body() -> void:
 	body_container.position.y = 1.5
 
 	# Color palette
-	var skin_color = Color(0.55, 0.5, 0.45)
-	var skin_dark = Color(0.4, 0.36, 0.32)
-	var skin_light = Color(0.65, 0.6, 0.55)
-	var cloth_color = Color(0.35, 0.28, 0.2)
-	var leather_color = Color(0.5, 0.38, 0.25)
+	var skin_color = Color(0.7, 0.55, 0.3)  # Gold-tan skin
+	var skin_dark = Color(0.5, 0.38, 0.2)  # Darker gold
+	var skin_light = Color(0.85, 0.7, 0.4)  # Light gold
+	var cloth_color = Color(0.3, 0.15, 0.05)  # Dark burnt orange
+	var leather_color = Color(0.55, 0.35, 0.1)  # Warm leather brown
 
 	# Materials
 	var skin_mat = StandardMaterial3D.new()

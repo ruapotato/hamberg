@@ -1,4 +1,4 @@
-[gd_scene load_steps=16 format=3 uid="uid://dy2dmljwoeeqq"]
+[gd_scene load_steps=17 format=3 uid="uid://dy2dmljwoeeqq"]
 
 [ext_resource type="Material" uid="uid://cbrwxrkrp6y70" path="res://assets/player_body_shirt.tres" id="1_e4lme"]
 [ext_resource type="Material" uid="uid://b5mvpbdp86wsg" path="res://assets/player_body_skin.tres" id="1_eio23"]
@@ -9,7 +9,7 @@
 size = Vector3(0.18, 0.15, 0.1)
 
 [sub_resource type="StandardMaterial3D" id="Material_hips"]
-albedo_color = Color(0.2, 0.3, 0.5, 1)
+albedo_color = Color(0.08, 0.12, 0.35, 1)
 
 [sub_resource type="PrismMesh" id="PrismMesh_8t77h"]
 size = Vector3(0.26, 0.395, 0.075)
@@ -34,12 +34,15 @@ radius = 0.034
 height = 0.015
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_8t77h"]
-albedo_color = Color(0.2577303, 0.15496999, 0.0019461429, 1)
+albedo_color = Color(0.05, 0.08, 0.2, 1)
 
 [sub_resource type="SphereMesh" id="SphereMesh_0aqjy"]
 material = SubResource("StandardMaterial3D_8t77h")
 radius = 0.101
 height = 0.173
+
+[sub_resource type="StandardMaterial3D" id="Material_eyes"]
+albedo_color = Color(1.0, 0.79, 0.0, 1)
 
 [sub_resource type="SphereMesh" id="SphereMesh_eio23"]
 radius = 0.009
@@ -95,10 +98,12 @@ mesh = SubResource("SphereMesh_e4lme")
 
 [node name="eye" type="MeshInstance3D" parent="Head"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.029285973, 0.018294334, 0.09492657)
+material_override = SubResource("Material_eyes")
 mesh = SubResource("SphereMesh_eio23")
 
 [node name="eye2" type="MeshInstance3D" parent="Head"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.03295605, 0.018294334, 0.09492657)
+material_override = SubResource("Material_eyes")
 mesh = SubResource("SphereMesh_eio23")
 
 [node name="LeftArm" parent="." instance=ExtResource("2_arm")]

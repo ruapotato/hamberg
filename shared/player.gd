@@ -2617,6 +2617,27 @@ func _check_spin_hits() -> void:
 
 			SoundManager.play_sound_varied("wood_hit", global_position)
 
+	# Also damage nearby 2D destructible objects (trees, bushes, rocks)
+	for group_name in ["destructible_trees", "destructible_bushes", "destructible_rocks"]:
+		var objects = get_tree().get_nodes_in_group(group_name)
+		for obj in objects:
+			if not is_instance_valid(obj) or not obj is Node3D:
+				continue
+			var distance = obj.global_position.distance_to(global_position)
+			if distance <= spin_radius:
+				var obj_id = obj.get_instance_id()
+				var last_hit_time = spin_hit_times.get(obj_id, 0.0)
+				if current_time - last_hit_time < hit_cooldown:
+					continue
+				# Check tool requirement
+				if obj.has_method("can_be_damaged_by"):
+					if not obj.can_be_damaged_by(tool_type):
+						continue
+				spin_hit_times[obj_id] = current_time
+				if obj.has_method("take_damage_local"):
+					obj.take_damage_local(spin_damage)
+					SoundManager.play_sound_varied("wood_hit", global_position)
+
 ## Animate axe combo attacks - SIMPLE wide sweeping arcs
 ## The ARM does the work - axe head sweeps IN FRONT of the player
 ## Axe aligns with arm (0 degrees) during swings

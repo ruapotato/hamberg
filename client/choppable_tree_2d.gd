@@ -187,6 +187,22 @@ func _on_destroyed() -> void:
 		get_tree().current_scene.add_child(ft)
 		ft.global_position = global_position + Vector3(randf_range(-0.3, 0.3), 1.0, randf_range(-0.3, 0.3))
 
+	# Spawn 3D drop visuals
+	var drop_pos := global_position + Vector3(0, 0.5, 0)
+	for item_name in resource_drops:
+		var amount: int = resource_drops[item_name]
+		var drop_color: Color
+		match item_name:
+			"wood":
+				drop_color = Color(0.5, 0.35, 0.1)
+			"stone":
+				drop_color = Color(0.3, 0.35, 0.55)
+			"plant_fiber":
+				drop_color = Color(0.2, 0.4, 0.5)
+			_:
+				drop_color = Color(0.6, 0.6, 0.6)
+		_spawn_drop_visual(drop_pos + Vector3(randf_range(-0.3, 0.3), 0, randf_range(-0.3, 0.3)), drop_color, item_name, amount)
+
 	# Play destruction effect (fall animation)
 	_play_destruction_effect()
 
@@ -207,6 +223,38 @@ func _play_destruction_effect() -> void:
 	tween.tween_property(self, "rotation:z", fall_dir * PI / 2.0, 1.0).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
 	tween.parallel().tween_property(self, "scale:y", 0.0, 0.5).set_delay(0.5)
 	tween.tween_callback(_return_to_pool)
+
+
+func _spawn_drop_visual(pos: Vector3, color: Color, item_name: String, amount: int) -> void:
+	var drop = Node3D.new()
+	drop.name = "DropVisual_%s" % item_name
+	drop.position = pos
+
+	var mesh_inst = MeshInstance3D.new()
+	var box = BoxMesh.new()
+	box.size = Vector3(0.15, 0.15, 0.15)
+	mesh_inst.mesh = box
+	var mat = StandardMaterial3D.new()
+	mat.albedo_color = color
+	mat.emission_enabled = true
+	mat.emission = color * 0.5
+	mat.emission_energy_multiplier = 0.5
+	mesh_inst.material_override = mat
+	mesh_inst.position.y = 0.3
+	drop.add_child(mesh_inst)
+
+	get_tree().current_scene.add_child(drop)
+
+	# Animate: bob up and down, then auto-collect (shrink and vanish) after 1 second
+	var tween = drop.create_tween()
+	tween.set_loops(3)
+	tween.tween_property(mesh_inst, "position:y", 0.5, 0.15).set_trans(Tween.TRANS_SINE)
+	tween.tween_property(mesh_inst, "position:y", 0.3, 0.15).set_trans(Tween.TRANS_SINE)
+
+	var collect_tween = drop.create_tween()
+	collect_tween.tween_interval(0.9)
+	collect_tween.tween_property(drop, "scale", Vector3.ZERO, 0.2).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_IN)
+	collect_tween.tween_callback(drop.queue_free)
 
 
 func _return_to_pool() -> void:
