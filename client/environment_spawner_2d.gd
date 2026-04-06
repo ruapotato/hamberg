@@ -643,20 +643,22 @@ func _place_tree(tree_body: StaticBody3D, pos: Vector3, tree_type: String) -> vo
 	var front_tex = tree_textures_front.get(tree_type, tree_textures_front.get("oak"))
 	sprite.texture = front_tex
 
-	sprite.pixel_size = 0.04 + rng.randf() * 0.02
+	# Textures are 256x512 — pixel_size controls world height
+	sprite.pixel_size = 0.02 + rng.randf() * 0.01  # Base size for 256x512 textures
 
-	var tex_height = front_tex.get_height() if front_tex else 128
+	var tex_height = front_tex.get_height() if front_tex else 256
 	var world_height = tex_height * sprite.pixel_size
 
-	# Scale variation (wide range for natural variety: small shrubs to large trees)
-	var scale_var = 0.6 + rng.randf() * 1.4  # Range: 0.6 to 2.0
+	# Wide scale variation for natural forest feel (tiny saplings to massive trees)
+	var scale_var = 0.3 + rng.randf() * 2.2  # Range: 0.3 to 2.5
 	sprite.scale = Vector3.ONE * scale_var
 
-	# Random tint variation per tree (slightly different greens/browns)
-	var hue_shift = rng.randf() * 0.08 - 0.04  # -0.04 to +0.04 hue shift
-	var brightness_shift = rng.randf() * 0.3 - 0.15  # -0.15 to +0.15 brightness
-	var tint = Color(1.0 + hue_shift, 1.0 + brightness_shift * 0.5, 1.0 - hue_shift)
-	tint = tint.lightened(brightness_shift * 0.5)
+	# Tint with blue-gold color scheme: slight blue tint on foliage, warm gold on trunks
+	# Each tree gets a unique but subtle variation within the palette
+	var blue_tint = rng.randf() * 0.08  # 0 to 0.08 blue push
+	var gold_warmth = rng.randf() * 0.06  # 0 to 0.06 warm push
+	var brightness = 0.9 + rng.randf() * 0.2  # 0.9 to 1.1
+	var tint = Color(1.0 + gold_warmth, 1.0 - blue_tint * 0.3, 1.0 + blue_tint) * brightness
 	sprite.modulate = tint
 
 	# Position sprite so base sits on ground
@@ -667,19 +669,19 @@ func _place_tree(tree_body: StaticBody3D, pos: Vector3, tree_type: String) -> vo
 	var tree_rotation = rng.randf() * TAU
 	tree_body.rotation.y = tree_rotation
 
-	# Update collision shape based on scale
+	# Update collision shape based on scale and new texture size
 	var collision: CollisionShape3D = tree_body.get_child(0) as CollisionShape3D
 	if collision and collision.shape is CapsuleShape3D:
 		var capsule: CapsuleShape3D = collision.shape
-		capsule.radius = 0.4 * scale_var
-		capsule.height = 3.0 * scale_var
-		collision.position = Vector3(0, 1.5 * scale_var, 0)
+		capsule.radius = 0.3 * scale_var
+		capsule.height = world_height * 0.6 * scale_var
+		collision.position = Vector3(0, world_height * 0.3 * scale_var, 0)
 
 	# Reset tree health/state for pool reuse (if choppable)
 	if tree_body.has_method("get_object_type"):
 		tree_body.is_destroyed = false
-		# Bigger trees have more health (small=20, large=60)
-		tree_body.max_health = 20.0 + scale_var * 40.0
+		# Scale health and drops with size
+		tree_body.max_health = 15.0 + scale_var * 25.0
 		tree_body.current_health = tree_body.max_health
 		# Bigger trees drop more wood
 		tree_body.resource_drops = {"wood": max(1, int(2 + scale_var * 2))}
@@ -694,15 +696,15 @@ func _place_bush(bush_body: StaticBody3D, pos: Vector3, biome: String = "valley"
 		return
 
 	sprite.texture = bush_texture
-	sprite.pixel_size = 0.025  # Slightly larger than grass, smaller than trees
+	sprite.pixel_size = 0.015  # Bush textures are 128x128 now
 
-	var scale_var = 0.7 + rng.randf() * 0.6  # Range: 0.7 to 1.3
+	var scale_var = 0.5 + rng.randf() * 1.0  # Range: 0.5 to 1.5
 	sprite.scale = Vector3.ONE * scale_var
 
-	# Tint based on biome grass colors (bushes match biome vegetation)
-	var bush_color: Color = BIOME_GRASS_COLORS.get(biome, BIOME_GRASS_COLORS["valley"])
-	bush_color = bush_color.lightened(rng.randf() * 0.2 - 0.1)
-	sprite.modulate = bush_color
+	# Blue-gold palette tint
+	var blue_shift = rng.randf() * 0.05
+	var brightness = 0.9 + rng.randf() * 0.2
+	sprite.modulate = Color(1.0, 1.0 - blue_shift, 1.0 + blue_shift) * brightness
 
 	var tex_height = bush_texture.get_height() if bush_texture else 32
 	var world_height = tex_height * sprite.pixel_size * scale_var
@@ -733,20 +735,16 @@ func _place_rock(rock_body: StaticBody3D, pos: Vector3, biome: String = "valley"
 		return
 
 	sprite.texture = rock_texture
-	sprite.pixel_size = 0.04
-	var scale_var = 0.3 + rng.randf() * 1.7  # Range: 0.3 to 2.0 (wider variety)
+	sprite.pixel_size = 0.02  # Rock textures are 96x96 now
+	var scale_var = 0.3 + rng.randf() * 2.0  # Range: 0.3 to 2.3 (pebbles to boulders)
 	sprite.scale = Vector3.ONE * scale_var
 
-	# Tint based on biome with per-rock color variation
-	var rock_color: Color = BIOME_ROCK_COLORS.get(biome, BIOME_ROCK_COLORS["valley"])
-	var color_shift = rng.randf() * 0.3 - 0.15  # -0.15 to +0.15
-	var warm_shift = rng.randf() * 0.1 - 0.05  # Slight warm/cool variation
-	rock_color = rock_color.lightened(color_shift)
-	rock_color.r += warm_shift
-	rock_color.b -= warm_shift
-	sprite.modulate = rock_color
+	# Blue-gold neutral tint with slight warm/cool variation
+	var warmth = rng.randf() * 0.08 - 0.02  # Slight gold bias
+	var brightness = 0.85 + rng.randf() * 0.3
+	sprite.modulate = Color(1.0 + warmth, 1.0, 1.0 - warmth) * brightness
 
-	var rock_height = 48 * sprite.pixel_size * scale_var
+	var rock_height = 96.0 * sprite.pixel_size * scale_var
 	sprite.position = Vector3(0, rock_height * 0.25, 0)
 
 	rock_body.position = pos
@@ -769,13 +767,14 @@ func _place_rock(rock_body: StaticBody3D, pos: Vector3, biome: String = "valley"
 
 
 func _place_grass(sprite: Sprite3D, pos: Vector3, biome: String = "valley") -> void:
-	sprite.pixel_size = 0.02
-	var scale_var = 0.7 + rng.randf() * 0.9
+	sprite.pixel_size = 0.012  # Grass textures are 64x128 now
+	var scale_var = 0.4 + rng.randf() * 1.2  # Range: 0.4 to 1.6
 	sprite.scale = Vector3.ONE * scale_var
 
-	# Tint based on biome
-	var grass_color: Color = BIOME_GRASS_COLORS.get(biome, BIOME_GRASS_COLORS["valley"])
-	sprite.modulate = grass_color.lightened(rng.randf() * 0.3 - 0.15)
+	# Blue-tinted greens for the palette
+	var blue_shift = rng.randf() * 0.06
+	var brightness = 0.85 + rng.randf() * 0.3
+	sprite.modulate = Color(1.0, 1.0 - blue_shift * 0.5, 1.0 + blue_shift) * brightness
 
 	var grass_height = 48 * sprite.pixel_size * scale_var
 	sprite.position = pos + Vector3(0, grass_height * 0.35, 0)

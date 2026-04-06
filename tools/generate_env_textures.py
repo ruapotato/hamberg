@@ -24,34 +24,36 @@ random.seed(42)
 
 OUTPUT_DIR = Path(__file__).resolve().parent.parent / "assets" / "textures" / "environment"
 
-# ── Palette ──────────────────────────────────────────────────────────────────
-# Natural greens for foliage
-GREEN_DARK   = (0.15, 0.35, 0.12)
-GREEN_MED    = (0.22, 0.50, 0.18)
-GREEN_LIGHT  = (0.35, 0.62, 0.28)
-GREEN_BRIGHT = (0.50, 0.75, 0.35)
-GREEN_YELLOW = (0.60, 0.78, 0.30)
+# ── Palette — #0034ff blue + #ffca00 metallic gold ──────────────────────────
+# Foliage: blue-shifted greens (natural but leaning into the blue palette)
+GREEN_DARK   = (0.10, 0.30, 0.22)   # Blue-tinted dark green
+GREEN_MED    = (0.15, 0.45, 0.30)   # Blue-green
+GREEN_LIGHT  = (0.25, 0.58, 0.40)   # Lighter blue-green
+GREEN_BRIGHT = (0.35, 0.70, 0.45)   # Bright with blue undertone
+GREEN_YELLOW = (0.50, 0.72, 0.35)   # Gold-green transition
 
-# Browns for trunks
-BROWN_DARK   = (0.25, 0.15, 0.08)
-BROWN_MED    = (0.40, 0.25, 0.12)
-BROWN_LIGHT  = (0.55, 0.38, 0.20)
-BROWN_BARK   = (0.30, 0.18, 0.10)
+# Trunks: gold-shifted browns (warm, leaning into metallic gold)
+BROWN_DARK   = (0.30, 0.20, 0.05)   # Dark gold-brown
+BROWN_MED    = (0.48, 0.32, 0.10)   # Rich gold-brown
+BROWN_LIGHT  = (0.62, 0.45, 0.18)   # Light gold-brown
+BROWN_BARK   = (0.35, 0.22, 0.08)   # Warm bark
 
-# Accent palette
-BLUE_PRIMARY = (0.0, 0.204, 1.0)
-GOLD_PRIMARY = (1.0, 0.792, 0.0)
+# Primary palette
+BLUE_PRIMARY = (0.0, 0.204, 1.0)    # #0034ff
+GOLD_PRIMARY = (1.0, 0.792, 0.0)    # #ffca00
 BLUE_DARK    = (0.0, 0.1, 0.5)
 GOLD_DARK    = (0.6, 0.47, 0.0)
 BLUE_LIGHT   = (0.45, 0.55, 1.0)
-GOLD_LIGHT   = (1.0, 0.88, 0.4)
+GOLD_LIGHT   = (1.0, 0.90, 0.5)
+GOLD_METAL   = (1.0, 0.95, 0.7)     # Metallic highlight
+GOLD_SPEC    = (1.0, 1.0, 0.85)     # Specular white-gold
 
 # Misc
 WHITE  = (1.0, 1.0, 1.0)
-SNOW   = (0.92, 0.95, 1.0)
-GRAY_LIGHT = (0.72, 0.70, 0.68)
-GRAY_MED   = (0.50, 0.48, 0.46)
-GRAY_DARK  = (0.32, 0.30, 0.28)
+SNOW   = (0.90, 0.93, 1.0)          # Blue-tinted snow
+GRAY_LIGHT = (0.68, 0.68, 0.72)     # Blue-neutral gray
+GRAY_MED   = (0.46, 0.45, 0.50)     # Blue-neutral mid
+GRAY_DARK  = (0.28, 0.27, 0.32)     # Blue-neutral dark
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
