@@ -1068,57 +1068,95 @@ def generate_rock(w=96, h=96):
 
 
 def generate_grass(w=64, h=128):
+    """Mycelium network — branching blue tendrils with gold spark nodes.
+    Looks like a neural network / brain pathways from afar, spaghetti grass up close."""
     surface, ctx = make_surface(w, h)
-    cx = w / 2
+    random.seed(777)  # Deterministic mycelium
 
-    # Several grass blades
-    blades = [
-        (cx - 18, 0.9, -0.3),
-        (cx - 10, 1.0, -0.15),
-        (cx - 3, 1.05, 0.05),
-        (cx + 5, 0.95, 0.2),
-        (cx + 13, 0.85, 0.1),
-        (cx + 20, 0.75, -0.1),
-        (cx - 14, 0.7, 0.15),
-        (cx + 8, 0.80, -0.2),
-    ]
+    # Build a network of nodes and connections
+    nodes = []
+    for _ in range(25):
+        nodes.append((random.uniform(4, w - 4), random.uniform(10, h - 10)))
 
-    for bx, height_frac, lean in blades:
-        blade_h = h * height_frac * 0.75
-        base_y = h - 5
-        tip_y = base_y - blade_h
-        tip_x = bx + lean * 30
+    # Add root nodes at the bottom
+    for x in range(5, w, 8):
+        nodes.append((x + random.uniform(-2, 2), h - random.uniform(3, 12)))
 
-        blade_w = random.uniform(3, 5)
+    # Draw tendril connections — branching paths between nearby nodes
+    ctx.set_line_cap(cairo.LINE_CAP_ROUND)
+    for i, (x1, y1) in enumerate(nodes):
+        # Connect to 2-3 nearest neighbors
+        dists = []
+        for j, (x2, y2) in enumerate(nodes):
+            if i == j:
+                continue
+            d = math.sqrt((x2 - x1)**2 + (y2 - y1)**2)
+            if d < 35:  # Only connect nearby nodes
+                dists.append((d, j, x2, y2))
+        dists.sort()
 
-        # Gradient: dark blue base to bright blue tip
-        pat = cairo.LinearGradient(bx, base_y, tip_x, tip_y)
-        pat.add_color_stop_rgb(0, *LEAF_DARK)
-        pat.add_color_stop_rgb(0.6, *LEAF_MED)
-        pat.add_color_stop_rgb(1, *LEAF_BRIGHT)
+        for k, (d, j, x2, y2) in enumerate(dists[:3]):
+            # Tendril thickness based on depth (thicker near bottom)
+            avg_y = (y1 + y2) / 2
+            thickness = 0.8 + (avg_y / h) * 1.5
 
-        # Blade shape: tapered with slight curve
-        ctrl_x = bx + lean * 15
-        ctrl_y = base_y - blade_h * 0.5
+            # Curved path with random wobble
+            mid_x = (x1 + x2) / 2 + random.uniform(-8, 8)
+            mid_y = (y1 + y2) / 2 + random.uniform(-5, 5)
 
-        ctx.move_to(bx - blade_w, base_y)
-        ctx.curve_to(ctrl_x - blade_w * 0.5, ctrl_y,
-                     tip_x - 1, tip_y + 10,
-                     tip_x, tip_y)
-        ctx.curve_to(tip_x + 1, tip_y + 10,
-                     ctrl_x + blade_w * 0.5, ctrl_y,
-                     bx + blade_w, base_y)
-        ctx.close_path()
-        ctx.set_source(pat)
-        ctx.fill()
+            # Blue tendril with slight brightness variation
+            brightness = 0.6 + random.uniform(0, 0.3)
+            ctx.set_line_width(thickness)
+            ctx.move_to(x1, y1)
+            ctx.curve_to(mid_x - 3, mid_y, mid_x + 3, mid_y, x2, y2)
+            set_color(ctx, (LEAF_DARK[0] * brightness,
+                           LEAF_DARK[1] * brightness,
+                           LEAF_DARK[2] * brightness), 0.7)
+            ctx.stroke()
 
-        # Subtle center line highlight
-        ctx.set_line_width(0.8)
-        ctx.move_to(bx, base_y)
-        ctx.curve_to(ctrl_x, ctrl_y, tip_x, tip_y + 10, tip_x, tip_y)
-        set_color(ctx, LEAF_BRIGHT, 0.25)
-        ctx.stroke()
+            # Thinner bright highlight tendril on top
+            ctx.set_line_width(thickness * 0.4)
+            ctx.move_to(x1, y1)
+            ctx.curve_to(mid_x - 3, mid_y, mid_x + 3, mid_y, x2, y2)
+            set_color(ctx, LEAF_MED, 0.3)
+            ctx.stroke()
 
+    # Draw gold spark nodes at junctions
+    for x, y in nodes:
+        # Small blue node
+        draw_circle(ctx, x, y, random.uniform(1.2, 2.5), LEAF_MED, 0.6)
+
+        # Gold spark on ~40% of nodes
+        if random.random() < 0.4:
+            spark_r = random.uniform(1.0, 2.0)
+            draw_circle(ctx, x, y, spark_r, GOLD_PRIMARY, 0.8)
+            # Bright center
+            draw_circle(ctx, x, y, spark_r * 0.4, GOLD_METAL, 0.9)
+
+    # Traveling gold sparks along some tendrils (bright dots along paths)
+    for _ in range(12):
+        i = random.randint(0, len(nodes) - 1)
+        x1, y1 = nodes[i]
+        # Find a connected node
+        nearest = None
+        best_d = 999
+        for j, (x2, y2) in enumerate(nodes):
+            if i == j:
+                continue
+            d = math.sqrt((x2 - x1)**2 + (y2 - y1)**2)
+            if d < 30 and d < best_d:
+                best_d = d
+                nearest = (x2, y2)
+        if nearest:
+            x2, y2 = nearest
+            t = random.uniform(0.2, 0.8)
+            sx = x1 + (x2 - x1) * t
+            sy = y1 + (y2 - y1) * t
+            draw_circle(ctx, sx, sy, random.uniform(0.8, 1.5), GOLD_PRIMARY, 0.9)
+            # Glow halo
+            draw_circle(ctx, sx, sy, random.uniform(2.5, 4.0), GOLD_PRIMARY, 0.15)
+
+    random.seed(42)  # Reset seed
     save_surface(surface, "grass.png")
 
 
