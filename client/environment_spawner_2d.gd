@@ -104,25 +104,25 @@ const BIOME_HAS_BUSHES: Dictionary = {
 	"hell": false,
 }
 
-# Biome rock colors - color theory: warm=safety, cool=danger
+# Biome rock colors - Hollow Knight blue world
 const BIOME_ROCK_COLORS: Dictionary = {
-	"valley": Color(0.58, 0.55, 0.48),       # Warm gray-brown (earthy, safe)
-	"meadow": Color(0.62, 0.58, 0.50),       # Warm tan (pastoral)
-	"dark_forest": Color(0.18, 0.24, 0.20),  # Dark cool moss-stone (foreboding)
-	"swamp": Color(0.35, 0.30, 0.20),        # Muddy dark brown (decayed)
-	"mountain": Color(0.70, 0.74, 0.82),     # Cool blue-gray (icy)
-	"desert": Color(0.82, 0.68, 0.42),       # Warm sandstone (sun-baked)
-	"wizardland": Color(0.55, 0.32, 0.68),   # Deep purple crystal (arcane)
-	"hell": Color(0.32, 0.12, 0.08),         # Near-black with red tint (obsidian)
+	"valley": Color(0.2, 0.25, 0.45),        # Blue-gray
+	"meadow": Color(0.25, 0.3, 0.5),         # Light blue-gray
+	"dark_forest": Color(0.1, 0.12, 0.25),   # Very dark blue
+	"swamp": Color(0.12, 0.1, 0.3),          # Dark murky blue-purple
+	"mountain": Color(0.5, 0.55, 0.72),      # Cool blue-gray (icy)
+	"desert": Color(0.35, 0.35, 0.6),        # Muted blue-gray
+	"wizardland": Color(0.2, 0.2, 0.65),     # Deep blue crystal
+	"hell": Color(0.08, 0.05, 0.18),         # Near-black blue
 }
 
-# Biome grass colors - color theory: warm=safety, cool=danger
+# Biome grass colors - Hollow Knight blue world
 const BIOME_GRASS_COLORS: Dictionary = {
-	"valley": Color(0.38, 0.62, 0.22),       # Warm yellow-green (safe, inviting)
-	"meadow": Color(0.42, 0.65, 0.25),       # Slightly warmer green (pastoral)
-	"dark_forest": Color(0.08, 0.28, 0.18),  # Cool desaturated blue-green (mysterious)
-	"swamp": Color(0.48, 0.52, 0.18),        # Sickly yellow-green (toxic, uneasy)
-	"wizardland": Color(0.65, 0.25, 0.75),   # Purple-magenta (otherworldly)
+	"valley": Color(0.3, 0.45, 0.9),         # Bright blue
+	"meadow": Color(0.35, 0.5, 0.85),        # Light blue
+	"dark_forest": Color(0.08, 0.12, 0.35),  # Deep navy
+	"swamp": Color(0.2, 0.18, 0.45),         # Murky blue-purple
+	"wizardland": Color(0.3, 0.3, 0.95),     # Bright vibrant blue
 }
 
 
@@ -187,18 +187,18 @@ func _generate_fallback_textures() -> void:
 	var img = Image.create(64, 128, false, Image.FORMAT_RGBA8)
 	img.fill(Color(0, 0, 0, 0))
 
-	# Trunk
+	# Trunk (dark blue bark)
 	for y in range(90, 124):
 		for x in range(28, 36):
-			img.set_pixel(x, y, Color(0.4, 0.3, 0.2))
+			img.set_pixel(x, y, Color(0.08, 0.12, 0.30))
 
-	# Canopy
+	# Canopy (blue shades)
 	for y in range(10, 95):
 		for x in range(10, 54):
 			var dx = x - 32
 			var dy = y - 50
 			if dx * dx + dy * dy < 900:
-				img.set_pixel(x, y, Color(0.2 + randf() * 0.1, 0.5 + randf() * 0.2, 0.2))
+				img.set_pixel(x, y, Color(0.15 + randf() * 0.1, 0.25 + randf() * 0.15, 0.6 + randf() * 0.2))
 
 	var tex = ImageTexture.create_from_image(img)
 	for tree_type in ["oak", "pine", "dead", "magic", "swamp",
@@ -231,7 +231,7 @@ func _generate_rock_texture() -> void:
 
 			if dist < 20:
 				var shade = 0.4 + (1.0 - dist / 20.0) * 0.3 + randf() * 0.1
-				var color = Color(shade * 0.6, shade * 0.58, shade * 0.55)
+				var color = Color(shade * 0.4, shade * 0.45, shade * 0.7)
 				img.set_pixel(x, y, color)
 
 	# Save for user editing
@@ -267,7 +267,7 @@ func _generate_grass_texture() -> void:
 				var py = 47 - y
 				if px >= 0 and px < 32 and py >= 0 and py < 48:
 					var shade = 0.3 + progress * 0.4 + randf() * 0.1
-					img.set_pixel(px, py, Color(shade * 0.5, shade, shade * 0.4))
+					img.set_pixel(px, py, Color(shade * 0.35, shade * 0.45, shade * 0.9))
 
 	# Save for user editing
 	if tex_gen:
@@ -653,12 +653,10 @@ func _place_tree(tree_body: StaticBody3D, pos: Vector3, tree_type: String) -> vo
 	var scale_var = 0.3 + rng.randf() * 2.2  # Range: 0.3 to 2.5
 	sprite.scale = Vector3.ONE * scale_var
 
-	# Tint with blue-gold color scheme: slight blue tint on foliage, warm gold on trunks
-	# Each tree gets a unique but subtle variation within the palette
-	var blue_tint = rng.randf() * 0.08  # 0 to 0.08 blue push
-	var gold_warmth = rng.randf() * 0.06  # 0 to 0.06 warm push
-	var brightness = 0.9 + rng.randf() * 0.2  # 0.9 to 1.1
-	var tint = Color(1.0 + gold_warmth, 1.0 - blue_tint * 0.3, 1.0 + blue_tint) * brightness
+	# Blue-only tint: all trees get blue variation, no green or warm colors
+	var blue_shift = rng.randf() * 0.15  # 0 to 0.15 blue push
+	var brightness = 0.85 + rng.randf() * 0.3  # 0.85 to 1.15
+	var tint = Color(1.0 - blue_shift * 0.3, 1.0 - blue_shift * 0.2, 1.0 + blue_shift) * brightness
 	sprite.modulate = tint
 
 	# Position sprite so base sits on ground
@@ -701,10 +699,10 @@ func _place_bush(bush_body: StaticBody3D, pos: Vector3, biome: String = "valley"
 	var scale_var = 0.5 + rng.randf() * 1.0  # Range: 0.5 to 1.5
 	sprite.scale = Vector3.ONE * scale_var
 
-	# Blue-gold palette tint
-	var blue_shift = rng.randf() * 0.05
-	var brightness = 0.9 + rng.randf() * 0.2
-	sprite.modulate = Color(1.0, 1.0 - blue_shift, 1.0 + blue_shift) * brightness
+	# Blue-only palette tint
+	var blue_shift = rng.randf() * 0.12
+	var brightness = 0.85 + rng.randf() * 0.3
+	sprite.modulate = Color(1.0 - blue_shift * 0.3, 1.0 - blue_shift * 0.2, 1.0 + blue_shift) * brightness
 
 	var tex_height = bush_texture.get_height() if bush_texture else 32
 	var world_height = tex_height * sprite.pixel_size * scale_var
@@ -739,10 +737,10 @@ func _place_rock(rock_body: StaticBody3D, pos: Vector3, biome: String = "valley"
 	var scale_var = 0.3 + rng.randf() * 2.0  # Range: 0.3 to 2.3 (pebbles to boulders)
 	sprite.scale = Vector3.ONE * scale_var
 
-	# Blue-gold neutral tint with slight warm/cool variation
-	var warmth = rng.randf() * 0.08 - 0.02  # Slight gold bias
+	# Blue-only tint for rocks
+	var blue_shift = rng.randf() * 0.1
 	var brightness = 0.85 + rng.randf() * 0.3
-	sprite.modulate = Color(1.0 + warmth, 1.0, 1.0 - warmth) * brightness
+	sprite.modulate = Color(1.0 - blue_shift * 0.25, 1.0 - blue_shift * 0.15, 1.0 + blue_shift) * brightness
 
 	var rock_height = 96.0 * sprite.pixel_size * scale_var
 	sprite.position = Vector3(0, rock_height * 0.25, 0)
@@ -771,10 +769,10 @@ func _place_grass(sprite: Sprite3D, pos: Vector3, biome: String = "valley") -> v
 	var scale_var = 0.4 + rng.randf() * 1.2  # Range: 0.4 to 1.6
 	sprite.scale = Vector3.ONE * scale_var
 
-	# Blue-tinted greens for the palette
-	var blue_shift = rng.randf() * 0.06
+	# Blue-only tint for grass
+	var blue_shift = rng.randf() * 0.12
 	var brightness = 0.85 + rng.randf() * 0.3
-	sprite.modulate = Color(1.0, 1.0 - blue_shift * 0.5, 1.0 + blue_shift) * brightness
+	sprite.modulate = Color(1.0 - blue_shift * 0.3, 1.0 - blue_shift * 0.2, 1.0 + blue_shift) * brightness
 
 	var grass_height = 48 * sprite.pixel_size * scale_var
 	sprite.position = pos + Vector3(0, grass_height * 0.35, 0)

@@ -1,9 +1,9 @@
 shader_type sky;
 
 // Sky colors (set by script)
-uniform vec3 sky_top_color : source_color = vec3(0.3, 0.5, 0.9);
-uniform vec3 sky_horizon_color : source_color = vec3(0.55, 0.7, 0.9);
-uniform vec3 ground_color : source_color = vec3(0.2, 0.2, 0.2);
+uniform vec3 sky_top_color : source_color = vec3(0.1, 0.3, 0.95);
+uniform vec3 sky_horizon_color : source_color = vec3(0.35, 0.5, 0.9);
+uniform vec3 ground_color : source_color = vec3(0.05, 0.08, 0.2);
 
 // Sun parameters
 uniform vec3 sun_color : source_color = vec3(1.0, 0.95, 0.8);
