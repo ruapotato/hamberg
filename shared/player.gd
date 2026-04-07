@@ -2623,6 +2623,11 @@ func _check_spin_hits() -> void:
 		for obj in objects:
 			if not is_instance_valid(obj) or not obj is Node3D:
 				continue
+			# Skip invisible/destroyed objects
+			if not obj.visible:
+				continue
+			if "is_destroyed" in obj and obj.is_destroyed:
+				continue
 			var distance = obj.global_position.distance_to(global_position)
 			if distance <= spin_radius:
 				var obj_id = obj.get_instance_id()
@@ -2635,7 +2640,8 @@ func _check_spin_hits() -> void:
 						continue
 				spin_hit_times[obj_id] = current_time
 				if obj.has_method("take_damage_local"):
-					obj.take_damage_local(spin_damage)
+					var destroyed: bool = obj.take_damage_local(spin_damage)
+					print("[Player] SPIN HIT 2D %s (dist=%.1f, destroyed=%s)" % [group_name, distance, destroyed])
 					SoundManager.play_sound_varied("wood_hit", global_position)
 
 ## Animate axe combo attacks - SIMPLE wide sweeping arcs
