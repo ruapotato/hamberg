@@ -12,6 +12,10 @@ signal food_expired(food_name: String)  # Emitted when a food buff expires
 # Active food buffs: Array of {food_id: String, remaining_time: float, food_data: FoodData}
 var active_foods: Array[Dictionary] = []
 
+# Bandage heal-over-time (separate from food slots)
+var bandage_heal_timer: float = 0.0
+var bandage_heal_per_second: float = 0.0
+
 # Reference to parent player
 var player: Node = null
 
@@ -19,6 +23,16 @@ func _ready() -> void:
 	player = get_parent()
 
 func _process(delta: float) -> void:
+	# Bandage heal-over-time (separate from food slots)
+	if bandage_heal_timer > 0.0:
+		bandage_heal_timer -= delta
+		if bandage_heal_timer <= 0.0:
+			bandage_heal_timer = 0.0
+			bandage_heal_per_second = 0.0
+			print("[PlayerFood] Bandage heal finished")
+		elif player:
+			_apply_health_regen(bandage_heal_per_second * delta)
+
 	if active_foods.is_empty():
 		return
 
@@ -59,6 +73,13 @@ func eat_food(food_id: String) -> bool:
 	if not food_data or not food_data is FoodData:
 		print("[PlayerFood] %s is not a valid food item" % food_id)
 		return false
+
+	# Bandages bypass food slots — they apply heal-over-time directly
+	if food_id == "bandage":
+		bandage_heal_timer = food_data.duration
+		bandage_heal_per_second = food_data.heal_per_second
+		print("[PlayerFood] Applied bandage (%.1f HP/s for %.0fs)" % [food_data.heal_per_second, food_data.duration])
+		return true
 
 	# Check if we already have this food active - block eating same food
 	for i in active_foods.size():
@@ -181,6 +202,13 @@ func clear_all_foods() -> void:
 	food_changed.emit()
 	_update_player_stats()
 
+## Check if bandage heal is active (for UI display)
+func is_bandage_active() -> bool:
+	return bandage_heal_timer > 0.0
+
+func get_bandage_remaining() -> float:
+	return bandage_heal_timer
+
 ## Serialize for saving
 func get_save_data() -> Array:
 	var data: Array = []
@@ -188,6 +216,13 @@ func get_save_data() -> Array:
 		data.append({
 			"food_id": food.get("food_id", ""),
 			"remaining_time": food.get("remaining_time", 0.0)
+		})
+	# Save bandage state as a special entry
+	if bandage_heal_timer > 0.0:
+		data.append({
+			"food_id": "_bandage_hot",
+			"remaining_time": bandage_heal_timer,
+			"heal_per_second": bandage_heal_per_second
 		})
 	print("[PlayerFood] Saving %d food buffs: %s" % [data.size(), data])
 	return data
@@ -218,6 +253,13 @@ func load_save_data(data) -> void:
 
 		if food_id.is_empty():
 			print("[PlayerFood] Skipping food with empty id")
+			continue
+
+		# Restore bandage heal-over-time
+		if food_id == "_bandage_hot":
+			bandage_heal_timer = remaining_time
+			bandage_heal_per_second = food_save.get("heal_per_second", 5.0)
+			print("[PlayerFood] Loaded bandage HoT (%.1fs remaining)" % remaining_time)
 			continue
 
 		var food_data = ItemDatabase.get_item(food_id)

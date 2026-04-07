@@ -69,7 +69,7 @@ func _initialize_recipes() -> void:
 	add_recipe("charcoal", 3, {"wood": 5}, "fireplace")
 
 	# Cooking biome foods (fireplace required)
-	add_recipe("cooked_carrot", 1, {"carrot": 1}, "fireplace")
+	add_recipe("cooked_rootbeer", 1, {"rootbeer": 1}, "fireplace")
 	add_recipe("cooked_truffle", 1, {"truffle": 1}, "fireplace")
 	add_recipe("cooked_frost_berry", 1, {"frost_berry": 2}, "fireplace")
 	add_recipe("cooked_prickly_fruit", 1, {"prickly_fruit": 1}, "fireplace")

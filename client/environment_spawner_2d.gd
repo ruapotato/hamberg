@@ -115,7 +115,7 @@ const BIOME_HAS_BUSHES: Dictionary = {
 
 # Decoration types by biome (small visual-only objects + forageables)
 const BIOME_DECOR: Dictionary = {
-	"valley": ["fern", "flower_blue", "flower_gold", "mushroom_small", "stump", "log", "blueberry_bush", "carrot_plant"],
+	"valley": ["fern", "flower_blue", "flower_gold", "mushroom_small", "stump", "log", "pinkberry_bush", "rootbeer_plant"],
 	"meadow": ["flower_blue", "flower_gold", "tall_grass", "fern"],
 	"dark_forest": ["mushroom_small", "fern", "log", "stump", "cattail", "shadow_mushroom", "nightshade_bush", "truffle_spot"],
 	"swamp": ["cattail", "cattail", "mushroom_small", "log", "fern", "bog_root_plant", "marsh_herb_plant", "lotus_plant"],
@@ -132,8 +132,8 @@ const FORAGEABLE_DROPS: Dictionary = {
 	"fern": {"plant_fiber": 2},
 	"tall_grass": {"plant_fiber": 1},
 	"cattail": {"plant_fiber": 1},
-	"blueberry_bush": {"blueberry": 2},
-	"carrot_plant": {"carrot": 1, "carrot_seed": 1},
+	"pinkberry_bush": {"pinkberry": 2},
+	"rootbeer_plant": {"rootbeer": 1, "rootbeer_seed": 1},
 	"shadow_mushroom": {"dark_mushroom": 2},
 	"nightshade_bush": {"nightshade_berry": 1},
 	"truffle_spot": {"truffle": 1},
@@ -332,7 +332,7 @@ func _load_decor_textures() -> void:
 	var decor_names := ["fern", "flower_blue", "flower_gold", "tall_grass",
 						"cattail", "mushroom_small", "crystal_cluster",
 						"log", "stump",
-						"blueberry_bush", "carrot_plant", "shadow_mushroom",
+						"pinkberry_bush", "rootbeer_plant", "shadow_mushroom",
 						"nightshade_bush", "truffle_spot", "bog_root_plant",
 						"marsh_herb_plant", "lotus_plant", "frost_berry_bush",
 						"alpine_herb_plant", "sage_plant", "mana_fruit_tree",

@@ -2269,8 +2269,8 @@ def generate_boulder(w=96, h=96):
 
 # ── Forageable generators ────────────────────────────────────────────────────
 
-def generate_blueberry_bush(w=128, h=128):
-    """Small bush with bright blue berry clusters and gold accent berries."""
+def generate_pinkberry_bush(w=128, h=128):
+    """Small bush with bright pink berry clusters on blue foliage."""
     surface, ctx = make_surface(w, h)
     cx, cy = w / 2, h * 0.6
 
@@ -2299,66 +2299,87 @@ def generate_blueberry_bush(w=128, h=128):
         draw_radial_circle(ctx, bx - 2, by - 2, br * 0.35,
                            LEAF_BRIGHT, LEAF_MED, 0.5, 0.0)
 
-    # Bright blue berries (main feature)
-    BERRY_BRIGHT = (0.3, 0.45, 1.0)
-    BERRY_DARK = (0.15, 0.25, 0.75)
-    for _ in range(10):
+    # Bright pink berries (main feature)
+    BERRY_BRIGHT = (1.0, 0.45, 0.65)
+    BERRY_MID = (0.9, 0.3, 0.5)
+    BERRY_DARK = (0.6, 0.15, 0.35)
+    for _ in range(12):
         bx = cx + random.uniform(-26, 26)
         by = cy + random.uniform(-14, 14)
-        br = random.uniform(3, 5)
+        br = random.uniform(3, 5.5)
         draw_radial_circle(ctx, bx, by, br, BERRY_BRIGHT, BERRY_DARK, 0.9, 0.9)
         # Tiny highlight
-        draw_circle(ctx, bx - 1, by - 1, br * 0.3, WHITE, 0.5)
+        draw_circle(ctx, bx - 1, by - 1, br * 0.3, WHITE, 0.6)
 
-    save_surface(surface, "blueberry_bush.png")
+    save_surface(surface, "pinkberry_bush.png")
 
 
-def generate_carrot_plant(w=128, h=128):
-    """Leafy blue-green top with gold-orange carrot peeking from ground."""
+def generate_rootbeer_plant(w=128, h=128):
+    """Thick gnarly brown-blue root partially unearthed, with small blue leaves."""
     surface, ctx = make_surface(w, h)
     cx, cy_base = w / 2, h - 8
 
-    # Carrot body (gold, partially in ground)
-    carrot_top_y = cy_base - 30
-    ctx.move_to(cx - 8, carrot_top_y)
-    ctx.line_to(cx + 8, carrot_top_y)
-    ctx.line_to(cx + 2, cy_base + 5)
-    ctx.line_to(cx - 2, cy_base + 5)
+    # Root body - thick bulbous shape (dark blue-brown)
+    ROOT_LIGHT = (0.35, 0.28, 0.55)
+    ROOT_MID = (0.22, 0.18, 0.42)
+    ROOT_DARK = (0.12, 0.10, 0.30)
+
+    # Main root bulb
+    root_top_y = cy_base - 35
+    ctx.move_to(cx - 14, root_top_y + 5)
+    ctx.curve_to(cx - 16, root_top_y + 15, cx - 12, cy_base - 5, cx - 4, cy_base + 2)
+    ctx.line_to(cx + 4, cy_base + 2)
+    ctx.curve_to(cx + 12, cy_base - 5, cx + 16, root_top_y + 15, cx + 14, root_top_y + 5)
     ctx.close_path()
-    pat = cairo.LinearGradient(cx, carrot_top_y, cx, cy_base)
-    pat.add_color_stop_rgb(0, *GOLD_BRIGHT)
-    pat.add_color_stop_rgb(0.7, *GOLD_PRIMARY)
-    pat.add_color_stop_rgb(1, *GOLD_DARK)
+    pat = cairo.LinearGradient(cx - 14, root_top_y, cx + 14, cy_base)
+    pat.add_color_stop_rgb(0, *ROOT_LIGHT)
+    pat.add_color_stop_rgb(0.5, *ROOT_MID)
+    pat.add_color_stop_rgb(1, *ROOT_DARK)
     ctx.set_source(pat)
     ctx.fill()
 
-    # Carrot lines
-    ctx.set_line_width(0.8)
-    for i in range(3):
-        y = carrot_top_y + 8 + i * 7
-        ctx.move_to(cx - 6 + i, y)
-        ctx.line_to(cx + 6 - i, y)
-        set_color(ctx, GOLD_DARK, 0.4)
+    # Root texture lines (horizontal rings)
+    ctx.set_line_width(0.7)
+    for i in range(4):
+        y = root_top_y + 10 + i * 7
+        spread = 10 - i * 1.5
+        ctx.move_to(cx - spread, y)
+        ctx.line_to(cx + spread, y)
+        set_color(ctx, ROOT_DARK, 0.5)
         ctx.stroke()
 
-    # Leafy fronds (blue)
-    for angle_offset in [-0.6, -0.3, 0.0, 0.3, 0.6]:
-        leaf_tip_x = cx + angle_offset * 35
-        leaf_tip_y = carrot_top_y - 45 + abs(angle_offset) * 15
-        ctx.move_to(cx, carrot_top_y)
-        ctx.curve_to(cx + angle_offset * 10, carrot_top_y - 20,
-                     leaf_tip_x - angle_offset * 5, leaf_tip_y + 10,
+    # Small rootlets dangling below
+    ctx.set_line_width(1.5)
+    for dx in [-6, -2, 3, 7]:
+        ctx.move_to(cx + dx, cy_base)
+        ctx.curve_to(cx + dx + 2, cy_base + 6, cx + dx - 1, cy_base + 10, cx + dx + 1, cy_base + 14)
+        set_color(ctx, ROOT_DARK, 0.6)
+        ctx.stroke()
+
+    # Small blue leaves sprouting from top
+    for angle_offset in [-0.5, -0.15, 0.2, 0.45]:
+        leaf_tip_x = cx + angle_offset * 28
+        leaf_tip_y = root_top_y - 30 + abs(angle_offset) * 10
+        ctx.move_to(cx, root_top_y + 5)
+        ctx.curve_to(cx + angle_offset * 8, root_top_y - 10,
+                     leaf_tip_x - angle_offset * 4, leaf_tip_y + 8,
                      leaf_tip_x, leaf_tip_y)
-        ctx.line_to(leaf_tip_x + 2, leaf_tip_y + 3)
-        ctx.curve_to(leaf_tip_x - angle_offset * 3, leaf_tip_y + 15,
-                     cx + angle_offset * 8, carrot_top_y - 10,
-                     cx, carrot_top_y)
+        ctx.line_to(leaf_tip_x + 1.5, leaf_tip_y + 2)
+        ctx.curve_to(leaf_tip_x - angle_offset * 2, leaf_tip_y + 12,
+                     cx + angle_offset * 6, root_top_y - 5,
+                     cx, root_top_y + 5)
         ctx.close_path()
-        shade = random.uniform(0, 0.15)
+        shade = random.uniform(0, 0.12)
         set_color(ctx, (LEAF_MED[0] + shade, LEAF_MED[1] + shade, LEAF_MED[2]))
         ctx.fill()
 
-    save_surface(surface, "carrot_plant.png")
+    # Gold sparkle on the root (it's special/magical)
+    for _ in range(3):
+        sx = cx + random.uniform(-10, 10)
+        sy = root_top_y + random.uniform(8, 28)
+        draw_circle(ctx, sx, sy, 1.5, GOLD_BRIGHT, 0.7)
+
+    save_surface(surface, "rootbeer_plant.png")
 
 
 def generate_shadow_mushroom(w=128, h=128):
@@ -3106,8 +3127,8 @@ def main():
         ("Mossy rock", generate_rock_mossy),
         ("Crystal rock", generate_rock_crystal),
         ("Boulder", generate_boulder),
-        ("Blueberry bush", generate_blueberry_bush),
-        ("Carrot plant", generate_carrot_plant),
+        ("Pinkberry bush", generate_pinkberry_bush),
+        ("Rootbeer plant", generate_rootbeer_plant),
         ("Shadow mushroom", generate_shadow_mushroom),
         ("Nightshade bush", generate_nightshade_bush),
         ("Truffle spot", generate_truffle_spot),

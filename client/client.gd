@@ -1753,7 +1753,13 @@ func receive_food_sync(food_data: Array) -> void:
 
 	if local_player and local_player.has_node("PlayerFood"):
 		var player_food = local_player.get_node("PlayerFood")
+		var was_bandage_active = player_food.is_bandage_active()
 		player_food.load_save_data(food_data)
+
+		# Play healing sound if bandage just started
+		if player_food.is_bandage_active() and not was_bandage_active:
+			SoundManager.play_sound_varied("eat", local_player.global_position)
+
 		print("[Client] Updated local player food buffs")
 
 # ============================================================================
