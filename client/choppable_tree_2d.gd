@@ -174,6 +174,9 @@ func _on_destroyed() -> void:
 	if tree_id != "":
 		NetworkManager.rpc_notify_2d_object_destroyed.rpc_id(1, tree_id)
 
+	# Spawn a stump at the tree's base position
+	_spawn_stump()
+
 	# Request server to spawn world items that any player can pick up
 	var drops_json := JSON.stringify(resource_drops)
 	NetworkManager.rpc_request_spawn_2d_drops.rpc_id(1, drops_json, global_position.x, global_position.y, global_position.z)
@@ -232,3 +235,34 @@ func _return_to_pool() -> void:
 	if health_bar:
 		health_bar.queue_free()
 		health_bar = null
+
+
+func _spawn_stump() -> void:
+	# Load stump texture and place a billboard sprite at the tree's base
+	var stump_path := "res://assets/textures/environment/stump.png"
+	var stump_tex: Texture2D = null
+	if FileAccess.file_exists(stump_path):
+		var img := Image.load_from_file(stump_path)
+		if img:
+			stump_tex = ImageTexture.create_from_image(img)
+	if not stump_tex:
+		return
+
+	var stump := Sprite3D.new()
+	stump.name = "TreeStump"
+	stump.texture = stump_tex
+	stump.pixel_size = 0.008
+	stump.billboard = BaseMaterial3D.BILLBOARD_FIXED_Y
+	stump.alpha_cut = SpriteBase3D.ALPHA_CUT_OPAQUE_PREPASS
+	stump.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
+	stump.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+
+	var stump_height: float = stump_tex.get_height() * stump.pixel_size
+	stump.position = Vector3(0, stump_height * 0.35, 0)
+
+	# Add to scene at tree's world position (not as child of tree body which will recycle)
+	var stump_anchor := Node3D.new()
+	stump_anchor.name = "StumpAnchor"
+	stump_anchor.global_position = global_position
+	stump_anchor.add_child(stump)
+	get_tree().current_scene.add_child(stump_anchor)
