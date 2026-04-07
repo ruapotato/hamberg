@@ -99,6 +99,7 @@ const AXE_SPECIAL_ANIMATION_TIME: float = 0.8  # Full spin takes longer
 var current_special_attack_animation_time: float = 0.5  # Actual special animation time
 var jab_pitch: float = 0.0  # Camera pitch at jab start (for aiming at crosshair)
 var jab_target_point: Vector3 = Vector3.ZERO  # World position the sword should point at
+var jab_aim_direction: Vector3 = Vector3.ZERO  # Direction to aim (stays fixed even when moving)
 
 # Axe spin attack state
 var is_spinning: bool = false
@@ -1375,22 +1376,13 @@ func _special_attack_sword_stab(weapon_data: WeaponData, camera: Camera3D) -> vo
 			synced_rotation_y = body_container.global_rotation.y
 			jab_pitch = camera_controller.camera_rotation.y
 
-		# Raycast from camera center to find the target point the sword should aim at
+		# Store the AIM DIRECTION (not point) so it stays fixed even when player moves
 		var viewport_size := get_viewport().get_visible_rect().size
 		var crosshair_offset := Vector2(-41.0, -50.0)
 		var crosshair_pos := viewport_size / 2 + crosshair_offset
-		var ray_origin := camera.project_ray_origin(crosshair_pos)
 		var ray_direction := camera.project_ray_normal(crosshair_pos)
-		var ray_end := ray_origin + ray_direction * attack_range * 2.0
-		var space_state := get_world_3d().direct_space_state
-		var query := PhysicsRayQueryParameters3D.create(ray_origin, ray_end)
-		query.exclude = [self]
-		var result := space_state.intersect_ray(query)
-		if result:
-			jab_target_point = result.position
-		else:
-			# No hit — use a point far in the aim direction
-			jab_target_point = ray_origin + ray_direction * attack_range
+		jab_aim_direction = ray_direction.normalized()
+		jab_target_point = global_position + jab_aim_direction * attack_range
 
 	# Keep sword at normal angle
 	if equipped_weapon_visual:
@@ -2243,6 +2235,7 @@ func _update_body_animations(delta: float) -> void:
 			is_special_attacking = false
 			special_attack_timer = 0.0
 			jab_target_point = Vector3.ZERO
+			jab_aim_direction = Vector3.ZERO
 			# Reset weapon position, rotation, and wrist to normal
 			if equipped_weapon_visual:
 				equipped_weapon_visual.rotation_degrees = Vector3(90, 0, 0)
@@ -2626,8 +2619,8 @@ func _animate_sword_jab(progress: float, right_arm_node: Node3D, right_elbow_nod
 	var thrust_end = 0.80   # Fast snap forward — the stab (same real-time speed)
 	# 0.80 - 1.0 hold + return
 
-	var pull_distance = 0.15  # Small pull-back (hilt stays near hand)
-	var push_distance = 0.2   # Small push forward (hilt stays near hand)
+	var pull_distance = 0.6   # Big pull-back so the wind-up is visible
+	var push_distance = 0.3   # Push forward past neutral for the stab
 
 	# Keep arm extended forward throughout (not swinging)
 	right_arm_node.rotation.x = lerp(right_arm_node.rotation.x, -1.3, 0.3)
@@ -2638,48 +2631,26 @@ func _animate_sword_jab(progress: float, right_arm_node: Node3D, right_elbow_nod
 	if not weapon_wrist_pivot or not equipped_weapon_visual:
 		return
 
+	# Aim using fixed DIRECTION (not world point) so it doesn't track when player moves
+	if jab_aim_direction != Vector3.ZERO:
+		var pivot_pos = weapon_wrist_pivot.global_position
+		weapon_wrist_pivot.look_at(pivot_pos + jab_aim_direction, Vector3.UP)
+		weapon_wrist_pivot.rotate_object_local(Vector3.UP, deg_to_rad(180))
+
 	if progress < aim_end:
-		# Phase 1: Snap wrist pivot to aim sword at target
-		var t = progress / aim_end
-		if jab_target_point != Vector3.ZERO:
-			var pivot_pos = weapon_wrist_pivot.global_position
-			var dir = (jab_target_point - pivot_pos).normalized()
-			if dir.length() > 0.01:
-				weapon_wrist_pivot.look_at(pivot_pos + dir, Vector3.UP)
-				# Blade is +Y in weapon space; look_at aims -Z. Rotate so +Y faces target.
-				# Weapon x=90 maps blade +Y to +Z; look_at aims -Z at target. Flip 180 on Y.
-				weapon_wrist_pivot.rotate_object_local(Vector3.UP, deg_to_rad(180))
-		# No position offset yet
+		# Phase 1: Aim established above, no slide yet
 		equipped_weapon_visual.position.y = 0.0
 
 	elif progress < pullback_end:
 		# Phase 2: Pull sword BACK along its own axis (away from target)
 		var t = (progress - aim_end) / (pullback_end - aim_end)
 		var t_ease = t * t * (3.0 - 2.0 * t)
-		# Keep aiming at target
-		if jab_target_point != Vector3.ZERO:
-			var pivot_pos = weapon_wrist_pivot.global_position
-			var dir = (jab_target_point - pivot_pos).normalized()
-			if dir.length() > 0.01:
-				weapon_wrist_pivot.look_at(pivot_pos + dir, Vector3.UP)
-				# Weapon x=90 maps blade +Y to +Z; look_at aims -Z at target. Flip 180 on Y.
-				weapon_wrist_pivot.rotate_object_local(Vector3.UP, deg_to_rad(180))
-		# Slide weapon back in local Y (blade axis)
 		equipped_weapon_visual.position.y = -pull_distance * t_ease
 
 	elif progress < thrust_end:
 		# Phase 3: THRUST forward — the actual jab
 		var t = (progress - pullback_end) / (thrust_end - pullback_end)
-		var t_power = t * t  # Fast acceleration
-		# Keep aiming
-		if jab_target_point != Vector3.ZERO:
-			var pivot_pos = weapon_wrist_pivot.global_position
-			var dir = (jab_target_point - pivot_pos).normalized()
-			if dir.length() > 0.01:
-				weapon_wrist_pivot.look_at(pivot_pos + dir, Vector3.UP)
-				# Weapon x=90 maps blade +Y to +Z; look_at aims -Z at target. Flip 180 on Y.
-				weapon_wrist_pivot.rotate_object_local(Vector3.UP, deg_to_rad(180))
-		# Slide from pulled-back to pushed-forward
+		var t_power = t * t
 		equipped_weapon_visual.position.y = lerp(-pull_distance, push_distance, t_power)
 
 	else:
