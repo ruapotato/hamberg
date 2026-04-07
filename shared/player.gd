@@ -2586,7 +2586,11 @@ func _check_spin_hits() -> void:
 		if not is_instance_valid(hit_object):
 			continue
 
-		# Check if it's an environmental object
+		# Skip 2D destructible objects — handled by the group-based loop below
+		if hit_object.is_in_group("destructible_trees") or hit_object.is_in_group("destructible_bushes") or hit_object.is_in_group("destructible_rocks"):
+			continue
+
+		# Check if it's an environmental object (old 3D MultimeshChunk system)
 		if hit_object.has_method("get_object_type"):
 			var obj_id = hit_object.get_instance_id()
 			var last_hit_time = spin_hit_times.get(obj_id, 0.0)
