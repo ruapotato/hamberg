@@ -2647,7 +2647,8 @@ func _animate_sword_jab(progress: float, right_arm_node: Node3D, right_elbow_nod
 			if dir.length() > 0.01:
 				weapon_wrist_pivot.look_at(pivot_pos + dir, Vector3.UP)
 				# Blade is +Y in weapon space; look_at aims -Z. Rotate so +Y faces target.
-				# No extra rotation needed — weapon x=90 already maps blade to -Z (look_at target)
+				# Weapon x=90 maps blade +Y to +Z; look_at aims -Z at target. Flip 180 on Y.
+				weapon_wrist_pivot.rotate_object_local(Vector3.UP, deg_to_rad(180))
 		# No position offset yet
 		equipped_weapon_visual.position.y = 0.0
 
@@ -2661,7 +2662,8 @@ func _animate_sword_jab(progress: float, right_arm_node: Node3D, right_elbow_nod
 			var dir = (jab_target_point - pivot_pos).normalized()
 			if dir.length() > 0.01:
 				weapon_wrist_pivot.look_at(pivot_pos + dir, Vector3.UP)
-				# No extra rotation needed — weapon x=90 already maps blade to -Z (look_at target)
+				# Weapon x=90 maps blade +Y to +Z; look_at aims -Z at target. Flip 180 on Y.
+				weapon_wrist_pivot.rotate_object_local(Vector3.UP, deg_to_rad(180))
 		# Slide weapon back in local Y (blade axis)
 		equipped_weapon_visual.position.y = -pull_distance * t_ease
 
@@ -2675,7 +2677,8 @@ func _animate_sword_jab(progress: float, right_arm_node: Node3D, right_elbow_nod
 			var dir = (jab_target_point - pivot_pos).normalized()
 			if dir.length() > 0.01:
 				weapon_wrist_pivot.look_at(pivot_pos + dir, Vector3.UP)
-				# No extra rotation needed — weapon x=90 already maps blade to -Z (look_at target)
+				# Weapon x=90 maps blade +Y to +Z; look_at aims -Z at target. Flip 180 on Y.
+				weapon_wrist_pivot.rotate_object_local(Vector3.UP, deg_to_rad(180))
 		# Slide from pulled-back to pushed-forward
 		equipped_weapon_visual.position.y = lerp(-pull_distance, push_distance, t_power)
 
