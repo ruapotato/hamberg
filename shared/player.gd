@@ -98,6 +98,7 @@ const SWORD_SPECIAL_ANIMATION_TIME: float = 0.6  # Slower for sword jab
 const AXE_SPECIAL_ANIMATION_TIME: float = 0.8  # Full spin takes longer
 var current_special_attack_animation_time: float = 0.5  # Actual special animation time
 var jab_pitch: float = 0.0  # Camera pitch at jab start (for aiming at crosshair)
+var jab_target_point: Vector3 = Vector3.ZERO  # World position the sword should point at
 
 # Axe spin attack state
 var is_spinning: bool = false
@@ -1284,6 +1285,7 @@ func _special_attack_knife_lunge(weapon_data: WeaponData, camera: Camera3D) -> v
 
 	# Snap mesh to face camera direction before lunging
 	jab_pitch = 0.0
+	jab_target_point = Vector3.ZERO
 	if is_local_player and body_container:
 		var camera_controller = get_node_or_null("CameraController")
 		if camera_controller and "camera_rotation" in camera_controller:
@@ -1291,6 +1293,16 @@ func _special_attack_knife_lunge(weapon_data: WeaponData, camera: Camera3D) -> v
 			body_container.rotation.y = camera_yaw + PI
 			synced_rotation_y = body_container.global_rotation.y
 			jab_pitch = camera_controller.camera_rotation.y
+
+		# Raycast to find target point for knife aim
+		var viewport_size := get_viewport().get_visible_rect().size
+		var crosshair_offset := Vector2(-41.0, -50.0)
+		var crosshair_pos := viewport_size / 2 + crosshair_offset
+		var cam := _get_camera()
+		if cam:
+			var ray_origin := cam.project_ray_origin(crosshair_pos)
+			var ray_dir := cam.project_ray_normal(crosshair_pos)
+			jab_target_point = ray_origin + ray_dir * attack_range
 
 	# LEAP forward in the direction we're now facing
 	var mesh_forward = Vector3.ZERO
@@ -1352,17 +1364,35 @@ func _special_attack_sword_stab(weapon_data: WeaponData, camera: Camera3D) -> vo
 	special_attack_timer = 0.0
 	current_special_attack_animation_time = SWORD_SPECIAL_ANIMATION_TIME
 
-	# Rotate player mesh to face attack direction and store pitch for aim
+	# Rotate player mesh to face attack direction
 	jab_pitch = 0.0
+	jab_target_point = Vector3.ZERO
 	if is_local_player and body_container:
 		var camera_controller = get_node_or_null("CameraController")
 		if camera_controller and "camera_rotation" in camera_controller:
 			var camera_yaw = camera_controller.camera_rotation.x
 			body_container.rotation.y = camera_yaw + PI
 			synced_rotation_y = body_container.global_rotation.y
-			jab_pitch = camera_controller.camera_rotation.y  # Store pitch for aim
+			jab_pitch = camera_controller.camera_rotation.y
 
-	# Keep sword at normal angle - the arm animation drives the jab thrust
+		# Raycast from camera center to find the target point the sword should aim at
+		var viewport_size := get_viewport().get_visible_rect().size
+		var crosshair_offset := Vector2(-41.0, -50.0)
+		var crosshair_pos := viewport_size / 2 + crosshair_offset
+		var ray_origin := camera.project_ray_origin(crosshair_pos)
+		var ray_direction := camera.project_ray_normal(crosshair_pos)
+		var ray_end := ray_origin + ray_direction * attack_range * 2.0
+		var space_state := get_world_3d().direct_space_state
+		var query := PhysicsRayQueryParameters3D.create(ray_origin, ray_end)
+		query.exclude = [self]
+		var result := space_state.intersect_ray(query)
+		if result:
+			jab_target_point = result.position
+		else:
+			# No hit — use a point far in the aim direction
+			jab_target_point = ray_origin + ray_direction * attack_range
+
+	# Keep sword at normal angle
 	if equipped_weapon_visual:
 		equipped_weapon_visual.rotation_degrees = Vector3(90, 0, 0)
 
@@ -2212,9 +2242,12 @@ func _update_body_animations(delta: float) -> void:
 		if special_attack_timer >= current_special_attack_animation_time:
 			is_special_attacking = false
 			special_attack_timer = 0.0
-			# Reset weapon to slash angle after jab
+			jab_target_point = Vector3.ZERO
+			# Reset weapon and wrist to normal
 			if equipped_weapon_visual:
 				equipped_weapon_visual.rotation_degrees = Vector3(90, 0, 0)
+			if weapon_wrist_pivot:
+				weapon_wrist_pivot.rotation = Vector3.ZERO
 			if is_spinning:
 				is_spinning = false
 				spin_hit_times.clear()
@@ -2577,44 +2610,71 @@ func _animate_sword_attack(progress: float, right_arm: Node3D, right_elbow: Node
 				if right_elbow:
 					right_elbow.rotation.x = lerp(-1.2, 0.0, t_power)  # Extend
 
-## Sword jab special attack animation - arm extends forward to thrust
-## Sword stays in normal grip, the arm does all the aiming
+## Sword jab special attack animation
+## Uses look_at on the wrist pivot to point the blade at the camera target
 func _animate_sword_jab(progress: float, right_arm_node: Node3D, right_elbow_node: Node3D) -> void:
-	var windup_end = 0.25
-	var thrust_end = 0.55
-
-	# Arm pitch target based on camera look direction
-	# arm.rotation.x: negative = forward, positive = back
-	# jab_pitch: negative = looking down, positive = looking up
-	# Looking level → thrust straight forward (-1.5)
-	# Looking down → less forward / more down (-1.0)
-	# Looking up → more forward / up (-2.0)
-	var thrust_target = clampf(-1.5 + jab_pitch * 1.0, -2.2, -0.8)
+	var windup_end = 0.20
+	var thrust_end = 0.50
 
 	if progress < windup_end:
-		# Pull arm back, bend elbow — coiling for the thrust
+		# Pull arm back
 		var t = progress / windup_end
 		var t_ease = t * t * (3.0 - 2.0 * t)
 		right_arm_node.rotation.x = lerp(0.0, 0.5, t_ease)
 		right_arm_node.rotation.z = lerp(0.0, -0.15, t_ease)
 		if right_elbow_node:
 			right_elbow_node.rotation.x = lerp(0.0, -1.0, t_ease)
+		# Start aiming wrist pivot at target
+		if weapon_wrist_pivot and jab_target_point != Vector3.ZERO:
+			var t_aim = t_ease * 0.5  # Partial aim during windup
+			_aim_wrist_at_target(t_aim)
 	elif progress < thrust_end:
-		# Thrust: arm snaps forward, elbow straightens
+		# Thrust forward
 		var t = (progress - windup_end) / (thrust_end - windup_end)
 		var t_power = t * t * t
-		right_arm_node.rotation.x = lerp(0.5, thrust_target, t_power)
+		right_arm_node.rotation.x = lerp(0.5, -1.5, t_power)
 		right_arm_node.rotation.z = lerp(-0.15, 0.0, t_power)
 		if right_elbow_node:
 			right_elbow_node.rotation.x = lerp(-1.0, 0.0, t_power)
+		# Full aim at target during thrust
+		if weapon_wrist_pivot and jab_target_point != Vector3.ZERO:
+			_aim_wrist_at_target(1.0)
 	else:
 		# Return to neutral
 		var t = (progress - thrust_end) / (1.0 - thrust_end)
 		var t_ease = t * t
-		right_arm_node.rotation.x = lerp(thrust_target, 0.0, t_ease)
+		right_arm_node.rotation.x = lerp(-1.5, 0.0, t_ease)
 		right_arm_node.rotation.z = 0.0
 		if right_elbow_node:
 			right_elbow_node.rotation.x = 0.0
+		# Return wrist to neutral
+		if weapon_wrist_pivot:
+			weapon_wrist_pivot.rotation.x = lerp(weapon_wrist_pivot.rotation.x, 0.0, t_ease)
+			weapon_wrist_pivot.rotation.y = lerp(weapon_wrist_pivot.rotation.y, 0.0, t_ease)
+			weapon_wrist_pivot.rotation.z = lerp(weapon_wrist_pivot.rotation.z, 0.0, t_ease)
+
+
+## Aim the wrist pivot so the weapon tip points at the jab target
+func _aim_wrist_at_target(blend: float) -> void:
+	if not weapon_wrist_pivot or jab_target_point == Vector3.ZERO:
+		return
+	# Save current rotation
+	var saved_rot = weapon_wrist_pivot.rotation
+	# look_at makes -Z face the target; our blade extends along +Y when weapon is at (90,0,0)
+	# So we need to adjust: rotate the pivot to aim +Y at the target
+	var pivot_pos = weapon_wrist_pivot.global_position
+	var dir_to_target = (jab_target_point - pivot_pos).normalized()
+	if dir_to_target.length() < 0.01:
+		return
+	# Use look_at then rotate 90 degrees so +Y (blade) faces the target instead of -Z
+	weapon_wrist_pivot.look_at(pivot_pos + dir_to_target, Vector3.UP)
+	weapon_wrist_pivot.rotate_object_local(Vector3.RIGHT, deg_to_rad(90))
+	# Blend between saved rotation and aimed rotation
+	if blend < 1.0:
+		var target_rot = weapon_wrist_pivot.rotation
+		weapon_wrist_pivot.rotation.x = lerp(saved_rot.x, target_rot.x, blend)
+		weapon_wrist_pivot.rotation.y = lerp(saved_rot.y, target_rot.y, blend)
+		weapon_wrist_pivot.rotation.z = lerp(saved_rot.z, target_rot.z, blend)
 
 
 ## Check for enemy hits during axe spin attack
