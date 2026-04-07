@@ -312,6 +312,9 @@ func _get_idle_sound() -> String:
 func _get_hurt_sound() -> String:
 	return "pig_hurt"
 
+func _get_death_sound() -> String:
+	return "pig_death"
+
 func _start_flying() -> void:
 	if is_flying or fly_cooldown_timer > 0:
 		return

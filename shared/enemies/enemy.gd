@@ -911,8 +911,8 @@ func _die() -> void:
 	is_dead = true
 	print("[Enemy] %s died! (is_host=%s, network_id=%d)" % [enemy_name, is_host, network_id])
 
-	# Play enemy death sound
-	SoundManager.play_sound("enemy_death", global_position)
+	# Play creature-specific death sound
+	SoundManager.play_sound(_get_death_sound(), global_position)
 
 	died.emit(self)
 
@@ -929,6 +929,10 @@ func _die() -> void:
 		tween.tween_property(body_container, "position:y", -1.0, 1.0)
 		tween.parallel().tween_property(body_container, "rotation:x", PI / 2, 1.0)
 		tween.tween_callback(queue_free)
+
+## Override in subclasses to return creature-specific death sound
+func _get_death_sound() -> String:
+	return "gahnome_death"
 
 func _drop_loot() -> void:
 	if loot_table.is_empty():

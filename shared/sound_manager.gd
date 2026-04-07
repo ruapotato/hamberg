@@ -122,7 +122,16 @@ var sounds := {
 	"flapping": "res://audio/sfx/flapping_1.wav",
 
 	# Creatures
-	"pig_idle": "res://audio/sfx/pig_idle_1.wav",
+	"deer_idle": [
+		"res://audio/generated/deer_idle.wav",
+		"res://audio/generated/deer_idle_2.wav",
+	],
+	"deer_death": "res://audio/generated/deer_death.wav",
+	"pig_idle": [
+		"res://audio/sfx/pig_idle_1.wav",
+		"res://audio/generated/pig_idle.wav",
+		"res://audio/generated/pig_idle_2.wav",
+	],
 	"pig_snort": [
 		"res://audio/sfx/pig_snort_1.wav",
 		"res://audio/sfx/pig_snort_2.wav",
@@ -131,15 +140,21 @@ var sounds := {
 		"res://audio/sfx/pig_hurt_1.wav",
 		"res://audio/sfx/pig_hurt_2.wav",
 	],
+	"pig_death": "res://audio/generated/pig_death.wav",
 	"sheep_idle": [
 		"res://audio/sfx/sheep_idle_1.wav",
 		"res://audio/sfx/sheep_idle_2.wav",
 		"res://audio/sfx/sheep_idle_3.wav",
+		"res://audio/generated/sheep_idle.wav",
+		"res://audio/generated/sheep_idle_2.wav",
 	],
 	"sheep_hurt": [
 		"res://audio/sfx/sheep_hurt_1.wav",
 		"res://audio/sfx/sheep_hurt_2.wav",
 	],
+	"sheep_death": "res://audio/generated/sheep_death.wav",
+	"gahnome_death": "res://audio/generated/gahnome_death.wav",
+	"sporeling_death": "res://audio/generated/sporeling_death_real.wav",
 
 	# Atmosphere
 	"creepy_laugh": [

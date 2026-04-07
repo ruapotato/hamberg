@@ -334,6 +334,9 @@ func _setup_body() -> void:
 
 	head_base_height = 1.0 * scale_factor
 
+func _get_death_sound() -> String:
+	return "enemy_death"
+
 ## Override telegraph to use red-ish warning tint for zombies
 func _set_windup_telegraph(enabled: bool) -> void:
 	if not body_container:

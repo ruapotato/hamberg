@@ -86,13 +86,20 @@ func _update_ai(delta: float) -> void:
 
 ## Override idle to use slower, more peaceful wandering
 func _update_idle(delta: float) -> void:
-	# Periodic idle sounds
+	# Periodic idle sounds (only if a player is within 30 units for performance)
 	_idle_sound_timer -= delta
 	if _idle_sound_timer <= 0:
 		_idle_sound_timer = _idle_sound_interval + randf_range(-2.0, 4.0)
 		var idle_sound := _get_idle_sound()
 		if idle_sound != "":
-			SoundManager.play_sound_varied(idle_sound, global_position, -4.0, 0.15)
+			var players = EnemyAI._get_cached_players(get_tree())
+			var player_nearby := false
+			for p in players:
+				if is_instance_valid(p) and global_position.distance_to(p.global_position) < 30.0:
+					player_nearby = true
+					break
+			if player_nearby:
+				SoundManager.play_sound_varied(idle_sound, global_position, -4.0, 0.15)
 
 	# Check for nearby players if skittish
 	if is_skittish and is_host:
@@ -225,6 +232,11 @@ func _get_idle_sound() -> String:
 ## Override to return animal-specific hurt sound name (e.g. "sheep_hurt")
 func _get_hurt_sound() -> String:
 	return ""
+
+## Override to return animal-specific death sound name
+## Falls back to generic "enemy_death" if not overridden
+func _get_death_sound() -> String:
+	return "enemy_death"
 
 ## Override combat decision - passive animals never attack
 func _make_combat_decision(_distance: float) -> void:

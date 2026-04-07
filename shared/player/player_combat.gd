@@ -74,8 +74,9 @@ func disable_weapon_hitbox() -> void:
 	if collision_shape:
 		collision_shape.disabled = true
 
-## Critical hit multiplier
-const CRIT_MULTIPLIER: float = 2.5
+## Critical hit multipliers
+const CRIT_MULTIPLIER: float = 2.5        # Parry/stagger crit
+const STEALTH_CRIT_MULTIPLIER: float = 1.5  # Stealth crit (reduced to prevent one-shots)
 
 ## Process a hit detected by weapon hitbox collision
 func process_hitbox_hit(enemy: Node3D) -> void:
@@ -108,18 +109,24 @@ func process_hitbox_hit(enemy: Node3D) -> void:
 		crit_reason = "STAGGER CRIT"
 
 	# Crit 3: Stealth attack - enemy hasn't detected player (IDLE state, no target)
-	if not is_critical and "ai_state" in enemy:
+	# Stealth crit does NOT stack with combo finisher (no double-dipping)
+	var is_stealth_crit := false
+	if not is_critical and combo_multiplier <= 1.0 and "ai_state" in enemy:
 		# Enemy.AIState.IDLE = 0
 		var is_idle = enemy.ai_state == 0
 		var has_no_target = not ("target_player" in enemy and enemy.target_player != null)
 		if is_idle or has_no_target:
 			is_critical = true
+			is_stealth_crit = true
 			crit_reason = "STEALTH CRIT"
 
 	# Apply critical multiplier
 	var final_multiplier := combo_multiplier
 	if is_critical:
-		final_multiplier *= CRIT_MULTIPLIER
+		if is_stealth_crit:
+			final_multiplier *= STEALTH_CRIT_MULTIPLIER
+		else:
+			final_multiplier *= CRIT_MULTIPLIER
 
 	var damage: float = weapon_data.damage * final_multiplier
 	var knockback: float = weapon_data.knockback

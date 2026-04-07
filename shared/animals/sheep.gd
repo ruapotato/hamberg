@@ -309,6 +309,9 @@ func _get_idle_sound() -> String:
 func _get_hurt_sound() -> String:
 	return "sheep_hurt"
 
+func _get_death_sound() -> String:
+	return "sheep_death"
+
 ## Override take_damage to become aggressive when attacked
 func take_damage(damage: float, knockback: float = 0.0, direction: Vector3 = Vector3.ZERO, damage_type: int = -1, attacker_peer_id: int = 0) -> void:
 	# Call parent damage handling

@@ -251,6 +251,9 @@ func _setup_body() -> void:
 
 	head_base_height = 0.92 * scale_factor
 
+func _get_death_sound() -> String:
+	return "sporeling_death"
+
 ## Override telegraph to use spore-specific visual
 func _set_windup_telegraph(enabled: bool) -> void:
 	if not body_container:

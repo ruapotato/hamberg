@@ -21,6 +21,12 @@ func _ready() -> void:
 
 	print("[Deer] Deer ready (network_id=%d)" % network_id)
 
+func _get_idle_sound() -> String:
+	return "deer_idle"
+
+func _get_death_sound() -> String:
+	return "deer_death"
+
 ## Build deer body - elegant quadruped with antlers
 ## If BodyContainer exists in TSCN with children, uses that mesh instead
 func _setup_body() -> void:
