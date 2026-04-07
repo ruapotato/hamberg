@@ -72,6 +72,13 @@ func take_damage_local(damage: float) -> bool:
 	# Spawn rock particles (gray)
 	_spawn_rock_particles()
 
+	# White flash on hit
+	var sprite = get_child(1) as Sprite3D
+	if sprite:
+		sprite.modulate = Color(3.0, 3.0, 3.0, 1.0)
+		var tw = create_tween()
+		tw.tween_property(sprite, "modulate", Color(1.0, 1.0, 1.0, 1.0), 0.12)
+
 	if current_health <= 0.0:
 		_on_destroyed()
 		return true

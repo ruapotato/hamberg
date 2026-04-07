@@ -200,6 +200,11 @@ func _play_destruction_effect() -> void:
 	if _sprite_ref:
 		_sprite_ref.position.x = 0.0
 
+	# Disable collision immediately so player can walk through
+	var col = get_child(0) as CollisionShape3D
+	if col:
+		col.disabled = true
+
 	# Fall animation: tilt 90 degrees over 1 second, then scale down and remove
 	var tween := create_tween()
 	# Random fall direction
@@ -217,6 +222,10 @@ func _return_to_pool() -> void:
 	current_health = max_health
 	scale = Vector3.ONE
 	rotation = Vector3.ZERO
+	# Re-enable collision for next use
+	var col = get_child(0) as CollisionShape3D
+	if col:
+		col.disabled = false
 	if _sprite_ref:
 		_sprite_ref.position.x = 0.0
 		_sprite_ref.modulate = Color(1, 1, 1, 1)
