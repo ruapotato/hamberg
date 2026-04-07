@@ -2619,8 +2619,8 @@ func _animate_sword_jab(progress: float, right_arm_node: Node3D, right_elbow_nod
 	var thrust_end = 0.80   # Fast snap forward — the stab (same real-time speed)
 	# 0.80 - 1.0 hold + return
 
-	var pull_distance = 0.6   # Big pull-back so the wind-up is visible
-	var push_distance = 0.3   # Push forward past neutral for the stab
+	var pull_distance = 0.8   # Big pull-back so the wind-up is visible
+	var push_distance = 0.4   # Push forward past neutral for the stab
 
 	# Keep arm extended forward throughout (not swinging)
 	right_arm_node.rotation.x = lerp(right_arm_node.rotation.x, -1.3, 0.3)
@@ -2639,26 +2639,28 @@ func _animate_sword_jab(progress: float, right_arm_node: Node3D, right_elbow_nod
 
 	if progress < aim_end:
 		# Phase 1: Aim established above, no slide yet
-		equipped_weapon_visual.position.y = 0.0
+		equipped_weapon_visual.position.z = 0.0
 
 	elif progress < pullback_end:
-		# Phase 2: Pull sword BACK along its own axis (away from target)
+		# Phase 2: Pull sword BACK along aim line (away from target)
+		# After look_at + 180 flip, wrist pivot +Z = toward target
+		# So -Z = away from target (pull back)
 		var t = (progress - aim_end) / (pullback_end - aim_end)
 		var t_ease = t * t * (3.0 - 2.0 * t)
-		equipped_weapon_visual.position.y = -pull_distance * t_ease
+		equipped_weapon_visual.position.z = -pull_distance * t_ease
 
 	elif progress < thrust_end:
-		# Phase 3: THRUST forward — the actual jab
+		# Phase 3: THRUST forward along aim line — the actual jab
 		var t = (progress - pullback_end) / (thrust_end - pullback_end)
 		var t_power = t * t
-		equipped_weapon_visual.position.y = lerp(-pull_distance, push_distance, t_power)
+		equipped_weapon_visual.position.z = lerp(-pull_distance, push_distance, t_power)
 
 	else:
 		# Phase 4: Hold briefly then return to neutral
 		var t = (progress - thrust_end) / (1.0 - thrust_end)
 		var t_ease = t * t
 		# Return weapon position to neutral
-		equipped_weapon_visual.position.y = lerp(push_distance, 0.0, t_ease)
+		equipped_weapon_visual.position.z = lerp(push_distance, 0.0, t_ease)
 		# Return wrist pivot rotation to neutral
 		weapon_wrist_pivot.rotation.x = lerp(weapon_wrist_pivot.rotation.x, 0.0, t_ease)
 		weapon_wrist_pivot.rotation.y = lerp(weapon_wrist_pivot.rotation.y, 0.0, t_ease)
