@@ -2579,40 +2579,53 @@ func _animate_sword_jab(progress: float, right_arm_node: Node3D, right_elbow_nod
 	# Target arm angle based on camera pitch at jab start
 	var thrust_target = clampf(-1.6 + jab_pitch * 1.0, -2.4, -0.6)
 
+	# Convert camera pitch to blade tilt in degrees
+	# pitch negative = looking down, positive = looking up
+	# Blade z-rotation tilts the tip up/down toward the aim point
+	var pitch_degrees = rad_to_deg(jab_pitch)
+	var blade_tilt = clampf(pitch_degrees * 0.8, -60.0, 60.0)
+
 	if progress < windup_end:
-		# Pull arm back and rotate sword from slash (90) to thrust (180)
-		# Body has PI rotation offset, so 180 = blade tip pointing forward
+		# Pull arm back away from target, rotate sword to thrust position
 		var t = progress / windup_end
 		var t_ease = t * t * (3.0 - 2.0 * t)
 		right_arm_node.rotation.x = lerp(0.0, 0.6, t_ease)    # Pull back
 		right_arm_node.rotation.z = lerp(0.0, -0.2, t_ease)    # Slight tuck
 		if right_elbow_node:
 			right_elbow_node.rotation.x = lerp(0.0, -1.2, t_ease)  # Bend elbow tight
-		# Rotate weapon: blade tip goes forward (accounting for body PI offset)
+		# Rotate blade from slash to thrust, start tilting toward aim
 		if equipped_weapon_visual:
-			equipped_weapon_visual.rotation_degrees.x = lerp(90.0, 180.0, t_ease)
+			equipped_weapon_visual.rotation_degrees = Vector3(
+				lerp(90.0, 180.0, t_ease),
+				0.0,
+				lerp(0.0, blade_tilt, t_ease)
+			)
 	elif progress < thrust_end:
-		# Thrust forward - blade tip leads toward crosshair
+		# Thrust forward - blade tip leads toward crosshair target
 		var t = (progress - windup_end) / (thrust_end - windup_end)
 		var t_power = t * t * t  # Cubic acceleration for sharp snap
 		right_arm_node.rotation.x = lerp(0.6, thrust_target, t_power)  # Jab toward aim point
 		right_arm_node.rotation.z = lerp(-0.2, 0.0, t_power)   # Straighten
 		if right_elbow_node:
 			right_elbow_node.rotation.x = lerp(-1.2, 0.0, t_power)  # Extend fully
-		# Keep blade pointing forward during thrust
+		# Blade points forward and tilted toward aim point
 		if equipped_weapon_visual:
-			equipped_weapon_visual.rotation_degrees.x = 180.0
+			equipped_weapon_visual.rotation_degrees = Vector3(180.0, 0.0, blade_tilt)
 	else:
-		# Hold briefly then return arm and sword to neutral
+		# Hold briefly then return everything to neutral
 		var t = (progress - thrust_end) / (1.0 - thrust_end)
 		var t_ease = t * t
 		right_arm_node.rotation.x = lerp(thrust_target, 0.0, t_ease)
 		right_arm_node.rotation.z = 0.0
 		if right_elbow_node:
 			right_elbow_node.rotation.x = 0.0
-		# Rotate weapon back to slash angle
+		# Rotate weapon back to slash angle, remove tilt
 		if equipped_weapon_visual:
-			equipped_weapon_visual.rotation_degrees.x = lerp(180.0, 90.0, t_ease)
+			equipped_weapon_visual.rotation_degrees = Vector3(
+				lerp(180.0, 90.0, t_ease),
+				0.0,
+				lerp(blade_tilt, 0.0, t_ease)
+			)
 
 
 ## Check for enemy hits during axe spin attack
