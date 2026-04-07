@@ -2379,12 +2379,12 @@ func _animate_limbs_walking(_delta: float) -> void:
 	if _right_knee:
 		_right_knee.rotation.x = max(0.0, -knee_angle)
 
-	# Arms swing opposite to legs (skip during attacks/blocking - those animations control arms)
-	if left_arm and not is_attacking and not is_blocking:
+	# Arms swing opposite to legs (skip during attacks/blocking/special - those animations control arms)
+	if left_arm and not is_attacking and not is_blocking and not is_special_attacking:
 		left_arm.rotation.x = -arm_angle
 		if _left_elbow:
 			_left_elbow.rotation.x = max(0.0, arm_angle * 0.8)
-	if right_arm and not is_attacking and not is_blocking:
+	if right_arm and not is_attacking and not is_blocking and not is_special_attacking:
 		right_arm.rotation.x = arm_angle
 		if _right_elbow:
 			_right_elbow.rotation.x = max(0.0, -arm_angle * 0.8)
@@ -2409,13 +2409,13 @@ func _animate_limbs_idle(delta: float) -> void:
 		right_leg.rotation.x = lerp(right_leg.rotation.x, 0.0, delta * 5.0)
 		if _right_knee:
 			_right_knee.rotation.x = lerp(_right_knee.rotation.x, 0.0, delta * 5.0)
-	# Don't reset arms to neutral during attacks/blocking - those animations control them
-	if left_arm and not is_attacking and not is_blocking:
+	# Don't reset arms to neutral during attacks/blocking/special - those animations control them
+	if left_arm and not is_attacking and not is_blocking and not is_special_attacking:
 		left_arm.rotation.x = lerp(left_arm.rotation.x, 0.0, delta * 5.0)
 		left_arm.rotation.z = lerp(left_arm.rotation.z, 0.0, delta * 5.0)
 		if _left_elbow:
 			_left_elbow.rotation.x = lerp(_left_elbow.rotation.x, 0.0, delta * 5.0)
-	if right_arm and not is_attacking and not is_blocking:
+	if right_arm and not is_attacking and not is_blocking and not is_special_attacking:
 		right_arm.rotation.x = lerp(right_arm.rotation.x, 0.0, delta * 5.0)
 		right_arm.rotation.z = lerp(right_arm.rotation.z, 0.0, delta * 5.0)
 		if _right_elbow:
