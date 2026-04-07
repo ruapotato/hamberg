@@ -173,6 +173,10 @@ func _on_destroyed() -> void:
 	var tree_id = get_meta("tree_id", "")
 	if tree_id != "":
 		NetworkManager.rpc_notify_2d_object_destroyed.rpc_id(1, tree_id)
+		# Also mark locally so spawner won't recreate this tree on respawn cycle
+		var client = get_tree().root.get_node_or_null("Main/Client")
+		if client and client.has_method("receive_2d_object_destroyed"):
+			client.receive_2d_object_destroyed(tree_id)
 
 	# Spawn a stump at the tree's base position
 	_spawn_stump()
