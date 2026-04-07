@@ -69,6 +69,9 @@ func _ready() -> void:
 	# Emit spawn signal
 	boss_spawned.emit(self)
 
+	# Play boss spawn sound (attached so it follows the boss)
+	SoundManager.play_sound_attached("boss_spawn", self, 4.0)
+
 	print("[Boss] %s '%s' spawned! (HP: %.0f, Scale: %.1f)" % [boss_name, boss_title, max_health, boss_scale])
 
 # ============================================================================

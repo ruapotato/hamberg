@@ -394,14 +394,13 @@ func _physics_process(delta: float) -> void:
 			growl_timer = randf_range(5.0, 15.0)
 
 func _play_growl() -> void:
-	"""Play a zombie growl at this zombie's position — 3D audio makes it directional.
-	Sound plays at actual position so player hears growling before seeing the zombie."""
-	# Low pitch + low volume = menacing growl from enemy_hurt sound
-	var pitch = randf_range(0.4, 0.65)
+	"""Play a zombie growl attached to this zombie — 3D audio follows as it moves."""
+	# Slight pitch variation for variety
+	var pitch = randf_range(0.8, 1.2)
 	var volume = -12.0  # Quiet enough to be ambient but audible at distance
 	if ai_state == AIState.STALKING:
 		volume = -8.0  # Slightly louder when stalking (building tension)
-	SoundManager.play_sound("zombie_growl", global_position, volume, pitch)
+	SoundManager.play_sound_attached("zombie_growl", self, volume, pitch)
 
 ## Override stalking behavior for stalker-type zombies
 func _update_stalking(delta: float, distance: float) -> void:

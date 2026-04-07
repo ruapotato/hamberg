@@ -171,7 +171,64 @@ func take_damage(damage: float) -> bool:
 
 	return false
 
-## Called when object is destroyed
+## Take damage from player attack (client-side, like bushes/trees)
+## Returns true if destroyed
+func take_damage_local(damage: float) -> bool:
+	if is_destroyed:
+		return false
+
+	current_health -= damage
+	print("[EnvironmentalObject] %s took %.1f local damage (%.1f/%.1f HP)" % [get_object_type(), damage, current_health, max_health])
+
+	# Play hit sound
+	SoundManager.play_sound_varied("bush_break", global_position)
+
+	# Create health bar on first damage
+	if not health_bar:
+		health_bar = HEALTH_BAR_SCENE.instantiate()
+		add_child(health_bar)
+		health_bar.set_height_offset(3.0)
+
+	if health_bar:
+		health_bar.update_health(current_health, max_health)
+
+	if current_health <= 0.0:
+		_on_destroyed_local()
+		return true
+
+	return false
+
+## Called when object is destroyed via client-side damage
+func _on_destroyed_local() -> void:
+	is_destroyed = true
+	var drops := get_resource_drops()
+	print("[EnvironmentalObject] %s destroyed! Dropping: %s" % [get_object_type(), drops])
+
+	# Notify server for persistence
+	var tree_id = get_meta("tree_id", "")
+	if tree_id != "":
+		NetworkManager.rpc_notify_2d_object_destroyed.rpc_id(1, tree_id)
+		var client = get_tree().root.get_node_or_null("Main/Client")
+		if client and client.has_method("receive_2d_object_destroyed"):
+			client.receive_2d_object_destroyed(tree_id)
+
+	# Request server to spawn world items
+	var drops_json := JSON.stringify(drops)
+	NetworkManager.rpc_request_spawn_2d_drops.rpc_id(1, drops_json, global_position.x, global_position.y, global_position.z)
+
+	# Floating loot text
+	var FloatingText = load("res://client/ui/floating_text.gd")
+	for item_name in drops:
+		var amount: int = drops[item_name]
+		var color: Color = FloatingText.RESOURCE_COLORS.get(item_name, Color.WHITE)
+		var ft = FloatingText.new()
+		ft.setup("+%d %s" % [amount, item_name.capitalize()], color)
+		get_tree().current_scene.add_child(ft)
+		ft.global_position = global_position + Vector3(randf_range(-0.3, 0.3), 1.0, randf_range(-0.3, 0.3))
+
+	_play_destruction_effect()
+
+## Called when object is destroyed (server-side)
 func _on_destroyed() -> void:
 	is_destroyed = true
 	print("[EnvironmentalObject] %s destroyed! Dropping resources: %s" % [get_object_type(), resource_drops])

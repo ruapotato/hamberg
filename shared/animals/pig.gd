@@ -306,6 +306,12 @@ func _physics_process(delta: float) -> void:
 			right_wing.rotation.z = -0.8
 
 ## Start flying (called when hit)
+func _get_idle_sound() -> String:
+	return ["pig_idle", "pig_snort"][randi() % 2]
+
+func _get_hurt_sound() -> String:
+	return "pig_hurt"
+
 func _start_flying() -> void:
 	if is_flying or fly_cooldown_timer > 0:
 		return
@@ -313,6 +319,7 @@ func _start_flying() -> void:
 	fly_timer = 0.0
 	target_altitude = global_position.y + randf_range(4.0, 7.0)
 	move_speed = 4.5  # Faster when flying
+	SoundManager.play_sound_attached("flapping", self)
 	print("[Pig] Taking flight!")
 
 ## Start landing (called when fly time expires)

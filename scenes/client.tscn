@@ -142,16 +142,17 @@ anchor_top = 1.0
 anchor_right = 1.0
 anchor_bottom = 1.0
 offset_left = -300.0
-offset_top = -150.0
+offset_top = -230.0
 offset_right = -10.0
 offset_bottom = -10.0
 grow_horizontal = 0
 grow_vertical = 0
 text = "Controls:
-WASD - Move
-Space - Jump
-Shift - Sprint
-Mouse - Look around"
+WASD - Move  |  Space - Jump
+Shift - Sprint  |  Mouse - Look
+LMB - Attack  |  MMB - Special
+RMB - Block  |  J - Journal
+M - Map  |  Tab - Inventory"
 horizontal_alignment = 2
 vertical_alignment = 2
 

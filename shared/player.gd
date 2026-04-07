@@ -277,6 +277,8 @@ func _ready() -> void:
 		_setup_terrain_preview_shapes()
 		# Start ambient wind sound for atmosphere
 		SoundManager.play_ambient("wind_ambient")
+		# Attach footstep loop player to this player
+		SoundManager.attach_footstep_player(self)
 
 	if is_local_player:
 		# Local player uses client prediction
@@ -1140,8 +1142,8 @@ func _handle_attack() -> void:
 			# Weapon-specific swing sounds with variation
 			match current_weapon_type:
 				"stone_knife":
-					# Knife: higher pitched, faster whoosh
-					SoundManager.play_sound_varied("sword_swing", global_position, -2.0, 0.15)
+					# Knife: distinct knife sound
+					SoundManager.play_sound_varied("knife_swing", global_position, -2.0, 0.15)
 				"stone_axe":
 					# Axe: lower pitched, heavier whoosh + subtle bass
 					SoundManager.play_sound_varied("sword_swing", global_position, 1.0, 0.1)
@@ -1160,8 +1162,8 @@ func _handle_attack() -> void:
 	# Check if this is a ranged weapon (magic or ranged)
 	var is_ranged = weapon_data.weapon_type == WeaponData.WeaponType.MAGIC or weapon_data.weapon_type == WeaponData.WeaponType.RANGED
 
-	# Only snap to camera direction for ranged weapons (melee attacks in mesh facing direction)
-	if is_ranged and is_local_player and body_container:
+	# Snap player mesh to face camera direction on all attacks
+	if is_local_player and body_container:
 		var camera_controller = get_node_or_null("CameraController")
 		if camera_controller and "camera_rotation" in camera_controller:
 			var camera_yaw = camera_controller.camera_rotation.x
@@ -2239,7 +2241,7 @@ func _update_body_animations(delta: float) -> void:
 	if body_container and not is_lunging and not is_stunned and not in_air:
 		body_container.rotation.x = lerp(body_container.rotation.x, 0.0, delta * 10.0)
 
-	# When blocking, rotate player mesh to face camera direction
+	# When blocking, rotate player mesh to face camera direction and pose arms defensively
 	if is_local_player and is_blocking and body_container:
 		var camera_controller = get_node_or_null("CameraController")
 		if camera_controller and "camera_rotation" in camera_controller:
@@ -2247,6 +2249,19 @@ func _update_body_animations(delta: float) -> void:
 			var target_rotation = camera_yaw + PI
 			body_container.rotation.y = lerp_angle(body_container.rotation.y, target_rotation, delta * 10.0)
 			synced_rotation_y = body_container.global_rotation.y
+
+		# Right arm raised across body in block pose
+		if right_arm:
+			right_arm.rotation.x = lerp(right_arm.rotation.x, -1.2, delta * 12.0)  # Raised up
+			right_arm.rotation.z = lerp(right_arm.rotation.z, 0.4, delta * 12.0)   # Across body
+			if _right_elbow:
+				_right_elbow.rotation.x = lerp(_right_elbow.rotation.x, -0.8, delta * 12.0)  # Bent inward
+		# Left arm in guard position
+		if left_arm:
+			left_arm.rotation.x = lerp(left_arm.rotation.x, -0.8, delta * 12.0)  # Raised
+			left_arm.rotation.z = lerp(left_arm.rotation.z, -0.3, delta * 12.0)  # Slightly out
+			if _left_elbow:
+				_left_elbow.rotation.x = lerp(_left_elbow.rotation.x, -0.6, delta * 12.0)
 
 	# Attack animation - animate weapon arm (and sprite tilt if sprite exists)
 	if is_attacking:
@@ -2276,18 +2291,17 @@ func _update_body_animations(delta: float) -> void:
 		var speed_multiplier = horizontal_speed / WALK_SPEED
 		animation_phase += delta * 8.0 * speed_multiplier
 
-		# Play footstep sound when phase crosses PI boundaries
+		# Looping footstep sound — start/switch based on terrain
 		if is_on_floor() and is_local_player and not is_spinning:
-			var current_step = int(animation_phase / PI)
-			var last_step = int(_last_footstep_phase / PI)
-			if current_step != last_step:
-				var footstep_sound = "footstep_grass"
-				var weather_managers = get_tree().get_nodes_in_group("weather_manager")
-				if weather_managers.size() > 0:
-					var weather_mgr = weather_managers[0]
-					if weather_mgr.get_snowpack() > 0.2:
-						footstep_sound = "footstep_snow"
-				SoundManager.play_sound_varied(footstep_sound, global_position, -8.0, 0.15)
+			var footstep_sound = "footstep_grass"
+			var weather_managers = get_tree().get_nodes_in_group("weather_manager")
+			if weather_managers.size() > 0:
+				var weather_mgr = weather_managers[0]
+				if weather_mgr.get_snowpack() > 0.2:
+					footstep_sound = "footstep_snow"
+			SoundManager.start_footsteps(footstep_sound, -8.0)
+		elif is_local_player:
+			SoundManager.stop_footsteps()
 		_last_footstep_phase = animation_phase
 
 		# Walking bob animation on the sprite (Paper Mario style hop)
@@ -2303,6 +2317,10 @@ func _update_body_animations(delta: float) -> void:
 		# 3D limb walking animation (legs and arms swing)
 		_animate_limbs_walking(delta)
 	else:
+		# Stop footstep loop when idle
+		if is_local_player:
+			SoundManager.stop_footsteps()
+
 		# Idle animation - gentle breathing bob
 		animation_phase = 0.0
 		if sprite:
@@ -2334,12 +2352,12 @@ func _animate_limbs_walking(_delta: float) -> void:
 	if _right_knee:
 		_right_knee.rotation.x = max(0.0, -knee_angle)
 
-	# Arms swing opposite to legs (skip during attacks - attack animations control arms)
-	if left_arm and not is_attacking:
+	# Arms swing opposite to legs (skip during attacks/blocking - those animations control arms)
+	if left_arm and not is_attacking and not is_blocking:
 		left_arm.rotation.x = -arm_angle
 		if _left_elbow:
 			_left_elbow.rotation.x = max(0.0, arm_angle * 0.8)
-	if right_arm and not is_attacking:
+	if right_arm and not is_attacking and not is_blocking:
 		right_arm.rotation.x = arm_angle
 		if _right_elbow:
 			_right_elbow.rotation.x = max(0.0, -arm_angle * 0.8)
@@ -2364,13 +2382,13 @@ func _animate_limbs_idle(delta: float) -> void:
 		right_leg.rotation.x = lerp(right_leg.rotation.x, 0.0, delta * 5.0)
 		if _right_knee:
 			_right_knee.rotation.x = lerp(_right_knee.rotation.x, 0.0, delta * 5.0)
-	# Don't reset arms to neutral during attacks - attack animations control them
-	if left_arm and not is_attacking:
+	# Don't reset arms to neutral during attacks/blocking - those animations control them
+	if left_arm and not is_attacking and not is_blocking:
 		left_arm.rotation.x = lerp(left_arm.rotation.x, 0.0, delta * 5.0)
 		left_arm.rotation.z = lerp(left_arm.rotation.z, 0.0, delta * 5.0)
 		if _left_elbow:
 			_left_elbow.rotation.x = lerp(_left_elbow.rotation.x, 0.0, delta * 5.0)
-	if right_arm and not is_attacking:
+	if right_arm and not is_attacking and not is_blocking:
 		right_arm.rotation.x = lerp(right_arm.rotation.x, 0.0, delta * 5.0)
 		right_arm.rotation.z = lerp(right_arm.rotation.z, 0.0, delta * 5.0)
 		if _right_elbow:

@@ -46,6 +46,12 @@ func _ready() -> void:
 	# Capture mouse by default when in game
 	_capture_mouse()
 
+	# Add AudioListener3D to the camera so 3D sounds are heard from the player's perspective
+	var listener = AudioListener3D.new()
+	listener.name = "AudioListener3D"
+	camera.add_child(listener)
+	listener.make_current()
+
 	# Create AimRaycast on the camera
 	aim_raycast = RayCast3D.new()
 	aim_raycast.name = "AimRaycast"

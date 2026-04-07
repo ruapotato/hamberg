@@ -30,6 +30,10 @@ const DIRECTION_CHANGE_ANGLE: float = 1.2  # Max angle change in radians (~70 de
 var flee_detection_range: float = 8.0  # Start fleeing when player is this close
 var is_skittish: bool = false  # If true, flees when player gets too close
 
+# Idle sound timer
+var _idle_sound_timer: float = 0.0
+var _idle_sound_interval: float = 8.0  # Seconds between idle sounds
+
 func _ready() -> void:
 	# Default passive animal stats (override in subclasses)
 	enemy_name = "Animal"
@@ -82,6 +86,14 @@ func _update_ai(delta: float) -> void:
 
 ## Override idle to use slower, more peaceful wandering
 func _update_idle(delta: float) -> void:
+	# Periodic idle sounds
+	_idle_sound_timer -= delta
+	if _idle_sound_timer <= 0:
+		_idle_sound_timer = _idle_sound_interval + randf_range(-2.0, 4.0)
+		var idle_sound := _get_idle_sound()
+		if idle_sound != "":
+			SoundManager.play_sound_varied(idle_sound, global_position, -4.0, 0.15)
+
 	# Check for nearby players if skittish
 	if is_skittish and is_host:
 		var nearby_player = _detect_nearby_player()
@@ -189,6 +201,11 @@ func _update_flee_direction() -> void:
 
 ## Override take_damage to trigger fleeing
 func take_damage(damage: float, knockback: float = 0.0, direction: Vector3 = Vector3.ZERO, damage_type: int = -1, attacker_peer_id: int = 0) -> void:
+	# Play hurt sound if available
+	var hurt_sound := _get_hurt_sound()
+	if hurt_sound != "":
+		SoundManager.play_sound_varied(hurt_sound, global_position)
+
 	# Call parent damage handling
 	super.take_damage(damage, knockback, direction, damage_type, attacker_peer_id)
 
@@ -200,6 +217,14 @@ func take_damage(damage: float, knockback: float = 0.0, direction: Vector3 = Vec
 		# Random flee direction if no direction given
 		var angle = randf() * TAU
 		flee_target = Vector3(cos(angle), 0, sin(angle))
+
+## Override to return animal-specific idle sound name (e.g. "sheep_idle")
+func _get_idle_sound() -> String:
+	return ""
+
+## Override to return animal-specific hurt sound name (e.g. "sheep_hurt")
+func _get_hurt_sound() -> String:
+	return ""
 
 ## Override combat decision - passive animals never attack
 func _make_combat_decision(_distance: float) -> void:
