@@ -246,19 +246,35 @@ func update_hitbox_during_attack() -> void:
 	var active_start: float
 	var active_end: float
 
-	match player.current_weapon_type:
-		"stone_knife":
-			# Knife is fast - active most of swing
-			active_start = 0.10
-			active_end = 0.90
-		"stone_axe":
-			# Axe has windup then powerful swing
-			active_start = 0.15  # Earlier start for better feel
-			active_end = 0.95
-		_:
-			# Default (sword) - balanced timing
-			active_start = 0.10
-			active_end = 0.90
+	if player.is_special_attacking and not player.is_spinning:
+		# Special attacks have specific hitbox windows
+		match player.current_weapon_type:
+			"stone_sword":
+				# Sword jab: only the thrust phase deals damage
+				active_start = 0.70
+				active_end = 0.85
+			"stone_knife":
+				# Knife lunge: active during the dive
+				active_start = 0.20
+				active_end = 0.90
+			_:
+				active_start = 0.30
+				active_end = 0.90
+	else:
+		# Normal attacks
+		match player.current_weapon_type:
+			"stone_knife":
+				# Knife is fast - active most of swing
+				active_start = 0.10
+				active_end = 0.90
+			"stone_axe":
+				# Axe has windup then powerful swing
+				active_start = 0.15
+				active_end = 0.95
+			_:
+				# Default (sword) - balanced timing
+				active_start = 0.10
+				active_end = 0.90
 
 	# Enable or disable hitbox based on attack progress
 	var should_be_active = progress >= active_start and progress <= active_end
