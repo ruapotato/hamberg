@@ -106,15 +106,17 @@ func _populate_recipe_list() -> void:
 		label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		recipe_list.add_child(label)
 
+## Try to load an item icon texture, returns null if not found
+func _load_item_icon(item_id: String) -> Texture2D:
+	var icon_path = "res://images/icons/%s.png" % item_id
+	if ResourceLoader.exists(icon_path):
+		return load(icon_path)
+	return null
+
 ## Create a button for a recipe
 func _create_recipe_button(recipe: Dictionary) -> Control:
 	var container = VBoxContainer.new()
-	container.custom_minimum_size = Vector2(0, 60)
-
-	# Main button
-	var button = Button.new()
-	button.custom_minimum_size = Vector2(300, 40)
-	button.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	container.custom_minimum_size = Vector2(0, 68)
 
 	# Get recipe info
 	var recipe_name: String = recipe.get("output_item", "")
@@ -125,12 +127,45 @@ func _create_recipe_button(recipe: Dictionary) -> Control:
 	var item_data = ItemDatabase.get_item(recipe_name)
 	var display_name = item_data.display_name if item_data else CraftingRecipes.get_item_display_name(recipe_name)
 
-	# Build button text
-	var button_text = "%s" % display_name
+	# Main button with icon inside
+	var button = Button.new()
+	button.custom_minimum_size = Vector2(340, 44)
+
+	# HBoxContainer inside button for icon + text layout
+	var hbox = HBoxContainer.new()
+	hbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hbox.add_theme_constant_override("separation", 8)
+	hbox.anchors_preset = Control.PRESET_FULL_RECT
+	hbox.offset_left = 6.0
+	hbox.offset_top = 4.0
+	hbox.offset_right = -6.0
+	hbox.offset_bottom = -4.0
+	button.add_child(hbox)
+
+	# Output item icon
+	var icon_tex = _load_item_icon(recipe_name)
+	if icon_tex:
+		var icon_rect = TextureRect.new()
+		icon_rect.texture = icon_tex
+		icon_rect.custom_minimum_size = Vector2(36, 36)
+		icon_rect.expand_mode = TextureRect.EXPAND_FIT_WIDTH_PROPORTIONAL
+		icon_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		icon_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		hbox.add_child(icon_rect)
+
+	# Name label
+	var name_label = Label.new()
+	var button_text = display_name
 	if output_amount > 1:
 		button_text += " x%d" % output_amount
+	name_label.text = button_text
+	name_label.add_theme_font_size_override("font_size", 14)
+	name_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	name_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hbox.add_child(name_label)
 
-	button.text = button_text
+	# Leave button text empty since we use the hbox content
+	button.text = ""
 
 	# Get combined inventory (player + nearby chests) for crafting check
 	var combined_inventory = _get_combined_inventory()
@@ -150,30 +185,44 @@ func _create_recipe_button(recipe: Dictionary) -> Control:
 
 	container.add_child(button)
 
-	# Add requirements label (use RichTextLabel for colored text)
-	var req_label = RichTextLabel.new()
-	req_label.custom_minimum_size = Vector2(300, 20)
-	req_label.fit_content = true
-	req_label.bbcode_enabled = true
-	req_label.scroll_active = false
-	req_label.add_theme_font_size_override("normal_font_size", 10)
+	# Requirements row with icons
+	var req_hbox = HBoxContainer.new()
+	req_hbox.add_theme_constant_override("separation", 4)
+	req_hbox.custom_minimum_size = Vector2(340, 22)
 
-	var req_text = "Requires: "
-	var req_parts: Array = []
+	var requires_label = Label.new()
+	requires_label.text = "Needs: "
+	requires_label.add_theme_font_size_override("font_size", 10)
+	requires_label.add_theme_color_override("font_color", Color(0.7, 0.7, 0.7))
+	req_hbox.add_child(requires_label)
+
 	for item_name in requirements.keys():
 		var amount = requirements[item_name]
-		var item_display = ItemDatabase.get_item(item_name)
-		var item_name_display = item_display.display_name if item_display else CraftingRecipes.get_item_display_name(item_name)
-		# Use combined inventory count (player + nearby chests)
 		var current_amount = 0
 		if combined_inventory and combined_inventory.has_method("get_item_count"):
 			current_amount = combined_inventory.get_item_count(item_name)
 
-		var color = "[color=green]" if current_amount >= amount else "[color=red]"
-		req_parts.append("%s%s x%d[/color] (%d)" % [color, item_name_display, amount, current_amount])
+		# Ingredient icon
+		var ing_icon = _load_item_icon(item_name)
+		if ing_icon:
+			var ing_rect = TextureRect.new()
+			ing_rect.texture = ing_icon
+			ing_rect.custom_minimum_size = Vector2(18, 18)
+			ing_rect.expand_mode = TextureRect.EXPAND_FIT_WIDTH_PROPORTIONAL
+			ing_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+			req_hbox.add_child(ing_rect)
 
-	req_label.text = req_text + ", ".join(req_parts)
-	container.add_child(req_label)
+		# Amount text (colored)
+		var amt_label = Label.new()
+		amt_label.text = "%d/%d" % [current_amount, amount]
+		amt_label.add_theme_font_size_override("font_size", 10)
+		if current_amount >= amount:
+			amt_label.add_theme_color_override("font_color", Color(0.3, 0.9, 0.3))
+		else:
+			amt_label.add_theme_color_override("font_color", Color(0.9, 0.3, 0.3))
+		req_hbox.add_child(amt_label)
+
+	container.add_child(req_hbox)
 
 	return container
 
