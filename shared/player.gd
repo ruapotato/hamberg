@@ -93,7 +93,7 @@ var current_weapon_type: String = ""  # Track weapon for combo animations (knife
 var is_special_attacking: bool = false
 var special_attack_timer: float = 0.0
 const SPECIAL_ATTACK_ANIMATION_TIME: float = 0.5  # Longer than normal attacks
-const KNIFE_SPECIAL_ANIMATION_TIME: float = 0.4  # Faster for knife lunge
+const KNIFE_SPECIAL_ANIMATION_TIME: float = 0.9  # Long enough to cover the full lunge arc
 const SWORD_SPECIAL_ANIMATION_TIME: float = 0.6  # Slower for sword jab
 const AXE_SPECIAL_ANIMATION_TIME: float = 0.8  # Full spin takes longer
 var current_special_attack_animation_time: float = 0.5  # Actual special animation time
@@ -2578,7 +2578,8 @@ func _animate_sword_attack(progress: float, right_arm: Node3D, right_elbow: Node
 					right_elbow.rotation.x = lerp(-1.2, 0.0, t_power)  # Extend
 
 ## Sword jab special attack animation - fencing-style lunge
-## Uses wrist pivot to aim the entire weapon toward the crosshair target
+## Counter-rotates the weapon as the arm extends so the blade tip
+## always points forward toward the crosshair target
 func _animate_sword_jab(progress: float, right_arm_node: Node3D, right_elbow_node: Node3D) -> void:
 	var windup_end = 0.25  # Pull back phase
 	var thrust_end = 0.55  # Thrust forward phase
@@ -2587,44 +2588,40 @@ func _animate_sword_jab(progress: float, right_arm_node: Node3D, right_elbow_nod
 	# Target arm angle based on camera pitch at jab start
 	var thrust_target = clampf(-1.6 + jab_pitch * 1.0, -2.4, -0.6)
 
-	# Wrist pivot pitch: tilt the weapon toward the aim point
-	# Default weapon at x=90 points forward (blade perpendicular to arm)
-	# Wrist pivot x-rotation tilts blade up/down to aim at crosshair
-	# jab_pitch: negative = looking down, positive = looking up
-	var wrist_pitch = rad_to_deg(jab_pitch) * 0.8  # Dampen slightly
-
 	if progress < windup_end:
-		# Pull arm back, start rotating wrist to aim weapon at target
+		# Pull arm back (coiling for the jab)
 		var t = progress / windup_end
 		var t_ease = t * t * (3.0 - 2.0 * t)
 		right_arm_node.rotation.x = lerp(0.0, 0.6, t_ease)    # Pull back
 		right_arm_node.rotation.z = lerp(0.0, -0.2, t_ease)    # Slight tuck
 		if right_elbow_node:
 			right_elbow_node.rotation.x = lerp(0.0, -1.2, t_ease)  # Bend elbow tight
-		# Wrist pivot aims the weapon toward the target
-		if weapon_wrist_pivot:
-			weapon_wrist_pivot.rotation_degrees.x = lerp(0.0, wrist_pitch, t_ease)
+		# Counter-rotate weapon so blade keeps pointing forward as arm moves
+		if equipped_weapon_visual:
+			equipped_weapon_visual.rotation_degrees.x = 90.0 + rad_to_deg(right_arm_node.rotation.x)
 	elif progress < thrust_end:
-		# Thrust forward - arm extends, wrist keeps aim
+		# Thrust forward toward crosshair
 		var t = (progress - windup_end) / (thrust_end - windup_end)
 		var t_power = t * t * t  # Cubic acceleration for sharp snap
 		right_arm_node.rotation.x = lerp(0.6, thrust_target, t_power)  # Jab toward aim point
 		right_arm_node.rotation.z = lerp(-0.2, 0.0, t_power)   # Straighten
 		if right_elbow_node:
 			right_elbow_node.rotation.x = lerp(-1.2, 0.0, t_power)  # Extend fully
-		if weapon_wrist_pivot:
-			weapon_wrist_pivot.rotation_degrees.x = wrist_pitch
+		# Counter-rotate: as arm goes forward, weapon undoes the 90 offset
+		# so the blade extends forward as a continuation of the arm
+		if equipped_weapon_visual:
+			equipped_weapon_visual.rotation_degrees.x = 90.0 + rad_to_deg(right_arm_node.rotation.x)
 	else:
-		# Hold briefly then return everything to neutral
+		# Return to neutral
 		var t = (progress - thrust_end) / (1.0 - thrust_end)
 		var t_ease = t * t
 		right_arm_node.rotation.x = lerp(thrust_target, 0.0, t_ease)
 		right_arm_node.rotation.z = 0.0
 		if right_elbow_node:
 			right_elbow_node.rotation.x = 0.0
-		# Return wrist to neutral
-		if weapon_wrist_pivot:
-			weapon_wrist_pivot.rotation_degrees.x = lerp(wrist_pitch, 0.0, t_ease)
+		# Smoothly return weapon to normal slash angle
+		if equipped_weapon_visual:
+			equipped_weapon_visual.rotation_degrees.x = 90.0 + rad_to_deg(right_arm_node.rotation.x)
 
 
 ## Check for enemy hits during axe spin attack
