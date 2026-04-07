@@ -238,31 +238,43 @@ func _return_to_pool() -> void:
 
 
 func _spawn_stump() -> void:
-	# Load stump texture and place a billboard sprite at the tree's base
-	var stump_path := "res://assets/textures/environment/stump.png"
-	var stump_tex: Texture2D = null
-	if FileAccess.file_exists(stump_path):
-		var img := Image.load_from_file(stump_path)
-		if img:
-			stump_tex = ImageTexture.create_from_image(img)
+	# Save position before any tree state changes
+	var stump_pos: Vector3 = position  # Tree body position (already at ground level)
+
+	var stump_tex: Texture2D = load("res://assets/textures/environment/stump.png")
 	if not stump_tex:
 		return
 
-	var stump := Sprite3D.new()
-	stump.name = "TreeStump"
-	stump.texture = stump_tex
-	stump.pixel_size = 0.008
-	stump.billboard = BaseMaterial3D.BILLBOARD_FIXED_Y
-	stump.alpha_cut = SpriteBase3D.ALPHA_CUT_OPAQUE_PREPASS
-	stump.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
-	stump.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	# Create a destructible stump (punchable for 1 extra wood)
+	var CollectibleBush = preload("res://client/collectible_bush_2d.gd")
+	var stump_body := StaticBody3D.new()
+	stump_body.set_script(CollectibleBush)
+	stump_body.collision_layer = 1
+	stump_body.collision_mask = 0
 
-	var stump_height: float = stump_tex.get_height() * stump.pixel_size
-	stump.position = Vector3(0, stump_height * 0.35, 0)
+	# Small collision shape
+	var col := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(0.5, 0.4, 0.5)
+	col.shape = box
+	col.position = Vector3(0, 0.2, 0)
+	stump_body.add_child(col)
 
-	# Add to scene at tree's world position (not as child of tree body which will recycle)
-	var stump_anchor := Node3D.new()
-	stump_anchor.name = "StumpAnchor"
-	stump_anchor.global_position = global_position
-	stump_anchor.add_child(stump)
-	get_tree().current_scene.add_child(stump_anchor)
+	# Stump billboard sprite
+	var sprite := Sprite3D.new()
+	sprite.texture = stump_tex
+	sprite.pixel_size = 0.008
+	sprite.billboard = BaseMaterial3D.BILLBOARD_FIXED_Y
+	sprite.alpha_cut = SpriteBase3D.ALPHA_CUT_OPAQUE_PREPASS
+	sprite.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
+	var stump_height: float = stump_tex.get_height() * sprite.pixel_size
+	sprite.position = Vector3(0, stump_height * 0.35, 0)
+	stump_body.add_child(sprite)
+
+	# Configure as collectible (1 HP, drops 1 wood)
+	stump_body.position = stump_pos
+	get_tree().current_scene.add_child(stump_body)
+	stump_body.max_health = 1.0
+	stump_body.current_health = 1.0
+	stump_body.resource_drops = {"wood": 1}
+	stump_body.is_destroyed = false
