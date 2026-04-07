@@ -661,6 +661,13 @@ func _spawn_environment_around(center: Vector3) -> void:
 			if destroyed_object_ids.has(tree_id):
 				continue
 
+			# Skip pool slots that are currently falling/destroyed
+			if tree_idx < tree_pool.size() and tree_pool[tree_idx].is_destroyed:
+				tree_idx += 1
+				if tree_idx >= max_trees:
+					break
+				continue
+
 			var pos = Vector3(world_x, height, world_z)
 			var tree_type = _get_tree_type_for_biome(biome)
 
