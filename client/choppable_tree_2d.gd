@@ -167,15 +167,18 @@ func _spawn_hit_particles() -> void:
 
 func _on_destroyed() -> void:
 	if is_destroyed:
-		return  # Already destroyed — prevent duplicate drops
+		print("[ChoppableTree2D] BLOCKED duplicate _on_destroyed for %s" % get_meta("tree_id", "unknown"))
+		return
 	is_destroyed = true
-	# Disable collision IMMEDIATELY to prevent double-hits during fall
+	_is_falling = true
+	# Disable collision IMMEDIATELY
 	collision_layer = 0
 	collision_mask = 0
 	var col = get_child(0) as CollisionShape3D
 	if col:
 		col.disabled = true
-	print("[ChoppableTree2D] Tree destroyed! Dropping: %s" % resource_drops)
+	var tid: String = get_meta("tree_id", "unknown")
+	print("[ChoppableTree2D] Tree %s destroyed at %s! Dropping: %s" % [tid, position, resource_drops])
 
 	# Notify server that this tree was destroyed (for persistence)
 	var tree_id = get_meta("tree_id", "")
