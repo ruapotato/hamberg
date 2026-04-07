@@ -2538,9 +2538,9 @@ func _check_spin_hits() -> void:
 	if not is_local_player:
 		return
 
-	var spin_radius = 3.5  # Attack radius
-	var hit_cooldown = 0.25  # Time between hits - limits to ~4 hits per spin (0.8s duration)
-	var spin_damage = lunge_damage * 0.4  # Reduced damage for wood harvesting balance
+	var spin_radius = 5.0  # Attack radius (generous for clearing)
+	var hit_cooldown = 0.2  # Time between hits
+	var spin_damage = lunge_damage * 0.5  # Moderate damage for wood harvesting
 	var current_time = Time.get_ticks_msec() / 1000.0
 
 	# Get weapon data for tool type check
