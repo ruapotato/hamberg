@@ -126,21 +126,16 @@ def normalize(samples: list[float], target: float = 0.9) -> list[float]:
 # =============================================================================
 
 def generate_sword_swing():
-    """Smooth swoosh sound - bandpassed noise with quick envelope."""
+    """Pure whoosh — no tonal ding, just air cutting."""
     print("Generating sword_swing.wav...")
-    total_ms = 200
+    total_ms = 180
     n = int(total_ms * SAMPLE_RATE / 1000)
 
     noise = white_noise(n)
-    filtered = bandpass_simple(noise, 800, 2000)
-    shaped = apply_envelope(filtered, fade_in_ms=5, sustain_ms=50, fade_out_ms=145)
+    filtered = bandpass_simple(noise, 600, 3000)
+    shaped = apply_envelope(filtered, fade_in_ms=3, sustain_ms=30, fade_out_ms=147)
 
-    # Add a subtle pitch sweep (frequency modulated noise impression)
-    sweep = sine_wave(1200, n)
-    sweep = apply_envelope(sweep, 3, 30, 167)
-    combined = mix(shaped, sweep, 0.15)
-
-    write_wav("sword_swing.wav", normalize(combined, 0.7))
+    write_wav("sword_swing.wav", normalize(shaped, 0.5))
 
 
 def generate_punch_swing():

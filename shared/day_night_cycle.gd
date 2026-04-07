@@ -54,39 +54,39 @@ const SUNRISE_HOUR: float = 6.0
 const SUNSET_HOUR: float = 20.0
 const NOON_HOUR: float = 12.0
 
-# Light colors for different times
-const COLOR_DAWN := Color(1.0, 0.7, 0.5)      # Warm orange sunrise
-const COLOR_DAY := Color(1.0, 0.98, 0.95)     # Slightly warm white
-const COLOR_DUSK := Color(1.0, 0.5, 0.3)      # Deep orange sunset
-const COLOR_NIGHT := Color(0.3, 0.35, 0.5)    # Cool blue moonlight
+# Light colors — blue-tinted to match #0034ff palette
+const COLOR_DAWN := Color(0.7, 0.5, 0.8)      # Purple-blue sunrise
+const COLOR_DAY := Color(0.7, 0.8, 1.0)       # Blue-white daylight
+const COLOR_DUSK := Color(0.6, 0.3, 0.6)      # Purple dusk
+const COLOR_NIGHT := Color(0.15, 0.2, 0.45)   # Deep blue moonlight
 
 # Light energy for different times
 const ENERGY_DAWN: float = 0.8
-const ENERGY_DAY: float = 1.2
+const ENERGY_DAY: float = 1.1
 const ENERGY_DUSK: float = 0.7
 const ENERGY_NIGHT: float = 0.15
 
-# Ambient light colors
-const AMBIENT_DAWN := Color(0.6, 0.5, 0.5)
-const AMBIENT_DAY := Color(0.6, 0.7, 0.8)
-const AMBIENT_DUSK := Color(0.5, 0.4, 0.5)
-const AMBIENT_NIGHT := Color(0.15, 0.15, 0.25)
+# Ambient light colors — blue-tinted
+const AMBIENT_DAWN := Color(0.4, 0.35, 0.6)
+const AMBIENT_DAY := Color(0.3, 0.45, 0.8)
+const AMBIENT_DUSK := Color(0.35, 0.25, 0.5)
+const AMBIENT_NIGHT := Color(0.08, 0.1, 0.25)
 
-# Sky top colors (zenith)
-const SKY_TOP_DAWN := Color(0.6, 0.4, 0.5)
-const SKY_TOP_DAY := Color(0.3, 0.5, 0.9)
-const SKY_TOP_DUSK := Color(0.4, 0.2, 0.4)
-const SKY_TOP_NIGHT := Color(0.02, 0.02, 0.08)
+# Sky top colors (zenith) — vibrant blue
+const SKY_TOP_DAWN := Color(0.3, 0.2, 0.6)
+const SKY_TOP_DAY := Color(0.0, 0.2, 0.9)     # Vibrant #0034ff blue
+const SKY_TOP_DUSK := Color(0.25, 0.1, 0.45)
+const SKY_TOP_NIGHT := Color(0.01, 0.02, 0.08)
 
-# Sky horizon colors
-const SKY_HORIZON_DAWN := Color(1.0, 0.6, 0.4)
-const SKY_HORIZON_DAY := Color(0.55, 0.7, 0.9)
-const SKY_HORIZON_DUSK := Color(1.0, 0.4, 0.2)
-const SKY_HORIZON_NIGHT := Color(0.05, 0.05, 0.12)
+# Sky horizon colors — blue, NOT white
+const SKY_HORIZON_DAWN := Color(0.6, 0.35, 0.55)
+const SKY_HORIZON_DAY := Color(0.15, 0.35, 0.8)  # Blue horizon, not white
+const SKY_HORIZON_DUSK := Color(0.5, 0.2, 0.35)
+const SKY_HORIZON_NIGHT := Color(0.03, 0.04, 0.12)
 
-# Ground color (below horizon)
-const GROUND_DAY := Color(0.25, 0.2, 0.15)
-const GROUND_NIGHT := Color(0.02, 0.02, 0.03)
+# Ground color (below horizon) — deep blue
+const GROUND_DAY := Color(0.05, 0.1, 0.3)
+const GROUND_NIGHT := Color(0.01, 0.02, 0.05)
 
 # Moon settings
 var moon_phase: float = 0.5  # 0=new, 0.25=first quarter, 0.5=full, 0.75=last quarter

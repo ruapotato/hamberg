@@ -2,7 +2,8 @@ extends Control
 
 ## TaskMenu - Skill Tree Progression UI
 ## Shows Phase 1 basics then 4 branching paths (Warrior, Ranger, Mage, Survival).
-## Toggle with Tab key. Displays in top-left corner, semi-transparent.
+## Always-visible hint line at top-center shows next task.
+## Full skill tree panel toggled with J key (Journal) or toggle_full_view().
 
 # Phase 1 tasks - everyone does these first
 const PHASE1_TASKS: Array[Dictionary] = [
@@ -67,6 +68,7 @@ var _phase1_labels: Array[Label] = []
 var _path_header_labels: Array[Label] = []
 var _path_task_labels: Array[Array] = []  # Array of Array[Label], one per path
 var _title_label: Label = null
+var _hint_label: Label = null
 var _is_visible: bool = false
 var _day_count: int = 1
 
@@ -77,6 +79,17 @@ func _ready() -> void:
 	anchors_preset = PRESET_FULL_RECT
 	anchor_right = 1.0
 	anchor_bottom = 1.0
+
+	# Always-visible hint label at top-center
+	_hint_label = Label.new()
+	_hint_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_hint_label.anchors_preset = PRESET_TOP_WIDE
+	_hint_label.offset_top = 8.0
+	_hint_label.add_theme_font_size_override("font_size", 16)
+	_hint_label.add_theme_color_override("font_color", Color(0.9, 0.85, 0.4, 0.8))
+	_hint_label.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.5))
+	_hint_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_hint_label)
 
 	_panel = PanelContainer.new()
 	_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -111,7 +124,7 @@ func _ready() -> void:
 
 	# Title
 	_title_label = Label.new()
-	_title_label.text = "PROGRESSION (Tab to hide)"
+	_title_label.text = "JOURNAL (J to close)"
 	_title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_title_label.add_theme_color_override("font_color", Color(1.0, 0.85, 0.4))
 	_title_label.add_theme_font_size_override("font_size", 18)
@@ -177,19 +190,22 @@ func _ready() -> void:
 			row_hbox.add_child(label)
 			_path_task_labels[path_idx].append(label)
 
-	# Start visible
-	_panel.visible = true
-	_is_visible = true
+	# Full panel starts hidden — hint label is always visible
+	_panel.visible = false
+	_is_visible = false
+
+	_update_hint()
 
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo:
-		if event.keycode == KEY_TAB:
-			_toggle_visibility()
+		if event.keycode == KEY_J:
+			toggle_full_view()
 			get_viewport().set_input_as_handled()
 
 
-func _toggle_visibility() -> void:
+## Toggle the full skill tree panel visibility. Can be called externally.
+func toggle_full_view() -> void:
 	_is_visible = not _is_visible
 	_panel.visible = _is_visible
 
@@ -232,6 +248,7 @@ func check_tasks() -> void:
 					print("[TaskMenu] Task completed: %s" % task["short"])
 
 	_update_display()
+	_update_hint()
 
 
 func _check_task(task_id: String, inventory: Node) -> bool:
@@ -307,6 +324,23 @@ func _check_task(task_id: String, inventory: Node) -> bool:
 	return false
 
 
+func _update_hint() -> void:
+	if not _hint_label:
+		return
+	# Find first incomplete Phase 1 task
+	for task in PHASE1_TASKS:
+		if not completed_tasks.get(task["id"], false):
+			_hint_label.text = ">> %s" % task["description"]
+			return
+	# Phase 1 done — show next incomplete task from any path
+	for path in PATHS:
+		for task in path["tasks"]:
+			if not completed_tasks.get(task["id"], false):
+				_hint_label.text = ">> %s: %s" % [path["name"], task["short"]]
+				return
+	_hint_label.text = "All tasks complete!"
+
+
 func _update_display() -> void:
 	var phase1_complete = _is_phase1_complete()
 
@@ -377,3 +411,4 @@ func load_progress_data(data: Dictionary) -> void:
 	if data.has("day_count"):
 		_day_count = data["day_count"]
 	_update_display()
+	_update_hint()
