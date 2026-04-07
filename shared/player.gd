@@ -2614,59 +2614,51 @@ func _animate_sword_attack(progress: float, right_arm: Node3D, right_elbow: Node
 ## 2. Pull the sword back along the aim line
 ## 3. Thrust it forward — a clear stab distinct from swipes
 func _animate_sword_jab(progress: float, right_arm_node: Node3D, right_elbow_node: Node3D) -> void:
-	var aim_end = 0.10     # Quick snap to aim at target
-	var pullback_end = 0.70  # Slow deliberate pull-back (the tension)
-	var thrust_end = 0.80   # Fast snap forward — the stab (same real-time speed)
+	var windup_end = 0.70  # Arm raise + sword pull-back happen TOGETHER
+	var thrust_end = 0.80  # Fast snap forward — the stab
 	# 0.80 - 1.0 hold + return
 
-	var pull_distance = 0.8   # Big pull-back so the wind-up is visible
-	var push_distance = 0.4   # Push forward past neutral for the stab
-
-	# Keep arm extended forward throughout (not swinging)
-	right_arm_node.rotation.x = lerp(right_arm_node.rotation.x, -1.3, 0.3)
-	right_arm_node.rotation.z = lerp(right_arm_node.rotation.z, 0.0, 0.3)
-	if right_elbow_node:
-		right_elbow_node.rotation.x = lerp(right_elbow_node.rotation.x, 0.0, 0.3)
+	var pull_distance = 0.8
+	var push_distance = 0.4
 
 	if not weapon_wrist_pivot or not equipped_weapon_visual:
 		return
 
-	# Aim using fixed DIRECTION (not world point) so it doesn't track when player moves
+	# Aim using fixed DIRECTION (not world point) so angle stays constant when moving
 	if jab_aim_direction != Vector3.ZERO:
 		var pivot_pos = weapon_wrist_pivot.global_position
 		weapon_wrist_pivot.look_at(pivot_pos + jab_aim_direction, Vector3.UP)
 		weapon_wrist_pivot.rotate_object_local(Vector3.UP, deg_to_rad(180))
 
-	if progress < aim_end:
-		# Phase 1: Aim established above, no slide yet
-		equipped_weapon_visual.position.z = 0.0
-
-	elif progress < pullback_end:
-		# Phase 2: Pull sword BACK along aim line (away from target)
-		# After look_at + 180 flip, wrist pivot +Z = toward target
-		# So -Z = away from target (pull back)
-		var t = (progress - aim_end) / (pullback_end - aim_end)
+	if progress < windup_end:
+		# Phase 1: Arm raises AND sword pulls back simultaneously
+		var t = progress / windup_end
 		var t_ease = t * t * (3.0 - 2.0 * t)
+		# Arm extends forward
+		right_arm_node.rotation.x = lerp(0.0, -1.3, t_ease)
+		right_arm_node.rotation.z = 0.0
+		if right_elbow_node:
+			right_elbow_node.rotation.x = 0.0
+		# Sword pulls back along aim line at the same time
 		equipped_weapon_visual.position.z = -pull_distance * t_ease
 
 	elif progress < thrust_end:
-		# Phase 3: THRUST forward along aim line — the actual jab
-		var t = (progress - pullback_end) / (thrust_end - pullback_end)
+		# Phase 2: THRUST — fast snap forward
+		var t = (progress - windup_end) / (thrust_end - windup_end)
 		var t_power = t * t
+		# Arm stays extended
+		right_arm_node.rotation.x = -1.3
 		equipped_weapon_visual.position.z = lerp(-pull_distance, push_distance, t_power)
 
 	else:
-		# Phase 4: Hold briefly then return to neutral
+		# Phase 3: Hold then return to neutral
 		var t = (progress - thrust_end) / (1.0 - thrust_end)
 		var t_ease = t * t
-		# Return weapon position to neutral
 		equipped_weapon_visual.position.z = lerp(push_distance, 0.0, t_ease)
-		# Return wrist pivot rotation to neutral
 		weapon_wrist_pivot.rotation.x = lerp(weapon_wrist_pivot.rotation.x, 0.0, t_ease)
 		weapon_wrist_pivot.rotation.y = lerp(weapon_wrist_pivot.rotation.y, 0.0, t_ease)
 		weapon_wrist_pivot.rotation.z = lerp(weapon_wrist_pivot.rotation.z, 0.0, t_ease)
-		# Return arm to neutral
-		right_arm_node.rotation.x = lerp(right_arm_node.rotation.x, 0.0, t_ease)
+		right_arm_node.rotation.x = lerp(-1.3, 0.0, t_ease)
 		if right_elbow_node:
 			right_elbow_node.rotation.x = 0.0
 
