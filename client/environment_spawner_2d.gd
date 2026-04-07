@@ -904,17 +904,22 @@ func _place_tree(tree_body: StaticBody3D, pos: Vector3, tree_type: String) -> vo
 	var tree_rotation = rng.randf() * TAU
 	tree_body.rotation.y = tree_rotation
 
-	# Update collision shape based on scale and new texture size
+	# Re-enable collision (disabled when returned to pool)
+	tree_body.collision_layer = 1
+	tree_body.collision_mask = 0
 	var collision: CollisionShape3D = tree_body.get_child(0) as CollisionShape3D
-	if collision and collision.shape is CapsuleShape3D:
-		var capsule: CapsuleShape3D = collision.shape
-		capsule.radius = 0.3 * scale_var
-		capsule.height = world_height * 0.6 * scale_var
-		collision.position = Vector3(0, world_height * 0.3 * scale_var, 0)
+	if collision:
+		collision.disabled = false
+		if collision.shape is CapsuleShape3D:
+			var capsule: CapsuleShape3D = collision.shape
+			capsule.radius = 0.3 * scale_var
+			capsule.height = world_height * 0.6 * scale_var
+			collision.position = Vector3(0, world_height * 0.3 * scale_var, 0)
 
 	# Reset tree health/state for pool reuse (if choppable)
 	if tree_body.has_method("get_object_type"):
 		tree_body.is_destroyed = false
+		tree_body._is_falling = false
 		# Scale health and drops with size
 		tree_body.max_health = 15.0 + scale_var * 25.0
 		tree_body.current_health = tree_body.max_health

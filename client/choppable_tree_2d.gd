@@ -240,12 +240,14 @@ func _return_to_pool() -> void:
 	current_health = max_health
 	scale = Vector3.ONE
 	rotation = Vector3.ZERO
-	# Re-enable collision for next use
-	collision_layer = 1
+	# Move far away so invisible body doesn't block anything
+	position = Vector3(0, -1000, 0)
+	# Keep collision DISABLED until _place_tree re-enables it
+	collision_layer = 0
 	collision_mask = 0
 	var col = get_child(0) as CollisionShape3D
 	if col:
-		col.disabled = false
+		col.disabled = true
 	if _sprite_ref:
 		_sprite_ref.position.x = 0.0
 		_sprite_ref.modulate = Color(1, 1, 1, 1)
