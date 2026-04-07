@@ -1351,9 +1351,12 @@ func _special_attack_sword_stab(weapon_data: WeaponData, camera: Camera3D) -> vo
 			body_container.rotation.y = camera_yaw + PI
 			synced_rotation_y = body_container.global_rotation.y
 
-	# Rotate sword to 0 degrees (straight/horizontal) for jab
+	# Keep sword at normal angle - the arm animation drives the jab thrust
 	if equipped_weapon_visual:
-		equipped_weapon_visual.rotation_degrees = Vector3(0, 0, 0)  # Straight angle for jab
+		equipped_weapon_visual.rotation_degrees = Vector3(90, 0, 0)
+
+	# Play thrust sound
+	SoundManager.play_sound_varied("sword_swing", global_position, 0.0, 0.15)
 
 	# Perform melee raycast attack
 	_perform_melee_attack(camera, attack_range, damage, knockback)
@@ -2185,6 +2188,16 @@ func _update_body_animations(delta: float) -> void:
 			body_container.rotation.y += delta * 15.0  # Fast spin
 			_check_spin_hits()
 
+		# Sword jab: long forward thrust animation (Valheim-style)
+		elif current_weapon_type == "stone_sword" and right_arm and current_special_attack_animation_time > 0:
+			var jab_progress = special_attack_timer / current_special_attack_animation_time
+			_animate_sword_jab(jab_progress, right_arm, _right_elbow)
+
+		# Knife lunge: forward thrust (uses same jab-like motion)
+		elif current_weapon_type == "stone_knife" and right_arm and current_special_attack_animation_time > 0:
+			var lunge_progress = special_attack_timer / current_special_attack_animation_time
+			_animate_sword_jab(lunge_progress, right_arm, _right_elbow)
+
 		if special_attack_timer >= current_special_attack_animation_time:
 			is_special_attacking = false
 			special_attack_timer = 0.0
@@ -2549,6 +2562,39 @@ func _animate_sword_attack(progress: float, right_arm: Node3D, right_elbow: Node
 				right_arm.rotation.z = lerp(-0.3, 0.0, t_power)  # Center
 				if right_elbow:
 					right_elbow.rotation.x = lerp(-1.2, 0.0, t_power)  # Extend
+
+## Sword jab special attack animation - Valheim-style forward thrust
+## Wind-up pulls arm back, then punches forward in a long straight jab
+func _animate_sword_jab(progress: float, right_arm_node: Node3D, right_elbow_node: Node3D) -> void:
+	var windup_end = 0.25  # Pull back phase
+	var thrust_end = 0.55  # Thrust forward phase
+	# 0.55 - 1.0 is hold + return
+
+	if progress < windup_end:
+		# Pull arm back (coiling for the jab)
+		var t = progress / windup_end
+		var t_ease = t * t * (3.0 - 2.0 * t)
+		right_arm_node.rotation.x = lerp(0.0, 0.6, t_ease)    # Pull back
+		right_arm_node.rotation.z = lerp(0.0, -0.2, t_ease)    # Slight tuck
+		if right_elbow_node:
+			right_elbow_node.rotation.x = lerp(0.0, -1.2, t_ease)  # Bend elbow tight
+	elif progress < thrust_end:
+		# Thrust forward - fast straight jab
+		var t = (progress - windup_end) / (thrust_end - windup_end)
+		var t_power = t * t * t  # Cubic acceleration for sharp snap
+		right_arm_node.rotation.x = lerp(0.6, -1.6, t_power)   # Punch far forward
+		right_arm_node.rotation.z = lerp(-0.2, 0.0, t_power)   # Straighten
+		if right_elbow_node:
+			right_elbow_node.rotation.x = lerp(-1.2, 0.0, t_power)  # Extend fully
+	else:
+		# Hold briefly then return to neutral
+		var t = (progress - thrust_end) / (1.0 - thrust_end)
+		var t_ease = t * t
+		right_arm_node.rotation.x = lerp(-1.6, 0.0, t_ease)   # Return
+		right_arm_node.rotation.z = lerp(0.0, 0.0, t_ease)
+		if right_elbow_node:
+			right_elbow_node.rotation.x = lerp(0.0, 0.0, t_ease)
+
 
 ## Check for enemy hits during axe spin attack
 ## Hits enemies and environmental objects multiple times with a cooldown
