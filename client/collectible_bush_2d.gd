@@ -145,6 +145,11 @@ func _on_destroyed() -> void:
 	if col:
 		col.disabled = true
 
+	# Permanent destroy (stumps etc.) — remove from scene entirely
+	if get_meta("permanent_destroy", false):
+		queue_free()
+		return
+
 	# If this bush has a persistent ID, it stays destroyed (server tracks it)
 	# Otherwise fall back to local respawn timer
 	if tree_id == "":

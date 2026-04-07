@@ -271,10 +271,13 @@ func _spawn_stump() -> void:
 	sprite.position = Vector3(0, stump_height * 0.35, 0)
 	stump_body.add_child(sprite)
 
-	# Configure as collectible (1 HP, drops 1 wood)
+	# Configure as collectible (1 HP, drops 1 wood, no respawn)
 	stump_body.position = stump_pos
 	get_tree().current_scene.add_child(stump_body)
 	stump_body.max_health = 1.0
 	stump_body.current_health = 1.0
 	stump_body.resource_drops = {"wood": 1}
 	stump_body.is_destroyed = false
+	# Override: permanently remove on destroy (no respawn timer)
+	stump_body.set_meta("no_respawn", true)
+	stump_body.set_meta("permanent_destroy", true)
