@@ -147,6 +147,8 @@ const FORAGEABLE_DROPS: Dictionary = {
 	"arcane_herb_plant": {"arcane_herb": 1},
 	"ember_pepper_plant": {"ember_pepper": 1},
 	"brimstone_plant": {"brimstone_root": 1},
+	"log": {"wood": 3},
+	"stump": {"wood": 1},
 }
 
 # Biome rock colors - Hollow Knight blue world
