@@ -2203,6 +2203,8 @@ func _update_body_animations(delta: float) -> void:
 		elif current_weapon_type == "stone_sword" and right_arm and current_special_attack_animation_time > 0:
 			var jab_progress = special_attack_timer / current_special_attack_animation_time
 			_animate_sword_jab(jab_progress, right_arm, _right_elbow)
+			if int(special_attack_timer * 10) % 3 == 0:
+				print("[JabDebug] progress=%.2f arm.rot.x=%.2f weapon.rot=%s" % [jab_progress, right_arm.rotation.x, equipped_weapon_visual.rotation_degrees if equipped_weapon_visual else "null"])
 
 		# Knife lunge: forward thrust (uses same jab-like motion)
 		elif current_weapon_type == "stone_knife" and right_arm and current_special_attack_animation_time > 0:
