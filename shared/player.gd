@@ -2538,9 +2538,9 @@ func _check_spin_hits() -> void:
 	if not is_local_player:
 		return
 
-	var spin_radius = 5.0  # Attack radius (generous for clearing)
-	var hit_cooldown = 0.2  # Time between hits
-	var spin_damage = max(lunge_damage * 0.5, 15.0)  # At least 15 damage even if lunge_damage is 0
+	var spin_radius = 3.0  # Tight radius — just around the player
+	var hit_cooldown = 0.3  # Slower hits for balance
+	var spin_damage = max(lunge_damage * 0.3, 10.0)  # Moderate — takes multiple spins for a tree
 	var current_time = Time.get_ticks_msec() / 1000.0
 
 	# Get weapon data for tool type check
