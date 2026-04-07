@@ -78,7 +78,7 @@ func get_required_tool_type() -> String:
 ## Take damage from player attack (client-side)
 ## Returns true if destroyed
 func take_damage_local(damage: float) -> bool:
-	if is_destroyed:
+	if is_destroyed or _is_falling:
 		return false
 
 	current_health -= damage
@@ -166,8 +166,12 @@ func _spawn_hit_particles() -> void:
 
 
 func _on_destroyed() -> void:
+	if is_destroyed:
+		return  # Already destroyed — prevent duplicate drops
 	is_destroyed = true
 	# Disable collision IMMEDIATELY to prevent double-hits during fall
+	collision_layer = 0
+	collision_mask = 0
 	var col = get_child(0) as CollisionShape3D
 	if col:
 		col.disabled = true
@@ -234,6 +238,8 @@ func _return_to_pool() -> void:
 	scale = Vector3.ONE
 	rotation = Vector3.ZERO
 	# Re-enable collision for next use
+	collision_layer = 1
+	collision_mask = 0
 	var col = get_child(0) as CollisionShape3D
 	if col:
 		col.disabled = false
