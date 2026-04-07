@@ -167,10 +167,17 @@ func select_slot(index: int, auto_equip: bool = true) -> void:
 						return
 					# If not equipped, fall through to equip logic below
 
-	# Auto-equip the item ONLY if it's an equippable item (weapon, tool, or shield)
+	# Handle the item based on type
 	if not item_id.is_empty():
 		var item_data = ItemDatabase.get_item(item_id)
 		if item_data:
+			# Consumables (food, potions, bandages): USE directly instead of equipping
+			if item_data.item_type == ItemData.ItemType.CONSUMABLE:
+				print("[Hotbar] Using consumable %s from slot %d" % [item_id, index])
+				NetworkManager.rpc_request_eat_food.rpc_id(1, item_id, index)
+				return
+
+			# Equippable items (weapons, tools, shields): auto-equip
 			var equip_slot = -1
 			match item_data.item_type:
 				ItemData.ItemType.WEAPON, ItemData.ItemType.TOOL, ItemData.ItemType.RESOURCE:

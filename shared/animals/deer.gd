@@ -10,7 +10,7 @@ func _ready() -> void:
 
 	# Then override with deer-specific values
 	enemy_name = "Deer"
-	max_health = 20.0
+	max_health = 30.0
 	move_speed = 4.0  # Deer are fast
 	strafe_speed = 3.0
 	loot_table = {"raw_venison": 2, "deer_leather": 2}

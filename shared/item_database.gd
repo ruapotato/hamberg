@@ -225,7 +225,7 @@ func _register_weapon_fists() -> void:
 	sporeling.display_name = "Sporeling Tendrils"
 	sporeling.description = "Powerful fungal tendrils."
 	sporeling.weapon_type = WeaponData.WeaponType.MELEE_ONE_HAND
-	sporeling.damage = 35.0  # Biome 2 - will wreck unarmored players
+	sporeling.damage = 52.0  # Biome 2 - will wreck unarmored players (50% increase)
 	sporeling.damage_type = WeaponData.DamageType.BLUNT
 	sporeling.attack_speed = 1.2
 	sporeling.knockback = 8.0
@@ -233,6 +233,81 @@ func _register_weapon_fists() -> void:
 	sporeling.stamina_cost = 0.0
 	sporeling.weight = 0.0
 	items["sporeling_fists"] = sporeling
+
+	# Zombie walker fists - Valley enemies, moderate damage
+	var zombie_walker = WeaponData.new()
+	zombie_walker.item_id = "zombie_walker_fists"
+	zombie_walker.display_name = "Zombie Claws"
+	zombie_walker.description = "Rotting undead claws."
+	zombie_walker.weapon_type = WeaponData.WeaponType.MELEE_ONE_HAND
+	zombie_walker.damage = 10.0
+	zombie_walker.damage_type = WeaponData.DamageType.SLASH
+	zombie_walker.attack_speed = 1.5
+	zombie_walker.knockback = 5.0
+	zombie_walker.durability = 999999
+	zombie_walker.stamina_cost = 0.0
+	zombie_walker.weight = 0.0
+	items["zombie_walker_fists"] = zombie_walker
+
+	# Zombie runner fists - fast but weaker
+	var zombie_runner = WeaponData.new()
+	zombie_runner.item_id = "zombie_runner_fists"
+	zombie_runner.display_name = "Zombie Claws"
+	zombie_runner.description = "Quick undead swipes."
+	zombie_runner.weapon_type = WeaponData.WeaponType.MELEE_ONE_HAND
+	zombie_runner.damage = 8.0
+	zombie_runner.damage_type = WeaponData.DamageType.SLASH
+	zombie_runner.attack_speed = 2.0
+	zombie_runner.knockback = 4.0
+	zombie_runner.durability = 999999
+	zombie_runner.stamina_cost = 0.0
+	zombie_runner.weight = 0.0
+	items["zombie_runner_fists"] = zombie_runner
+
+	# Zombie brute fists - Dark Forest, hits very hard
+	var zombie_brute = WeaponData.new()
+	zombie_brute.item_id = "zombie_brute_fists"
+	zombie_brute.display_name = "Brute Slam"
+	zombie_brute.description = "Massive undead fists."
+	zombie_brute.weapon_type = WeaponData.WeaponType.MELEE_ONE_HAND
+	zombie_brute.damage = 35.0
+	zombie_brute.damage_type = WeaponData.DamageType.BLUNT
+	zombie_brute.attack_speed = 1.0
+	zombie_brute.knockback = 10.0
+	zombie_brute.durability = 999999
+	zombie_brute.stamina_cost = 0.0
+	zombie_brute.weight = 0.0
+	items["zombie_brute_fists"] = zombie_brute
+
+	# Zombie mage fists - Dark Forest, magic-infused melee
+	var zombie_mage = WeaponData.new()
+	zombie_mage.item_id = "zombie_mage_zombie_fists"
+	zombie_mage.display_name = "Necrotic Touch"
+	zombie_mage.description = "Death-infused strikes."
+	zombie_mage.weapon_type = WeaponData.WeaponType.MELEE_ONE_HAND
+	zombie_mage.damage = 25.0
+	zombie_mage.damage_type = WeaponData.DamageType.BLUNT
+	zombie_mage.attack_speed = 1.2
+	zombie_mage.knockback = 6.0
+	zombie_mage.durability = 999999
+	zombie_mage.stamina_cost = 0.0
+	zombie_mage.weight = 0.0
+	items["zombie_mage_zombie_fists"] = zombie_mage
+
+	# Zombie exploder fists - kamikaze type
+	var zombie_exploder = WeaponData.new()
+	zombie_exploder.item_id = "zombie_exploder_fists"
+	zombie_exploder.display_name = "Explosive Slam"
+	zombie_exploder.description = "Volatile undead slam."
+	zombie_exploder.weapon_type = WeaponData.WeaponType.MELEE_ONE_HAND
+	zombie_exploder.damage = 30.0
+	zombie_exploder.damage_type = WeaponData.DamageType.FIRE
+	zombie_exploder.attack_speed = 1.0
+	zombie_exploder.knockback = 12.0
+	zombie_exploder.durability = 999999
+	zombie_exploder.stamina_cost = 0.0
+	zombie_exploder.weight = 0.0
+	items["zombie_exploder_fists"] = zombie_exploder
 
 ## Basic club weapon (no workbench required)
 func _register_weapon_club() -> void:

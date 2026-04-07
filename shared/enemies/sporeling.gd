@@ -13,7 +13,7 @@ const SPORE_ATTACK_CHANCE: float = 0.5  # 50% chance to release spores when hit
 func _ready() -> void:
 	# Override stats for Sporeling
 	enemy_name = "Sporeling"
-	max_health = 60.0
+	max_health = 100.0
 	move_speed = 2.0  # Slower movement
 	charge_speed = 3.5  # Slower charge
 	strafe_speed = 1.2

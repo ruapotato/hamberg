@@ -10,11 +10,11 @@ var zombie_type: String = "walker"
 
 # Type-specific stats: {hp, speed, charge_speed, damage, attack_range}
 const ZOMBIE_STATS = {
-	"walker": { "hp": 40.0, "speed": 3.0, "charge_speed": 5.0, "damage": 10.0, "attack_range": 1.0 },
-	"runner": { "hp": 25.0, "speed": 6.0, "charge_speed": 8.0, "damage": 8.0, "attack_range": 0.9 },
-	"brute": { "hp": 100.0, "speed": 1.5, "charge_speed": 3.0, "damage": 25.0, "attack_range": 1.5 },
-	"mage_zombie": { "hp": 35.0, "speed": 2.5, "charge_speed": 4.0, "damage": 15.0, "attack_range": 1.2 },
-	"exploder": { "hp": 25.0, "speed": 4.0, "charge_speed": 6.0, "damage": 30.0, "attack_range": 1.8 },
+	"walker": { "hp": 60.0, "speed": 3.0, "charge_speed": 5.0, "damage": 10.0, "attack_range": 1.0 },
+	"runner": { "hp": 40.0, "speed": 6.0, "charge_speed": 8.0, "damage": 8.0, "attack_range": 0.9 },
+	"brute": { "hp": 180.0, "speed": 1.5, "charge_speed": 3.0, "damage": 35.0, "attack_range": 1.5 },
+	"mage_zombie": { "hp": 80.0, "speed": 2.5, "charge_speed": 4.0, "damage": 25.0, "attack_range": 1.2 },
+	"exploder": { "hp": 35.0, "speed": 4.0, "charge_speed": 6.0, "damage": 30.0, "attack_range": 1.8 },
 }
 
 # Ambient growl system
@@ -52,7 +52,7 @@ func _apply_zombie_type() -> void:
 	charge_speed = stats["charge_speed"]
 	strafe_speed = stats["speed"] * 0.5
 	attack_range = stats["attack_range"]
-	weapon_id = "fists"
+	weapon_id = "zombie_%s_fists" % zombie_type  # Type-specific weapon for proper damage
 	loot_table = { "bone": 2, "rotten_flesh": 1 }
 
 	# Brutes are tankier with slower attacks

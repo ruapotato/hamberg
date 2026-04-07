@@ -40,7 +40,7 @@ var is_remote: bool = false      # True on clients (not server)
 var sync_position: Vector3 = Vector3.ZERO
 var sync_rotation_y: float = 0.0
 var sync_ai_state: int = 0
-var sync_health: float = 30.0
+var sync_health: float = 50.0
 var sync_target_peer: int = 0    # Which player the enemy is targeting
 
 # Interpolation
@@ -62,7 +62,7 @@ const REPORT_INTERVAL: float = 0.1
 # ENEMY STATS
 # ============================================================================
 @export var enemy_name: String = "Gahnome"
-@export var max_health: float = 30.0
+@export var max_health: float = 50.0
 @export var move_speed: float = 2.5
 @export var charge_speed: float = 4.5
 @export var strafe_speed: float = 1.6
