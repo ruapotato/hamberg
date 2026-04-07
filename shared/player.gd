@@ -2618,6 +2618,14 @@ func _check_spin_hits() -> void:
 			SoundManager.play_sound_varied("wood_hit", global_position)
 
 	# Also damage nearby 2D destructible objects (trees, bushes, rocks)
+	if spin_hit_times.is_empty():  # Log once per spin
+		for g in ["destructible_trees", "destructible_bushes", "destructible_rocks"]:
+			var count: int = get_tree().get_nodes_in_group(g).size()
+			var visible_count: int = 0
+			for n in get_tree().get_nodes_in_group(g):
+				if n is Node3D and n.visible and (not "is_destroyed" in n or not n.is_destroyed):
+					visible_count += 1
+			print("[SPIN DEBUG] Group '%s': %d total, %d visible+alive" % [g, count, visible_count])
 	for group_name in ["destructible_trees", "destructible_bushes", "destructible_rocks"]:
 		var objects = get_tree().get_nodes_in_group(group_name)
 		for obj in objects:
