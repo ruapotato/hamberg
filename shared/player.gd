@@ -2580,17 +2580,17 @@ func _animate_sword_jab(progress: float, right_arm_node: Node3D, right_elbow_nod
 	var thrust_target = clampf(-1.6 + jab_pitch * 1.0, -2.4, -0.6)
 
 	if progress < windup_end:
-		# Pull arm back and rotate sword from slash (90,0,0) to thrust (0,0,0)
-		# so the blade tip leads the attack like a fencing lunge
+		# Pull arm back and rotate sword from slash (90) to thrust (180)
+		# Body has PI rotation offset, so 180 = blade tip pointing forward
 		var t = progress / windup_end
 		var t_ease = t * t * (3.0 - 2.0 * t)
 		right_arm_node.rotation.x = lerp(0.0, 0.6, t_ease)    # Pull back
 		right_arm_node.rotation.z = lerp(0.0, -0.2, t_ease)    # Slight tuck
 		if right_elbow_node:
 			right_elbow_node.rotation.x = lerp(0.0, -1.2, t_ease)  # Bend elbow tight
-		# Rotate weapon: blade goes from sideways (90) to forward-pointing (0)
+		# Rotate weapon: blade tip goes forward (accounting for body PI offset)
 		if equipped_weapon_visual:
-			equipped_weapon_visual.rotation_degrees.x = lerp(90.0, 0.0, t_ease)
+			equipped_weapon_visual.rotation_degrees.x = lerp(90.0, 180.0, t_ease)
 	elif progress < thrust_end:
 		# Thrust forward - blade tip leads toward crosshair
 		var t = (progress - windup_end) / (thrust_end - windup_end)
@@ -2601,7 +2601,7 @@ func _animate_sword_jab(progress: float, right_arm_node: Node3D, right_elbow_nod
 			right_elbow_node.rotation.x = lerp(-1.2, 0.0, t_power)  # Extend fully
 		# Keep blade pointing forward during thrust
 		if equipped_weapon_visual:
-			equipped_weapon_visual.rotation_degrees.x = 0.0
+			equipped_weapon_visual.rotation_degrees.x = 180.0
 	else:
 		# Hold briefly then return arm and sword to neutral
 		var t = (progress - thrust_end) / (1.0 - thrust_end)
@@ -2612,7 +2612,7 @@ func _animate_sword_jab(progress: float, right_arm_node: Node3D, right_elbow_nod
 			right_elbow_node.rotation.x = 0.0
 		# Rotate weapon back to slash angle
 		if equipped_weapon_visual:
-			equipped_weapon_visual.rotation_degrees.x = lerp(0.0, 90.0, t_ease)
+			equipped_weapon_visual.rotation_degrees.x = lerp(180.0, 90.0, t_ease)
 
 
 ## Check for enemy hits during axe spin attack
