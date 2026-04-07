@@ -2613,17 +2613,17 @@ func _animate_sword_attack(progress: float, right_arm: Node3D, right_elbow: Node
 ## Sword jab special attack animation
 ## During thrust, uses look_at on the arm itself to point at the target
 func _animate_sword_jab(progress: float, right_arm_node: Node3D, right_elbow_node: Node3D) -> void:
-	var windup_end = 0.20
-	var thrust_end = 0.50
+	var windup_end = 0.35  # Longer wind-up for dramatic pull-back
+	var thrust_end = 0.55
 
 	if progress < windup_end:
-		# Pull arm back — coil for the thrust
+		# Big pull-back — arm goes way behind the shoulder
 		var t = progress / windup_end
 		var t_ease = t * t * (3.0 - 2.0 * t)
-		right_arm_node.rotation.x = lerp(0.0, 0.5, t_ease)
-		right_arm_node.rotation.z = lerp(0.0, -0.15, t_ease)
+		right_arm_node.rotation.x = lerp(0.0, 1.2, t_ease)     # Far back behind body
+		right_arm_node.rotation.z = lerp(0.0, -0.4, t_ease)     # Out to the side
 		if right_elbow_node:
-			right_elbow_node.rotation.x = lerp(0.0, -1.0, t_ease)
+			right_elbow_node.rotation.x = lerp(0.0, -1.4, t_ease)  # Elbow bent tight
 	elif progress < thrust_end:
 		# Thrust: point the arm at the target
 		var t = (progress - windup_end) / (thrust_end - windup_end)
