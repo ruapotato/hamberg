@@ -94,7 +94,7 @@ var is_special_attacking: bool = false
 var special_attack_timer: float = 0.0
 const SPECIAL_ATTACK_ANIMATION_TIME: float = 0.5  # Longer than normal attacks
 const KNIFE_SPECIAL_ANIMATION_TIME: float = 0.9  # Long enough to cover the full lunge arc
-const SWORD_SPECIAL_ANIMATION_TIME: float = 0.6  # Slower for sword jab
+const SWORD_SPECIAL_ANIMATION_TIME: float = 1.2  # Slow wind-up, fast stab
 const AXE_SPECIAL_ANIMATION_TIME: float = 0.8  # Full spin takes longer
 var current_special_attack_animation_time: float = 0.5  # Actual special animation time
 var jab_pitch: float = 0.0  # Camera pitch at jab start (for aiming at crosshair)
@@ -2621,13 +2621,13 @@ func _animate_sword_attack(progress: float, right_arm: Node3D, right_elbow: Node
 ## 2. Pull the sword back along the aim line
 ## 3. Thrust it forward — a clear stab distinct from swipes
 func _animate_sword_jab(progress: float, right_arm_node: Node3D, right_elbow_node: Node3D) -> void:
-	var aim_end = 0.15     # Quick snap to aim at target
-	var pullback_end = 0.40  # Pull sword back away from target
-	var thrust_end = 0.60   # Push sword toward target — the jab
-	# 0.60 - 1.0 hold + return
+	var aim_end = 0.10     # Quick snap to aim at target
+	var pullback_end = 0.70  # Slow deliberate pull-back (the tension)
+	var thrust_end = 0.80   # Fast snap forward — the stab (same real-time speed)
+	# 0.80 - 1.0 hold + return
 
-	var pull_distance = 0.4  # How far back the sword pulls (in local space)
-	var push_distance = 0.5  # How far forward beyond neutral the sword pushes
+	var pull_distance = 0.15  # Small pull-back (hilt stays near hand)
+	var push_distance = 0.2   # Small push forward (hilt stays near hand)
 
 	# Keep arm extended forward throughout (not swinging)
 	right_arm_node.rotation.x = lerp(right_arm_node.rotation.x, -1.3, 0.3)
