@@ -2540,7 +2540,7 @@ func _check_spin_hits() -> void:
 
 	var spin_radius = 5.0  # Attack radius (generous for clearing)
 	var hit_cooldown = 0.2  # Time between hits
-	var spin_damage = lunge_damage * 0.5  # Moderate damage for wood harvesting
+	var spin_damage = max(lunge_damage * 0.5, 15.0)  # At least 15 damage even if lunge_damage is 0
 	var current_time = Time.get_ticks_msec() / 1000.0
 
 	# Get weapon data for tool type check
@@ -2618,39 +2618,30 @@ func _check_spin_hits() -> void:
 			SoundManager.play_sound_varied("wood_hit", global_position)
 
 	# Also damage nearby 2D destructible objects (trees, bushes, rocks)
-	if spin_hit_times.is_empty():  # Log once per spin
-		for g in ["destructible_trees", "destructible_bushes", "destructible_rocks"]:
-			var count: int = get_tree().get_nodes_in_group(g).size()
-			var visible_count: int = 0
-			for n in get_tree().get_nodes_in_group(g):
-				if n is Node3D and n.visible and (not "is_destroyed" in n or not n.is_destroyed):
-					visible_count += 1
-			print("[SPIN DEBUG] Group '%s': %d total, %d visible+alive" % [g, count, visible_count])
 	for group_name in ["destructible_trees", "destructible_bushes", "destructible_rocks"]:
 		var objects = get_tree().get_nodes_in_group(group_name)
 		for obj in objects:
 			if not is_instance_valid(obj) or not obj is Node3D:
 				continue
-			# Skip invisible/destroyed objects
 			if not obj.visible:
 				continue
 			if "is_destroyed" in obj and obj.is_destroyed:
 				continue
+			if "_is_falling" in obj and obj._is_falling:
+				continue
 			var distance = obj.global_position.distance_to(global_position)
-			if distance <= spin_radius:
-				var obj_id = obj.get_instance_id()
-				var last_hit_time = spin_hit_times.get(obj_id, 0.0)
-				if current_time - last_hit_time < hit_cooldown:
-					continue
-				# Check tool requirement
-				if obj.has_method("can_be_damaged_by"):
-					if not obj.can_be_damaged_by(tool_type):
-						continue
-				spin_hit_times[obj_id] = current_time
-				if obj.has_method("take_damage_local"):
-					var destroyed: bool = obj.take_damage_local(spin_damage)
-					print("[Player] SPIN HIT 2D %s (dist=%.1f, destroyed=%s)" % [group_name, distance, destroyed])
-					SoundManager.play_sound_varied("wood_hit", global_position)
+			if distance > spin_radius:
+				continue
+			var obj_id = obj.get_instance_id()
+			var last_hit_time = spin_hit_times.get(obj_id, 0.0)
+			if current_time - last_hit_time < hit_cooldown:
+				continue
+			if obj.has_method("can_be_damaged_by") and not obj.can_be_damaged_by(tool_type):
+				continue
+			spin_hit_times[obj_id] = current_time
+			if obj.has_method("take_damage_local"):
+				obj.take_damage_local(spin_damage)
+				SoundManager.play_sound_varied("wood_hit", global_position)
 
 ## Animate axe combo attacks - SIMPLE wide sweeping arcs
 ## The ARM does the work - axe head sweeps IN FRONT of the player
