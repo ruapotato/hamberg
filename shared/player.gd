@@ -2204,6 +2204,9 @@ func _update_body_animations(delta: float) -> void:
 		if special_attack_timer >= current_special_attack_animation_time:
 			is_special_attacking = false
 			special_attack_timer = 0.0
+			# Reset weapon to slash angle after jab
+			if equipped_weapon_visual:
+				equipped_weapon_visual.rotation_degrees = Vector3(90, 0, 0)
 			if is_spinning:
 				is_spinning = false
 				spin_hit_times.clear()
@@ -2566,45 +2569,50 @@ func _animate_sword_attack(progress: float, right_arm: Node3D, right_elbow: Node
 				if right_elbow:
 					right_elbow.rotation.x = lerp(-1.2, 0.0, t_power)  # Extend
 
-## Sword jab special attack animation - Valheim-style forward thrust
-## Wind-up pulls arm back, then thrusts toward where the crosshair was pointing
+## Sword jab special attack animation - fencing-style lunge
+## The sword tip rotates to point at the crosshair target, then the arm thrusts forward
 func _animate_sword_jab(progress: float, right_arm_node: Node3D, right_elbow_node: Node3D) -> void:
-	var windup_end = 0.25  # Pull back phase
+	var windup_end = 0.25  # Pull back + rotate blade phase
 	var thrust_end = 0.55  # Thrust forward phase
 	# 0.55 - 1.0 is hold + return
 
 	# Target arm angle based on camera pitch at jab start
-	# pitch is negative looking down, positive looking up
-	# arm rotation.x: negative = forward/up, positive = back/down
-	# At pitch 0 (level): thrust straight forward at -1.6
-	# Looking down (pitch -0.5): thrust angled down at -1.1
-	# Looking up (pitch 0.5): thrust angled up at -2.1
 	var thrust_target = clampf(-1.6 + jab_pitch * 1.0, -2.4, -0.6)
 
 	if progress < windup_end:
-		# Pull arm back (coiling for the jab)
+		# Pull arm back and rotate sword from slash (90,0,0) to thrust (0,0,0)
+		# so the blade tip leads the attack like a fencing lunge
 		var t = progress / windup_end
 		var t_ease = t * t * (3.0 - 2.0 * t)
 		right_arm_node.rotation.x = lerp(0.0, 0.6, t_ease)    # Pull back
 		right_arm_node.rotation.z = lerp(0.0, -0.2, t_ease)    # Slight tuck
 		if right_elbow_node:
 			right_elbow_node.rotation.x = lerp(0.0, -1.2, t_ease)  # Bend elbow tight
+		# Rotate weapon: blade goes from sideways (90) to forward-pointing (0)
+		if equipped_weapon_visual:
+			equipped_weapon_visual.rotation_degrees.x = lerp(90.0, 0.0, t_ease)
 	elif progress < thrust_end:
-		# Thrust forward toward crosshair target
+		# Thrust forward - blade tip leads toward crosshair
 		var t = (progress - windup_end) / (thrust_end - windup_end)
 		var t_power = t * t * t  # Cubic acceleration for sharp snap
 		right_arm_node.rotation.x = lerp(0.6, thrust_target, t_power)  # Jab toward aim point
 		right_arm_node.rotation.z = lerp(-0.2, 0.0, t_power)   # Straighten
 		if right_elbow_node:
 			right_elbow_node.rotation.x = lerp(-1.2, 0.0, t_power)  # Extend fully
+		# Keep blade pointing forward during thrust
+		if equipped_weapon_visual:
+			equipped_weapon_visual.rotation_degrees.x = 0.0
 	else:
-		# Hold briefly then return to neutral
+		# Hold briefly then return arm and sword to neutral
 		var t = (progress - thrust_end) / (1.0 - thrust_end)
 		var t_ease = t * t
-		right_arm_node.rotation.x = lerp(thrust_target, 0.0, t_ease)  # Return
+		right_arm_node.rotation.x = lerp(thrust_target, 0.0, t_ease)
 		right_arm_node.rotation.z = 0.0
 		if right_elbow_node:
 			right_elbow_node.rotation.x = 0.0
+		# Rotate weapon back to slash angle
+		if equipped_weapon_visual:
+			equipped_weapon_visual.rotation_degrees.x = lerp(0.0, 90.0, t_ease)
 
 
 ## Check for enemy hits during axe spin attack
