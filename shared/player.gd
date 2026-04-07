@@ -2611,70 +2611,51 @@ func _animate_sword_attack(progress: float, right_arm: Node3D, right_elbow: Node
 					right_elbow.rotation.x = lerp(-1.2, 0.0, t_power)  # Extend
 
 ## Sword jab special attack animation
-## Uses look_at on the wrist pivot to point the blade at the camera target
+## During thrust, uses look_at on the arm itself to point at the target
 func _animate_sword_jab(progress: float, right_arm_node: Node3D, right_elbow_node: Node3D) -> void:
 	var windup_end = 0.20
 	var thrust_end = 0.50
 
 	if progress < windup_end:
-		# Pull arm back
+		# Pull arm back — coil for the thrust
 		var t = progress / windup_end
 		var t_ease = t * t * (3.0 - 2.0 * t)
 		right_arm_node.rotation.x = lerp(0.0, 0.5, t_ease)
 		right_arm_node.rotation.z = lerp(0.0, -0.15, t_ease)
 		if right_elbow_node:
 			right_elbow_node.rotation.x = lerp(0.0, -1.0, t_ease)
-		# Start aiming wrist pivot at target
-		if weapon_wrist_pivot and jab_target_point != Vector3.ZERO:
-			var t_aim = t_ease * 0.5  # Partial aim during windup
-			_aim_wrist_at_target(t_aim)
 	elif progress < thrust_end:
-		# Thrust forward
+		# Thrust: point the arm at the target
 		var t = (progress - windup_end) / (thrust_end - windup_end)
 		var t_power = t * t * t
-		right_arm_node.rotation.x = lerp(0.5, -1.5, t_power)
-		right_arm_node.rotation.z = lerp(-0.15, 0.0, t_power)
 		if right_elbow_node:
-			right_elbow_node.rotation.x = lerp(-1.0, 0.0, t_power)
-		# Full aim at target during thrust
-		if weapon_wrist_pivot and jab_target_point != Vector3.ZERO:
-			_aim_wrist_at_target(1.0)
+			right_elbow_node.rotation.x = lerp(-1.0, 0.0, t_power)  # Straighten elbow
+		# Use look_at on the arm to aim at target point
+		if jab_target_point != Vector3.ZERO and is_instance_valid(right_arm_node):
+			var saved_rot = right_arm_node.rotation
+			var arm_pos = right_arm_node.global_position
+			# Arm's -Y axis points "forward" from shoulder (arm hangs down = -Y is down)
+			# look_at points -Z at target, so rotate +90 on X after to align -Y
+			right_arm_node.look_at(jab_target_point, Vector3.UP)
+			right_arm_node.rotate_object_local(Vector3.RIGHT, deg_to_rad(-90))
+			# Blend from pull-back to aimed
+			var target_rot = right_arm_node.rotation
+			right_arm_node.rotation.x = lerp(saved_rot.x, target_rot.x, t_power)
+			right_arm_node.rotation.y = lerp(saved_rot.y, target_rot.y, t_power)
+			right_arm_node.rotation.z = lerp(saved_rot.z, target_rot.z, t_power)
+		else:
+			# Fallback if no target
+			right_arm_node.rotation.x = lerp(0.5, -1.5, t_power)
+			right_arm_node.rotation.z = lerp(-0.15, 0.0, t_power)
 	else:
 		# Return to neutral
 		var t = (progress - thrust_end) / (1.0 - thrust_end)
 		var t_ease = t * t
-		right_arm_node.rotation.x = lerp(-1.5, 0.0, t_ease)
-		right_arm_node.rotation.z = 0.0
+		right_arm_node.rotation.x = lerp(right_arm_node.rotation.x, 0.0, t_ease)
+		right_arm_node.rotation.y = lerp(right_arm_node.rotation.y, 0.0, t_ease)
+		right_arm_node.rotation.z = lerp(right_arm_node.rotation.z, 0.0, t_ease)
 		if right_elbow_node:
-			right_elbow_node.rotation.x = 0.0
-		# Return wrist to neutral
-		if weapon_wrist_pivot:
-			weapon_wrist_pivot.rotation.x = lerp(weapon_wrist_pivot.rotation.x, 0.0, t_ease)
-			weapon_wrist_pivot.rotation.y = lerp(weapon_wrist_pivot.rotation.y, 0.0, t_ease)
-			weapon_wrist_pivot.rotation.z = lerp(weapon_wrist_pivot.rotation.z, 0.0, t_ease)
-
-
-## Aim the wrist pivot so the weapon tip points at the jab target
-func _aim_wrist_at_target(blend: float) -> void:
-	if not weapon_wrist_pivot or jab_target_point == Vector3.ZERO:
-		return
-	# Save current rotation
-	var saved_rot = weapon_wrist_pivot.rotation
-	# look_at makes -Z face the target; our blade extends along +Y when weapon is at (90,0,0)
-	# So we need to adjust: rotate the pivot to aim +Y at the target
-	var pivot_pos = weapon_wrist_pivot.global_position
-	var dir_to_target = (jab_target_point - pivot_pos).normalized()
-	if dir_to_target.length() < 0.01:
-		return
-	# Use look_at then rotate 90 degrees so +Y (blade) faces the target instead of -Z
-	weapon_wrist_pivot.look_at(pivot_pos + dir_to_target, Vector3.UP)
-	weapon_wrist_pivot.rotate_object_local(Vector3.RIGHT, deg_to_rad(90))
-	# Blend between saved rotation and aimed rotation
-	if blend < 1.0:
-		var target_rot = weapon_wrist_pivot.rotation
-		weapon_wrist_pivot.rotation.x = lerp(saved_rot.x, target_rot.x, blend)
-		weapon_wrist_pivot.rotation.y = lerp(saved_rot.y, target_rot.y, blend)
-		weapon_wrist_pivot.rotation.z = lerp(saved_rot.z, target_rot.z, blend)
+			right_elbow_node.rotation.x = lerp(right_elbow_node.rotation.x, 0.0, t_ease)
 
 
 ## Check for enemy hits during axe spin attack
