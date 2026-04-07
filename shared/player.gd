@@ -1043,9 +1043,9 @@ func _handle_attack() -> void:
 			combo_multiplier = 1.5  # 50% more damage on jab
 			print("[Player] Knife combo FINISHER - Forward JAB! (Hit %d)" % (combo_count + 1))
 
-			# Rotate knife to 0 degrees (straight) for jab finisher
+			# Keep knife forward for jab finisher
 			if equipped_weapon_visual:
-				equipped_weapon_visual.rotation_degrees = Vector3(0, 0, 0)
+				equipped_weapon_visual.rotation_degrees = Vector3(90, 0, 0)
 		elif combo_count == 0:
 			print("[Player] Knife combo hit 1 - Right slash")
 			# Reset to normal angle for slashes
@@ -1282,13 +1282,21 @@ func _special_attack_knife_lunge(weapon_data: WeaponData, camera: Camera3D) -> v
 		print("[Player] Not enough stamina for knife lunge!")
 		return
 
-	# LEAP forward in mesh facing direction (not camera - lunge where player is looking)
+	# Snap mesh to face camera direction before lunging
+	jab_pitch = 0.0
+	if is_local_player and body_container:
+		var camera_controller = get_node_or_null("CameraController")
+		if camera_controller and "camera_rotation" in camera_controller:
+			var camera_yaw = camera_controller.camera_rotation.x
+			body_container.rotation.y = camera_yaw + PI
+			synced_rotation_y = body_container.global_rotation.y
+			jab_pitch = camera_controller.camera_rotation.y
+
+	# LEAP forward in the direction we're now facing
 	var mesh_forward = Vector3.ZERO
 	if body_container:
-		# Get the direction the mesh is facing (body_container has PI rotation offset, so use +Z)
 		mesh_forward = body_container.global_transform.basis.z
 	else:
-		# Fallback to camera if no body_container
 		mesh_forward = -camera.global_transform.basis.z
 	var horizontal_direction = Vector3(mesh_forward.x, 0, mesh_forward.z).normalized()
 
@@ -1319,9 +1327,9 @@ func _special_attack_knife_lunge(weapon_data: WeaponData, camera: Camera3D) -> v
 	if is_local_player and body_container:
 		synced_rotation_y = body_container.global_rotation.y
 
-	# Rotate knife to 0 degrees (straight/horizontal) for lunge
+	# Keep knife at forward angle - wrist pivot and arm animation handle aim
 	if equipped_weapon_visual:
-		equipped_weapon_visual.rotation_degrees = Vector3(0, 0, 0)  # Straight angle for lunge
+		equipped_weapon_visual.rotation_degrees = Vector3(90, 0, 0)
 
 	# NOTE: No initial _perform_melee_attack call - continuous detection handles damage throughout the arc
 
@@ -2570,47 +2578,42 @@ func _animate_sword_attack(progress: float, right_arm: Node3D, right_elbow: Node
 					right_elbow.rotation.x = lerp(-1.2, 0.0, t_power)  # Extend
 
 ## Sword jab special attack animation - fencing-style lunge
-## The sword tip rotates to point at the crosshair target, then the arm thrusts forward
+## Uses wrist pivot to aim the entire weapon toward the crosshair target
 func _animate_sword_jab(progress: float, right_arm_node: Node3D, right_elbow_node: Node3D) -> void:
-	var windup_end = 0.25  # Pull back + rotate blade phase
+	var windup_end = 0.25  # Pull back phase
 	var thrust_end = 0.55  # Thrust forward phase
 	# 0.55 - 1.0 is hold + return
 
 	# Target arm angle based on camera pitch at jab start
 	var thrust_target = clampf(-1.6 + jab_pitch * 1.0, -2.4, -0.6)
 
-	# Convert camera pitch to blade tilt in degrees
-	# pitch negative = looking down, positive = looking up
-	# Blade z-rotation tilts the tip up/down toward the aim point
-	var pitch_degrees = rad_to_deg(jab_pitch)
-	var blade_tilt = clampf(pitch_degrees * 0.8, -60.0, 60.0)
+	# Wrist pivot pitch: tilt the weapon toward the aim point
+	# Default weapon at x=90 points forward (blade perpendicular to arm)
+	# Wrist pivot x-rotation tilts blade up/down to aim at crosshair
+	# jab_pitch: negative = looking down, positive = looking up
+	var wrist_pitch = rad_to_deg(jab_pitch) * 0.8  # Dampen slightly
 
 	if progress < windup_end:
-		# Pull arm back away from target, rotate sword to thrust position
+		# Pull arm back, start rotating wrist to aim weapon at target
 		var t = progress / windup_end
 		var t_ease = t * t * (3.0 - 2.0 * t)
 		right_arm_node.rotation.x = lerp(0.0, 0.6, t_ease)    # Pull back
 		right_arm_node.rotation.z = lerp(0.0, -0.2, t_ease)    # Slight tuck
 		if right_elbow_node:
 			right_elbow_node.rotation.x = lerp(0.0, -1.2, t_ease)  # Bend elbow tight
-		# Rotate blade from slash to thrust, start tilting toward aim
-		if equipped_weapon_visual:
-			equipped_weapon_visual.rotation_degrees = Vector3(
-				lerp(90.0, 180.0, t_ease),
-				0.0,
-				lerp(0.0, blade_tilt, t_ease)
-			)
+		# Wrist pivot aims the weapon toward the target
+		if weapon_wrist_pivot:
+			weapon_wrist_pivot.rotation_degrees.x = lerp(0.0, wrist_pitch, t_ease)
 	elif progress < thrust_end:
-		# Thrust forward - blade tip leads toward crosshair target
+		# Thrust forward - arm extends, wrist keeps aim
 		var t = (progress - windup_end) / (thrust_end - windup_end)
 		var t_power = t * t * t  # Cubic acceleration for sharp snap
 		right_arm_node.rotation.x = lerp(0.6, thrust_target, t_power)  # Jab toward aim point
 		right_arm_node.rotation.z = lerp(-0.2, 0.0, t_power)   # Straighten
 		if right_elbow_node:
 			right_elbow_node.rotation.x = lerp(-1.2, 0.0, t_power)  # Extend fully
-		# Blade points forward and tilted toward aim point
-		if equipped_weapon_visual:
-			equipped_weapon_visual.rotation_degrees = Vector3(180.0, 0.0, blade_tilt)
+		if weapon_wrist_pivot:
+			weapon_wrist_pivot.rotation_degrees.x = wrist_pitch
 	else:
 		# Hold briefly then return everything to neutral
 		var t = (progress - thrust_end) / (1.0 - thrust_end)
@@ -2619,13 +2622,9 @@ func _animate_sword_jab(progress: float, right_arm_node: Node3D, right_elbow_nod
 		right_arm_node.rotation.z = 0.0
 		if right_elbow_node:
 			right_elbow_node.rotation.x = 0.0
-		# Rotate weapon back to slash angle, remove tilt
-		if equipped_weapon_visual:
-			equipped_weapon_visual.rotation_degrees = Vector3(
-				lerp(180.0, 90.0, t_ease),
-				0.0,
-				lerp(blade_tilt, 0.0, t_ease)
-			)
+		# Return wrist to neutral
+		if weapon_wrist_pivot:
+			weapon_wrist_pivot.rotation_degrees.x = lerp(wrist_pitch, 0.0, t_ease)
 
 
 ## Check for enemy hits during axe spin attack
