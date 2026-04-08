@@ -82,6 +82,7 @@ var sounds := {
 	"equip": "res://audio/generated/equip.wav",
 	"unequip": "res://audio/generated/unequip.wav",
 	"eat": "res://audio/generated/eat.wav",
+	"bandage_heal": "res://audio/generated/bandage_heal.wav",
 
 	# Environment
 	"fire_crackle": "res://audio/generated/fire_crackle.wav",

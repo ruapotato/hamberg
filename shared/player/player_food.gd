@@ -78,6 +78,7 @@ func eat_food(food_id: String) -> bool:
 	if food_id == "bandage":
 		bandage_heal_timer = food_data.duration
 		bandage_heal_per_second = food_data.heal_per_second
+		SoundManager.play_sound("bandage_heal", get_parent().global_position)
 		print("[PlayerFood] Applied bandage (%.1f HP/s for %.0fs)" % [food_data.heal_per_second, food_data.duration])
 		return true
 
