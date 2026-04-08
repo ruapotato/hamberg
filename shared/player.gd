@@ -1820,30 +1820,28 @@ func _snap_to_grid(pos: Vector3) -> Vector3:
 	)
 
 ## Raycast from camera to find grid cell (for digging walls/air blocks)
-func _raycast_grid_cell_from_camera(camera: Camera3D) -> Vector3:
-	# Raycast in camera direction to find which grid cell player is pointing at
+func _raycast_terrain_hit(camera: Camera3D) -> Dictionary:
+	# Raycast to find the terrain surface point and normal
 	var from := camera.global_position
 	var direction := -camera.global_transform.basis.z.normalized()
-	var to := from + direction * 50.0  # 50 meter max range
+	var to := from + direction * 20.0  # 20m max range for terrain tools
 
-	# Perform raycast using physics space
 	var space_state := get_world_3d().direct_space_state
 	var query := PhysicsRayQueryParameters3D.create(from, to)
 	query.collision_mask = 1  # World layer
 
 	var result := space_state.intersect_ray(query)
 	if result:
-		# Hit something - use the normal to offset into the surface by 1 full grid unit
-		# This ensures we're deep inside the block we hit, not in air or on the edge
-		var normal: Vector3 = result.normal
-		var point_inside: Vector3 = result.position - normal * 1.5  # Move 1.5m into surface (opposite of normal)
-		var snapped := _snap_to_grid(point_inside)
-		return snapped
-	else:
-		# No hit - calculate grid cell along ray at reasonable distance (5 meters)
-		var point_in_air := from + direction * 5.0
-		return _snap_to_grid(point_in_air)
+		return {"hit": true, "position": result.position, "normal": result.normal}
+	return {"hit": false, "position": from + direction * 5.0, "normal": Vector3.UP}
 
+func _raycast_grid_cell_from_camera(camera: Camera3D) -> Vector3:
+	# DIG position: the grid cell INSIDE the surface (what we want to remove)
+	var hit := _raycast_terrain_hit(camera)
+	if hit.hit:
+		# Step slightly INTO the surface along the opposite of the normal
+		var point_inside := hit.position - hit.normal * 0.5
+		return _snap_to_grid(point_inside)
 	return Vector3.ZERO
 
 ## Update persistent terrain preview (shows cube when tool equipped)
@@ -1869,7 +1867,7 @@ func _update_persistent_terrain_preview() -> void:
 			if dig_pos != Vector3.ZERO:
 				cached_dig_position = dig_pos  # Cache for actual dig operation
 				terrain_dig_preview_cube.global_position = dig_pos
-				terrain_dig_preview_cube.scale = Vector3(1.05, 1.05, 1.05)
+				terrain_dig_preview_cube.scale = Vector3.ONE
 				if terrain_preview_timer <= 0.0:
 					terrain_dig_preview_cube.visible = true
 				else:
@@ -1880,7 +1878,7 @@ func _update_persistent_terrain_preview() -> void:
 			if place_pos != Vector3.ZERO:
 				cached_place_position = place_pos  # Cache for actual place operation
 				terrain_place_preview_cube.global_position = place_pos
-				terrain_place_preview_cube.scale = Vector3(1.05, 1.05, 1.05)
+				terrain_place_preview_cube.scale = Vector3.ONE
 				if terrain_preview_timer <= 0.0:
 					terrain_place_preview_cube.visible = true
 				else:
@@ -1959,29 +1957,12 @@ func _raycast_terrain_target(camera: Camera3D) -> Vector3:
 
 ## Calculate place position - finds grid cell adjacent to the surface in the direction of the normal
 func _calculate_place_position(camera: Camera3D) -> Vector3:
-	var viewport_size := get_viewport().get_visible_rect().size
-	var crosshair_pos := viewport_size / 2
-	var ray_origin := camera.project_ray_origin(crosshair_pos)
-	var ray_direction := camera.project_ray_normal(crosshair_pos)
-
-	# Raycast for terrain (layer 1 = world/terrain)
-	var space_state := get_world_3d().direct_space_state
-	var query := PhysicsRayQueryParameters3D.create(ray_origin, ray_origin + ray_direction * 50.0)
-	query.collision_mask = 1  # World layer only
-	query.exclude = [self]
-
-	var result := space_state.intersect_ray(query)
-	if result:
-		# Use the surface normal to determine which adjacent grid cell to place in
-		var normal: Vector3 = result.normal
-		var hit_point: Vector3 = result.position
-
-		# Move slightly along the normal (into the air, away from surface)
-		var point_above := hit_point + normal * 1.5
-
-		# Snap to grid
-		return _snap_to_grid(point_above)
-
+	# PLACE position: the grid cell OUTSIDE the surface (adjacent, in air)
+	var hit := _raycast_terrain_hit(camera)
+	if hit.hit:
+		# Step slightly AWAY from the surface along the normal (into air)
+		var point_outside := hit.position + hit.normal * 1.0
+		return _snap_to_grid(point_outside)
 	return Vector3.ZERO
 
 ## Send terrain modification request to server
