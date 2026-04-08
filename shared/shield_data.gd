@@ -32,7 +32,7 @@ enum ShieldType {
 @export var shield_type: ShieldType = ShieldType.ROUND
 @export var block_armor: float = 10.0  # Amount of damage blocked
 @export var parry_bonus: float = 2.0   # Damage multiplier on successful parry
-@export var parry_window: float = 0.3  # Time window for perfect parry (seconds)
+@export var parry_window: float = 0.5  # Time window for perfect parry (generous for game feel)
 @export var durability: int = 100
 @export var stamina_drain_per_hit: float = 5.0  # Stamina used when blocking
 

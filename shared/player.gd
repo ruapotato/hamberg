@@ -118,7 +118,7 @@ const LUNGE_HIT_RADIUS: float = 1.5  # Radius around player to detect enemy coll
 # Block/Parry system
 var is_blocking: bool = false
 var block_timer: float = 0.0
-const PARRY_WINDOW: float = 0.2  # Parry window at start of block
+const PARRY_WINDOW: float = 0.4  # Parry window at start of block (generous for game feel)
 const BLOCK_DAMAGE_REDUCTION: float = 0.8  # 80% damage reduction when blocking
 const BLOCK_SPEED_MULTIPLIER: float = 0.4  # Move at 40% speed while blocking
 
