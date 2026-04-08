@@ -38,6 +38,8 @@ const STATE_SYNC_INTERVAL: float = 0.2   # 5Hz position relay
 const GAHNOME_SCENE = preload("res://shared/enemies/gahnome.tscn")
 const SPORELING_SCENE = preload("res://shared/enemies/sporeling.tscn")
 const ZOMBIE_SCENE = preload("res://shared/enemies/zombie.tscn")
+const CRYSTAL_GOLEM_SCENE = preload("res://shared/enemies/crystal_golem.tscn")
+const CAVE_BAT_SCENE = preload("res://shared/enemies/cave_bat.tscn")
 
 # Zombie type weights (must sum to 1.0)
 # 50% walker, 25% runner, 15% brute, 7% mage, 3% exploder
@@ -113,6 +115,7 @@ const ZONE_HARD_MAX: float = 500.0       # 300-500: all types including brutes
 # Tracking
 var spawn_timer: float = 0.0
 var dark_forest_spawn_timer: float = 0.0  # Separate faster timer for dark forest
+var cave_spawn_timer: float = 0.0  # Cave enemy spawning
 var night_spawn_timer: float = 0.0  # Faster spawn timer for nighttime
 var state_sync_timer: float = 0.0
 var raid_spawn_timer: float = 0.0
@@ -201,6 +204,12 @@ func _process(delta: float) -> void:
 	if dark_forest_spawn_timer >= dark_forest_interval:
 		dark_forest_spawn_timer = 0.0
 		_check_spawns(true, is_night)  # Dark forest spawns only
+
+	# Update cave spawn timer — cave enemies spawn when players are underground
+	cave_spawn_timer += delta
+	if cave_spawn_timer >= 8.0:  # Every 8 seconds
+		cave_spawn_timer = 0.0
+		_check_cave_spawns()
 
 	# Update animal spawn timer
 	# Animals don't spawn at night - they hide!
@@ -1043,6 +1052,88 @@ func _despawn_ghosts_at_dawn() -> void:
 	for ghost in ghosts_to_despawn:
 		print("[EnemySpawner] Despawning ghost at dawn: %s" % ghost.name)
 		despawn_enemy(ghost)
+
+# ============================================================================
+# CAVE ENEMY SPAWNING
+# ============================================================================
+
+const CAVE_MAX_ENEMIES: int = 6  # Max cave enemies near a player
+const CAVE_SPAWN_DISTANCE: float = 25.0
+
+func _check_cave_spawns() -> void:
+	var players: Array = get_tree().get_nodes_in_group("players")
+	if players.is_empty():
+		return
+
+	var terrain_world_node: Node = null
+	if server_node and server_node.has_node("World/TerrainWorld"):
+		terrain_world_node = server_node.get_node("World/TerrainWorld")
+	if not terrain_world_node:
+		return
+
+	var biome_gen: Node = null
+	if terrain_world_node.has_method("get_biome_generator"):
+		biome_gen = terrain_world_node.get_biome_generator()
+	if not biome_gen or not biome_gen.has_method("get_fast_cave_carving"):
+		return
+
+	for player_node in players:
+		if not is_instance_valid(player_node):
+			continue
+
+		var pos: Vector3 = player_node.global_position
+		var surface_h: float = terrain_world_node.get_terrain_height_at(Vector2(pos.x, pos.z))
+
+		# Only spawn if player is underground (at least 5 units below surface)
+		if pos.y > surface_h - 5.0:
+			continue
+
+		# Check carving at player position to confirm they're in a cave
+		var carving: float = biome_gen.get_fast_cave_carving(pos, surface_h)
+		if carving < 0.1:
+			continue
+
+		# Count nearby cave enemies
+		var nearby: int = 0
+		for enemy in spawned_enemies:
+			if enemy and is_instance_valid(enemy) and not enemy.is_dead:
+				if "enemy_name" in enemy and (enemy.enemy_name == "Crystal Golem" or enemy.enemy_name == "Cave Bat"):
+					if enemy.global_position.distance_to(pos) < CAVE_SPAWN_DISTANCE * 2:
+						nearby += 1
+
+		if nearby >= CAVE_MAX_ENEMIES:
+			continue
+
+		# Spawn a cave enemy
+		_spawn_cave_enemy_near(player_node, terrain_world_node, biome_gen, surface_h)
+
+func _spawn_cave_enemy_near(player_node: Node, tw: Node, biome_gen: Node, surface_h: float) -> void:
+	var peer_id: int = 0
+	if "peer_id" in player_node:
+		peer_id = player_node.peer_id
+
+	# Try to find a valid cave spawn position
+	for attempt in range(5):
+		var angle: float = randf() * TAU
+		var dist: float = randf_range(15.0, CAVE_SPAWN_DISTANCE)
+		var offset := Vector3(cos(angle) * dist, 0, sin(angle) * dist)
+		var spawn_pos: Vector3 = player_node.global_position + offset
+
+		# Check if spawn position is in a cave
+		var carving: float = biome_gen.get_fast_cave_carving(spawn_pos, surface_h)
+		if carving < 0.2:
+			continue
+
+		# Pick enemy type: 60% bats, 40% golems
+		var enemy_scene: PackedScene
+		if randf() < 0.6:
+			enemy_scene = CAVE_BAT_SCENE
+		else:
+			enemy_scene = CRYSTAL_GOLEM_SCENE
+
+		print("[EnemySpawner] Spawning cave enemy at %s (carving=%.2f)" % [spawn_pos, carving])
+		_spawn_enemy(enemy_scene, spawn_pos, peer_id)
+		return
 
 # ============================================================================
 # DAY/NIGHT CYCLE HELPERS

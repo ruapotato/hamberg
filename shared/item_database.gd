@@ -46,6 +46,7 @@ func _initialize_items() -> void:
 	_register_resource("ectoplasm", "Ectoplasm", "Shimmering ghost residue. Cold to the touch and faintly luminous.", 20, 0.2)
 	_register_resource("shadow_shard", "Shadow Shard", "A fragment of crystallized dark magic from a zombie mage.", 10, 0.3)
 	_register_resource("spore_heart", "Spore Heart", "The pulsing core of a sporeling. Throbs with fungal energy.", 10, 0.4)
+	_register_resource("crystal_shard", "Crystal Shard", "A gleaming fragment of cave crystal. Hums with resonant energy.", 20, 0.3)
 
 	# Leather (from animals - for crafting armor)
 	_register_resource("pig_leather", "Pig Leather", "Soft pink leather from flying pigs. Light and bouncy.", 30, 1.0)

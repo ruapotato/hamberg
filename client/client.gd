@@ -1498,6 +1498,12 @@ func receive_world_config(world_data: Dictionary) -> void:
 			if not destroyed_2d_object_ids.is_empty():
 				env_spawner_2d.set_destroyed_objects(destroyed_2d_object_ids.keys())
 
+		# Initialize cave environment spawner (crystals, stalactites, lava)
+		var CaveSpawnerScript: GDScript = preload("res://client/cave_environment_spawner.gd")
+		var cave_spawner: Node3D = CaveSpawnerScript.new()
+		cave_spawner.name = "CaveEnvironmentSpawner"
+		world.add_child(cave_spawner)
+
 		# Initialize map system with BiomeGenerator
 		_initialize_map_system()
 	else:

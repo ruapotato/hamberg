@@ -3221,6 +3221,418 @@ def generate_golden_tree(w=256, h=512):
     save_surface(surface, "tree_golden_tree_front.png")
 
 
+# ── Crystal Cave environment ────────────────────────────────────────────────
+
+def generate_crystal_formation(w=128, h=256):
+    """Tall angular crystal cluster growing from the ground. Pink palette."""
+    surface, ctx = make_surface(w, h)
+    cx, cy_base = w / 2, h - 5
+
+    # Rocky base mound
+    ctx.move_to(cx - 50, cy_base)
+    ctx.curve_to(cx - 45, cy_base - 20, cx - 20, cy_base - 28, cx, cy_base - 25)
+    ctx.curve_to(cx + 20, cy_base - 28, cx + 45, cy_base - 20, cx + 50, cy_base)
+    ctx.close_path()
+    set_color(ctx, GRAY_DARK, 0.9)
+    ctx.fill()
+
+    # Crystal spires — tall pink crystals of varying heights
+    crystals = [
+        (cx - 30, cy_base - 20, 10, 100),
+        (cx - 12, cy_base - 22, 14, 160),
+        (cx + 5,  cy_base - 24, 18, 200),
+        (cx + 25, cy_base - 20, 12, 130),
+        (cx + 40, cy_base - 18, 8,  80),
+        (cx - 5,  cy_base - 22, 11, 110),
+    ]
+
+    for base_x, base_y, hw, ch in crystals:
+        tip_y = base_y - ch
+
+        # Crystal body gradient — pink palette
+        pat = cairo.LinearGradient(base_x, tip_y, base_x, base_y)
+        pat.add_color_stop_rgba(0, *PINK_BRIGHT, 0.95)
+        pat.add_color_stop_rgba(0.3, *PINK_MED, 0.9)
+        pat.add_color_stop_rgba(0.7, *PINK_DARK, 0.85)
+        pat.add_color_stop_rgba(1, 0.3, 0.0, 0.18, 0.8)
+
+        # Angular crystal shape — sharp facets
+        mid_y = (tip_y + base_y) / 2
+        ctx.move_to(base_x, tip_y)
+        ctx.line_to(base_x + hw, mid_y - ch * 0.1)
+        ctx.line_to(base_x + hw * 0.8, base_y)
+        ctx.line_to(base_x - hw * 0.8, base_y)
+        ctx.line_to(base_x - hw, mid_y - ch * 0.1)
+        ctx.close_path()
+        ctx.set_source(pat)
+        ctx.fill()
+
+        # Bright emission-like highlight edge (left facet)
+        ctx.set_line_width(1.5)
+        ctx.move_to(base_x, tip_y)
+        ctx.line_to(base_x - hw, mid_y - ch * 0.1)
+        set_color(ctx, PINK_BRIGHT, 0.6)
+        ctx.stroke()
+
+        # Center facet line
+        ctx.set_line_width(0.8)
+        ctx.move_to(base_x, tip_y)
+        ctx.line_to(base_x, base_y)
+        set_color(ctx, PINK_BRIGHT, 0.25)
+        ctx.stroke()
+
+        # Bright tip glow
+        draw_circle(ctx, base_x, tip_y, 4, PINK_BRIGHT, 0.7)
+        draw_circle(ctx, base_x, tip_y, 2, WHITE, 0.9)
+
+    # Emission glow particles around crystals
+    for _ in range(10):
+        sx = cx + random.uniform(-50, 50)
+        sy = cy_base - random.uniform(30, 180)
+        draw_circle(ctx, sx, sy, random.uniform(1, 3), PINK_BRIGHT, random.uniform(0.2, 0.5))
+
+    save_surface(surface, "crystal_formation.png")
+
+
+def generate_stalactite(w=64, h=256):
+    """Pointed stalactite hanging from above. Blue-gray tones, tapered point."""
+    surface, ctx = make_surface(w, h)
+    cx = w / 2
+
+    # Wider at top (ceiling attachment), tapered to a point at bottom
+    top_y = 5
+    tip_y = h - 15
+    attach_w = 28
+
+    # Main stalactite body gradient
+    pat = cairo.LinearGradient(cx, top_y, cx, tip_y)
+    pat.add_color_stop_rgb(0, *GRAY_MED)
+    pat.add_color_stop_rgb(0.4, *GRAY_DARK)
+    pat.add_color_stop_rgb(0.8, *BLUE_DARK)
+    pat.add_color_stop_rgb(1, 0.02, 0.03, 0.15)
+
+    # Tapered shape — wide at top, point at bottom
+    ctx.move_to(cx - attach_w, top_y)
+    ctx.curve_to(cx - attach_w * 0.9, top_y + (tip_y - top_y) * 0.3,
+                 cx - attach_w * 0.4, top_y + (tip_y - top_y) * 0.6,
+                 cx, tip_y)
+    ctx.curve_to(cx + attach_w * 0.4, top_y + (tip_y - top_y) * 0.6,
+                 cx + attach_w * 0.9, top_y + (tip_y - top_y) * 0.3,
+                 cx + attach_w, top_y)
+    ctx.close_path()
+    ctx.set_source(pat)
+    ctx.fill()
+
+    # Ceiling attachment — wider rocky area
+    ctx.move_to(0, 0)
+    ctx.line_to(w, 0)
+    ctx.line_to(w, top_y + 8)
+    ctx.curve_to(cx + attach_w + 5, top_y + 5, cx - attach_w - 5, top_y + 5, 0, top_y + 8)
+    ctx.close_path()
+    set_color(ctx, GRAY_DARK, 0.8)
+    ctx.fill()
+
+    # Left highlight edge
+    ctx.set_line_width(1.2)
+    ctx.move_to(cx - attach_w + 2, top_y + 5)
+    ctx.curve_to(cx - attach_w * 0.85, top_y + (tip_y - top_y) * 0.3,
+                 cx - attach_w * 0.35, top_y + (tip_y - top_y) * 0.6,
+                 cx, tip_y)
+    set_color(ctx, GRAY_LIGHT, 0.3)
+    ctx.stroke()
+
+    # Mineral drip texture — horizontal bands
+    ctx.set_line_width(0.6)
+    for i in range(8):
+        frac = (i + 1) / 9.0
+        y = top_y + (tip_y - top_y) * frac
+        width_at_y = attach_w * (1.0 - frac * 0.9)
+        ctx.move_to(cx - width_at_y + 2, y)
+        ctx.line_to(cx + width_at_y - 2, y)
+        set_color(ctx, GRAY_LIGHT, random.uniform(0.08, 0.2))
+        ctx.stroke()
+
+    # Water drip at tip
+    draw_circle(ctx, cx, tip_y + 3, 2.5, BLUE_BRIGHT, 0.5)
+    draw_circle(ctx, cx, tip_y + 3, 1.2, WHITE, 0.7)
+
+    save_surface(surface, "stalactite.png")
+
+
+def generate_cave_mushroom(w=128, h=128):
+    """Glowing bioluminescent mushroom. Green cap glow, brown/gray stem."""
+    surface, ctx = make_surface(w, h)
+    cx, cy_base = w / 2, h - 8
+
+    # ── Stem ──
+    stem_w, stem_h = 12, 45
+    stem_y = cy_base - stem_h
+
+    STEM_L = (0.4, 0.38, 0.35)
+    STEM_D = (0.22, 0.2, 0.18)
+
+    pat = cairo.LinearGradient(cx, stem_y, cx, cy_base)
+    pat.add_color_stop_rgb(0, *STEM_L)
+    pat.add_color_stop_rgb(1, *STEM_D)
+
+    ctx.move_to(cx - stem_w * 0.4, stem_y)
+    ctx.curve_to(cx - stem_w * 0.55, stem_y + stem_h * 0.5,
+                 cx - stem_w * 0.5, stem_y + stem_h * 0.8,
+                 cx - stem_w * 0.6, cy_base)
+    ctx.line_to(cx + stem_w * 0.6, cy_base)
+    ctx.curve_to(cx + stem_w * 0.5, stem_y + stem_h * 0.8,
+                 cx + stem_w * 0.55, stem_y + stem_h * 0.5,
+                 cx + stem_w * 0.4, stem_y)
+    ctx.close_path()
+    ctx.set_source(pat)
+    ctx.fill()
+
+    # ── Soft radial glow around cap ──
+    cap_cy = stem_y + 5
+    glow_r = 45
+    glow = cairo.RadialGradient(cx, cap_cy, 5, cx, cap_cy, glow_r)
+    glow.add_color_stop_rgba(0, *GREEN_MED, 0.25)
+    glow.add_color_stop_rgba(0.5, *GREEN_DARK, 0.1)
+    glow.add_color_stop_rgba(1, *GREEN_DARK, 0.0)
+    ctx.arc(cx, cap_cy, glow_r, 0, 2 * math.pi)
+    ctx.set_source(glow)
+    ctx.fill()
+
+    # ── Round cap ──
+    cap_rx = 32
+    cap_ry = 24
+
+    pat = cairo.RadialGradient(cx - 6, cap_cy - cap_ry * 0.3, cap_ry * 0.1,
+                               cx, cap_cy, cap_rx)
+    pat.add_color_stop_rgb(0, *GREEN_BRIGHT)
+    pat.add_color_stop_rgb(0.5, *GREEN_MED)
+    pat.add_color_stop_rgb(1, *GREEN_DARK)
+
+    ctx.save()
+    ctx.translate(cx, cap_cy)
+    ctx.scale(cap_rx, cap_ry)
+    ctx.arc(0, 0, 1, math.pi, 0)
+    ctx.restore()
+    ctx.set_source(pat)
+    ctx.fill()
+
+    # Underside
+    ctx.save()
+    ctx.translate(cx, cap_cy)
+    ctx.scale(cap_rx * 0.9, cap_ry * 0.2)
+    ctx.arc(0, 0, 1, 0, math.pi)
+    ctx.restore()
+    set_color(ctx, GRAY_DARK, 0.5)
+    ctx.fill()
+
+    # Bioluminescent spots on cap
+    for _ in range(6):
+        sx = cx + random.uniform(-cap_rx * 0.6, cap_rx * 0.6)
+        sy = cap_cy - random.uniform(cap_ry * 0.2, cap_ry * 0.8)
+        sr = random.uniform(2, 4)
+        draw_circle(ctx, sx, sy, sr, GREEN_BRIGHT, random.uniform(0.4, 0.8))
+        draw_circle(ctx, sx, sy, sr * 0.5, WHITE, 0.3)
+
+    save_surface(surface, "cave_mushroom.png")
+
+
+def generate_crystal_stalagmite(w=96, h=192):
+    """Shorter, wider crystal growing upward from the floor. Yellow faceted."""
+    surface, ctx = make_surface(w, h)
+    cx, cy_base = w / 2, h - 5
+
+    # Rocky base
+    ctx.move_to(cx - 40, cy_base)
+    ctx.curve_to(cx - 35, cy_base - 15, cx - 15, cy_base - 20, cx, cy_base - 18)
+    ctx.curve_to(cx + 15, cy_base - 20, cx + 35, cy_base - 15, cx + 40, cy_base)
+    ctx.close_path()
+    set_color(ctx, GRAY_DARK, 0.85)
+    ctx.fill()
+
+    # Chunky angular crystal spires — yellow palette
+    crystals = [
+        (cx - 20, cy_base - 15, 16, 90),
+        (cx + 5,  cy_base - 18, 20, 140),
+        (cx + 28, cy_base - 14, 14, 75),
+        (cx - 8,  cy_base - 16, 12, 60),
+    ]
+
+    for base_x, base_y, hw, ch in crystals:
+        tip_y = base_y - ch
+
+        pat = cairo.LinearGradient(base_x, tip_y, base_x, base_y)
+        pat.add_color_stop_rgba(0, *YELLOW_BRIGHT, 0.95)
+        pat.add_color_stop_rgba(0.35, *YELLOW_MED, 0.9)
+        pat.add_color_stop_rgba(0.7, *YELLOW_DARK, 0.85)
+        pat.add_color_stop_rgba(1, 0.3, 0.28, 0.0, 0.8)
+
+        # Chunky angular shape — wider than tall crystals
+        mid_y = (tip_y + base_y) / 2
+        ctx.move_to(base_x, tip_y)
+        ctx.line_to(base_x + hw, mid_y + ch * 0.05)
+        ctx.line_to(base_x + hw * 0.85, base_y)
+        ctx.line_to(base_x - hw * 0.85, base_y)
+        ctx.line_to(base_x - hw, mid_y + ch * 0.05)
+        ctx.close_path()
+        ctx.set_source(pat)
+        ctx.fill()
+
+        # Left highlight edge
+        ctx.set_line_width(1.2)
+        ctx.move_to(base_x, tip_y)
+        ctx.line_to(base_x - hw, mid_y + ch * 0.05)
+        set_color(ctx, YELLOW_BRIGHT, 0.5)
+        ctx.stroke()
+
+        # Center facet line
+        ctx.set_line_width(0.8)
+        ctx.move_to(base_x, tip_y)
+        ctx.line_to(base_x, base_y)
+        set_color(ctx, YELLOW_BRIGHT, 0.2)
+        ctx.stroke()
+
+        # Bright tip
+        draw_circle(ctx, base_x, tip_y, 3, YELLOW_BRIGHT, 0.7)
+        draw_circle(ctx, base_x, tip_y, 1.5, WHITE, 0.8)
+
+    # Sparkle particles
+    for _ in range(8):
+        sx = cx + random.uniform(-35, 35)
+        sy = cy_base - random.uniform(20, 120)
+        draw_circle(ctx, sx, sy, random.uniform(1, 2.5), YELLOW_BRIGHT, random.uniform(0.2, 0.5))
+
+    save_surface(surface, "crystal_stalagmite.png")
+
+
+def generate_lava_rock(w=128, h=64):
+    """Flat dark rocky surface with orange-red glowing lava cracks."""
+    surface, ctx = make_surface(w, h)
+    cx, cy = w / 2, h * 0.5
+
+    # Dark rocky base — irregular rounded shape
+    rx, ry = 56, 24
+    pat = cairo.RadialGradient(cx - 8, cy - 5, 3, cx, cy, 58)
+    pat.add_color_stop_rgb(0, *GRAY_MED)
+    pat.add_color_stop_rgb(0.5, *GRAY_DARK)
+    pat.add_color_stop_rgb(1, 0.06, 0.06, 0.08)
+
+    ctx.move_to(cx - rx, cy + 3)
+    ctx.curve_to(cx - rx - 2, cy - ry * 0.5, cx - rx * 0.4, cy - ry, cx, cy - ry + 1)
+    ctx.curve_to(cx + rx * 0.5, cy - ry - 2, cx + rx + 1, cy - ry * 0.4, cx + rx, cy + 2)
+    ctx.curve_to(cx + rx, cy + ry * 0.6, cx + rx * 0.3, cy + ry, cx - 3, cy + ry - 1)
+    ctx.curve_to(cx - rx * 0.5, cy + ry, cx - rx - 1, cy + ry * 0.3, cx - rx, cy + 3)
+    ctx.close_path()
+    ctx.set_source(pat)
+    ctx.fill()
+
+    # Orange-red glowing lava cracks
+    LAVA_ORANGE = (1.0, 0.267, 0.0)       # #ff4400
+    LAVA_BRIGHT = (1.0, 0.6, 0.2)
+    LAVA_DIM = (0.6, 0.15, 0.0)
+
+    cracks = [
+        [(cx - 35, cy - 8), (cx - 15, cy + 2), (cx + 10, cy - 5), (cx + 30, cy + 3)],
+        [(cx - 20, cy + 5), (cx - 5, cy + 12), (cx + 15, cy + 8)],
+        [(cx + 5, cy - 12), (cx + 20, cy - 3), (cx + 38, cy - 8)],
+        [(cx - 40, cy + 2), (cx - 28, cy + 10), (cx - 10, cy + 6)],
+    ]
+
+    for crack_pts in cracks:
+        # Outer glow (wider, dimmer)
+        ctx.set_line_width(4.0)
+        ctx.move_to(*crack_pts[0])
+        for pt in crack_pts[1:]:
+            ctx.line_to(*pt)
+        set_color(ctx, LAVA_DIM, 0.4)
+        ctx.stroke()
+
+        # Mid glow
+        ctx.set_line_width(2.5)
+        ctx.move_to(*crack_pts[0])
+        for pt in crack_pts[1:]:
+            ctx.line_to(*pt)
+        set_color(ctx, LAVA_ORANGE, 0.7)
+        ctx.stroke()
+
+        # Bright core
+        ctx.set_line_width(1.0)
+        ctx.move_to(*crack_pts[0])
+        for pt in crack_pts[1:]:
+            ctx.line_to(*pt)
+        set_color(ctx, LAVA_BRIGHT, 0.9)
+        ctx.stroke()
+
+    # Hot spots at crack intersections
+    for _ in range(5):
+        hx = cx + random.uniform(-35, 35)
+        hy = cy + random.uniform(-10, 10)
+        draw_circle(ctx, hx, hy, random.uniform(2, 4), LAVA_ORANGE, random.uniform(0.3, 0.6))
+        draw_circle(ctx, hx, hy, random.uniform(1, 2), LAVA_BRIGHT, 0.4)
+
+    save_surface(surface, "lava_rock.png")
+
+
+def generate_cave_vine(w=32, h=192):
+    """Thin dangling vine/root hanging from ceiling. Dark green with glowing nodes."""
+    surface, ctx = make_surface(w, h)
+    cx = w / 2
+
+    VINE_DARK = (0.05, 0.2, 0.08)
+    VINE_MED = (0.1, 0.3, 0.12)
+
+    # Main vine — wavy line from top to bottom
+    ctx.set_line_width(3.0)
+    ctx.move_to(cx, 0)
+    segments = 16
+    seg_h = h / segments
+    points = [(cx, 0)]
+    for i in range(1, segments + 1):
+        px = cx + math.sin(i * 0.8) * 6 + random.uniform(-2, 2)
+        py = i * seg_h
+        points.append((px, py))
+
+    # Draw thick dark vine
+    ctx.move_to(*points[0])
+    for px, py in points[1:]:
+        ctx.line_to(px, py)
+    pat = cairo.LinearGradient(cx, 0, cx, h)
+    pat.add_color_stop_rgb(0, *VINE_MED)
+    pat.add_color_stop_rgb(1, *VINE_DARK)
+    ctx.set_source(pat)
+    ctx.stroke()
+
+    # Thinner secondary vine alongside
+    ctx.set_line_width(1.5)
+    ctx.move_to(cx + 4, 10)
+    for i, (px, py) in enumerate(points[1:], 1):
+        if i < len(points) - 3:
+            ctx.line_to(px + 3 + math.sin(i * 1.2) * 3, py + 5)
+    set_color(ctx, VINE_DARK, 0.7)
+    ctx.stroke()
+
+    # Small glowing green nodes along the vine
+    node_positions = [3, 6, 10, 14]
+    for ni in node_positions:
+        if ni < len(points):
+            nx, ny = points[ni]
+            # Soft glow
+            draw_circle(ctx, nx, ny, 6, GREEN_DARK, 0.15)
+            draw_circle(ctx, nx, ny, 3.5, GREEN_MED, 0.5)
+            draw_circle(ctx, nx, ny, 1.8, GREEN_BRIGHT, 0.8)
+
+    # Tiny leaf-like offshoots
+    for i in range(2, len(points) - 1, 3):
+        px, py = points[i]
+        side = 1 if i % 2 == 0 else -1
+        ctx.set_line_width(1.0)
+        ctx.move_to(px, py)
+        ctx.curve_to(px + side * 6, py + 3, px + side * 8, py + 6, px + side * 5, py + 8)
+        set_color(ctx, VINE_MED, 0.6)
+        ctx.stroke()
+
+    save_surface(surface, "cave_vine.png")
+
+
 # ── Main ─────────────────────────────────────────────────────────────────────
 
 def main():
@@ -3275,6 +3687,12 @@ def main():
         ("Arcane herb plant", generate_arcane_herb_plant),
         ("Ember pepper plant", generate_ember_pepper_plant),
         ("Brimstone plant", generate_brimstone_plant),
+        ("Crystal formation", generate_crystal_formation),
+        ("Stalactite", generate_stalactite),
+        ("Cave mushroom", generate_cave_mushroom),
+        ("Crystal stalagmite", generate_crystal_stalagmite),
+        ("Lava rock", generate_lava_rock),
+        ("Cave vine", generate_cave_vine),
     ]
 
     for name, gen in generators:
