@@ -74,7 +74,7 @@ func _init(seed_value: int = 42) -> void:
 	biome_noise = FastNoiseLite.new()
 	biome_noise.seed = world_seed + 100
 	biome_noise.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
-	biome_noise.frequency = 0.0032  # 4x frequency for 1/4 scale world
+	biome_noise.frequency = 0.0012  # Larger biomes (was 0.0032)
 	biome_noise.fractal_type = FastNoiseLite.FRACTAL_FBM
 	biome_noise.fractal_octaves = 3
 	biome_noise.fractal_lacunarity = 2.0
@@ -84,20 +84,20 @@ func _init(seed_value: int = 42) -> void:
 	biome_warp_x = FastNoiseLite.new()
 	biome_warp_x.seed = world_seed + 200
 	biome_warp_x.noise_type = FastNoiseLite.TYPE_PERLIN
-	biome_warp_x.frequency = 0.002  # 4x frequency
+	biome_warp_x.frequency = 0.0008  # Smoother biome edges (was 0.002)
 	biome_warp_x.fractal_octaves = 2
 
 	biome_warp_z = FastNoiseLite.new()
 	biome_warp_z.seed = world_seed + 201
 	biome_warp_z.noise_type = FastNoiseLite.TYPE_PERLIN
-	biome_warp_z.frequency = 0.002  # 4x frequency
+	biome_warp_z.frequency = 0.0008  # Smoother biome edges (was 0.002)
 	biome_warp_z.fractal_octaves = 2
 
 	# Controls scale/size variation of biome patches
 	biome_scale_noise = FastNoiseLite.new()
 	biome_scale_noise.seed = world_seed + 300
 	biome_scale_noise.noise_type = FastNoiseLite.TYPE_SIMPLEX
-	biome_scale_noise.frequency = 0.004  # 4x frequency
+	biome_scale_noise.frequency = 0.0015  # Larger biome patches (was 0.004)
 	biome_scale_noise.fractal_octaves = 2
 
 	# === EPIC TERRAIN FEATURE NOISES ===
