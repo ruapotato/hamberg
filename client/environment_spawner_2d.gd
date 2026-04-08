@@ -67,7 +67,7 @@ const TREE_COLLISION_LAYER: int = 1
 
 # Tree types by biome
 const BIOME_TREES: Dictionary = {
-	"valley": ["oak", "oak", "pine", "magic", "willow", "birch", "cherry_blossom", "golden_tree"],
+	"valley": ["oak", "oak", "oak", "pine", "pine", "magic", "willow", "birch", "cherry_blossom", "golden_tree"],
 	"meadow": ["oak", "pine", "pine", "oak"],
 	"dark_forest": ["dark_oak", "dark_oak", "swamp", "dead", "mushroom_giant", "baobab"],
 	"swamp": ["swamp", "swamp", "dead", "swamp", "willow"],

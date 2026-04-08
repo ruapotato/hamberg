@@ -123,12 +123,18 @@ func _on_body_entered(body: Node3D) -> void:
 		set_deferred("monitorable", false)  # Disable collision detection
 		print("[ResourceItem] Requesting pickup of %d x %s (network_id: %s)" % [amount, item_name, network_id])
 
-		# Show floating loot text at pickup location
+		# Show floating loot text in front of player's view (not at item position)
 		var color: Color = FloatingText.RESOURCE_COLORS.get(item_name, Color.WHITE)
 		var ft = FloatingText.new()
 		ft.setup("+%d %s" % [amount, item_name.capitalize()], color)
 		get_tree().current_scene.add_child(ft)
-		ft.global_position = global_position + Vector3(0, 1.0, 0)
+		# Position in front of the camera so player can see it
+		var camera := get_viewport().get_camera_3d()
+		if camera:
+			var cam_fwd := -camera.global_transform.basis.z
+			ft.global_position = camera.global_position + cam_fwd * 3.0 + Vector3(randf_range(-0.3, 0.3), -0.5, 0)
+		else:
+			ft.global_position = global_position + Vector3(0, 1.5, 0)
 
 		NetworkManager.rpc_request_pickup_item.rpc_id(1, item_name, amount, network_id)
 
