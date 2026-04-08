@@ -234,9 +234,14 @@ func check_tasks() -> void:
 			continue
 		if _check_task(task_id, inventory):
 			completed_tasks[task_id] = true
+			SoundManager.play_ui_sound("quest_complete")
 			print("[TaskMenu] Task completed: %s" % task["description"])
 
 	# Check path tasks (only if Phase 1 complete)
+	# Play level_up when Phase 1 is newly completed
+	if _is_phase1_complete() and not completed_tasks.get("_phase1_milestone", false):
+		completed_tasks["_phase1_milestone"] = true
+		SoundManager.play_ui_sound("level_up")
 	if _is_phase1_complete():
 		for path in PATHS:
 			for task in path["tasks"]:
@@ -245,6 +250,7 @@ func check_tasks() -> void:
 					continue
 				if _check_task(task_id, inventory):
 					completed_tasks[task_id] = true
+					SoundManager.play_ui_sound("quest_complete")
 					print("[TaskMenu] Task completed: %s" % task["short"])
 
 	_update_display()

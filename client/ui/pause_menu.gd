@@ -72,10 +72,12 @@ func _process(_delta: float) -> void:
 		_activate_selected()
 
 func _on_resume_pressed() -> void:
+	SoundManager.play_ui_sound("ui_click")
 	hide_menu()
 	resume_pressed.emit()
 
 func _on_save_pressed() -> void:
+	SoundManager.play_ui_sound("ui_click")
 	status_label.text = "Game saved!"
 	status_label.modulate = Color.GREEN
 	save_pressed.emit()
@@ -86,6 +88,7 @@ func _on_save_pressed() -> void:
 		status_label.text = ""
 
 func _on_graphics_pressed() -> void:
+	SoundManager.play_ui_sound("ui_click")
 	main_panel.visible = false
 	graphics_panel.visible = true
 	in_graphics_menu = true
@@ -97,6 +100,7 @@ func _on_graphics_pressed() -> void:
 	_load_current_values()
 
 func _on_back_pressed() -> void:
+	SoundManager.play_ui_sound("ui_click")
 	graphics_panel.visible = false
 	main_panel.visible = true
 	in_graphics_menu = false
@@ -108,6 +112,7 @@ func _on_back_pressed() -> void:
 	_save_settings()
 
 func _on_quit_pressed() -> void:
+	SoundManager.play_ui_sound("ui_click")
 	quit_pressed.emit()
 
 func _on_terrain_slider_changed(value: float) -> void:
@@ -217,6 +222,7 @@ func _apply_loaded_settings(terrain_dist: int, objects_dist: int, fog_enabled: b
 
 func show_menu() -> void:
 	visible = true
+	SoundManager.play_ui_sound("menu_open")
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	selected_index = 0
 	in_graphics_menu = false
@@ -227,6 +233,7 @@ func show_menu() -> void:
 
 func hide_menu() -> void:
 	visible = false
+	SoundManager.play_ui_sound("menu_close")
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 ## Move selection up/down (controller D-pad)

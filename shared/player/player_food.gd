@@ -79,6 +79,7 @@ func eat_food(food_id: String) -> bool:
 		bandage_heal_timer = food_data.duration
 		bandage_heal_per_second = food_data.heal_per_second
 		SoundManager.play_sound("bandage_heal", get_parent().global_position)
+		SoundManager.play_sound("health_pickup", get_parent().global_position, -3.0)
 		print("[PlayerFood] Applied bandage (%.1f HP/s for %.0fs)" % [food_data.heal_per_second, food_data.duration])
 		return true
 
@@ -102,6 +103,10 @@ func eat_food(food_id: String) -> bool:
 		"remaining_time": food_data.duration,
 		"food_data": food_data
 	})
+
+	# Play powerup sound for food buff
+	if player:
+		SoundManager.play_sound("powerup", player.global_position)
 
 	print("[PlayerFood] Ate %s (+%.0f HP, +%.0f Stam, +%.0f BP, +%.1f HP/s for %.0fs)" % [
 		food_id, food_data.health_bonus, food_data.stamina_bonus, food_data.bp_bonus,

@@ -28,6 +28,12 @@ func interact() -> void:
 	is_open = !is_open
 	_animate_door()
 
+	# Play door sound
+	if is_open:
+		SoundManager.play_sound("door_open", global_position)
+	else:
+		SoundManager.play_sound("door_close", global_position)
+
 	# Update interaction prompt
 	interaction_prompt = "Close" if is_open else "Open"
 

@@ -88,7 +88,8 @@ func _hit() -> void:
 	has_hit = true
 	velocity = Vector3.ZERO
 
-	# TODO: Play impact effect/sound
+	# Play magic impact sound at hit position
+	SoundManager.play_sound_varied("magic_hit", global_position, 0.0, 0.15)
 
 	# Destroy after a brief moment
 	await get_tree().create_timer(0.1).timeout

@@ -109,9 +109,11 @@ func _on_slot_right_clicked(slot_index: int) -> void:
 
 	# Request to equip this item on the server (send equipment slot, not inventory slot)
 	print("[Hotbar] Requesting to equip %s to equipment slot %d" % [item_id, equip_slot])
+	SoundManager.play_ui_sound("equip")
 	NetworkManager.rpc_request_equip_item.rpc_id(1, equip_slot, item_id)
 
 func _on_slot_clicked(slot_index: int) -> void:
+	SoundManager.play_ui_sound("ui_click")
 	select_slot(slot_index)
 
 ## Select a hotbar slot (keyboard/mouse auto-equips, controller requires D-pad up)
@@ -187,6 +189,7 @@ func select_slot(index: int, auto_equip: bool = true) -> void:
 
 			if equip_slot != -1:
 				print("[Hotbar] Auto-equipping %s to equipment slot %d" % [item_id, equip_slot])
+				SoundManager.play_ui_sound("equip")
 				NetworkManager.rpc_request_equip_item.rpc_id(1, equip_slot, item_id)
 
 ## Update visual selection - shows selection border on selected slot
@@ -240,6 +243,7 @@ func equip_selected_item() -> void:
 			return
 
 	print("[Hotbar] D-pad equipping %s to equipment slot %d" % [item_id, equip_slot])
+	SoundManager.play_ui_sound("equip")
 	NetworkManager.rpc_request_equip_item.rpc_id(1, equip_slot, item_id)
 
 ## Unequip items in MAIN_HAND and OFF_HAND (D-pad down)

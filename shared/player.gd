@@ -1152,7 +1152,14 @@ func _handle_attack() -> void:
 	# Play attack sound based on weapon type with pitch variation
 	if equipped_weapon_visual:
 		if weapon_data.weapon_type == WeaponData.WeaponType.MAGIC:
-			SoundManager.play_sound_varied("fire_cast", global_position, 0.0, 0.15)
+			# Play specific cast sound based on wand type, with magic_cast layered
+			var cast_sound = "fire_cast"
+			if "ice" in current_weapon_type:
+				cast_sound = "ice_cast"
+			elif "healing" in current_weapon_type or "arcane" in current_weapon_type:
+				cast_sound = "healing_cast"
+			SoundManager.play_sound_varied(cast_sound, global_position, 0.0, 0.15)
+			SoundManager.play_sound("magic_cast", global_position, -6.0)
 		else:
 			# Weapon-specific swing sounds with variation
 			match current_weapon_type:
@@ -1789,6 +1796,7 @@ func _handle_terrain_modification_input(input_data: Dictionary) -> bool:
 	# Send terrain modification request to server
 	if not operation.is_empty():
 		_send_terrain_modification_request(operation, target_pos, main_hand_id)
+		SoundManager.play_sound_varied("dig_dirt", global_position, 0.0, 0.15)
 		print("[Player] Sent terrain modification: %s at %s" % [operation, target_pos])
 
 		# Trigger visual feedback animation
@@ -2362,14 +2370,28 @@ func _update_body_animations(delta: float) -> void:
 		var speed_multiplier = horizontal_speed / WALK_SPEED
 		animation_phase += delta * 8.0 * speed_multiplier
 
-		# Looping footstep sound — start/switch based on terrain
+		# Looping footstep sound — start/switch based on terrain and biome
 		if is_on_floor() and is_local_player and not is_spinning:
 			var footstep_sound = "footstep_grass"
+			# Check snow first (overrides biome)
 			var weather_managers = get_tree().get_nodes_in_group("weather_manager")
 			if weather_managers.size() > 0:
 				var weather_mgr = weather_managers[0]
 				if weather_mgr.get_snowpack() > 0.2:
 					footstep_sound = "footstep_snow"
+			# Biome-specific footsteps (if not snowy)
+			if footstep_sound == "footstep_grass":
+				var client_node = get_node_or_null("/root/Main/Client")
+				if client_node and "current_biome" in client_node:
+					match client_node.current_biome:
+						"swamp":
+							footstep_sound = "footstep_swamp"
+						"mountain":
+							footstep_sound = "footstep_stone"
+						"desert":
+							footstep_sound = "footstep_dirt"
+						"hell":
+							footstep_sound = "footstep_stone"
 			SoundManager.start_footsteps(footstep_sound, -8.0)
 		elif is_local_player:
 			SoundManager.stop_footsteps()
@@ -2498,8 +2520,8 @@ func pickup_item(item_name: String, amount: int) -> bool:
 		var picked_up = amount - remaining
 		print("[Player] Picked up %d x %s" % [picked_up, item_name])
 
-		# Play pickup sound (TODO)
-		# Show pickup notification (TODO)
+		# Play pickup sound
+		SoundManager.play_sound("item_pickup", global_position)
 		return true
 
 	if remaining > 0:
@@ -2948,6 +2970,8 @@ func consume_stamina(amount: float) -> bool:
 			stamina = 0
 			if not is_exhausted:
 				is_exhausted = true
+				if is_local_player:
+					SoundManager.play_ui_sound("warning")
 				print("[Player] Exhausted! Must recover stamina before sprinting/attacking")
 		return true
 	else:
@@ -3092,6 +3116,13 @@ func take_damage(damage: float, attacker_id: int = -1, knockback_dir: Vector3 = 
 	# Spawn hit effect if damage was dealt
 	if final_damage > 0:
 		_spawn_hit_effect()
+
+	# Low health warning sound (below 25% of max health)
+	if is_local_player and health > 0:
+		var player_food = get_node_or_null("PlayerFood")
+		var max_hp = player_food.get_max_health() if player_food else PC.BASE_HEALTH
+		if health < max_hp * 0.25:
+			SoundManager.play_ui_sound("warning")
 
 	# Apply knockback (if not parried)
 	if not was_parried and knockback_dir.length() > 0:
@@ -3359,6 +3390,7 @@ func eat_food(food_id: String) -> bool:
 	# Try to eat it
 	if player_food.eat_food(food_id):
 		inventory.remove_item(food_id, 1)
+		SoundManager.play_sound("eat", global_position)
 		return true
 
 	return false

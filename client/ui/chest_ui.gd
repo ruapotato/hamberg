@@ -101,6 +101,7 @@ func show_ui(chest: Node, quick_sort: bool = false) -> void:
 
 	# Show mouse cursor
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	SoundManager.play_ui_sound("chest_open")
 
 	refresh_display()
 
@@ -125,6 +126,8 @@ func hide_ui() -> void:
 	is_open = false
 	visible = false
 	current_chest = null
+
+	SoundManager.play_ui_sound("menu_close")
 
 	# Recapture mouse for FPS controls
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED

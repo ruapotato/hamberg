@@ -57,6 +57,7 @@ func _populate_piece_list() -> void:
 	print("[BuildMenu] Created %d buttons" % piece_list.get_child_count())
 
 func _on_piece_button_pressed(piece_name: String) -> void:
+	SoundManager.play_ui_sound("ui_click")
 	print("[BuildMenu] Selected piece: %s" % piece_name)
 	piece_selected.emit(piece_name)
 	hide_menu()
@@ -74,6 +75,7 @@ func show_menu() -> void:
 	# Show mouse cursor
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
+	SoundManager.play_ui_sound("menu_open")
 	print("[BuildMenu] Opened - Select a building piece")
 	print("[BuildMenu] Debug - visible: %s, position: %s, size: %s" % [visible, position, size])
 	if panel:
@@ -86,6 +88,8 @@ func hide_menu() -> void:
 
 	is_open = false
 	visible = false
+
+	SoundManager.play_ui_sound("menu_close")
 
 	# Recapture mouse for FPS controls
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED

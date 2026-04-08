@@ -229,6 +229,8 @@ func _create_recipe_button(recipe: Dictionary) -> Control:
 func _on_recipe_button_pressed(recipe: Dictionary) -> void:
 	print("[CraftingMenu] Crafting: %s" % recipe.get("output_item", ""))
 
+	SoundManager.play_ui_sound("ui_confirm")
+
 	# Attempt to craft on server (server-authoritative)
 	var recipe_name = recipe.get("output_item", "")
 	NetworkManager.rpc_request_craft.rpc_id(1, recipe_name)
@@ -254,6 +256,7 @@ func show_menu() -> void:
 	# Show mouse cursor
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
+	SoundManager.play_ui_sound("menu_open")
 	print("[CraftingMenu] Opened - Select a recipe to craft")
 
 ## Hide the crafting menu
@@ -265,6 +268,8 @@ func hide_menu() -> void:
 	visible = false
 	_hide_tooltip()
 	_hovered_item = ""
+
+	SoundManager.play_ui_sound("menu_close")
 
 	# Recapture mouse for FPS controls
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED

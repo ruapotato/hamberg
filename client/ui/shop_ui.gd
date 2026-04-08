@@ -206,6 +206,7 @@ func show_ui(shnarken: Node) -> void:
 
 	# Show mouse cursor
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	SoundManager.play_ui_sound("menu_open")
 
 	# Get player reference
 	var players = get_tree().get_nodes_in_group("players")
@@ -235,6 +236,8 @@ func hide_ui() -> void:
 
 	is_open = false
 	visible = false
+
+	SoundManager.play_ui_sound("menu_close")
 
 	if current_shnarken and current_shnarken.has_method("stop_talking"):
 		current_shnarken.stop_talking()
@@ -488,10 +491,12 @@ func _on_buy_item(item_id: String, price: int) -> void:
 
 	var player_gold = player.get("gold")
 	if player_gold == null or player_gold < price:
+		SoundManager.play_ui_sound("ui_error")
 		dialogue_label.text = "[i][color=red]\"You don't have enough gold, you penniless tadpole!\"[/color][/i]"
 		return
 
 	# Request buy from server
+	SoundManager.play_ui_sound("coin_pickup")
 	print("[ShopUI] Requesting to buy %s for %d gold" % [item_id, price])
 	NetworkManager.rpc_request_shop_buy.rpc_id(1, item_id, price)
 
@@ -516,6 +521,7 @@ func _on_sell_item(slot_index: int, amount: int, total_price: int) -> void:
 		return
 
 	# Request sell from server
+	SoundManager.play_ui_sound("coin_pickup")
 	print("[ShopUI] Requesting to sell %d items from slot %d for %d gold" % [amount, slot_index, total_price])
 	NetworkManager.rpc_request_shop_sell.rpc_id(1, slot_index, amount, total_price)
 

@@ -139,6 +139,7 @@ func _create_slots() -> void:
 
 func _on_slot_clicked(slot_index: int) -> void:
 	# TODO: Implement slot interaction (drag/drop, etc.)
+	SoundManager.play_ui_sound("ui_click")
 	print("[InventoryPanel] Clicked slot %d" % slot_index)
 
 func _on_slot_right_clicked(slot_index: int) -> void:
@@ -217,6 +218,7 @@ func _on_slot_right_clicked(slot_index: int) -> void:
 
 	# Request to equip this item on the server (send equipment slot, not inventory slot)
 	print("[InventoryPanel] Requesting to equip %s to equipment slot %d" % [item_id, equip_slot])
+	SoundManager.play_ui_sound("equip")
 	NetworkManager.rpc_request_equip_item.rpc_id(1, equip_slot, item_id)
 
 func _on_slot_drag_ended(from_slot: int, to_slot: int) -> void:
@@ -260,6 +262,7 @@ func toggle_inventory() -> void:
 func show_inventory() -> void:
 	is_open = true
 	visible = true
+	SoundManager.play_ui_sound("menu_open")
 	refresh_display()
 
 	# Update stats display
@@ -378,6 +381,9 @@ func hide_inventory() -> bool:
 	var was_open = is_open
 	is_open = false
 	visible = false
+
+	if was_open:
+		SoundManager.play_ui_sound("menu_close")
 
 	# Release mouse cursor (back to captured for FPS controls)
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
@@ -519,6 +525,7 @@ func _on_craft_button_pressed(recipe: Dictionary) -> void:
 		return
 
 	print("[InventoryPanel] Requesting to craft: %s" % item_name)
+	SoundManager.play_ui_sound("ui_confirm")
 	NetworkManager.rpc_request_craft.rpc_id(1, item_name)
 
 	# Note: Inventory will be synced back from server after crafting

@@ -218,6 +218,7 @@ func toggle_map() -> void:
 	if visible:
 		# Release mouse from 3D camera
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+		SoundManager.play_ui_sound("menu_open")
 
 		# Re-center on player when opening
 		if local_player:
@@ -241,6 +242,7 @@ func toggle_map() -> void:
 		is_toggling = false
 	else:
 		# Restore mouse capture for 3D camera
+		SoundManager.play_ui_sound("menu_close")
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 		is_toggling = false
 

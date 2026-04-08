@@ -283,6 +283,7 @@ func _process(_delta: float) -> void:
 			_handle_interaction_input()
 			_update_interact_prompt()
 		_update_biome_music(_delta)
+		_update_ambient_oneshots(_delta)
 
 		# Rebuild Shnarken cache periodically (avoid expensive tree traversal every frame)
 		shnarken_cache_timer += _delta
@@ -307,6 +308,7 @@ func _process(_delta: float) -> void:
 			debug_console_ui.hide_console()
 		# Check if world map is open - if so, close it and don't toggle pause
 		elif world_map_ui and world_map_ui.visible:
+			SoundManager.play_ui_sound("ui_cancel")
 			world_map_ui.visible = false
 			Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 		# Check if inventory is open - if so, close it and don't toggle pause
@@ -1320,6 +1322,7 @@ func _update_biome_music(delta: float) -> void:
 		current_biome = biome
 		music_manager.set_biome(biome)
 		_update_terrain_color(biome)
+		_update_biome_ambient(biome)
 
 ## Update terrain material color based on current biome
 func _update_terrain_color(biome_name: String) -> void:
@@ -1343,6 +1346,59 @@ func _update_terrain_color(biome_name: String) -> void:
 		material.set_shader_parameter("current_biome", biome_index)
 		print("[Client] Updated terrain color to biome index %d (%s)" % [biome_index, biome_name])
 
+## Update ambient sounds based on current biome
+func _update_biome_ambient(biome_name: String) -> void:
+	match biome_name:
+		"valley", "meadow":
+			SoundManager.play_ambient("birds_ambient")
+		"forest":
+			SoundManager.play_ambient("birds_ambient")
+		"dark_forest":
+			SoundManager.play_ambient("whispering", -6.0)
+		"swamp":
+			SoundManager.play_ambient("crickets_ambient")
+		_:
+			SoundManager.stop_ambient()
+
+## Biome ambient one-shot timer for occasional environmental sounds
+var _ambient_oneshot_timer: float = 0.0
+const AMBIENT_ONESHOT_INTERVAL: float = 15.0  # Check every 15 seconds
+
+## Play occasional one-shot ambient sounds based on biome and time
+func _update_ambient_oneshots(delta: float) -> void:
+	_ambient_oneshot_timer += delta
+	if _ambient_oneshot_timer < AMBIENT_ONESHOT_INTERVAL:
+		return
+	_ambient_oneshot_timer = 0.0
+
+	if not local_player:
+		return
+
+	var pos = local_player.global_position
+	# Random offset so sounds come from around the player
+	var offset = Vector3(randf_range(-20, 20), 0, randf_range(-20, 20))
+
+	match current_biome:
+		"dark_forest":
+			# Occasional creepy sounds in the dark forest
+			if randf() < 0.3:
+				SoundManager.play_sound("creepy_laugh", pos + offset, -10.0)
+		"swamp":
+			# Wind gusts in the swamp
+			if randf() < 0.25:
+				SoundManager.play_sound("wind_gust", pos + offset, -8.0)
+		"valley", "meadow":
+			# Occasional wind gusts
+			if randf() < 0.15:
+				SoundManager.play_sound("wind_gust", pos + offset, -12.0)
+
+	# Rain ambient when weather is raining
+	if server_weather_raining:
+		SoundManager.play_ambient("rain_ambient")
+	elif current_biome in ["valley", "meadow", "forest"]:
+		# Restore biome ambient if rain stopped
+		SoundManager.play_ambient("birds_ambient")
+
 # ============================================================================
 # ITEM DISCOVERY
 # ============================================================================
@@ -1356,6 +1412,7 @@ func _on_recipes_unlocked(recipe_names: Array) -> void:
 
 func _show_discovery_notification(message: String) -> void:
 	print("[Client] Discovery: %s" % message)
+	SoundManager.play_ui_sound("notification")
 	if notification_label:
 		notification_label.text = message
 		notification_label.visible = true
@@ -1372,6 +1429,10 @@ func _show_discovery_notification(message: String) -> void:
 ## Receive a notification from the server (raid warnings, base alerts, etc.)
 func receive_server_notification(message: String, duration: float = 5.0) -> void:
 	print("[Client] Server notification: %s" % message)
+	# Play warning sound for raid/danger notifications, regular notification otherwise
+	var lower_msg = message.to_lower()
+	if "raid" in lower_msg or "attack" in lower_msg or "danger" in lower_msg or "warning" in lower_msg:
+		SoundManager.play_ui_sound("warning")
 	_show_discovery_notification(message)
 
 ## Receive weather state from server for gameplay effects (movement speed, etc.)

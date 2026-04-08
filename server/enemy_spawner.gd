@@ -650,6 +650,10 @@ func spawn_boss(boss_type: String, position: Vector3, host_peer_id: int = 0) -> 
 		var boss_name = boss.boss_name if "boss_name" in boss else "Boss"
 		print("[EnemySpawner] BOSS SPAWNED: %s at %s (network_id=%d, host_peer=%d)" % [boss_name, position, net_id, host_peer_id])
 
+		# Play boss intro sound at spawn position
+		SoundManager.play_sound("zombie_boss_intro", position, 6.0)
+		SoundManager.play_sound("boss_spawn", position, 3.0)
+
 		# Broadcast boss spawn to all clients
 		var boss_path = enemy_paths[boss]
 		var boss_type_name = boss_name

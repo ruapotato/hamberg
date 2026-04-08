@@ -1215,6 +1215,7 @@ func _handle_input() -> void:
 	if Input.is_action_just_pressed("attack") and ghost_preview:
 		if not can_place_current:
 			# Show why placement failed
+			SoundManager.play_ui_sound("ui_error")
 			var costs = CraftingRecipes.BUILDING_COSTS.get(current_piece_name, {})
 			var missing: Array[String] = []
 			if player:
@@ -1307,6 +1308,8 @@ func place_current_piece() -> void:
 
 	# Play place sound
 	_play_place_sound()
+	SoundManager.play_ui_sound("place_block")
+	SoundManager.play_ui_sound("ui_confirm")
 
 	# Emit signal for server to handle actual placement and resource consumption
 	build_piece_placed.emit(current_piece_name, position, rotation)
