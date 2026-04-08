@@ -383,12 +383,12 @@ func _register_weapon_fire_wand() -> void:
 	weapon.display_name = "Fire Wand"
 	weapon.description = "A magical wand that shoots fireballs. Uses Brain Power (BP) instead of stamina."
 	weapon.weapon_type = WeaponData.WeaponType.MAGIC
-	weapon.damage = 15.0
+	weapon.damage = 35.0
 	weapon.damage_type = WeaponData.DamageType.FIRE
 	weapon.attack_speed = 1.0
-	weapon.knockback = 3.0
+	weapon.knockback = 5.0
 	weapon.durability = 60
-	weapon.stamina_cost = 10.0  # For magic weapons, this is actually brain power cost
+	weapon.stamina_cost = 12.0  # Brain power cost
 	weapon.spell_name = "fireball"  # Maps to SpellRegistry
 	weapon.projectile_speed = 30.0
 	weapon.weight = 1.5
