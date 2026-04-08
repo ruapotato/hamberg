@@ -77,6 +77,8 @@ const REPORT_INTERVAL: float = 0.1
 @export var rock_damage: float = 8.0
 @export var rock_speed: float = 15.0
 @export var loot_table: Dictionary = {"wood": 2, "resin": 1}
+# Rare drops: {"item_id": [amount, chance_0_to_1]} — rolled on death
+@export var rare_loot_table: Dictionary = {}
 @export var weapon_id: String = "fists"
 
 # Weapon data
@@ -939,22 +941,34 @@ func _get_death_sound() -> String:
 	return "gahnome_death"
 
 func _drop_loot() -> void:
-	if loot_table.is_empty():
+	# Build final loot by combining guaranteed + rare drops
+	var final_loot: Dictionary = loot_table.duplicate()
+
+	# Roll rare drops
+	for item_id in rare_loot_table:
+		var entry: Array = rare_loot_table[item_id]
+		var amount: int = entry[0]
+		var chance: float = entry[1]
+		if randf() <= chance:
+			final_loot[item_id] = amount
+			print("[Enemy] Rare drop! %s x%d (%.0f%% chance)" % [item_id, amount, chance * 100])
+
+	if final_loot.is_empty():
 		return
 
-	print("[Enemy] Dropping loot: %s" % loot_table)
+	print("[Enemy] Dropping loot: %s" % final_loot)
 
 	var network_ids: Array = []
-	var id_counter: int = 0  # Global counter to ensure unique IDs across all resource types
-	for resource_type in loot_table:
-		var amount: int = loot_table[resource_type]
+	var id_counter: int = 0
+	for resource_type in final_loot:
+		var amount: int = final_loot[resource_type]
 		for i in amount:
 			var net_id = "%s_%d_%d" % [enemy_name, Time.get_ticks_msec(), id_counter]
 			id_counter += 1
 			network_ids.append(net_id)
 
 	var pos_array = [global_position.x, global_position.y, global_position.z]
-	NetworkManager.rpc_request_resource_drops.rpc_id(1, loot_table, pos_array, network_ids)
+	NetworkManager.rpc_request_resource_drops.rpc_id(1, final_loot, pos_array, network_ids)
 
 # ============================================================================
 # VISUAL SETUP

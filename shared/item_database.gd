@@ -41,6 +41,12 @@ func _initialize_items() -> void:
 	_register_resource("glowing_spore", "Glowing Spore", "A luminescent spore from the dark forest. Has healing properties.", 50, 0.2)
 	_register_resource("fungal_essence", "Fungal Essence", "Concentrated fungal extract. Invigorating when prepared.", 50, 0.3)
 
+	# Rare enemy drops (used in wand crafting)
+	_register_resource("ember_core", "Ember Core", "A smoldering core ripped from an exploding zombie. Radiates intense heat.", 10, 0.5)
+	_register_resource("ectoplasm", "Ectoplasm", "Shimmering ghost residue. Cold to the touch and faintly luminous.", 20, 0.2)
+	_register_resource("shadow_shard", "Shadow Shard", "A fragment of crystallized dark magic from a zombie mage.", 10, 0.3)
+	_register_resource("spore_heart", "Spore Heart", "The pulsing core of a sporeling. Throbs with fungal energy.", 10, 0.4)
+
 	# Leather (from animals - for crafting armor)
 	_register_resource("pig_leather", "Pig Leather", "Soft pink leather from flying pigs. Light and bouncy.", 30, 1.0)
 	_register_resource("deer_leather", "Deer Leather", "Supple tan leather from deer. Surprisingly light.", 30, 0.8)
@@ -383,7 +389,7 @@ func _register_weapon_fire_wand() -> void:
 	weapon.display_name = "Fire Wand"
 	weapon.description = "A magical wand that shoots fireballs. Uses Brain Power (BP) instead of stamina."
 	weapon.weapon_type = WeaponData.WeaponType.MAGIC
-	weapon.damage = 35.0
+	weapon.damage = 20.0  # Tier 1 ranged — comparable to stone axe melee
 	weapon.damage_type = WeaponData.DamageType.FIRE
 	weapon.attack_speed = 1.0
 	weapon.knockback = 5.0
@@ -850,7 +856,8 @@ func _register_lightning_wand() -> void:
 	weapon.durability = 50
 	weapon.stamina_cost = 15.0  # Tier 2 BP cost
 	weapon.spell_name = "chain_lightning"  # Maps to SpellRegistry
-	weapon.projectile_speed = 60.0
+	weapon.projectile_speed = 90.0  # Very fast — it's lightning
+	weapon.projectile_scene = load("res://shared/projectiles/lightning_bolt.tscn")
 	weapon.weight = 1.5
 	weapon.weapon_scene = load("res://shared/weapons/lightning_wand.tscn")
 	items["lightning_wand"] = weapon
@@ -862,14 +869,15 @@ func _register_arcane_wand() -> void:
 	weapon.display_name = "Arcane Wand"
 	weapon.description = "A shimmering wand that fires homing magic missiles. Uses Brain Power (BP).\nMissiles track nearby enemies."
 	weapon.weapon_type = WeaponData.WeaponType.MAGIC
-	weapon.damage = 10.0  # Tier 1 - lower per-hit but fires 3 missiles
+	weapon.damage = 7.0  # Tier 1 - low per-hit, fires homing missiles (1 at a time)
 	weapon.damage_type = WeaponData.DamageType.ARCANE
-	weapon.attack_speed = 1.2
+	weapon.attack_speed = 1.5  # Fast fire rate compensates for low per-hit
 	weapon.knockback = 2.0
 	weapon.durability = 60
-	weapon.stamina_cost = 8.0  # Low BP cost for tier 1
+	weapon.stamina_cost = 6.0  # Low BP cost — sustained DPS weapon
 	weapon.spell_name = "magic_missile"  # Maps to SpellRegistry
-	weapon.projectile_speed = 45.0
+	weapon.projectile_speed = 35.0  # Slower — homing compensates
+	weapon.projectile_scene = load("res://shared/projectiles/arcane_missile.tscn")
 	weapon.weight = 1.0
 	weapon.weapon_scene = load("res://shared/weapons/arcane_wand.tscn")
 	items["arcane_wand"] = weapon
@@ -881,13 +889,15 @@ func _register_nature_wand() -> void:
 	weapon.display_name = "Nature Wand"
 	weapon.description = "A living wand that summons grasping vines. Uses Brain Power (BP).\nRoots enemies in place and deals damage over time."
 	weapon.weapon_type = WeaponData.WeaponType.MAGIC
-	weapon.damage = 8.0  # Lower direct damage, relies on DoT and crowd control
+	weapon.damage = 14.0  # Tier 2 — thorn arcs + poison patch on impact
 	weapon.damage_type = WeaponData.DamageType.NATURE
-	weapon.attack_speed = 0.8
-	weapon.knockback = 1.0
+	weapon.attack_speed = 1.0
+	weapon.knockback = 3.0
 	weapon.durability = 70
-	weapon.stamina_cost = 12.0
+	weapon.stamina_cost = 10.0
 	weapon.spell_name = "vine_grasp"  # Maps to SpellRegistry
+	weapon.projectile_speed = 30.0  # Arcing thorn, gravity pulls it
+	weapon.projectile_scene = load("res://shared/projectiles/thorn_shot.tscn")
 	weapon.weight = 1.5
 	weapon.weapon_scene = load("res://shared/weapons/nature_wand.tscn")
 	items["nature_wand"] = weapon
@@ -906,6 +916,8 @@ func _register_dark_wand() -> void:
 	weapon.durability = 45  # Fragile, dark magic corrodes
 	weapon.stamina_cost = 14.0  # Tier 2 BP cost
 	weapon.spell_name = "soul_drain"  # Maps to SpellRegistry
+	weapon.projectile_speed = 25.0  # Slow and heavy
+	weapon.projectile_scene = load("res://shared/projectiles/shadow_bolt.tscn")
 	weapon.weight = 1.5
 	weapon.weapon_scene = load("res://shared/weapons/dark_wand.tscn")
 	items["dark_wand"] = weapon
@@ -917,13 +929,15 @@ func _register_holy_wand() -> void:
 	weapon.display_name = "Holy Wand"
 	weapon.description = "A radiant wand of divine light. Uses Brain Power (BP).\nDeals bonus damage to undead and heals nearby allies."
 	weapon.weapon_type = WeaponData.WeaponType.MAGIC
-	weapon.damage = 12.0
+	weapon.damage = 16.0  # Tier 2 — heals on hit, strong vs undead
 	weapon.damage_type = WeaponData.DamageType.HOLY
-	weapon.attack_speed = 0.9
+	weapon.attack_speed = 1.0
 	weapon.knockback = 3.0
 	weapon.durability = 65
-	weapon.stamina_cost = 14.0
+	weapon.stamina_cost = 12.0
 	weapon.spell_name = "divine_light"  # Maps to SpellRegistry
+	weapon.projectile_speed = 40.0
+	weapon.projectile_scene = load("res://shared/projectiles/light_orb.tscn")
 	weapon.weight = 1.5
 	weapon.weapon_scene = load("res://shared/weapons/holy_wand.tscn")
 	items["holy_wand"] = weapon
@@ -943,6 +957,8 @@ func _register_ice_wand() -> void:
 	weapon.durability = 80
 	weapon.stamina_cost = 10.0  # Uses brain power for magic
 	weapon.spell_name = "ice_shard"  # Maps to SpellRegistry
+	weapon.projectile_speed = 55.0  # Fast piercing shard
+	weapon.projectile_scene = load("res://shared/projectiles/ice_shard.tscn")
 	weapon.weight = 1.5
 	weapon.weapon_scene = load("res://shared/weapons/ice_wand.tscn")
 	items["ice_wand"] = weapon

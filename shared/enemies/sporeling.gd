@@ -25,6 +25,7 @@ func _ready() -> void:
 	throw_range = 0.0  # No rock throwing - uses spore attack instead
 	throw_min_range = 0.0
 	loot_table = {"glowing_spore": 3, "fungal_essence": 1}
+	rare_loot_table = {"spore_heart": [1, 0.10]}  # 10% chance
 	weapon_id = "sporeling_fists"
 
 	# Sporeling resistances - fungal creature

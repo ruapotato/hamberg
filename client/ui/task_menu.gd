@@ -21,40 +21,40 @@ const PATHS: Array[Dictionary] = [
 		"name": "WARRIOR",
 		"color": "ff8800",  # Orange
 		"tasks": [
-			{"id": "craft_stone_sword", "short": "Sword"},
-			{"id": "craft_iron_sword", "short": "Iron Sword"},
-			{"id": "craft_tower_shield", "short": "Shield"},
-			{"id": "craft_bone_armor_full", "short": "Bone Armor"},
+			{"id": "craft_stone_sword", "short": "Stone Sword", "hint": "10 wood, 5 stone"},
+			{"id": "craft_tower_shield", "short": "Tower Shield", "hint": "15 wood"},
+			{"id": "craft_iron_sword", "short": "Iron Sword", "hint": "3 iron, 2 wood"},
+			{"id": "craft_bone_armor_full", "short": "Bone Armor Set", "hint": "Bone from zombies"},
 		]
 	},
 	{
 		"name": "RANGER",
 		"color": "44cc44",  # Green
 		"tasks": [
-			{"id": "craft_bow", "short": "Bow"},
-			{"id": "craft_arrows", "short": "Arrows"},
-			{"id": "craft_stone_knife", "short": "Knife"},
-			{"id": "craft_iron_pickaxe", "short": "Iron Pick"},
+			{"id": "craft_stone_knife", "short": "Stone Knife", "hint": "5 wood, 2 stone"},
+			{"id": "craft_bow", "short": "Bow", "hint": "8 wood, 3 rope"},
+			{"id": "craft_arrows", "short": "Arrows", "hint": "2 wood, 1 stone"},
+			{"id": "craft_iron_pickaxe", "short": "Iron Pickaxe", "hint": "3 iron, 2 wood"},
 		]
 	},
 	{
 		"name": "MAGE",
-		"color": "4488ff",  # Blue
+		"color": "ff0093",  # Pink (magic color)
 		"tasks": [
-			{"id": "craft_fire_wand", "short": "Fire Wand"},
-			{"id": "craft_ice_wand", "short": "Ice Wand"},
-			{"id": "craft_lightning_wand", "short": "Bolt Wand"},
-			{"id": "craft_arcane_wand", "short": "Arcane"},
+			{"id": "craft_arcane_wand", "short": "Arcane Wand", "hint": "Homing. Glowing Spores (dark forest)"},
+			{"id": "craft_fire_wand", "short": "Fire Wand", "hint": "Fireball. Ember Core (exploder zombie)"},
+			{"id": "buy_ice_wand", "short": "Ice Wand", "hint": "Piercing. Buy from Shnarken (80g)"},
+			{"id": "craft_any_tier2_wand", "short": "Tier 2 Wand", "hint": "Lightning/Nature/Dark/Holy"},
 		]
 	},
 	{
 		"name": "SURVIVAL",
 		"color": "aa7744",  # Brown
 		"tasks": [
-			{"id": "build_shelter", "short": "Shelter"},
-			{"id": "build_fireplace", "short": "Fireplace"},
-			{"id": "cook_meat", "short": "Cook Meat"},
-			{"id": "survive_first_night", "short": "1st Night"},
+			{"id": "build_shelter", "short": "Build Shelter", "hint": "Walls + roof"},
+			{"id": "build_fireplace", "short": "Build Fireplace", "hint": "Cook food here"},
+			{"id": "cook_meat", "short": "Cook Meat", "hint": "Kill a pig/deer/sheep"},
+			{"id": "survive_first_night", "short": "Survive Night", "hint": "Zombies raid at night!"},
 		]
 	},
 ]
@@ -96,8 +96,8 @@ func _ready() -> void:
 	_panel.anchors_preset = PRESET_TOP_LEFT
 	_panel.offset_left = 10.0
 	_panel.offset_top = 10.0
-	_panel.offset_right = 500.0
-	_panel.offset_bottom = 450.0
+	_panel.offset_right = 560.0
+	_panel.offset_bottom = 580.0
 
 	# Semi-transparent background
 	var style = StyleBoxFlat.new()
@@ -293,14 +293,16 @@ func _check_task(task_id: String, inventory: Node) -> bool:
 		"craft_iron_pickaxe":
 			return inventory and inventory.has_item("iron_pickaxe", 1)
 		# Mage path
-		"craft_fire_wand":
-			return inventory and inventory.has_item("fire_wand", 1)
-		"craft_ice_wand":
-			return inventory and inventory.has_item("ice_wand", 1)
-		"craft_lightning_wand":
-			return inventory and inventory.has_item("lightning_wand", 1)
 		"craft_arcane_wand":
 			return inventory and inventory.has_item("arcane_wand", 1)
+		"craft_fire_wand":
+			return inventory and inventory.has_item("fire_wand", 1)
+		"buy_ice_wand":
+			return inventory and inventory.has_item("ice_wand", 1)
+		"craft_any_tier2_wand":
+			if not inventory:
+				return false
+			return inventory.has_item("lightning_wand", 1) or inventory.has_item("nature_wand", 1) or inventory.has_item("dark_wand", 1) or inventory.has_item("holy_wand", 1)
 		# Survival path
 		"build_shelter":
 			var has_wall = false
@@ -342,7 +344,11 @@ func _update_hint() -> void:
 	for path in PATHS:
 		for task in path["tasks"]:
 			if not completed_tasks.get(task["id"], false):
-				_hint_label.text = ">> %s: %s" % [path["name"], task["short"]]
+				var hint: String = task.get("hint", "")
+				if hint:
+					_hint_label.text = ">> %s: %s — %s  [J]" % [path["name"], task["short"], hint]
+				else:
+					_hint_label.text = ">> %s: %s  [J]" % [path["name"], task["short"]]
 				return
 	_hint_label.text = "All tasks complete!"
 
@@ -387,12 +393,16 @@ func _update_display() -> void:
 			var task = path["tasks"][task_idx]
 			var label = _path_task_labels[path_idx][task_idx]
 			var is_done = completed_tasks.get(task["id"], false)
+			var hint_text: String = task.get("hint", "")
 
 			if is_done:
 				label.text = "[OK] %s" % task["short"]
 				label.add_theme_color_override("font_color", Color(0.3, 0.9, 0.3, 0.8))
 			elif phase1_complete:
-				label.text = "[ ] %s" % task["short"]
+				if hint_text:
+					label.text = "[ ] %s\n     %s" % [task["short"], hint_text]
+				else:
+					label.text = "[ ] %s" % task["short"]
 				label.add_theme_color_override("font_color", path_color)
 			else:
 				label.text = "[ ] %s" % task["short"]

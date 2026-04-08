@@ -53,7 +53,21 @@ func _apply_zombie_type() -> void:
 	strafe_speed = stats["speed"] * 0.5
 	attack_range = stats["attack_range"]
 	weapon_id = "zombie_%s_fists" % zombie_type  # Type-specific weapon for proper damage
-	loot_table = { "bone": 2, "rotten_flesh": 1 }
+
+	# Differentiated loot by zombie type
+	match zombie_type:
+		"walker":
+			loot_table = { "bone": 2, "rotten_flesh": 1 }
+		"runner":
+			loot_table = { "bone": 1, "rotten_flesh": 1 }
+		"brute":
+			loot_table = { "bone": 4, "rotten_flesh": 2 }
+		"mage_zombie":
+			loot_table = { "bone": 2, "rotten_flesh": 1 }
+			rare_loot_table = { "shadow_shard": [1, 0.15] }  # 15% chance
+		"exploder":
+			loot_table = { "bone": 1 }
+			rare_loot_table = { "ember_core": [1, 0.20] }  # 20% chance
 
 	# Brutes are tankier with slower attacks
 	if zombie_type == "brute":

@@ -50,13 +50,16 @@ func _initialize_recipes() -> void:
 	# Tier 1 Weapons - Wood & Stone (workbench required)
 	add_recipe("stone_sword", 1, {"wood": 10, "stone": 5}, "workbench")
 	add_recipe("stone_knife", 1, {"wood": 5, "stone": 2}, "workbench")
-	add_recipe("fire_wand", 1, {"wood": 3, "resin": 7}, "workbench")
-	add_recipe("ice_wand", 1, {"wood": 5, "stone": 5}, "workbench")  # Tier 1 - ice themed
-	add_recipe("arcane_wand", 1, {"wood": 5, "stone": 3}, "workbench")  # Tier 1 - cheap
-	add_recipe("nature_wand", 1, {"wood": 8, "resin": 5}, "workbench")  # Tier 2 - wood-heavy for nature theme
-	add_recipe("holy_wand", 1, {"wood": 5, "stone": 5, "copper": 3}, "workbench")  # Tier 2 - needs some metal
-	add_recipe("lightning_wand", 1, {"wood": 5, "copper": 5, "iron": 3}, "workbench")  # Tier 2 - needs metal
-	add_recipe("dark_wand", 1, {"wood": 3, "charcoal": 5, "iron": 3}, "workbench")  # Tier 2 - dark materials
+	# Tier 1 Wands - require rare enemy drops
+	add_recipe("fire_wand", 1, {"wood": 5, "resin": 10, "ember_core": 1}, "workbench")  # Exploder zombie rare drop
+	add_recipe("arcane_wand", 1, {"wood": 5, "stone": 5, "glowing_spore": 5}, "workbench")  # Dark forest / ghost farming
+	# Ice wand: buy-only from Shnarken (80g) — no craft recipe
+
+	# Tier 2 Wands - require rare drops + metals
+	add_recipe("nature_wand", 1, {"wood": 10, "resin": 5, "spore_heart": 2, "fungal_essence": 3}, "workbench")  # Sporeling farming
+	add_recipe("holy_wand", 1, {"wood": 5, "copper": 5, "ectoplasm": 3}, "workbench")  # Ghost hunting
+	add_recipe("lightning_wand", 1, {"copper": 5, "iron": 5, "ectoplasm": 2}, "workbench")  # Metal + ghosts
+	add_recipe("dark_wand", 1, {"iron": 5, "rotten_flesh": 5, "shadow_shard": 3}, "workbench")  # Mage zombie farming
 	add_recipe("bow", 1, {"wood": 8, "rope": 3}, "workbench")
 	add_recipe("arrows", 10, {"wood": 2, "stone": 1}, "workbench")
 

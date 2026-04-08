@@ -39,6 +39,7 @@ func _ready() -> void:
 	weapon_id = "fists"
 
 	loot_table = {"glowing_spore": 1, "fungal_essence": 1}
+	rare_loot_table = {"ectoplasm": [1, 0.25]}  # 25% chance
 
 	# Ghost resistances - ethereal undead creature
 	damage_resistances = {

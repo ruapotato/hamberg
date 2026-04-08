@@ -1,0 +1,40 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://shared/projectiles/magic_missile.gd" id="1"]
+
+[sub_resource type="SphereMesh" id="SphereMesh_missile"]
+radius = 0.08
+height = 0.16
+
+[sub_resource type="StandardMaterial3D" id="Material_missile"]
+shading_mode = 0
+albedo_color = Color(1, 0, 0.58, 1)
+emission_enabled = true
+emission = Color(1, 0, 0.58, 1)
+emission_energy_multiplier = 4.0
+
+[sub_resource type="SphereShape3D" id="SphereShape_missile"]
+radius = 0.1
+
+[node name="MagicMissile" type="Area3D"]
+collision_layer = 8
+collision_mask = 7
+script = ExtResource("1")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="."]
+mesh = SubResource("SphereMesh_missile")
+surface_material_override/0 = SubResource("Material_missile")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+shape = SubResource("SphereShape_missile")
+
+[node name="OmniLight3D" type="OmniLight3D" parent="."]
+light_color = Color(1, 0, 0.58, 1)
+light_energy = 1.5
+omni_range = 3.0
+omni_attenuation = 1.5
+
+[node name="Lifetime" type="Timer" parent="."]
+wait_time = 6.0
+one_shot = true
+autostart = true

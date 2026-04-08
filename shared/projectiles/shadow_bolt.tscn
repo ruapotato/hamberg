@@ -1,0 +1,40 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://shared/projectiles/shadow_bolt.gd" id="1"]
+
+[sub_resource type="SphereMesh" id="shadow_mesh"]
+radius = 0.2
+height = 0.4
+
+[sub_resource type="StandardMaterial3D" id="shadow_mat"]
+shading_mode = 0
+albedo_color = Color(0.4, 0, 0.5, 0.9)
+emission_enabled = true
+emission = Color(0.3, 0, 0.4, 1)
+emission_energy_multiplier = 2.0
+transparency = 1
+
+[sub_resource type="SphereShape3D" id="shadow_shape"]
+radius = 0.2
+
+[node name="ShadowBolt" type="Area3D"]
+collision_layer = 8
+collision_mask = 7
+script = ExtResource("1")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="."]
+mesh = SubResource("shadow_mesh")
+surface_material_override/0 = SubResource("shadow_mat")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+shape = SubResource("shadow_shape")
+
+[node name="OmniLight3D" type="OmniLight3D" parent="."]
+light_color = Color(0.4, 0, 0.5, 1)
+light_energy = 2.0
+omni_range = 3.5
+
+[node name="Lifetime" type="Timer" parent="."]
+wait_time = 8.0
+one_shot = true
+autostart = true
