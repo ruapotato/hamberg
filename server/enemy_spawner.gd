@@ -375,12 +375,13 @@ func _spawn_enemy_near_player(player: Node, peer_id: int = 0, is_dark_forest: bo
 			biome = terrain_world.get_biome_at(Vector2(spawn_position.x, spawn_position.z))
 
 		# Choose enemy scene based on biome
-		# Zombies can spawn in ALL biomes (50% chance), biome-specific enemies fill the rest
+		# Valley: 30% zombie, 70% gahnome. Other biomes: 50/50 zombie vs biome enemy.
 		var enemy_scene = GAHNOME_SCENE
 		var enemy_type_name = "Gahnome"
 		var zombie_subtype = ""
 
-		if randf() < 0.5:
+		var zombie_chance = 0.3 if biome == "valley" else 0.5
+		if randf() < zombie_chance:
 			# Spawn a zombie (all biomes) - type depends on distance from origin
 			enemy_scene = ZOMBIE_SCENE
 			var dist_from_origin = Vector2(spawn_position.x, spawn_position.z).length()

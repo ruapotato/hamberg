@@ -1,5 +1,7 @@
 extends Area3D
 
+const FloatingText = preload("res://client/ui/floating_text.gd")
+
 ## Resource Item - Dropped item that can be picked up
 ## Spawned when environmental objects are destroyed
 
@@ -120,6 +122,14 @@ func _on_body_entered(body: Node3D) -> void:
 		pickup_requested = true  # Mark as requested to prevent duplicates
 		set_deferred("monitorable", false)  # Disable collision detection
 		print("[ResourceItem] Requesting pickup of %d x %s (network_id: %s)" % [amount, item_name, network_id])
+
+		# Show floating loot text at pickup location
+		var color: Color = FloatingText.RESOURCE_COLORS.get(item_name, Color.WHITE)
+		var ft = FloatingText.new()
+		ft.setup("+%d %s" % [amount, item_name.capitalize()], color)
+		get_tree().current_scene.add_child(ft)
+		ft.global_position = global_position + Vector3(0, 1.0, 0)
+
 		NetworkManager.rpc_request_pickup_item.rpc_id(1, item_name, amount, network_id)
 
 func set_item_data(item: String, qty: int) -> void:

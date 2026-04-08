@@ -67,7 +67,7 @@ const TREE_COLLISION_LAYER: int = 1
 
 # Tree types by biome
 const BIOME_TREES: Dictionary = {
-	"valley": ["oak", "oak", "pine", "magic", "willow", "birch", "cherry_blossom"],
+	"valley": ["oak", "oak", "pine", "magic", "willow", "birch", "cherry_blossom", "golden_tree"],
 	"meadow": ["oak", "pine", "pine", "oak"],
 	"dark_forest": ["dark_oak", "dark_oak", "swamp", "dead", "mushroom_giant", "baobab"],
 	"swamp": ["swamp", "swamp", "dead", "swamp", "willow"],
@@ -220,7 +220,7 @@ func _generate_textures() -> void:
 							   "cactus", "palm", "frost_pine", "crystal_tree",
 							   "ember_tree", "dark_oak",
 							   "willow", "birch", "baobab", "cherry_blossom",
-							   "mushroom_giant"]
+							   "mushroom_giant", "golden_tree"]
 		for tree_type in all_tree_types:
 			tree_textures_front[tree_type] = tex_gen.generate_tree_texture(tree_type, "front")
 		bush_texture = tex_gen.generate_bush_texture()
@@ -255,7 +255,7 @@ func _generate_fallback_textures() -> void:
 					   "cactus", "palm", "frost_pine", "crystal_tree",
 					   "ember_tree", "dark_oak",
 					   "willow", "birch", "baobab", "cherry_blossom",
-					   "mushroom_giant"]:
+					   "mushroom_giant", "golden_tree"]:
 		tree_textures_front[tree_type] = tex
 
 
@@ -925,8 +925,11 @@ func _place_tree(tree_body: StaticBody3D, pos: Vector3, tree_type: String) -> vo
 		# Scale health and drops with size
 		tree_body.max_health = 15.0 + scale_var * 25.0
 		tree_body.current_health = tree_body.max_health
-		# Bigger trees drop more wood
-		tree_body.resource_drops = {"wood": max(1, int(2 + scale_var * 2))}
+		# Golden trees drop resin; other trees drop wood scaled by size
+		if tree_type == "golden_tree":
+			tree_body.resource_drops = {"resin": 3, "wood": 1}
+		else:
+			tree_body.resource_drops = {"wood": max(1, int(2 + scale_var * 2))}
 		tree_body.scale = Vector3.ONE
 
 	tree_body.visible = true

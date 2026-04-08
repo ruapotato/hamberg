@@ -309,7 +309,7 @@ func _run_follower_interpolation(delta: float) -> void:
 		# Flash effect when taking damage (non-host clients see sync'd damage)
 		if health < old_health and not is_host:
 			flash_hit_effect()
-			SoundManager.play_sound_varied("enemy_hurt", global_position)
+			SoundManager.play_sound_varied(_get_hurt_sound(), global_position)
 		if health_bar:
 			health_bar.update_health(health, max_health)
 		if health <= 0 and not is_dead:
@@ -801,7 +801,7 @@ func take_damage(damage: float, knockback: float = 0.0, direction: Vector3 = Vec
 		print("[Enemy] %s took %.1f %s damage, health: %.1f" % [enemy_name, final_damage, type_name, health])
 
 	# Play enemy hurt sound
-	SoundManager.play_sound_varied("enemy_hurt", global_position)
+	SoundManager.play_sound_varied(_get_hurt_sound(), global_position)
 
 	# Flash hit effect (collision box + body flash)
 	flash_hit_effect()
@@ -865,7 +865,7 @@ func _trigger_stagger() -> void:
 		state_timer = stagger_duration
 
 	# Play stagger sound
-	SoundManager.play_sound_varied("enemy_hurt", global_position)
+	SoundManager.play_sound_varied(_get_hurt_sound(), global_position)
 
 	print("[Enemy] %s STAGGERED! Vulnerable for %.1fs" % [enemy_name, stagger_duration])
 
@@ -929,6 +929,10 @@ func _die() -> void:
 		tween.tween_property(body_container, "position:y", -1.0, 1.0)
 		tween.parallel().tween_property(body_container, "rotation:x", PI / 2, 1.0)
 		tween.tween_callback(queue_free)
+
+## Override in subclasses to return creature-specific hurt sound
+func _get_hurt_sound() -> String:
+	return "enemy_hurt"
 
 ## Override in subclasses to return creature-specific death sound
 func _get_death_sound() -> String:

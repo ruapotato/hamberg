@@ -3089,6 +3089,94 @@ def generate_lotus_plant(w=128, h=128):
     save_surface(surface, "lotus_plant.png")
 
 
+def generate_golden_tree(w=256, h=512):
+    """Golden resin tree — amber/gold trunk with bright gold leaf canopy and metallic highlights."""
+    surface, ctx = make_surface(w, h)
+    cx, cy_base = w / 2, h
+
+    # ── Golden/amber trunk ──
+    trunk_w, trunk_h = 28, 200
+    trunk_x = cx - trunk_w / 2
+    trunk_y = cy_base - trunk_h - 20
+
+    # Warm golden glow behind trunk
+    glow = cairo.RadialGradient(cx, trunk_y + trunk_h / 2, trunk_w / 2,
+                                cx, trunk_y + trunk_h / 2, trunk_w * 2.5)
+    glow.add_color_stop_rgba(0, *GOLD_PRIMARY, 0.2)
+    glow.add_color_stop_rgba(1, *GOLD_DARK, 0.0)
+    ctx.rectangle(cx - trunk_w * 2.5, trunk_y - 20, trunk_w * 5, trunk_h + 40)
+    ctx.set_source(glow)
+    ctx.fill()
+
+    # Trunk gradient (dark gold to amber)
+    pat = cairo.LinearGradient(trunk_x, trunk_y, trunk_x, trunk_y + trunk_h)
+    pat.add_color_stop_rgb(0, *GOLD_PRIMARY)
+    pat.add_color_stop_rgb(0.5, *GOLD_DARK)
+    pat.add_color_stop_rgb(1, 0.5, 0.35, 0.05)
+    taper = trunk_w * 0.12
+    ctx.move_to(trunk_x + taper, trunk_y)
+    ctx.line_to(trunk_x + trunk_w - taper, trunk_y)
+    ctx.line_to(trunk_x + trunk_w, trunk_y + trunk_h)
+    ctx.line_to(trunk_x, trunk_y + trunk_h)
+    ctx.close_path()
+    ctx.set_source(pat)
+    ctx.fill()
+    draw_wood_grain(ctx, trunk_x, trunk_y, trunk_w, trunk_h, GOLD_DARK, 6)
+
+    # Resin drip details on trunk
+    for i in range(4):
+        drip_x = trunk_x + random.uniform(5, trunk_w - 5)
+        drip_y = trunk_y + random.uniform(40, trunk_h - 30)
+        drip_h = random.uniform(8, 20)
+        ctx.set_line_width(2.5)
+        set_color(ctx, GOLD_BRIGHT, 0.7)
+        ctx.move_to(drip_x, drip_y)
+        ctx.line_to(drip_x + random.uniform(-2, 2), drip_y + drip_h)
+        ctx.stroke()
+        # Drip blob at bottom
+        draw_circle(ctx, drip_x, drip_y + drip_h, 2.5, GOLD_BRIGHT, 0.8)
+
+    # ── Canopy: bright gold leaf blobs ──
+    canopy_cy = trunk_y - 15
+    blobs = [
+        (cx, canopy_cy, 60),
+        (cx - 45, canopy_cy + 10, 45),
+        (cx + 45, canopy_cy + 10, 45),
+        (cx - 22, canopy_cy - 35, 42),
+        (cx + 22, canopy_cy - 35, 42),
+        (cx, canopy_cy - 50, 38),
+    ]
+
+    # Golden glow behind canopy
+    glow2 = cairo.RadialGradient(cx, canopy_cy, 15, cx, canopy_cy, 95)
+    glow2.add_color_stop_rgba(0, *GOLD_BRIGHT, 0.35)
+    glow2.add_color_stop_rgba(1, *GOLD_DARK, 0.0)
+    ctx.arc(cx, canopy_cy, 110, 0, 2 * math.pi)
+    ctx.set_source(glow2)
+    ctx.fill()
+
+    for bx, by, br in blobs:
+        draw_radial_circle(ctx, bx, by, br, GOLD_PRIMARY, GOLD_DARK)
+    # Lighter inner highlights
+    for bx, by, br in blobs[:3]:
+        draw_radial_circle(ctx, bx - 4, by - 4, br * 0.4,
+                           GOLD_BRIGHT, GOLD_PRIMARY, 0.6, 0.0)
+
+    # Metallic sparkle highlights
+    for _ in range(20):
+        dx = cx + random.gauss(0, 42)
+        dy = canopy_cy + random.gauss(0, 38)
+        dr = random.uniform(1.5, 3.5)
+        draw_circle(ctx, dx, dy, dr, GOLD_METAL, random.uniform(0.5, 0.9))
+    # White-gold specular highlights
+    for _ in range(10):
+        dx = cx + random.gauss(0, 50)
+        dy = canopy_cy + random.gauss(0, 45)
+        draw_circle(ctx, dx, dy, random.uniform(2, 4), GOLD_SPEC, random.uniform(0.3, 0.7))
+
+    save_surface(surface, "tree_golden_tree_front.png")
+
+
 # ── Main ─────────────────────────────────────────────────────────────────────
 
 def main():
@@ -3112,6 +3200,7 @@ def main():
         ("Baobab tree", generate_baobab),
         ("Cherry blossom", generate_cherry_blossom),
         ("Giant mushroom", generate_mushroom_giant),
+        ("Golden tree", generate_golden_tree),
         ("Bush", generate_bush),
         ("Rock", generate_rock),
         ("Grass", generate_grass),

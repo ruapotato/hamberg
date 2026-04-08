@@ -13,6 +13,7 @@ const RESOURCE_COLORS: Dictionary = {
 	"iron": Color(0.8, 0.8, 0.9),
 	"copper": Color(0.8, 0.8, 0.9),
 	"charcoal": Color(0.5, 0.5, 0.5),
+	"resin": Color(1.0, 0.8, 0.0),
 }
 
 var _label: Label3D = null
