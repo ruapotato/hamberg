@@ -20,15 +20,74 @@ var biome_music := {
 		"res://audio/music/Valley3.wav",
 		"res://audio/music/Valley4.wav",
 		"res://audio/music/Valley5.wav",
-		"res://audio/music/Valley6.wav"
+		"res://audio/music/Valley6.wav",
 	],
-	"forest": [],     # TODO: Add forest music
-	"swamp": [],      # TODO: Add swamp music
-	"mountain": [],   # TODO: Add mountain music
-	"desert": [],     # TODO: Add desert music
-	"wizardland": [], # TODO: Add wizardland music
-	"hell": []        # TODO: Add hell music
+	"meadow": [
+		"res://audio/music/Valley1.wav",
+		"res://audio/music/Valley3.wav",
+		"res://audio/music/Dawn.wav",
+	],
+	"dark_forest": [
+		"res://audio/music/DarkForest1.wav",
+		"res://audio/music/DarkForest2.wav",
+		"res://audio/music/SpookyStarlit.wav",
+	],
+	"swamp": [
+		"res://audio/music/Swamp1.wav",
+		"res://audio/music/Swamp2.wav",
+	],
+	"mountain": [
+		"res://audio/music/Mountain1.wav",
+		"res://audio/music/Mountain2.wav",
+	],
+	"desert": [
+		"res://audio/music/Desert1.wav",
+		"res://audio/music/Desert2.wav",
+	],
+	"wizardland": [
+		"res://audio/music/Wizardland1.wav",
+		"res://audio/music/Wizardland1b.wav",
+		"res://audio/music/Wizardland2.wav",
+	],
+	"hell": [
+		"res://audio/music/Hell1.wav",
+		"res://audio/music/Hell2.wav",
+	],
 }
+
+# Special music (overrides biome music when active)
+var night_music := [
+	"res://audio/music/Night1.wav",
+	"res://audio/music/Night2.wav",
+	"res://audio/music/Night3.wav",
+	"res://audio/music/Night4.wav",
+]
+var combat_music := [
+	"res://audio/music/Combat1.wav",
+	"res://audio/music/Combat2.wav",
+]
+var boss_music := [
+	"res://audio/music/CombatBoss.wav",
+]
+var raid_music := [
+	"res://audio/music/NightRaid.wav",
+	"res://audio/music/NightRaid2.wav",
+]
+var dawn_music := [
+	"res://audio/music/Dawn.wav",
+	"res://audio/music/Dawn2.wav",
+]
+var dusk_music := [
+	"res://audio/music/Dusk.wav",
+	"res://audio/music/Dusk2.wav",
+	"res://audio/music/Dusk3.wav",
+]
+
+# State tracking
+var is_night: bool = false
+var is_combat: bool = false
+var is_raid: bool = false
+var is_boss: bool = false
 
 func _ready() -> void:
 	# Setup audio player
@@ -41,8 +100,8 @@ func _ready() -> void:
 
 ## Update the current biome and play appropriate music
 func set_biome(biome_name: String) -> void:
-	# Normalize biome name (handle "meadow" -> "valley" mapping)
-	if biome_name == "meadow":
+	# Use meadow tracks if available, fall back to valley
+	if biome_name == "meadow" and not biome_music.has("meadow"):
 		biome_name = "valley"
 
 	if biome_name == current_biome:
@@ -94,3 +153,76 @@ func stop_music() -> void:
 	audio_player.stop()
 	current_biome = ""
 	current_track_index = -1
+
+## Set night mode — plays night music instead of biome music
+func set_night(night: bool) -> void:
+	if night == is_night:
+		return
+	is_night = night
+	if night and not is_combat and not is_raid:
+		_play_from_list(night_music)
+		print("[MusicManager] Switched to night music")
+	elif not night:
+		# Dawn! Play dawn music briefly then return to biome
+		_play_from_list(dawn_music)
+		print("[MusicManager] Playing dawn music")
+
+## Set combat mode — plays intense combat music
+func set_combat(combat: bool) -> void:
+	if combat == is_combat:
+		return
+	is_combat = combat
+	if combat:
+		_play_from_list(combat_music)
+		print("[MusicManager] Switched to combat music")
+	elif not combat:
+		_return_to_ambient()
+
+## Set raid mode — plays raid music (overrides combat)
+func set_raid(raid: bool) -> void:
+	if raid == is_raid:
+		return
+	is_raid = raid
+	if raid:
+		_play_from_list(raid_music)
+		print("[MusicManager] Switched to raid music")
+	elif not raid:
+		_return_to_ambient()
+
+## Set boss fight — plays boss music (highest priority)
+func set_boss_fight(boss: bool) -> void:
+	if boss == is_boss:
+		return
+	is_boss = boss
+	if boss:
+		_play_from_list(boss_music)
+		print("[MusicManager] Switched to boss music")
+	elif not boss:
+		_return_to_ambient()
+
+## Set dusk — plays dusk music
+func play_dusk() -> void:
+	_play_from_list(dusk_music)
+	print("[MusicManager] Playing dusk music")
+
+## Play a track from a specific list
+func _play_from_list(tracks: Array) -> void:
+	if tracks.is_empty():
+		return
+	var idx = randi() % tracks.size()
+	var track_path = tracks[idx]
+	var stream = load(track_path)
+	if stream:
+		audio_player.stream = stream
+		audio_player.play()
+
+## Return to biome/night ambient after combat ends
+func _return_to_ambient() -> void:
+	if is_boss:
+		_play_from_list(boss_music)
+	elif is_raid:
+		_play_from_list(raid_music)
+	elif is_night:
+		_play_from_list(night_music)
+	else:
+		_play_random_track()
