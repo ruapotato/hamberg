@@ -998,17 +998,17 @@ func dig_square(world_position: Vector3, tool_name: String = "stone_pickaxe") ->
 
 	var chunk = chunks[key]
 
-	# Calculate operation area (3x3x3 block centered on target)
-	var center_x := int(floor(world_position.x)) - 1
-	var center_y := int(floor(world_position.y)) - 1
-	var center_z := int(floor(world_position.z)) - 1
+	# Calculate operation area (2x2x2 block aligned to grid)
+	var center_x := int(floor(world_position.x / 2.0)) * 2
+	var center_y := int(floor(world_position.y / 2.0)) * 2
+	var center_z := int(floor(world_position.z / 2.0)) * 2
 
 	var any_material_removed := false
 
-	# Remove voxels in a 3x3x3 area for alignment with preview
-	for dx in range(0, 3):
-		for dy in range(0, 3):
-			for dz in range(0, 3):
+	# Remove voxels in a 2x2x2 area matching the grid cell
+	for dx in range(0, 2):
+		for dy in range(0, 2):
+			for dz in range(0, 2):
 				var wx := center_x + dx
 				var wy := center_y + dy
 				var wz := center_z + dz
@@ -1040,30 +1040,26 @@ func place_square(world_position: Vector3, earth_amount: int) -> int:
 
 	var chunk = chunks[key]
 
-	var center_x := int(floor(world_position.x)) - 1
-	var center_y := int(floor(world_position.y)) - 1
-	var center_z := int(floor(world_position.z)) - 1
+	var center_x := int(floor(world_position.x / 2.0)) * 2
+	var center_y := int(floor(world_position.y / 2.0)) * 2
+	var center_z := int(floor(world_position.z / 2.0)) * 2
 
 	var any_material_placed := false
 
-	# Add solid voxels in a 3x3x3 cube area to match dig_square
-	for dx in range(0, 3):
-		for dy in range(0, 3):
-			for dz in range(0, 3):
+	# Add solid voxels in a 2x2x2 area matching dig_square grid
+	for dx in range(0, 2):
+		for dy in range(0, 2):
+			for dz in range(0, 2):
 				var wx := center_x + dx
 				var wy := center_y + dy
 				var wz := center_z + dz
 
-				# Calculate density based on distance from center (solid in center, gradient at edges)
-				var dist := Vector3(dx - 1.0, dy - 1.0, dz - 1.0).length()
-				var target_density := 1.0 if dist < 1.5 else 0.7  # Solid core, slightly softer edges
-
 				var current: float = _get_voxel_at(wx, wy, wz)
 
-				# Only place if we're adding material (not removing)
-				if target_density > current:
+				# Place solid (1.0 density — no soft edges)
+				if current < 0.9:
 					any_material_placed = true
-					_set_voxel_at(wx, wy, wz, target_density)
+					_set_voxel_at(wx, wy, wz, 1.0)
 
 	_mark_area_dirty(world_position)
 

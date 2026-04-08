@@ -1918,7 +1918,7 @@ func _show_terrain_preview(operation: String, position: Vector3) -> void:
 
 	# Show cube briefly at grid-snapped position (position is already snapped)
 	terrain_preview_cube.global_position = position
-	terrain_preview_cube.scale = Vector3(1.05, 1.05, 1.05)  # Slightly larger than 2x2x2 block for visibility
+	terrain_preview_cube.scale = Vector3.ONE  # Exact 2x2x2 match with dig/place grid
 	terrain_preview_cube.visible = true
 
 	# Reset the timer to keep shape visible temporarily
