@@ -998,10 +998,12 @@ func dig_square(world_position: Vector3, tool_name: String = "stone_pickaxe") ->
 
 	var chunk = chunks[key]
 
-	# Calculate operation area (2x2x2 block aligned to grid)
-	var center_x := int(floor(world_position.x / 2.0)) * 2
-	var center_y := int(floor(world_position.y / 2.0)) * 2
-	var center_z := int(floor(world_position.z / 2.0)) * 2
+	# Calculate operation area (2x2x2 block centered on snapped position)
+	# world_position is the CENTER of the grid cell (from _snap_to_grid)
+	# so offset by -1 to get the corner
+	var corner_x := int(round(world_position.x)) - 1
+	var corner_y := int(round(world_position.y)) - 1
+	var corner_z := int(round(world_position.z)) - 1
 
 	var any_material_removed := false
 
@@ -1009,9 +1011,9 @@ func dig_square(world_position: Vector3, tool_name: String = "stone_pickaxe") ->
 	for dx in range(0, 2):
 		for dy in range(0, 2):
 			for dz in range(0, 2):
-				var wx := center_x + dx
-				var wy := center_y + dy
-				var wz := center_z + dz
+				var wx := corner_x + dx
+				var wy := corner_y + dy
+				var wz := corner_z + dz
 
 				# Get current density
 				var current := _get_voxel_at(wx, wy, wz)
@@ -1040,9 +1042,10 @@ func place_square(world_position: Vector3, earth_amount: int) -> int:
 
 	var chunk = chunks[key]
 
-	var center_x := int(floor(world_position.x / 2.0)) * 2
-	var center_y := int(floor(world_position.y / 2.0)) * 2
-	var center_z := int(floor(world_position.z / 2.0)) * 2
+	# world_position is CENTER of grid cell — offset by -1 for corner
+	var corner_x := int(round(world_position.x)) - 1
+	var corner_y := int(round(world_position.y)) - 1
+	var corner_z := int(round(world_position.z)) - 1
 
 	var any_material_placed := false
 
@@ -1050,9 +1053,9 @@ func place_square(world_position: Vector3, earth_amount: int) -> int:
 	for dx in range(0, 2):
 		for dy in range(0, 2):
 			for dz in range(0, 2):
-				var wx := center_x + dx
-				var wy := center_y + dy
-				var wz := center_z + dz
+				var wx := corner_x + dx
+				var wy := corner_y + dy
+				var wz := corner_z + dz
 
 				var current: float = _get_voxel_at(wx, wy, wz)
 
