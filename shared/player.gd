@@ -1839,9 +1839,10 @@ func _raycast_grid_cell_from_camera(camera: Camera3D) -> Vector3:
 	# DIG position: the grid cell INSIDE the surface (what we want to remove)
 	var hit: Dictionary = _raycast_terrain_hit(camera)
 	if hit.hit:
-		# Step slightly INTO the surface along the opposite of the normal
 		var point_inside: Vector3 = hit.position - hit.normal * 0.5
-		return _snap_to_grid(point_inside)
+		var snapped: Vector3 = _snap_to_grid(point_inside)
+		print("[DIG RAYCAST] hit=%s, normal=%s, inside=%s, snapped=%s" % [hit.position, hit.normal, point_inside, snapped])
+		return snapped
 	return Vector3.ZERO
 
 ## Update persistent terrain preview (shows cube when tool equipped)

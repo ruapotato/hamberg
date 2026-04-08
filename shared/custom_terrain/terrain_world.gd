@@ -1005,6 +1005,15 @@ func dig_square(world_position: Vector3, tool_name: String = "stone_pickaxe") ->
 	var corner_y := int(round(world_position.y)) - 1
 	var corner_z := int(round(world_position.z)) - 1
 
+	print("[Terrain DIG] center=(%s), corner=(%d,%d,%d), voxels=(%d,%d,%d)-(%d,%d,%d), preview_bounds=(%s)-(%s)" % [
+		world_position,
+		corner_x, corner_y, corner_z,
+		corner_x, corner_y, corner_z,
+		corner_x + 1, corner_y + 1, corner_z + 1,
+		world_position - Vector3.ONE,
+		world_position + Vector3.ONE,
+	])
+
 	var any_material_removed := false
 
 	# Remove voxels in a 2x2x2 area matching the grid cell
@@ -1046,6 +1055,13 @@ func place_square(world_position: Vector3, earth_amount: int) -> int:
 	var corner_x := int(round(world_position.x)) - 1
 	var corner_y := int(round(world_position.y)) - 1
 	var corner_z := int(round(world_position.z)) - 1
+
+	print("[Terrain PLACE] center=(%s), corner=(%d,%d,%d), voxels=(%d,%d,%d)-(%d,%d,%d)" % [
+		world_position,
+		corner_x, corner_y, corner_z,
+		corner_x, corner_y, corner_z,
+		corner_x + 1, corner_y + 1, corner_z + 1,
+	])
 
 	var any_material_placed := false
 
