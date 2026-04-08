@@ -33,3 +33,4 @@ Godot*
 
 # Python virtual environment
 pyenv/
+*.bak
