@@ -717,9 +717,8 @@ func _generate_chunk(cx: int, cz: int):
 
 	chunk.fill_from_heights(heights)
 
-	# NOTE: Cave pre-calculation disabled for performance
-	# TODO: Implement async/threaded cave generation
-	# _precalculate_caves_for_chunk(chunk)
+	# Ensure bounds cover full cave depth
+	_extend_chunk_bounds_for_caves(chunk)
 
 	return chunk
 
@@ -998,25 +997,15 @@ func dig_square(world_position: Vector3, tool_name: String = "stone_pickaxe") ->
 
 	var chunk = chunks[key]
 
-	# Calculate operation area (2x2x2 block centered on snapped position)
-	# world_position is the CENTER of the grid cell (from _snap_to_grid)
-	# so offset by -1 to get the corner
-	var corner_x := int(round(world_position.x)) - 1
-	var corner_y := int(round(world_position.y)) - 1
-	var corner_z := int(round(world_position.z)) - 1
-
-	print("[Terrain DIG] center=(%s), corner=(%d,%d,%d), voxels=(%d,%d,%d)-(%d,%d,%d), preview_bounds=(%s)-(%s)" % [
-		world_position,
-		corner_x, corner_y, corner_z,
-		corner_x, corner_y, corner_z,
-		corner_x + 1, corner_y + 1, corner_z + 1,
-		world_position - Vector3.ONE,
-		world_position + Vector3.ONE,
-	])
+	# Single voxel cell: 2x2x2 corner voxels defining one marching cubes cell
+	# world_position is cell center (x.5 values from _snap_to_grid), floor gives the corner
+	var corner_x := int(floor(world_position.x))
+	var corner_y := int(floor(world_position.y))
+	var corner_z := int(floor(world_position.z))
 
 	var any_material_removed := false
 
-	# Remove voxels in a 2x2x2 area matching the grid cell
+	# 2 voxel points per axis = 1 marching cubes cell = 1x1x1 volume
 	for dx in range(0, 2):
 		for dy in range(0, 2):
 			for dz in range(0, 2):
@@ -1051,21 +1040,14 @@ func place_square(world_position: Vector3, earth_amount: int) -> int:
 
 	var chunk = chunks[key]
 
-	# world_position is CENTER of grid cell — offset by -1 for corner
-	var corner_x := int(round(world_position.x)) - 1
-	var corner_y := int(round(world_position.y)) - 1
-	var corner_z := int(round(world_position.z)) - 1
-
-	print("[Terrain PLACE] center=(%s), corner=(%d,%d,%d), voxels=(%d,%d,%d)-(%d,%d,%d)" % [
-		world_position,
-		corner_x, corner_y, corner_z,
-		corner_x, corner_y, corner_z,
-		corner_x + 1, corner_y + 1, corner_z + 1,
-	])
+	# Single voxel cell (matches dig_square)
+	var corner_x := int(floor(world_position.x))
+	var corner_y := int(floor(world_position.y))
+	var corner_z := int(floor(world_position.z))
 
 	var any_material_placed := false
 
-	# Add solid voxels in a 2x2x2 area matching dig_square grid
+	# 2 voxel points per axis = 1 marching cubes cell = 1x1x1 volume
 	for dx in range(0, 2):
 		for dy in range(0, 2):
 			for dz in range(0, 2):
@@ -1091,19 +1073,22 @@ func place_square(world_position: Vector3, earth_amount: int) -> int:
 func flatten_square(world_position: Vector3, target_height: float) -> int:
 	var center_x := int(floor(world_position.x))
 	var center_z := int(floor(world_position.z))
+	# target_height is the interpolated voxel surface (e.g., 4.5 means solid at 4, air at 5)
 	var target_y := int(floor(target_height))
+	print("[Terrain FLATTEN] target_height=%.3f → target_y=%d (surface will be at %d.5)" % [target_height, target_y, target_y])
 
-	# Flatten a 4x4 area
+	# Flatten a 4x4 area to target_y
+	# Solid at target_y and below, air above — surface renders between target_y and target_y+1
 	for dx in range(-2, 2):
 		for dz in range(-2, 2):
 			var wx := center_x + dx
 			var wz := center_z + dz
 
-			# Remove everything above target height
+			# Clear air above the surface
 			for wy in range(target_y + 1, target_y + 10):
 				_set_voxel_at(wx, wy, wz, 0.0)
 
-			# Fill everything below target height
+			# Fill solid at and below the surface
 			for wy in range(target_y - 5, target_y + 1):
 				_set_voxel_at(wx, wy, wz, 1.0)
 
@@ -1151,6 +1136,29 @@ func _mark_area_dirty(world_position: Vector3) -> void:
 # PUBLIC API (compatibility with old VoxelWorld)
 # =============================================================================
 
+## Find the actual marching cubes surface Y at a world XZ position near a given Y
+## Scans the voxel column to find where density crosses the 0.5 threshold
+func get_surface_y_at(world_x: float, world_y: float, world_z: float) -> float:
+	var ix := int(floor(world_x))
+	var iz := int(floor(world_z))
+	var iy := int(floor(world_y)) + 2  # Start above feet, scan down
+
+	# Scan downward to find the first solid-to-air transition
+	for y in range(iy, iy - 10, -1):
+		var density_here: float = _get_voxel_at(ix, y, iz)
+		var density_above: float = _get_voxel_at(ix, y + 1, iz)
+		if density_here >= 0.5 and density_above < 0.5:
+			# Surface crossing between y and y+1
+			# Interpolate exact position (same as marching cubes)
+			var t: float = (0.5 - density_here) / (density_above - density_here + 0.0001)
+			t = clamp(t, 0.0, 1.0)
+			var surface: float = float(y) + t
+			print("[Terrain] Surface scan at (%d,%d): y=%d density=%.2f, y+1=%d density=%.2f, interpolated=%.3f" % [ix, iz, y, density_here, y + 1, density_above, surface])
+			return surface
+
+	print("[Terrain] Surface scan at (%d,%d): no surface found near y=%d" % [ix, iz, iy])
+	return world_y
+
 ## Get terrain height at XZ position
 func get_terrain_height_at(xz_pos: Vector2) -> float:
 	if biome_generator:
@@ -1171,20 +1179,10 @@ func get_biome_generator():
 func _extend_chunk_bounds_for_caves(chunk) -> void:
 	if biome_generator == null:
 		return
-	if not biome_generator.has_method("is_in_cave_zone"):
-		return
-
-	# Check if chunk center is in a cave zone
-	var chunk_center := Vector2(
-		chunk.chunk_x * ChunkDataClass.CHUNK_SIZE_XZ + ChunkDataClass.CHUNK_SIZE_XZ / 2,
-		chunk.chunk_z * ChunkDataClass.CHUNK_SIZE_XZ + ChunkDataClass.CHUNK_SIZE_XZ / 2
-	)
-
-	if biome_generator.is_in_cave_zone(chunk_center):
-		# Extend min_y to account for cave depth (80 units below min surface)
-		chunk.min_surface_y = mini(chunk.min_surface_y, chunk.min_surface_y - 80)
-		# Clamp to valid range
-		chunk.min_surface_y = maxi(chunk.min_surface_y, -128)
+	# Caves generate everywhere (get_fast_cave_carving has no zone check),
+	# so always extend bounds to cover all 4 cave levels (depths 15, 40, 70, 100)
+	chunk.min_surface_y = mini(chunk.min_surface_y, chunk.min_surface_y - 110)
+	chunk.min_surface_y = maxi(chunk.min_surface_y, -128)
 
 ## Find surface position (for spawning)
 func find_surface_position(xz_pos: Vector2, search_start_y: float = 100.0, search_range: float = 200.0) -> Vector3:

@@ -171,9 +171,9 @@ func fill_from_heights(heights: PackedFloat32Array) -> void:
 			max_surface_y = h + 2
 
 	# Extend bounds for caves - need extra Y range for underground carving
+	# Cave levels exist at depths 15, 40, 70, 100 below surface
 	if biome_generator != null:
-		# Extend min_y to allow caves below surface (up to 30 units deep)
-		min_surface_y = mini(min_surface_y, min_surface_y - 30)
+		min_surface_y = mini(min_surface_y, min_surface_y - 110)
 		min_surface_y = maxi(min_surface_y, -128)
 
 	is_dirty = true

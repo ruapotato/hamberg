@@ -169,8 +169,9 @@ var hitbox_active: bool = false  # Is the hitbox currently enabled for collision
 
 # Terrain dig visual feedback
 var terrain_preview_cube: MeshInstance3D = null    # Temporary shape after placement
-var terrain_dig_preview_cube: MeshInstance3D = null  # Red cube showing which block will be dug
-var terrain_place_preview_cube: MeshInstance3D = null  # White cube showing where block will be placed
+var terrain_dig_preview_cube: MeshInstance3D = null  # Red preview showing which block will be dug
+var terrain_place_preview_cube: MeshInstance3D = null  # White preview showing where block will be placed
+var terrain_hoe_preview: MeshInstance3D = null       # Flat cylinder for hoe flatten preview
 var cached_dig_position: Vector3 = Vector3.ZERO    # Cached position from red preview cube
 var cached_place_position: Vector3 = Vector3.ZERO  # Cached position from white preview cube
 var terrain_preview_timer: float = 0.0
@@ -298,6 +299,8 @@ func _exit_tree() -> void:
 		terrain_dig_preview_cube.queue_free()
 	if terrain_place_preview_cube and is_instance_valid(terrain_place_preview_cube):
 		terrain_place_preview_cube.queue_free()
+	if terrain_hoe_preview and is_instance_valid(terrain_hoe_preview):
+		terrain_hoe_preview.queue_free()
 
 func _physics_process(delta: float) -> void:
 	if not is_local_player:
@@ -1287,8 +1290,19 @@ func _handle_special_attack() -> void:
 			_special_attack_axe_spin(weapon_data, camera)
 		"fire_wand":
 			_special_attack_fire_wand_area(weapon_data, camera)
+		"lightning_wand":
+			_special_attack_lightning_strike(weapon_data, camera)
+		"arcane_wand":
+			_special_attack_arcane_burst(weapon_data, camera)
+		"ice_wand":
+			_special_attack_frost_nova(weapon_data, camera)
+		"nature_wand":
+			_special_attack_poison_cloud(weapon_data, camera)
+		"dark_wand":
+			_special_attack_life_drain(weapon_data, camera)
+		"holy_wand":
+			_special_attack_healing_burst(weapon_data, camera)
 		_:
-			# Default special attack (same as normal attack but 1.5x damage)
 			_special_attack_default(weapon_data, camera)
 
 ## Knife special: Lunge forward jab (high damage, high stamina, moves player forward)
@@ -1486,6 +1500,293 @@ func _special_attack_fire_wand_area(weapon_data: WeaponData, _camera: Camera3D) 
 	# Sync fire area visual to other clients
 	var pos = player_ground_pos
 	NetworkManager.rpc_spawn_fire_area.rpc_id(1, [pos.x, pos.y, pos.z], area_radius, duration)
+
+## Lightning wand special: Lightning bolt strikes at target location (AOE damage)
+func _special_attack_lightning_strike(weapon_data: WeaponData, camera: Camera3D) -> void:
+	var bp_cost: float = 20.0
+	var damage: float = weapon_data.damage * 2.5
+	var aoe_radius: float = 4.0
+
+	if not consume_brain_power(bp_cost):
+		return
+
+	is_special_attacking = true
+	special_attack_timer = 0.0
+
+	# Raycast to find strike target
+	var viewport_size := get_viewport().get_visible_rect().size
+	var crosshair_pos := viewport_size / 2 + Vector2(-41.0, -50.0)
+	var ray_origin := camera.project_ray_origin(crosshair_pos)
+	var ray_dir := camera.project_ray_normal(crosshair_pos)
+	var space_state := get_world_3d().direct_space_state
+	var query := PhysicsRayQueryParameters3D.create(ray_origin, ray_origin + ray_dir * 50.0)
+	query.collision_mask = 1 | 4
+	query.exclude = [self]
+	var result := space_state.intersect_ray(query)
+
+	var strike_pos := global_position + ray_dir * 15.0
+	if result:
+		strike_pos = result.position
+
+	# Spawn lightning bolt visual
+	var bolt := LightningBoltEffect.new()
+	get_tree().root.add_child(bolt)
+	bolt.global_position = strike_pos
+
+	SoundManager.play_sound_varied("magic_cast", strike_pos, 0.0, 0.1)
+
+	# AOE damage at strike point
+	var bodies := _get_enemies_in_radius(strike_pos, aoe_radius)
+	for enemy in bodies:
+		if enemy.has_method("take_damage"):
+			var net_id: int = enemy.network_id if "network_id" in enemy else 0
+			if net_id > 0:
+				var dir: Vector3 = (enemy.global_position - strike_pos).normalized()
+				NetworkManager.rpc_damage_enemy.rpc_id(1, net_id, damage, 8.0, [dir.x, dir.y, dir.z], WeaponData.DamageType.LIGHTNING)
+
+## Arcane wand special: Burst of 3 missiles in a spread pattern
+func _special_attack_arcane_burst(weapon_data: WeaponData, camera: Camera3D) -> void:
+	var bp_cost: float = 12.0
+
+	if not consume_brain_power(bp_cost):
+		return
+
+	is_special_attacking = true
+	special_attack_timer = 0.0
+	SoundManager.play_sound_varied("magic_cast", global_position, 0.0, 0.15)
+
+	# Get aim direction
+	var viewport_size := get_viewport().get_visible_rect().size
+	var crosshair_pos := viewport_size / 2 + Vector2(-41.0, -50.0)
+	var ray_origin := camera.project_ray_origin(crosshair_pos)
+	var ray_dir := camera.project_ray_normal(crosshair_pos)
+
+	var target_pos := ray_origin + ray_dir * 100.0
+	var space_state := get_world_3d().direct_space_state
+	var query := PhysicsRayQueryParameters3D.create(ray_origin, ray_origin + ray_dir * 100.0)
+	query.collision_mask = 1 | 2 | 4
+	query.exclude = [self]
+	var result := space_state.intersect_ray(query)
+	if result:
+		target_pos = result.position
+
+	# Spawn position from wand tip
+	var spawn_pos := global_position + Vector3(0, 1.5, 0)
+	if equipped_weapon_visual and is_instance_valid(equipped_weapon_visual) and equipped_weapon_visual.has_node("Tip"):
+		spawn_pos = equipped_weapon_visual.get_node("Tip").global_position
+
+	var base_dir := (target_pos - spawn_pos).normalized()
+	var right := base_dir.cross(Vector3.UP).normalized()
+
+	# Fire 3 missiles: center, left, right
+	for spread_angle in [-0.15, 0.0, 0.15]:
+		var dir: Vector3 = (base_dir + right * spread_angle).normalized()
+		var projectile: Projectile = weapon_data.projectile_scene.instantiate()
+		get_tree().root.add_child(projectile)
+		projectile.setup(spawn_pos, dir, weapon_data.projectile_speed * 1.2, weapon_data.damage * 0.8, get_instance_id())
+
+## Ice wand special: Frost nova — AOE burst around player that damages and slows enemies
+func _special_attack_frost_nova(weapon_data: WeaponData, _camera: Camera3D) -> void:
+	var bp_cost: float = 18.0
+	var damage: float = weapon_data.damage * 1.5
+	var nova_radius: float = 5.0
+
+	if not consume_brain_power(bp_cost):
+		return
+
+	is_special_attacking = true
+	special_attack_timer = 0.0
+	SoundManager.play_sound_varied("ice_cast", global_position, 0.0, 0.1)
+
+	# Visual: expanding ice ring (reuse fire area with blue tint)
+	var ice_area := Node3D.new()
+	var mesh_inst := MeshInstance3D.new()
+	var torus := CylinderMesh.new()
+	torus.top_radius = nova_radius
+	torus.bottom_radius = nova_radius
+	torus.height = 0.3
+	mesh_inst.mesh = torus
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.albedo_color = Color(0.0, 0.8, 1.0, 0.4)
+	mat.emission_enabled = true
+	mat.emission = Color(0.0, 0.5, 1.0)
+	mat.emission_energy_multiplier = 3.0
+	mesh_inst.material_override = mat
+	ice_area.add_child(mesh_inst)
+
+	var light := OmniLight3D.new()
+	light.light_color = Color(0.0, 0.6, 1.0)
+	light.light_energy = 5.0
+	light.omni_range = nova_radius
+	ice_area.add_child(light)
+
+	get_tree().root.add_child(ice_area)
+	ice_area.global_position = global_position
+
+	# Damage enemies in radius
+	var enemies := _get_enemies_in_radius(global_position, nova_radius)
+	for enemy in enemies:
+		if enemy.has_method("take_damage"):
+			var net_id: int = enemy.network_id if "network_id" in enemy else 0
+			if net_id > 0:
+				var dir: Vector3 = (enemy.global_position - global_position).normalized()
+				NetworkManager.rpc_damage_enemy.rpc_id(1, net_id, damage, 6.0, [dir.x, dir.y, dir.z], WeaponData.DamageType.ICE)
+
+	# Clean up visual after a moment
+	await get_tree().create_timer(0.8).timeout
+	if is_instance_valid(ice_area):
+		ice_area.queue_free()
+
+## Nature wand special: Poison cloud at target location (DOT area)
+func _special_attack_poison_cloud(weapon_data: WeaponData, camera: Camera3D) -> void:
+	var bp_cost: float = 15.0
+	var damage_per_tick: float = weapon_data.damage * 0.5
+	var cloud_radius: float = 4.0
+	var cloud_duration: float = 5.0
+
+	if not consume_brain_power(bp_cost):
+		return
+
+	is_special_attacking = true
+	special_attack_timer = 0.0
+	SoundManager.play_sound_varied("magic_cast", global_position, 0.0, 0.15)
+
+	# Raycast to find placement
+	var viewport_size := get_viewport().get_visible_rect().size
+	var crosshair_pos := viewport_size / 2 + Vector2(-41.0, -50.0)
+	var ray_origin := camera.project_ray_origin(crosshair_pos)
+	var ray_dir := camera.project_ray_normal(crosshair_pos)
+	var space_state := get_world_3d().direct_space_state
+	var query := PhysicsRayQueryParameters3D.create(ray_origin, ray_origin + ray_dir * 30.0)
+	query.collision_mask = 1
+	query.exclude = [self]
+	var result := space_state.intersect_ray(query)
+
+	var cloud_pos := global_position + ray_dir * 10.0
+	if result:
+		cloud_pos = result.position
+
+	# Spawn poison cloud — reuses fire_area but with nature damage
+	var fire_area_scene: PackedScene = load("res://shared/effects/fire_area.tscn")
+	var cloud: Node3D = fire_area_scene.instantiate()
+	cloud.radius = cloud_radius
+	cloud.damage = damage_per_tick
+	cloud.duration = cloud_duration
+	get_tree().root.add_child(cloud)
+	cloud.global_position = cloud_pos
+
+	# Tint the cloud green
+	var cloud_particles: GPUParticles3D = cloud.get_node_or_null("GPUParticles3D")
+	if cloud_particles and cloud_particles.process_material:
+		cloud_particles.process_material = cloud_particles.process_material.duplicate()
+		var pmat := cloud_particles.process_material as ParticleProcessMaterial
+		pmat.color = Color(0.0, 1.0, 0.42, 0.8)
+	var cloud_light: OmniLight3D = cloud.get_node_or_null("GroundGlow")
+	if cloud_light:
+		cloud_light.light_color = Color(0.0, 1.0, 0.42)
+
+## Dark wand special: Life drain — damages enemies in a cone and heals the player
+func _special_attack_life_drain(weapon_data: WeaponData, _camera: Camera3D) -> void:
+	var bp_cost: float = 18.0
+	var damage: float = weapon_data.damage * 2.0
+	var drain_radius: float = 6.0
+
+	if not consume_brain_power(bp_cost):
+		return
+
+	is_special_attacking = true
+	special_attack_timer = 0.0
+	SoundManager.play_sound_varied("magic_cast", global_position, -3.0, 0.2)
+
+	# Damage nearby enemies and heal for each hit
+	var enemies := _get_enemies_in_radius(global_position, drain_radius)
+	var total_heal: float = 0.0
+	for enemy in enemies:
+		if enemy.has_method("take_damage"):
+			var net_id: int = enemy.network_id if "network_id" in enemy else 0
+			if net_id > 0:
+				var dir: Vector3 = (enemy.global_position - global_position).normalized()
+				NetworkManager.rpc_damage_enemy.rpc_id(1, net_id, damage, 3.0, [dir.x, dir.y, dir.z], WeaponData.DamageType.DARK)
+				total_heal += damage * 0.3  # Heal 30% of damage dealt
+
+	# Heal player
+	if total_heal > 0:
+		var max_hp: float = player_food.get_max_health() if player_food else PC.BASE_HEALTH
+		health = min(health + total_heal, max_hp)
+		print("[Player] Life drain healed %.1f HP" % total_heal)
+
+	# Visual: dark pulse
+	var pulse := MeshInstance3D.new()
+	var sphere := SphereMesh.new()
+	sphere.radius = drain_radius
+	sphere.height = drain_radius * 2.0
+	pulse.mesh = sphere
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.albedo_color = Color(0.5, 0.0, 0.5, 0.2)
+	mat.emission_enabled = true
+	mat.emission = Color(0.4, 0.0, 0.4)
+	mat.emission_energy_multiplier = 2.0
+	pulse.material_override = mat
+	get_tree().root.add_child(pulse)
+	pulse.global_position = global_position
+	await get_tree().create_timer(0.5).timeout
+	if is_instance_valid(pulse):
+		pulse.queue_free()
+
+## Holy wand special: Healing burst — heals self and nearby allies
+func _special_attack_healing_burst(weapon_data: WeaponData, _camera: Camera3D) -> void:
+	var bp_cost: float = 20.0
+	var heal_amount: float = 30.0
+	var heal_radius: float = 8.0
+
+	if not consume_brain_power(bp_cost):
+		return
+
+	is_special_attacking = true
+	special_attack_timer = 0.0
+	SoundManager.play_sound_varied("healing_cast", global_position, 0.0, 0.1)
+
+	# Heal self
+	var max_hp: float = player_food.get_max_health() if player_food else PC.BASE_HEALTH
+	health = min(health + heal_amount, max_hp)
+	print("[Player] Holy burst healed self for %.1f HP" % heal_amount)
+
+	# Heal nearby players
+	for node in get_tree().get_nodes_in_group("players"):
+		if node != self and is_instance_valid(node) and node.global_position.distance_to(global_position) < heal_radius:
+			if node.has_method("heal"):
+				node.heal(heal_amount * 0.5)
+
+	# Also deal damage to undead enemies in radius (zombies, ghosts)
+	var enemies := _get_enemies_in_radius(global_position, heal_radius)
+	for enemy in enemies:
+		var net_id: int = enemy.network_id if "network_id" in enemy else 0
+		if net_id > 0:
+			var dir: Vector3 = (enemy.global_position - global_position).normalized()
+			NetworkManager.rpc_damage_enemy.rpc_id(1, net_id, weapon_data.damage * 1.5, 4.0, [dir.x, dir.y, dir.z], WeaponData.DamageType.HOLY)
+
+	# Visual: golden light burst
+	var burst := OmniLight3D.new()
+	burst.light_color = Color(1.0, 0.92, 0.0)
+	burst.light_energy = 8.0
+	burst.omni_range = heal_radius
+	get_tree().root.add_child(burst)
+	burst.global_position = global_position + Vector3(0, 1, 0)
+	await get_tree().create_timer(0.6).timeout
+	if is_instance_valid(burst):
+		burst.queue_free()
+
+## Helper: Get all enemies within a radius of a position
+func _get_enemies_in_radius(center: Vector3, radius: float) -> Array:
+	var enemies := []
+	for node in get_tree().get_nodes_in_group("enemies"):
+		if is_instance_valid(node) and node.global_position.distance_to(center) < radius:
+			enemies.append(node)
+	return enemies
 
 ## Default special attack (1.5x damage, same as normal attack otherwise)
 func _special_attack_default(weapon_data: WeaponData, camera: Camera3D) -> void:
@@ -1776,11 +2077,19 @@ func _handle_terrain_modification_input(input_data: Dictionary) -> bool:
 		# For placing: use cached white cube position
 		target_pos = cached_place_position
 	elif operation == "flatten_square":
-		# For flattening: raycast to ground and use player position
+		# For flattening: raycast for X/Z, query voxel surface for Y
 		target_pos = _raycast_terrain_target(camera)
 		if target_pos == Vector3.ZERO:
-			target_pos = global_position  # Fallback to player position
+			target_pos = global_position
 		target_pos = _snap_to_grid(target_pos)
+		var feet_y: float = global_position.y - 1.0
+		var tw: TerrainWorld = get_tree().root.find_child("TerrainWorld", true, false)
+		if tw:
+			var surface: float = tw.get_surface_y_at(global_position.x, feet_y, global_position.z)
+			print("[HOE] player_y=%.3f feet=%.3f voxel_surface=%.3f" % [global_position.y, feet_y, surface])
+			target_pos.y = surface
+		else:
+			target_pos.y = feet_y
 
 	if target_pos == Vector3.ZERO:
 		print("[Player] No valid target found")
@@ -1809,14 +2118,12 @@ func _handle_terrain_modification_input(input_data: Dictionary) -> bool:
 
 	return false
 
-## Snap position to 2-meter grid for square placement
+## Snap position to 1-meter grid (returns cell center at x.5 values)
 func _snap_to_grid(pos: Vector3) -> Vector3:
-	# Snap to 2-meter grid (matching SQUARE_SIZE)
-	var grid_size := 2.0
 	return Vector3(
-		floor(pos.x / grid_size) * grid_size + grid_size / 2.0,
-		floor(pos.y / grid_size) * grid_size + grid_size / 2.0,
-		floor(pos.z / grid_size) * grid_size + grid_size / 2.0
+		floor(pos.x) + 0.5,
+		floor(pos.y) + 0.5,
+		floor(pos.z) + 0.5
 	)
 
 ## Raycast from camera to find grid cell (for digging walls/air blocks)
@@ -1839,9 +2146,8 @@ func _raycast_grid_cell_from_camera(camera: Camera3D) -> Vector3:
 	# DIG position: the grid cell INSIDE the surface (what we want to remove)
 	var hit: Dictionary = _raycast_terrain_hit(camera)
 	if hit.hit:
-		var point_inside: Vector3 = hit.position - hit.normal * 0.5
+		var point_inside: Vector3 = hit.position - hit.normal * 1.0
 		var snapped: Vector3 = _snap_to_grid(point_inside)
-		print("[DIG RAYCAST] hit=%s, normal=%s, inside=%s, snapped=%s" % [hit.position, hit.normal, point_inside, snapped])
 		return snapped
 	return Vector3.ZERO
 
@@ -1868,7 +2174,7 @@ func _update_persistent_terrain_preview() -> void:
 			if dig_pos != Vector3.ZERO:
 				cached_dig_position = dig_pos  # Cache for actual dig operation
 				terrain_dig_preview_cube.global_position = dig_pos
-				terrain_dig_preview_cube.scale = Vector3.ONE
+				terrain_dig_preview_cube.scale = Vector3(1.01, 1.01, 1.01)
 				if terrain_preview_timer <= 0.0:
 					terrain_dig_preview_cube.visible = true
 				else:
@@ -1888,19 +2194,26 @@ func _update_persistent_terrain_preview() -> void:
 			is_showing_persistent_preview = true
 			return
 	elif is_hoe:
-		# For hoe: show a larger 4x4 preview (8m x 8m area)
-		var camera := _get_camera()
-		if camera:
-			var target_pos := _raycast_terrain_target(camera)
-			if target_pos != Vector3.ZERO:
-				target_pos = _snap_to_grid(target_pos)
-				terrain_dig_preview_cube.global_position = target_pos
-				terrain_dig_preview_cube.scale = Vector3(8.4, 2.1, 8.4)  # 8x8 area, 2m tall, slightly larger for visibility
-				if terrain_preview_timer <= 0.0:
-					terrain_dig_preview_cube.visible = true
-				else:
+		# For hoe: flat cylinder at the actual voxel surface under the player
+		if terrain_hoe_preview:
+			var camera := _get_camera()
+			if camera:
+				var target_pos := _raycast_terrain_target(camera)
+				if target_pos != Vector3.ZERO:
+					target_pos = _snap_to_grid(target_pos)
+					var feet_y: float = global_position.y - 1.0
+					var tw: TerrainWorld = get_tree().root.find_child("TerrainWorld", true, false)
+					if tw:
+						target_pos.y = tw.get_surface_y_at(global_position.x, feet_y, global_position.z)
+					else:
+						target_pos.y = feet_y
+					terrain_hoe_preview.global_position = target_pos
+					if terrain_preview_timer <= 0.0:
+						terrain_hoe_preview.visible = true
+					else:
+						terrain_hoe_preview.visible = false
 					terrain_dig_preview_cube.visible = false
-				terrain_place_preview_cube.visible = false
+					terrain_place_preview_cube.visible = false
 				is_showing_persistent_preview = true
 				return
 
@@ -1908,6 +2221,8 @@ func _update_persistent_terrain_preview() -> void:
 	if is_showing_persistent_preview:
 		terrain_dig_preview_cube.visible = false
 		terrain_place_preview_cube.visible = false
+		if terrain_hoe_preview:
+			terrain_hoe_preview.visible = false
 		is_showing_persistent_preview = false
 
 ## Show terrain preview shape (after placement) - briefly shows the actual placed shape
@@ -1972,15 +2287,9 @@ func _send_terrain_modification_request(operation: String, position: Vector3, to
 		"tool": tool
 	}
 
-	# For hoe flattening, snap to the grid level at player's feet
-	# This keeps you at the same height if ground is flat, or levels to where you're standing
+	# For hoe flattening — target_height is the actual voxel surface Y (already computed)
 	if operation == "flatten_square":
-		var grid_size: float = 2.0
-		var feet_height: float = global_position.y - 1.0  # Player's feet (character is ~2m tall)
-		# Snap using the same logic as _snap_to_grid to ensure perfect alignment
-		var platform_height: float = floor(feet_height / grid_size) * grid_size + grid_size / 2.0
-		data["target_height"] = platform_height
-		print("[Player] Flatten height: feet=%.2f, snapped=%.2f" % [feet_height, platform_height])
+		data["target_height"] = position.y
 
 	# Send RPC to server via NetworkManager
 	var pos_array := [position.x, position.y, position.z]
@@ -2131,56 +2440,180 @@ func _setup_player_body() -> void:
 	print("[Player] Limb refs: legs=%s/%s arms=%s/%s head_hidden=%s" % [left_leg != null, right_leg != null, left_arm != null, right_arm != null, is_local_player])
 
 func _setup_terrain_preview_shapes() -> void:
-	"""Create preview shapes for terrain modification feedback"""
-	# Create cube preview (temporary - shown after placement)
-	terrain_preview_cube = MeshInstance3D.new()
-	var cube_mesh = BoxMesh.new()
-	cube_mesh.size = Vector3(2.0, 2.0, 2.0)  # Will match SQUARE_SIZE and SQUARE_DEPTH (2x2x2)
-	terrain_preview_cube.mesh = cube_mesh
+	"""Create preview shapes using exact marching cubes mesh for pixel-perfect preview"""
+	var mc_mesh := _generate_marching_cubes_preview_mesh()
 
-	# Semi-transparent white material
-	var cube_material = StandardMaterial3D.new()
+	# Create white preview (temporary - shown after placement)
+	terrain_preview_cube = MeshInstance3D.new()
+	terrain_preview_cube.mesh = mc_mesh
+	var cube_material := StandardMaterial3D.new()
 	cube_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	cube_material.albedo_color = Color(1.0, 1.0, 1.0, 0.3)  # White, 30% opacity
+	cube_material.albedo_color = Color(1.0, 1.0, 1.0, 0.3)
 	cube_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	terrain_preview_cube.material_override = cube_material
-
 	terrain_preview_cube.visible = false
-	get_tree().root.add_child(terrain_preview_cube)  # Add to scene root, not player
+	get_tree().root.add_child(terrain_preview_cube)
 
-	# Create RED dig preview cube (shows which block will be dug)
+	# Create RED dig preview
 	terrain_dig_preview_cube = MeshInstance3D.new()
-	var dig_cube_mesh = BoxMesh.new()
-	dig_cube_mesh.size = Vector3(2.0, 2.0, 2.0)
-	terrain_dig_preview_cube.mesh = dig_cube_mesh
-
-	# Semi-transparent red material
-	var dig_material = StandardMaterial3D.new()
+	terrain_dig_preview_cube.mesh = mc_mesh
+	var dig_material := StandardMaterial3D.new()
 	dig_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	dig_material.albedo_color = Color(1.0, 0.0, 0.0, 0.3)  # Red, 30% opacity
+	dig_material.albedo_color = Color(1.0, 0.0, 0.0, 0.3)
 	dig_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	terrain_dig_preview_cube.material_override = dig_material
-
 	terrain_dig_preview_cube.visible = false
 	get_tree().root.add_child(terrain_dig_preview_cube)
 
-	# Create WHITE place preview cube (shows where block will be placed)
+	# Create WHITE place preview
 	terrain_place_preview_cube = MeshInstance3D.new()
-	var place_cube_mesh = BoxMesh.new()
-	place_cube_mesh.size = Vector3(2.0, 2.0, 2.0)
-	terrain_place_preview_cube.mesh = place_cube_mesh
-
-	# Semi-transparent white material
-	var place_material = StandardMaterial3D.new()
+	terrain_place_preview_cube.mesh = mc_mesh
+	var place_material := StandardMaterial3D.new()
 	place_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	place_material.albedo_color = Color(1.0, 1.0, 1.0, 0.3)  # White, 30% opacity
+	place_material.albedo_color = Color(1.0, 1.0, 1.0, 0.3)
 	place_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	terrain_place_preview_cube.material_override = place_material
-
 	terrain_place_preview_cube.visible = false
 	get_tree().root.add_child(terrain_place_preview_cube)
 
-	print("[Player] Terrain preview shapes created")
+	# Create flat cylinder for hoe flatten preview (4 unit radius, thin)
+	terrain_hoe_preview = MeshInstance3D.new()
+	var cyl := CylinderMesh.new()
+	cyl.top_radius = 4.0
+	cyl.bottom_radius = 4.0
+	cyl.height = 0.2
+	terrain_hoe_preview.mesh = cyl
+	var hoe_material := StandardMaterial3D.new()
+	hoe_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	hoe_material.albedo_color = Color(1.0, 1.0, 1.0, 0.3)
+	hoe_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	terrain_hoe_preview.material_override = hoe_material
+	terrain_hoe_preview.visible = false
+	get_tree().root.add_child(terrain_hoe_preview)
+
+## Generate exact marching cubes mesh for a single voxel cell placement
+## Simulates placing 8 voxels (2x2x2) at density 1.0 surrounded by 0.0
+## and runs the same marching cubes algorithm used by terrain rendering.
+## Returns an ArrayMesh centered at the cell center (0.5, 0.5, 0.5).
+func _generate_marching_cubes_preview_mesh() -> ArrayMesh:
+	# Use the same tables as ChunkMeshGenerator
+	var generator := ChunkMeshGenerator.new()
+	var edge_tbl: PackedInt32Array = generator.edge_table
+	var tri_tbl: Array = generator.tri_table
+
+	# Same constants as the terrain renderer
+	const SURFACE_THRESHOLD: float = 0.5
+	const CORNER_OFFSETS: Array = [
+		Vector3(0, 0, 0), Vector3(1, 0, 0), Vector3(1, 0, 1), Vector3(0, 0, 1),
+		Vector3(0, 1, 0), Vector3(1, 1, 0), Vector3(1, 1, 1), Vector3(0, 1, 1)
+	]
+	const EDGE_VERTICES: Array = [
+		[0, 1], [1, 2], [2, 3], [3, 0],
+		[4, 5], [5, 6], [6, 7], [7, 4],
+		[0, 4], [1, 5], [2, 6], [3, 7]
+	]
+
+	# Build a 4x4x4 density grid: the 2x2x2 placed voxels at (1,1,1)-(2,2,2) = 1.0, rest = 0.0
+	# This lets us process all 3x3x3 cells around the placement
+	var density := {}
+	for gx in range(0, 4):
+		for gy in range(0, 4):
+			for gz in range(0, 4):
+				var is_solid: bool = (gx >= 1 and gx <= 2 and gy >= 1 and gy <= 2 and gz >= 1 and gz <= 2)
+				density[Vector3i(gx, gy, gz)] = 1.0 if is_solid else 0.0
+
+	var vertices := PackedVector3Array()
+	var normals := PackedVector3Array()
+	var indices := PackedInt32Array()
+
+	# Process all 3x3x3 cells (each cell uses corners at [x,y,z] to [x+1,y+1,z+1])
+	for cx in range(0, 3):
+		for cy in range(0, 3):
+			for cz in range(0, 3):
+				# Get 8 corner densities for this cell
+				var corner_densities: PackedFloat32Array = PackedFloat32Array()
+				corner_densities.resize(8)
+				var all_inside: bool = true
+				var all_outside: bool = true
+
+				for i in 8:
+					var off: Vector3 = CORNER_OFFSETS[i]
+					var key := Vector3i(cx + int(off.x), cy + int(off.y), cz + int(off.z))
+					var d: float = density[key]
+					corner_densities[i] = d
+					if d >= SURFACE_THRESHOLD:
+						all_outside = false
+					else:
+						all_inside = false
+
+				if all_inside or all_outside:
+					continue
+
+				# Calculate cube index
+				var cube_index: int = 0
+				for i in 8:
+					if corner_densities[i] >= SURFACE_THRESHOLD:
+						cube_index |= (1 << i)
+
+				if edge_tbl[cube_index] == 0:
+					continue
+
+				# Interpolate edge vertices (centered: subtract 1.5 so origin = cell center)
+				var edge_verts: Array = []
+				edge_verts.resize(12)
+				for i in 12:
+					if edge_tbl[cube_index] & (1 << i):
+						var v1_idx: int = EDGE_VERTICES[i][0]
+						var v2_idx: int = EDGE_VERTICES[i][1]
+						var v1: Vector3 = CORNER_OFFSETS[v1_idx]
+						var v2: Vector3 = CORNER_OFFSETS[v2_idx]
+						var d1: float = corner_densities[v1_idx]
+						var d2: float = corner_densities[v2_idx]
+						var t: float = (SURFACE_THRESHOLD - d1) / (d2 - d1 + 0.0001)
+						t = clamp(t, 0.0, 1.0)
+						# Position relative to origin, offset so placed cell center (1.5,1.5,1.5) maps to (0,0,0)
+						edge_verts[i] = Vector3(
+							cx + v1.x + t * (v2.x - v1.x) - 1.5,
+							cy + v1.y + t * (v2.y - v1.y) - 1.5,
+							cz + v1.z + t * (v2.z - v1.z) - 1.5
+						)
+
+				# Generate triangles (same winding as terrain renderer)
+				var tris: PackedInt32Array = tri_tbl[cube_index]
+				var i: int = 0
+				while i < tris.size() and tris[i] != -1:
+					var e0: int = tris[i]
+					var e1: int = tris[i + 1]
+					var e2: int = tris[i + 2]
+					if edge_verts[e0] == null or edge_verts[e1] == null or edge_verts[e2] == null:
+						i += 3
+						continue
+					var v0: Vector3 = edge_verts[e0]
+					var v1: Vector3 = edge_verts[e1]
+					var v2: Vector3 = edge_verts[e2]
+					var vi: int = vertices.size()
+					vertices.append(v0)
+					vertices.append(v2)
+					vertices.append(v1)
+					var normal := (v1 - v0).cross(v2 - v0).normalized()
+					normals.append(normal)
+					normals.append(normal)
+					normals.append(normal)
+					indices.append(vi)
+					indices.append(vi + 1)
+					indices.append(vi + 2)
+					i += 3
+
+	# Build ArrayMesh
+	var mesh := ArrayMesh.new()
+	if vertices.size() > 0:
+		var arrays := []
+		arrays.resize(Mesh.ARRAY_MAX)
+		arrays[Mesh.ARRAY_VERTEX] = vertices
+		arrays[Mesh.ARRAY_NORMAL] = normals
+		arrays[Mesh.ARRAY_INDEX] = indices
+		mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	return mesh
 
 func _update_body_animations(delta: float) -> void:
 	"""Animate the 2D billboard sprite based on movement (Paper Mario style)"""
