@@ -1120,7 +1120,17 @@ func _handle_attack() -> void:
 	var knockback: float = weapon_data.knockback
 	var attack_speed: float = weapon_data.attack_speed
 	var stamina_cost: float = weapon_data.stamina_cost
-	var attack_range: float = 5.0  # Melee range (TODO: make this weapon-specific)
+	# Weapon-specific attack range
+	var attack_range: float = 5.0
+	match current_weapon_type:
+		"stone_axe", "iron_axe":
+			attack_range = 6.5  # Axes have longer reach
+		"stone_sword", "iron_sword":
+			attack_range = 5.5
+		"stone_knife":
+			attack_range = 4.0  # Knives are short range
+		"fists":
+			attack_range = 3.5
 
 	# Check resource cost (brain power for magic weapons, stamina for others)
 	var is_magic_weapon = weapon_data.weapon_type == WeaponData.WeaponType.MAGIC

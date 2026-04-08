@@ -2165,7 +2165,7 @@ func despawn_enemy(enemy_path: NodePath) -> void:
 		if enemy.has_node("BodyContainer") and not enemy.is_dead:
 			enemy.is_dead = true
 			var body = enemy.get_node("BodyContainer")
-			SoundManager.play_sound("enemy_death", enemy.global_position)
+			# Death sound is handled by enemy._die() with creature-specific sound
 			var tween = enemy.create_tween()
 			tween.tween_property(body, "position:y", -1.0, 1.0)
 			tween.parallel().tween_property(body, "rotation:x", PI / 2, 1.0)
