@@ -53,6 +53,10 @@ const ZOMBIE_TYPE_WEIGHTS = [
 const DEER_SCENE = preload("res://shared/animals/deer.tscn")
 const PIG_SCENE = preload("res://shared/animals/pig.tscn")
 const SHEEP_SCENE = preload("res://shared/animals/sheep.tscn")
+const BIRD_SCENE = preload("res://shared/animals/bird.tscn")
+
+# Ghost scene (nighttime enemy)
+const GHOST_SCENE = preload("res://shared/enemies/ghost.tscn")
 
 # Boss scenes
 const CYCLOPS_SCENE = preload("res://shared/enemies/bosses/cyclops.tscn")
@@ -67,6 +71,18 @@ const ANIMAL_BIOMES = ["meadow", "valley", "dark_forest"]
 const ANIMAL_SPAWN_CHECK_INTERVAL: float = 4.0  # Check every 4 seconds (more frequent)
 const MAX_ANIMALS_PER_PLAYER: int = 6  # More animals for a lively world
 var animal_spawn_timer: float = 0.0
+
+# Bird spawn parameters (ambient flying wildlife - daytime only)
+const MAX_BIRDS_PER_PLAYER: int = 4
+const BIRD_SPAWN_MIN_DISTANCE: float = 10.0
+const BIRD_SPAWN_MAX_DISTANCE: float = 30.0
+
+# Ghost spawn parameters (nighttime enemies)
+const MAX_GHOSTS_PER_PLAYER: int = 3
+const GHOST_SPAWN_MIN_DISTANCE: float = 15.0
+const GHOST_SPAWN_MAX_DISTANCE: float = 30.0
+var ghost_spawn_timer: float = 0.0
+const GHOST_SPAWN_CHECK_INTERVAL: float = 8.0
 
 # Night raid parameters
 const RAID_SPAWN_INTERVAL: float = 8.0  # Spawn raid wave every 8 seconds at night
@@ -196,6 +212,21 @@ func _process(delta: float) -> void:
 		if animal_spawn_timer >= ANIMAL_SPAWN_CHECK_INTERVAL:
 			animal_spawn_timer = 0.0
 			_check_animal_spawns()
+			_check_bird_spawns()  # Birds spawn during daytime in all biomes
+
+	# Despawn birds at nightfall
+	if is_night and not was_night_last_frame:
+		_despawn_birds_at_night()
+
+	# Ghost spawning (nighttime only)
+	if is_night:
+		ghost_spawn_timer += delta
+		if ghost_spawn_timer >= GHOST_SPAWN_CHECK_INTERVAL:
+			ghost_spawn_timer = 0.0
+			_check_ghost_spawns()
+	elif was_night_last_frame:
+		# Dawn transition - despawn all ghosts
+		_despawn_ghosts_at_dawn()
 
 	# Night raid system (now base-level aware)
 	_update_night_raid(delta, is_night)
@@ -808,7 +839,7 @@ func _spawn_animal_near_player(player: Node, peer_id: int = 0) -> void:
 			print("[EnemySpawner] Animal spawn attempt %d: biome '%s' not in ANIMAL_BIOMES" % [attempt, biome])
 			continue
 
-		# Choose random animal type
+		# Choose random animal type (ground animals only - birds spawned separately)
 		var animal_scene = _get_random_animal_scene(biome)
 		var scene_name = "Unknown"
 		if animal_scene == DEER_SCENE:
@@ -843,6 +874,174 @@ func _get_random_animal_scene(biome: String) -> PackedScene:
 	animal_scenes.append(SHEEP_SCENE)
 
 	return animal_scenes[randi() % animal_scenes.size()]
+
+# ============================================================================
+# BIRD SPAWNING (ambient flying wildlife - daytime only)
+# ============================================================================
+
+## Check if we need to spawn birds near players
+func _check_bird_spawns() -> void:
+	if not server_node or not "spawned_players" in server_node:
+		return
+
+	var players = server_node.spawned_players
+
+	for peer_id in players:
+		var player = players[peer_id]
+		if not player or not is_instance_valid(player):
+			continue
+
+		# Count birds near this player
+		var nearby_birds = _count_nearby_birds(player.global_position)
+
+		if nearby_birds < MAX_BIRDS_PER_PLAYER:
+			var birds_to_spawn = MAX_BIRDS_PER_PLAYER - nearby_birds
+			for i in range(birds_to_spawn):
+				_spawn_bird_near_player(player, peer_id)
+
+## Count birds near a position
+func _count_nearby_birds(position: Vector3) -> int:
+	var count = 0
+	for enemy in spawned_enemies:
+		if enemy and is_instance_valid(enemy) and "enemy_name" in enemy:
+			if enemy.enemy_name == "Bird":
+				var distance = enemy.global_position.distance_to(position)
+				if distance <= 60.0:
+					count += 1
+	return count
+
+## Spawn a bird near a player at altitude
+func _spawn_bird_near_player(player: Node, peer_id: int = 0) -> void:
+	if player.global_position.y < -50 or player.global_position.y > 500:
+		return
+
+	var terrain_world = null
+	if server_node and server_node.has_node("World/TerrainWorld"):
+		terrain_world = server_node.get_node("World/TerrainWorld")
+
+	# Random angle around player
+	var angle = randf() * TAU
+	var distance = randf_range(BIRD_SPAWN_MIN_DISTANCE, BIRD_SPAWN_MAX_DISTANCE)
+
+	var spawn_offset = Vector3(
+		cos(angle) * distance,
+		0,
+		sin(angle) * distance
+	)
+
+	var spawn_position = player.global_position + spawn_offset
+
+	# Get terrain height and add altitude for flying
+	if terrain_world and terrain_world.has_method("get_terrain_height_at"):
+		var terrain_height = terrain_world.get_terrain_height_at(Vector2(spawn_position.x, spawn_position.z))
+		spawn_position.y = terrain_height + randf_range(5.0, 15.0)  # Fly high above terrain
+	else:
+		spawn_position.y = player.global_position.y + randf_range(5.0, 15.0)
+
+	print("[EnemySpawner] Spawning Bird at %s (altitude)" % spawn_position)
+	_spawn_enemy(BIRD_SCENE, spawn_position, peer_id)
+
+## Despawn all birds at nightfall
+func _despawn_birds_at_night() -> void:
+	var birds_to_despawn: Array[Node] = []
+	for enemy in spawned_enemies:
+		if enemy and is_instance_valid(enemy) and "enemy_name" in enemy:
+			if enemy.enemy_name == "Bird" and not enemy.is_dead:
+				birds_to_despawn.append(enemy)
+
+	for bird in birds_to_despawn:
+		print("[EnemySpawner] Despawning bird at nightfall: %s" % bird.name)
+		despawn_enemy(bird)
+
+# ============================================================================
+# GHOST SPAWNING (nighttime enemies)
+# ============================================================================
+
+## Check if we need to spawn ghosts near players (nighttime only)
+func _check_ghost_spawns() -> void:
+	if not server_node or not "spawned_players" in server_node:
+		return
+
+	var players = server_node.spawned_players
+
+	for peer_id in players:
+		var player = players[peer_id]
+		if not player or not is_instance_valid(player):
+			continue
+
+		# Count ghosts near this player
+		var nearby_ghosts = _count_nearby_ghosts(player.global_position)
+
+		if nearby_ghosts < MAX_GHOSTS_PER_PLAYER:
+			var ghosts_to_spawn = MAX_GHOSTS_PER_PLAYER - nearby_ghosts
+			for i in range(ghosts_to_spawn):
+				_spawn_ghost_near_player(player, peer_id)
+
+## Count ghosts near a position
+func _count_nearby_ghosts(position: Vector3) -> int:
+	var count = 0
+	for enemy in spawned_enemies:
+		if enemy and is_instance_valid(enemy) and "enemy_name" in enemy:
+			if enemy.enemy_name == "Ghost":
+				var distance = enemy.global_position.distance_to(position)
+				if distance <= 60.0:
+					count += 1
+	return count
+
+## Spawn a ghost near a player
+func _spawn_ghost_near_player(player: Node, peer_id: int = 0) -> void:
+	if player.global_position.y < -50 or player.global_position.y > 500:
+		return
+
+	var terrain_world = null
+	if server_node and server_node.has_node("World/TerrainWorld"):
+		terrain_world = server_node.get_node("World/TerrainWorld")
+
+	# Prefer spawning behind the player
+	var player_backward_angle = player.rotation.y
+	var angle: float
+	if randf() < BEHIND_PLAYER_BIAS:
+		angle = player_backward_angle + randf_range(-PI/2, PI/2)
+	else:
+		var side = 1 if randf() > 0.5 else -1
+		angle = player_backward_angle + side * randf_range(PI/2, PI * 0.8)
+
+	var distance = randf_range(GHOST_SPAWN_MIN_DISTANCE, GHOST_SPAWN_MAX_DISTANCE)
+
+	var spawn_offset = Vector3(
+		cos(angle) * distance,
+		0,
+		sin(angle) * distance
+	)
+
+	var spawn_position = player.global_position + spawn_offset
+
+	# Get terrain height and float above it
+	if terrain_world and terrain_world.has_method("get_terrain_height_at"):
+		var terrain_height = terrain_world.get_terrain_height_at(Vector2(spawn_position.x, spawn_position.z))
+		spawn_position.y = terrain_height + randf_range(1.0, 2.0)  # Float above ground
+	else:
+		spawn_position.y = player.global_position.y + randf_range(1.0, 2.0)
+
+	# Check terrain collision
+	if terrain_world and terrain_world.has_method("has_collision_at_position"):
+		if not terrain_world.has_collision_at_position(spawn_position):
+			return  # No valid terrain, skip
+
+	print("[EnemySpawner] Spawning Ghost at %s (nighttime)" % spawn_position)
+	_spawn_enemy(GHOST_SCENE, spawn_position, peer_id, true)  # is_night=true for night buffs
+
+## Despawn all ghosts at dawn
+func _despawn_ghosts_at_dawn() -> void:
+	var ghosts_to_despawn: Array[Node] = []
+	for enemy in spawned_enemies:
+		if enemy and is_instance_valid(enemy) and "enemy_name" in enemy:
+			if enemy.enemy_name == "Ghost" and not enemy.is_dead:
+				ghosts_to_despawn.append(enemy)
+
+	for ghost in ghosts_to_despawn:
+		print("[EnemySpawner] Despawning ghost at dawn: %s" % ghost.name)
+		despawn_enemy(ghost)
 
 # ============================================================================
 # DAY/NIGHT CYCLE HELPERS

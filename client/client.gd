@@ -26,6 +26,7 @@ var task_menu_scene := preload("res://client/ui/task_menu.tscn")
 var gahnome_scene := preload("res://shared/enemies/gahnome.tscn")
 var sporeling_scene := preload("res://shared/enemies/sporeling.tscn")
 var zombie_scene := preload("res://shared/enemies/zombie.tscn")
+var ghost_scene := preload("res://shared/enemies/ghost.tscn")
 
 # Boss scenes
 var cyclops_scene := preload("res://shared/enemies/bosses/cyclops.tscn")
@@ -34,6 +35,7 @@ var cyclops_scene := preload("res://shared/enemies/bosses/cyclops.tscn")
 var deer_scene := preload("res://shared/animals/deer.tscn")
 var pig_scene := preload("res://shared/animals/pig.tscn")
 var sheep_scene := preload("res://shared/animals/sheep.tscn")
+var bird_scene := preload("res://shared/animals/bird.tscn")
 
 # Environmental object scenes (preloaded to avoid blocking main thread)
 var environmental_scenes: Dictionary = {
@@ -2166,6 +2168,8 @@ func spawn_enemy(enemy_path: NodePath, enemy_type: String, position: Vector3, en
 			enemy_scene = sporeling_scene
 		"Zombie":
 			enemy_scene = zombie_scene
+		"Ghost":
+			enemy_scene = ghost_scene
 		"Cyclops":
 			enemy_scene = cyclops_scene
 		"Deer":
@@ -2174,6 +2178,8 @@ func spawn_enemy(enemy_path: NodePath, enemy_type: String, position: Vector3, en
 			enemy_scene = pig_scene
 		"Sheep", "Unicorn Sheep":
 			enemy_scene = sheep_scene
+		"Bird":
+			enemy_scene = bird_scene
 		_:
 			print("[Client] Unknown enemy type: %s" % enemy_type)
 			return
