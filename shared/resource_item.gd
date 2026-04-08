@@ -121,6 +121,7 @@ func _on_body_entered(body: Node3D) -> void:
 	if NetworkManager and NetworkManager.is_client:
 		pickup_requested = true  # Mark as requested to prevent duplicates
 		set_deferred("monitorable", false)  # Disable collision detection
+		visible = false  # Hide immediately so it looks picked up
 		print("[ResourceItem] Requesting pickup of %d x %s (network_id: %s)" % [amount, item_name, network_id])
 
 		# Show floating loot text in front of player's view (not at item position)
