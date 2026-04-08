@@ -3060,6 +3060,10 @@ func take_damage(damage: float, attacker_id: int = -1, knockback_dir: Vector3 = 
 			# Spawn parry effect
 			_spawn_parry_effect()
 
+			# Show parry timing feedback (local player only)
+			if is_local_player:
+				_show_parry_feedback(true, block_timer, parry_window, 0)
+
 			# Apply stun to attacker
 			_apply_stun_to_attacker(attacker_id)
 		else:
@@ -3069,11 +3073,15 @@ func take_damage(damage: float, attacker_id: int = -1, knockback_dir: Vector3 = 
 				final_damage = max(0, damage - shield_data.block_armor)
 				consume_stamina(shield_data.stamina_drain_per_hit)
 				print("[Player] Blocked with shield! Damage reduced from %d to %d" % [damage, final_damage])
+				if is_local_player:
+					_show_parry_feedback(false, block_timer, parry_window, final_damage)
 			else:
 				# Fist blocking (moderate reduction)
 				final_damage = damage * (1.0 - BLOCK_DAMAGE_REDUCTION)
 				consume_stamina(10.0)  # Fist blocking costs more stamina
 				print("[Player] Blocked with fists! Damage reduced from %d to %d" % [damage, final_damage])
+				if is_local_player:
+					_show_parry_feedback(false, block_timer, parry_window, final_damage)
 
 	# Apply damage
 	health -= final_damage
@@ -3138,6 +3146,44 @@ func _spawn_parry_effect() -> void:
 	# Sync parry effect to other clients
 	if is_local_player:
 		NetworkManager.rpc_spawn_parry_effect.rpc_id(1, [pos.x, pos.y, pos.z])
+
+## Show on-screen parry/block timing feedback as a Label3D above the player
+func _show_parry_feedback(was_parried: bool, block_timer: float, parry_window: float, damage_after_block: float) -> void:
+	# Calculate timing quality (0.0 = perfect, 1.0 = edge of window)
+	var timing_quality = block_timer / parry_window if parry_window > 0 else 1.0
+
+	var label = Label3D.new()
+	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	label.no_depth_test = true
+	label.font_size = 48
+	label.outline_size = 12
+
+	if was_parried:
+		label.modulate = Color(0.2, 1.0, 0.3)  # Bright green
+		if timing_quality < 0.3:
+			label.text = "PERFECT!"
+			label.font_size = 56
+		elif timing_quality < 0.7:
+			label.text = "PARRY!"
+		else:
+			label.text = "PERFECT PARRY!"
+	else:
+		# Normal block - show damage reduction info
+		label.modulate = Color(1.0, 0.8, 0.2)  # Yellow
+		if block_timer > parry_window * 2:
+			label.text = "LATE BLOCK"
+			label.modulate = Color(1.0, 0.3, 0.2)  # Red
+		else:
+			label.text = "BLOCKED"
+
+	label.position = Vector3(0, 2.5, 0)
+	add_child(label)
+
+	# Animate: rise and fade
+	var tween = label.create_tween()
+	tween.tween_property(label, "position:y", 3.5, 1.0)
+	tween.parallel().tween_property(label, "modulate:a", 0.0, 1.0).set_delay(0.3)
+	tween.tween_callback(label.queue_free)
 
 ## Trigger hit feedback effects (hitstop + screen shake) for impactful combat feel
 ## Called when player successfully hits an enemy
