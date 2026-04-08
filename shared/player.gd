@@ -1837,10 +1837,10 @@ func _raycast_terrain_hit(camera: Camera3D) -> Dictionary:
 
 func _raycast_grid_cell_from_camera(camera: Camera3D) -> Vector3:
 	# DIG position: the grid cell INSIDE the surface (what we want to remove)
-	var hit := _raycast_terrain_hit(camera)
+	var hit: Dictionary = _raycast_terrain_hit(camera)
 	if hit.hit:
 		# Step slightly INTO the surface along the opposite of the normal
-		var point_inside := hit.position - hit.normal * 0.5
+		var point_inside: Vector3 = hit.position - hit.normal * 0.5
 		return _snap_to_grid(point_inside)
 	return Vector3.ZERO
 
@@ -1958,10 +1958,10 @@ func _raycast_terrain_target(camera: Camera3D) -> Vector3:
 ## Calculate place position - finds grid cell adjacent to the surface in the direction of the normal
 func _calculate_place_position(camera: Camera3D) -> Vector3:
 	# PLACE position: the grid cell OUTSIDE the surface (adjacent, in air)
-	var hit := _raycast_terrain_hit(camera)
+	var hit: Dictionary = _raycast_terrain_hit(camera)
 	if hit.hit:
 		# Step slightly AWAY from the surface along the normal (into air)
-		var point_outside := hit.position + hit.normal * 1.0
+		var point_outside: Vector3 = hit.position + hit.normal * 1.0
 		return _snap_to_grid(point_outside)
 	return Vector3.ZERO
 
