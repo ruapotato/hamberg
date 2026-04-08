@@ -116,32 +116,32 @@ func _setup_body() -> void:
 	elif zombie_type == "runner":
 		scale_factor = 0.75
 
-	# Zombie materials - gold/orange danger tones (blue-gold palette)
+	# Zombie materials - GREEN-tinted undead skin
 	var skin_mat = StandardMaterial3D.new()
-	skin_mat.albedo_color = Color(0.7, 0.5, 0.2, 1)  # Gold-tan skin
+	skin_mat.albedo_color = Color(0.25, 0.55, 0.3, 1)  # GREEN-tinted skin (undead)
 
 	var clothes_mat = StandardMaterial3D.new()
-	clothes_mat.albedo_color = Color(0.3, 0.18, 0.05, 1)  # Dark burnt orange clothes
+	clothes_mat.albedo_color = Color(0.1, 0.2, 0.12, 1)  # Dark green rags
 
 	var bone_mat = StandardMaterial3D.new()
-	bone_mat.albedo_color = Color(0.9, 0.8, 0.5, 1)  # Pale gold bone color
+	bone_mat.albedo_color = Color(0.8, 0.85, 0.9, 1)  # Pale blue-white bone
 
 	# Type-specific color variations
 	if zombie_type == "brute":
-		skin_mat.albedo_color = Color(0.6, 0.4, 0.15, 1)  # Darker gold
-		clothes_mat.albedo_color = Color(0.25, 0.12, 0.03, 1)  # Darker burnt rags
+		skin_mat.albedo_color = Color(0.15, 0.45, 0.2, 1)  # Darker green
+		clothes_mat.albedo_color = Color(0.08, 0.15, 0.08, 1)  # Darker green rags
 	elif zombie_type == "runner":
-		skin_mat.albedo_color = Color(0.8, 0.6, 0.25, 1)  # Lighter gold, agile looking
+		skin_mat.albedo_color = Color(0.3, 0.65, 0.35, 1)  # Lighter green, agile
 	elif zombie_type == "mage_zombie":
-		skin_mat.albedo_color = Color(0.5, 0.4, 0.55, 1)  # Purple-gold tint
+		skin_mat.albedo_color = Color(0.3, 0.4, 0.55, 1)  # Blue-green tint
 		clothes_mat.albedo_color = Color(0.15, 0.1, 0.3, 1)  # Dark purple robes
 	elif zombie_type == "exploder":
-		skin_mat.albedo_color = Color(0.8, 0.55, 0.15, 1)  # Bright orange-gold
+		skin_mat.albedo_color = Color(0.4, 0.6, 0.2, 1)  # Bright yellow-green
 		# Glowing belly for exploder
 		var glow_mat = StandardMaterial3D.new()
-		glow_mat.albedo_color = Color(0.8, 0.5, 0.0, 1)
+		glow_mat.albedo_color = Color(0.2, 0.6, 0.1, 1)
 		glow_mat.emission_enabled = true
-		glow_mat.emission = Color(1.0, 0.6, 0.0, 1)
+		glow_mat.emission = Color(0.3, 0.8, 0.1, 1)
 		glow_mat.emission_energy_multiplier = 1.5
 
 	# Hips
@@ -187,14 +187,14 @@ func _setup_body() -> void:
 	head.rotation.z = 0.1
 	body_container.add_child(head)
 
-	# Sunken eyes (gold glowing)
+	# Sunken eyes (YELLOW glowing)
 	var eye_mat = StandardMaterial3D.new()
-	eye_mat.albedo_color = Color(1.0, 0.79, 0.0, 1)  # Gold eyes
+	eye_mat.albedo_color = Color(1.0, 0.92, 0.0, 1)  # YELLOW eyes
 	eye_mat.emission_enabled = true
-	eye_mat.emission = Color(1.0, 0.7, 0.0, 1)
+	eye_mat.emission = Color(1.0, 0.92, 0.0, 1)
 	eye_mat.emission_energy_multiplier = 0.8
 	if zombie_type == "mage_zombie":
-		eye_mat.emission = Color(0.6, 0.3, 0.9, 1)  # Purple glowing eyes for mage
+		eye_mat.emission = Color(1.0, 0.0, 0.576, 1)  # PINK glowing eyes for mage
 		eye_mat.emission_energy_multiplier = 1.5
 
 	var eye_mesh = SphereMesh.new()

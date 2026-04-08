@@ -29,23 +29,23 @@ uniform sampler2D biome_texture : hint_default_black, filter_linear, repeat_disa
 uniform vec2 biome_texture_center = vec2(0.0, 0.0);  // World position of texture center
 uniform float biome_texture_size = 512.0;  // World units covered by the texture
 
-// Biome grass colors (flat/low slope terrain) - Hollow Knight blue world
-const vec3 VALLEY_GRASS = vec3(0.3, 0.45, 0.9);         // Bright blue (safe, inviting home)
-const vec3 DARK_FOREST_GRASS = vec3(0.08, 0.12, 0.35);  // Deep navy (mysterious darkness)
-const vec3 SWAMP_GRASS = vec3(0.2, 0.18, 0.45);         // Murky blue-purple (uneasy, toxic)
-const vec3 MOUNTAIN_GRASS = vec3(0.75, 0.82, 0.95);     // Pale ice blue (crisp, harsh cold)
-const vec3 DESERT_GRASS = vec3(0.5, 0.5, 0.8);          // Warm sandy blue (exposed)
-const vec3 WIZARDLAND_GRASS = vec3(0.3, 0.3, 0.95);     // Bright vibrant blue (otherworldly)
-const vec3 HELL_GRASS = vec3(0.15, 0.08, 0.3);          // Darkest blue-black with purple (danger)
+// Biome grass colors (flat/low slope terrain) - 4-color palette
+const vec3 VALLEY_GRASS = vec3(0.25, 0.45, 0.9);        // Bright blue + GREEN grass shimmer
+const vec3 DARK_FOREST_GRASS = vec3(0.08, 0.12, 0.35);  // Deep navy + PINK bioluminescent
+const vec3 SWAMP_GRASS = vec3(0.1, 0.28, 0.4);          // Murky blue-green (blue + GREEN)
+const vec3 MOUNTAIN_GRASS = vec3(0.75, 0.82, 0.95);     // Pale ice blue
+const vec3 DESERT_GRASS = vec3(0.55, 0.52, 0.75);       // Blue + YELLOW sandy tint
+const vec3 WIZARDLAND_GRASS = vec3(0.4, 0.2, 0.9);      // PINK-tinted blue (magical)
+const vec3 HELL_GRASS = vec3(0.2, 0.05, 0.3);           // Deep blue + PINK fire glow
 
-// Biome rock colors (steep/high slope terrain) - Blue-gray shades for contrast
-const vec3 VALLEY_ROCK = vec3(0.2, 0.25, 0.45);         // Dark blue-gray
-const vec3 DARK_FOREST_ROCK = vec3(0.1, 0.12, 0.25);    // Very dark blue
-const vec3 SWAMP_ROCK = vec3(0.12, 0.1, 0.3);           // Dark murky blue-purple
-const vec3 MOUNTAIN_ROCK = vec3(0.5, 0.55, 0.72);       // Cool blue-gray (icy stone)
-const vec3 DESERT_ROCK = vec3(0.35, 0.35, 0.6);         // Muted blue-gray
-const vec3 WIZARDLAND_ROCK = vec3(0.2, 0.2, 0.65);      // Deep blue crystal
-const vec3 HELL_ROCK = vec3(0.08, 0.05, 0.18);          // Near-black blue with slight purple
+// Biome rock colors (steep/high slope terrain) - 4-color accented
+const vec3 VALLEY_ROCK = vec3(0.18, 0.28, 0.42);        // Blue-gray + GREEN flecks
+const vec3 DARK_FOREST_ROCK = vec3(0.12, 0.08, 0.3);    // Deep blue + PINK crystal
+const vec3 SWAMP_ROCK = vec3(0.1, 0.2, 0.28);           // Blue-green
+const vec3 MOUNTAIN_ROCK = vec3(0.5, 0.55, 0.72);       // Pale blue
+const vec3 DESERT_ROCK = vec3(0.4, 0.38, 0.55);         // Blue + YELLOW sand
+const vec3 WIZARDLAND_ROCK = vec3(0.25, 0.12, 0.6);     // PINK-blue crystal
+const vec3 HELL_ROCK = vec3(0.15, 0.03, 0.2);           // Dark blue + PINK
 
 // Biome difficulty zones (match BiomeGenerator constants)
 // Compact world: 1/4 scale for faster exploration
@@ -760,9 +760,16 @@ void fragment() {
 					// Node color: bright blue at junctions
 					vec3 node_color = grass_color * 1.8;
 
-					// Gold spark color
-					vec3 spark_color = vec3(1.0, 0.79, 0.0);  // #ffca00
-					vec3 spark_glow = vec3(1.0, 0.88, 0.4);   // Softer gold glow
+					// Spark colors: alternate YELLOW, PINK, GREEN for variety
+					vec3 spark_yellow = vec3(1.0, 0.92, 0.0);  // #ffeb00
+					vec3 spark_pink = vec3(1.0, 0.0, 0.576);   // #ff0093
+					vec3 spark_green = vec3(0.0, 1.0, 0.424);  // #00ff6c
+
+					// Pick spark color based on position hash
+					float color_sel = fract(hash21(xz_pos * 0.37) * 3.0);
+					vec3 spark_color = color_sel < 0.333 ? spark_yellow :
+					                   (color_sel < 0.666 ? spark_pink : spark_green);
+					vec3 spark_glow = mix(spark_color, vec3(1.0), 0.3);
 
 					// Apply tendril
 					float tendril_blend = myc.tendril * 0.6 * strength;
@@ -772,12 +779,12 @@ void fragment() {
 					float node_blend = myc.node * 0.5 * strength;
 					color = mix(color, node_color, node_blend);
 
-					// Apply traveling gold spark
+					// Apply traveling colored spark
 					if (myc.spark > 0.01) {
 						color = mix(color, spark_color, myc.spark * 0.9 * strength);
 					}
 
-					// Apply ambient gold glow
+					// Apply ambient colored glow
 					if (myc.glow > 0.01) {
 						color = mix(color, spark_glow, myc.glow * 0.15 * strength);
 					}

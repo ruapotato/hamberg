@@ -54,11 +54,11 @@ const SUNRISE_HOUR: float = 6.0
 const SUNSET_HOUR: float = 20.0
 const NOON_HOUR: float = 12.0
 
-# Light colors — blue-tinted to match #0034ff palette
-const COLOR_DAWN := Color(0.7, 0.5, 0.8)      # Purple-blue sunrise
-const COLOR_DAY := Color(0.7, 0.8, 1.0)       # Blue-white daylight
-const COLOR_DUSK := Color(0.6, 0.3, 0.6)      # Purple dusk
-const COLOR_NIGHT := Color(0.15, 0.2, 0.45)   # Deep blue moonlight
+# Light colors — 4-color palette (#0014ff base)
+const COLOR_DAWN := Color(0.8, 0.35, 0.6)     # PINK-tinted blue sunrise
+const COLOR_DAY := Color(0.6, 0.7, 1.0)       # Bright blue daylight
+const COLOR_DUSK := Color(0.85, 0.5, 0.4)     # PINK + YELLOW sunset blend
+const COLOR_NIGHT := Color(0.08, 0.1, 0.35)   # Deep blue-black
 
 # Light energy for different times
 const ENERGY_DAWN: float = 0.8
@@ -66,23 +66,23 @@ const ENERGY_DAY: float = 1.1
 const ENERGY_DUSK: float = 0.7
 const ENERGY_NIGHT: float = 0.15
 
-# Ambient light colors — blue-tinted
-const AMBIENT_DAWN := Color(0.4, 0.35, 0.6)
+# Ambient light colors — PINK dawn, blue day, PINK+YELLOW dusk
+const AMBIENT_DAWN := Color(0.5, 0.25, 0.45)
 const AMBIENT_DAY := Color(0.3, 0.45, 0.8)
-const AMBIENT_DUSK := Color(0.35, 0.25, 0.5)
-const AMBIENT_NIGHT := Color(0.08, 0.1, 0.25)
+const AMBIENT_DUSK := Color(0.45, 0.3, 0.35)
+const AMBIENT_NIGHT := Color(0.05, 0.06, 0.2)
 
 # Sky top colors (zenith) — vibrant blue
-const SKY_TOP_DAWN := Color(0.3, 0.2, 0.6)
-const SKY_TOP_DAY := Color(0.0, 0.2, 0.9)     # Vibrant #0034ff blue
-const SKY_TOP_DUSK := Color(0.25, 0.1, 0.45)
-const SKY_TOP_NIGHT := Color(0.01, 0.02, 0.08)
+const SKY_TOP_DAWN := Color(0.5, 0.15, 0.5)    # PINK-tinted dawn
+const SKY_TOP_DAY := Color(0.0, 0.08, 0.9)     # Vibrant #0014ff blue
+const SKY_TOP_DUSK := Color(0.5, 0.25, 0.3)    # PINK + YELLOW warm
+const SKY_TOP_NIGHT := Color(0.01, 0.01, 0.06)
 
-# Sky horizon colors — blue, NOT white
-const SKY_HORIZON_DAWN := Color(0.6, 0.35, 0.55)
-const SKY_HORIZON_DAY := Color(0.15, 0.35, 0.8)  # Blue horizon, not white
-const SKY_HORIZON_DUSK := Color(0.5, 0.2, 0.35)
-const SKY_HORIZON_NIGHT := Color(0.03, 0.04, 0.12)
+# Sky horizon colors — PINK dawn, blue day, warm dusk
+const SKY_HORIZON_DAWN := Color(0.7, 0.3, 0.5)   # PINK sunrise glow
+const SKY_HORIZON_DAY := Color(0.15, 0.35, 0.8)   # Blue horizon
+const SKY_HORIZON_DUSK := Color(0.7, 0.45, 0.3)   # PINK + YELLOW sunset
+const SKY_HORIZON_NIGHT := Color(0.02, 0.03, 0.1)
 
 # Ground color (below horizon) — deep blue
 const GROUND_DAY := Color(0.05, 0.1, 0.3)

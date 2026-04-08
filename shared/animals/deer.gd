@@ -48,18 +48,18 @@ func _setup_body() -> void:
 
 	var scale_factor: float = 0.9
 
-	# Deer fur material - tan/brown
+	# Deer fur material - blue body
 	var fur_mat = StandardMaterial3D.new()
-	fur_mat.albedo_color = Color(0.65, 0.5, 0.35, 1)  # Tan brown
+	fur_mat.albedo_color = Color(0.2, 0.3, 0.7, 1)  # Blue body
 
 	var belly_mat = StandardMaterial3D.new()
-	belly_mat.albedo_color = Color(0.8, 0.7, 0.6, 1)  # Lighter belly
+	belly_mat.albedo_color = Color(0.5, 0.55, 0.85, 1)  # Lighter blue belly
 
 	var antler_mat = StandardMaterial3D.new()
-	antler_mat.albedo_color = Color(0.4, 0.3, 0.2, 1)  # Dark brown antlers
+	antler_mat.albedo_color = Color(0.1, 0.4, 0.25, 1)  # GREEN antler tips
 
 	var eye_mat = StandardMaterial3D.new()
-	eye_mat.albedo_color = Color(0.1, 0.05, 0.0, 1)  # Dark eyes
+	eye_mat.albedo_color = Color(1.0, 0.92, 0.0, 1)  # YELLOW eyes
 
 	# Body (horizontal capsule extending front-to-back)
 	torso = MeshInstance3D.new()

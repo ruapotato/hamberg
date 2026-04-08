@@ -14,23 +14,33 @@ const TEXTURE_EXPORT_DIR := "res://assets/textures/environment/"
 # COMPLEMENTARY COLOR PALETTE
 # ============================================
 
-# Primary blue spectrum (white -> blue -> black)
+# Primary blue spectrum (#0014ff) (white -> blue -> black)
 const P_WHITE = Color(0.92, 0.94, 1.0)
 const P_LIGHTER = Color(0.7, 0.78, 1.0)
-const P_LIGHT = Color(0.45, 0.55, 1.0)
-const P_MED = Color(0.0, 0.204, 1.0)       # #0034ff
-const P_DARK = Color(0.0, 0.1, 0.5)
-const P_DARKER = Color(0.0, 0.06, 0.3)
-const P_BLACK = Color(0.0, 0.03, 0.15)
+const P_LIGHT = Color(0.45, 0.52, 1.0)
+const P_MED = Color(0.0, 0.08, 1.0)        # #0014ff
+const P_DARK = Color(0.0, 0.04, 0.5)
+const P_DARKER = Color(0.0, 0.02, 0.25)
+const P_BLACK = Color(0.0, 0.01, 0.12)
 
-# Secondary metallic gold spectrum (white -> gold -> black)
+# Secondary yellow spectrum (#ffeb00) (white -> yellow -> black)
 const S_WHITE = Color(1.0, 0.98, 0.9)
-const S_HIGHLIGHT = Color(1.0, 0.95, 0.7)  # Metallic specular highlight
-const S_LIGHT = Color(1.0, 0.88, 0.4)
-const S_MED = Color(1.0, 0.792, 0.0)       # #ffca00
-const S_DARK = Color(0.6, 0.47, 0.0)
-const S_DARKER = Color(0.35, 0.27, 0.0)
-const S_BLACK = Color(0.18, 0.14, 0.0)
+const S_HIGHLIGHT = Color(1.0, 0.97, 0.7)  # Metallic specular highlight
+const S_LIGHT = Color(1.0, 0.97, 0.6)
+const S_MED = Color(1.0, 0.92, 0.0)        # #ffeb00
+const S_DARK = Color(0.5, 0.46, 0.0)
+const S_DARKER = Color(0.25, 0.23, 0.0)
+const S_BLACK = Color(0.12, 0.11, 0.0)
+
+# Accent pink spectrum (#ff0093)
+const PINK_BRIGHT = Color(1.0, 0.55, 0.8)
+const PINK_MED = Color(1.0, 0.0, 0.576)    # #ff0093
+const PINK_DARK = Color(0.5, 0.0, 0.29)
+
+# Accent green spectrum (#00ff6c)
+const GREEN_BRIGHT = Color(0.5, 1.0, 0.75)
+const GREEN_MED = Color(0.0, 1.0, 0.424)   # #00ff6c
+const GREEN_DARK = Color(0.0, 0.5, 0.21)
 
 # Neutrals
 const N_WHITE = Color(0.9, 0.9, 0.92)

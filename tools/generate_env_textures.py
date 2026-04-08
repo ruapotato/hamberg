@@ -3,10 +3,11 @@
 Generate vector-art environment sprites (trees, bushes, rocks, grass) using pycairo.
 Outputs PNGs to assets/textures/environment/ for the game's texture override system.
 
-Color palette: Hollow Knight style
-  ALL BLUE world — everything is shades of blue (#0034ff)
-  Gold (#ffca00) ONLY for highlights, enemies, interactive elements.
-  NO green. NO brown. NO natural colors.
+Color palette: 4-color Hollow Knight style
+  Blue (#0014ff) — environment base (terrain, sky, trees, rocks, grass)
+  Yellow (#ffeb00) — highlights, loot, interactive elements, golden accents, enemies
+  Pink (#ff0093) — magic, special effects, rare/dangerous items, spells
+  Green (#00ff6c) — nature, healing, growth, health bars, friendly indicators
 
 Usage: python3 tools/generate_env_textures.py
 """
@@ -24,41 +25,56 @@ random.seed(42)
 
 OUTPUT_DIR = Path(__file__).resolve().parent.parent / "assets" / "textures" / "environment"
 
-# ── ALL BLUE palette — Hollow Knight style ──────────────────────────────────
-# Foliage: shades of blue (NO green)
+# ── 4-color palette — Hollow Knight style ──────────────────────────────────
+# Foliage: shades of blue (environment base)
 LEAF_BRIGHT  = (0.55, 0.65, 0.95)   # Brightest blue (leaf highlights)
 LEAF_LIGHT   = (0.35, 0.48, 0.85)   # Light blue leaves
 LEAF_MED     = (0.20, 0.35, 0.72)   # Medium blue leaves
 LEAF_DARK    = (0.10, 0.20, 0.55)   # Dark blue leaves
 LEAF_SHADOW  = (0.05, 0.10, 0.38)   # Deepest shadow blue
 
-# Trunks: blue bark (NO brown)
+# Trunks: blue bark
 BARK_LIGHT   = (0.25, 0.30, 0.52)   # Light blue bark
 BARK_MED     = (0.15, 0.20, 0.42)   # Medium blue bark
 BARK_DARK    = (0.08, 0.12, 0.30)   # Dark blue bark
 BARK_SHADOW  = (0.04, 0.06, 0.20)   # Near-black blue bark
 
-# Gold ONLY for accents (fruit, sparkles, magic elements)
-GOLD_BRIGHT  = (1.0, 0.92, 0.5)
-GOLD_PRIMARY = (1.0, 0.792, 0.0)    # #ffca00
-GOLD_DARK    = (0.7, 0.55, 0.0)
-GOLD_METAL   = (1.0, 0.95, 0.7)     # Metallic highlight
+# Primary Blue spectrum (#0014ff)
+BLUE_BRIGHT = (0.45, 0.52, 1.0)
+BLUE_MED = (0.0, 0.08, 1.0)         # #0014ff
+BLUE_DARK = (0.0, 0.04, 0.5)
+
+# Secondary Yellow spectrum (#ffeb00)
+YELLOW_BRIGHT = (1.0, 0.97, 0.6)
+YELLOW_MED = (1.0, 0.92, 0.0)       # #ffeb00
+YELLOW_DARK = (0.5, 0.46, 0.0)
+
+# Accent Pink spectrum (#ff0093)
+PINK_BRIGHT = (1.0, 0.55, 0.8)
+PINK_MED = (1.0, 0.0, 0.576)        # #ff0093
+PINK_DARK = (0.5, 0.0, 0.29)
+
+# Accent Green spectrum (#00ff6c)
+GREEN_BRIGHT = (0.5, 1.0, 0.75)
+GREEN_MED = (0.0, 1.0, 0.424)       # #00ff6c
+GREEN_DARK = (0.0, 0.5, 0.21)
+
+# Gold accents (for highlights, loot, interactive) — mapped to Yellow
+GOLD_BRIGHT  = YELLOW_BRIGHT
+GOLD_PRIMARY = YELLOW_MED
+GOLD_DARK    = YELLOW_DARK
+GOLD_METAL   = (1.0, 0.97, 0.7)     # Metallic highlight
+GOLD_LIGHT   = YELLOW_BRIGHT
+GOLD_SPEC    = (1.0, 1.0, 0.85)     # Specular white-gold
 
 # Backward-compat aliases used throughout drawing code
-GREEN_DARK   = LEAF_DARK
-GREEN_MED    = LEAF_MED
-GREEN_LIGHT  = LEAF_LIGHT
-GREEN_BRIGHT = LEAF_BRIGHT
 GREEN_YELLOW = LEAF_BRIGHT           # Tips are bright blue now
 BROWN_DARK   = BARK_DARK
 BROWN_MED    = BARK_MED
 BROWN_LIGHT  = BARK_LIGHT
 BROWN_BARK   = BARK_DARK
-BLUE_PRIMARY = (0.0, 0.204, 1.0)    # #0034ff
-BLUE_DARK    = (0.0, 0.1, 0.5)
+BLUE_PRIMARY = (0.0, 0.08, 1.0)     # #0014ff
 BLUE_LIGHT   = (0.45, 0.55, 1.0)
-GOLD_LIGHT   = (1.0, 0.90, 0.5)
-GOLD_SPEC    = (1.0, 1.0, 0.85)     # Specular white-gold
 
 # Misc — also blue-tinted
 WHITE      = (0.9, 0.92, 1.0)       # Blue-white
@@ -420,11 +436,16 @@ def generate_magic(w=256, h=512):
         dy = canopy_cy + random.gauss(0, 40)
         dr = random.uniform(1.5, 3.5)
         draw_circle(ctx, dx, dy, dr, WHITE, random.uniform(0.5, 0.95))
-    # Golden sparkles (accent)
+    # Pink magical sparkles (accent)
     for _ in range(8):
         dx = cx + random.gauss(0, 55)
         dy = canopy_cy + random.gauss(0, 50)
-        draw_circle(ctx, dx, dy, random.uniform(2, 4), GOLD_BRIGHT, random.uniform(0.3, 0.7))
+        draw_circle(ctx, dx, dy, random.uniform(2, 4), PINK_BRIGHT, random.uniform(0.3, 0.7))
+    # Extra pink glow sparkles
+    for _ in range(5):
+        dx = cx + random.gauss(0, 45)
+        dy = canopy_cy + random.gauss(0, 40)
+        draw_circle(ctx, dx, dy, random.uniform(1.5, 3), PINK_MED, random.uniform(0.2, 0.5))
 
     save_surface(surface, "tree_magic_front.png")
 
@@ -510,9 +531,9 @@ def generate_palm(w=256, h=512):
 
         # Gradient along frond length
         pat = cairo.LinearGradient(top_x, top_y, end_x, end_y)
-        pat.add_color_stop_rgb(0, *GREEN_MED)
-        pat.add_color_stop_rgb(0.5, *GREEN_LIGHT)
-        pat.add_color_stop_rgb(1, *GREEN_MED)
+        pat.add_color_stop_rgb(0, *LEAF_MED)
+        pat.add_color_stop_rgb(0.5, *LEAF_LIGHT)
+        pat.add_color_stop_rgb(1, *LEAF_MED)
         ctx.set_source(pat)
         ctx.fill()
 
@@ -520,7 +541,7 @@ def generate_palm(w=256, h=512):
         ctx.set_line_width(1.8)
         ctx.move_to(top_x, top_y)
         ctx.curve_to(ctrl_x, ctrl_y, end_x, end_y - 15, end_x, end_y)
-        set_color(ctx, GREEN_DARK, 0.6)
+        set_color(ctx, LEAF_DARK, 0.6)
         ctx.stroke()
 
         # Leaf vein lines (subtle)
@@ -536,7 +557,7 @@ def generate_palm(w=256, h=512):
             for side in [-1, 1]:
                 ctx.move_to(px, py)
                 ctx.line_to(px + side * ox, py + side * oy)
-                set_color(ctx, GREEN_DARK, 0.2)
+                set_color(ctx, LEAF_DARK, 0.2)
                 ctx.stroke()
 
     # Coconuts (gold accent)
@@ -680,7 +701,7 @@ def generate_swamp(w=256, h=512):
         draw_radial_circle(ctx, bx, by, br,
                            LEAF_DARK, LEAF_SHADOW, 0.85, 0.7)
 
-    # Hanging moss (blue-gray)
+    # Hanging moss (GREEN tinted)
     ctx.set_line_width(1.2)
     for bx, by, br in blobs:
         for _ in range(random.randint(4, 8)):
@@ -689,8 +710,16 @@ def generate_swamp(w=256, h=512):
             moss_len = random.uniform(20, 50)
             ctx.move_to(mx, my)
             ctx.line_to(mx + random.uniform(-5, 5), my + moss_len)
-            set_color(ctx, GRAY_MED, random.uniform(0.4, 0.7))
+            c = random.choice([GREEN_DARK, GREEN_MED, GRAY_MED])
+            set_color(ctx, c, random.uniform(0.4, 0.7))
             ctx.stroke()
+
+    # Green moss patches on trunk
+    for _ in range(6):
+        mx = cx + random.uniform(-20, 20)
+        my = random.uniform(trunk_top + 30, trunk_bot - 20)
+        mr = random.uniform(5, 12)
+        draw_circle(ctx, mx, my, mr, GREEN_DARK, random.uniform(0.3, 0.5))
 
     save_surface(surface, "tree_swamp_front.png")
 
@@ -818,12 +847,13 @@ def generate_crystal_tree(w=256, h=512):
         set_color(ctx, WHITE, 0.5)
         ctx.stroke()
 
-    # Gold metallic sparkle highlights
+    # Pink magical sparkle highlights on crystals
     for _ in range(15):
         sx = cx + random.gauss(0, 40)
         sy = trunk_top - 50 + random.gauss(0, 50)
         sr = random.uniform(1.5, 4)
-        draw_circle(ctx, sx, sy, sr, GOLD_METAL, random.uniform(0.6, 1.0))
+        c = random.choice([PINK_BRIGHT, PINK_MED, WHITE])
+        draw_circle(ctx, sx, sy, sr, c, random.uniform(0.6, 1.0))
 
     save_surface(surface, "tree_crystal_tree_front.png")
 
@@ -870,7 +900,7 @@ def generate_ember_tree(w=256, h=512):
         set_color(ctx, GOLD_DARK, 0.15)
         ctx.stroke()
 
-    # ── Flame-colored canopy ──
+    # ── Flame-colored canopy (YELLOW + PINK fire) ──
     canopy_cy = trunk_top + 10
     blobs = [
         (cx, canopy_cy - 30, 58),
@@ -880,27 +910,32 @@ def generate_ember_tree(w=256, h=512):
         (cx + 20, canopy_cy - 55, 38),
         (cx, canopy_cy - 75, 35),
     ]
-    # Glow behind (gold - this is the gold accent tree)
+    # Glow behind (warm yellow-pink blend)
     glow = cairo.RadialGradient(cx, canopy_cy - 30, 20, cx, canopy_cy - 30, 100)
-    glow.add_color_stop_rgba(0, *GOLD_BRIGHT, 0.3)
-    glow.add_color_stop_rgba(1, *GOLD_DARK, 0.0)
+    glow.add_color_stop_rgba(0, *YELLOW_BRIGHT, 0.3)
+    glow.add_color_stop_rgba(0.5, *PINK_BRIGHT, 0.15)
+    glow.add_color_stop_rgba(1, *YELLOW_DARK, 0.0)
     ctx.arc(cx, canopy_cy - 30, 110, 0, 2 * math.pi)
     ctx.set_source(glow)
     ctx.fill()
 
-    for bx, by, br in blobs:
-        draw_radial_circle(ctx, bx, by, br, GOLD_BRIGHT, GOLD_DARK)
+    for i, (bx, by, br) in enumerate(blobs):
+        # Alternate yellow and pink blobs for fiery look
+        if i % 2 == 0:
+            draw_radial_circle(ctx, bx, by, br, YELLOW_BRIGHT, YELLOW_DARK)
+        else:
+            draw_radial_circle(ctx, bx, by, br, PINK_BRIGHT, PINK_DARK)
     # Bright inner
     for bx, by, br in blobs[:3]:
         draw_radial_circle(ctx, bx, by - 5, br * 0.4,
-                           GOLD_METAL, GOLD_BRIGHT, 0.6, 0.0)
+                           GOLD_METAL, YELLOW_BRIGHT, 0.6, 0.0)
 
-    # Ember particles (gold)
+    # Ember particles (mix of yellow and pink)
     for _ in range(20):
         ex = cx + random.gauss(0, 55)
         ey = canopy_cy + random.gauss(-30, 50)
         er = random.uniform(1.5, 3.5)
-        c = random.choice([GOLD_BRIGHT, GOLD_PRIMARY, GOLD_METAL])
+        c = random.choice([YELLOW_BRIGHT, YELLOW_MED, PINK_BRIGHT, PINK_MED])
         draw_circle(ctx, ex, ey, er, c, random.uniform(0.6, 1.0))
 
     save_surface(surface, "tree_ember_tree_front.png")
@@ -1013,11 +1048,12 @@ def generate_bush(w=128, h=128):
         draw_radial_circle(ctx, bx - 3, by - 3, br * 0.4,
                            LEAF_LIGHT, LEAF_MED, 0.5, 0.0)
 
-    # Gold berries (accent)
+    # Green berry accents
     for _ in range(6):
         fx = cx + random.uniform(-30, 30)
         fy = cy + random.uniform(-15, 15)
-        draw_circle(ctx, fx, fy, random.uniform(2, 3.5), GOLD_PRIMARY, 0.85)
+        c = random.choice([GREEN_BRIGHT, GREEN_MED])
+        draw_circle(ctx, fx, fy, random.uniform(2, 3.5), c, 0.85)
 
     save_surface(surface, "bush.png")
 
@@ -1060,9 +1096,13 @@ def generate_rock(w=96, h=96):
     set_color(ctx, WHITE, 0.15)
     ctx.fill()
 
-    # Gold metallic fleck (accent)
-    draw_circle(ctx, cx + 12, cy + 10, 8, GOLD_DARK, 0.35)
-    draw_circle(ctx, cx + 15, cy + 8, 5, GOLD_PRIMARY, 0.25)
+    # Green moss patch
+    draw_circle(ctx, cx - 15, cy + 8, 8, GREEN_DARK, 0.35)
+    draw_circle(ctx, cx - 12, cy + 5, 5, GREEN_MED, 0.25)
+
+    # Pink crystal fleck
+    draw_circle(ctx, cx + 15, cy - 5, 4, PINK_DARK, 0.4)
+    draw_circle(ctx, cx + 16, cy - 6, 2, PINK_MED, 0.3)
 
     save_surface(surface, "rock.png")
 
@@ -1121,19 +1161,22 @@ def generate_grass(w=64, h=128):
             set_color(ctx, LEAF_MED, 0.3)
             ctx.stroke()
 
-    # Draw gold spark nodes at junctions
-    for x, y in nodes:
+    # Draw spark nodes at junctions (alternating YELLOW, PINK, GREEN)
+    spark_colors = [YELLOW_MED, PINK_MED, GREEN_MED]
+    spark_brights = [YELLOW_BRIGHT, PINK_BRIGHT, GREEN_BRIGHT]
+    for idx, (x, y) in enumerate(nodes):
         # Small blue node
         draw_circle(ctx, x, y, random.uniform(1.2, 2.5), LEAF_MED, 0.6)
 
-        # Gold spark on ~40% of nodes
+        # Colored spark on ~40% of nodes
         if random.random() < 0.4:
             spark_r = random.uniform(1.0, 2.0)
-            draw_circle(ctx, x, y, spark_r, GOLD_PRIMARY, 0.8)
+            c_idx = idx % 3
+            draw_circle(ctx, x, y, spark_r, spark_colors[c_idx], 0.8)
             # Bright center
-            draw_circle(ctx, x, y, spark_r * 0.4, GOLD_METAL, 0.9)
+            draw_circle(ctx, x, y, spark_r * 0.4, spark_brights[c_idx], 0.9)
 
-    # Traveling gold sparks along some tendrils (bright dots along paths)
+    # Traveling sparks along some tendrils (PINK primary)
     for _ in range(12):
         i = random.randint(0, len(nodes) - 1)
         x1, y1 = nodes[i]
@@ -1152,9 +1195,10 @@ def generate_grass(w=64, h=128):
             t = random.uniform(0.2, 0.8)
             sx = x1 + (x2 - x1) * t
             sy = y1 + (y2 - y1) * t
-            draw_circle(ctx, sx, sy, random.uniform(0.8, 1.5), GOLD_PRIMARY, 0.9)
+            c = random.choice([PINK_MED, PINK_BRIGHT])
+            draw_circle(ctx, sx, sy, random.uniform(0.8, 1.5), c, 0.9)
             # Glow halo
-            draw_circle(ctx, sx, sy, random.uniform(2.5, 4.0), GOLD_PRIMARY, 0.15)
+            draw_circle(ctx, sx, sy, random.uniform(2.5, 4.0), PINK_BRIGHT, 0.15)
 
     random.seed(42)  # Reset seed
     save_surface(surface, "grass.png")

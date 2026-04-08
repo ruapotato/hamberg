@@ -15,13 +15,38 @@ The name "Hamberg" is a tribute to the developers' origins - a fusion of **Hamne
 Hamberg is an open-source multiplayer survival game that blends the co-op magic of Valheim with a unique fantasy aesthetic. Explore otherworldly biomes filled with mysterious creatures, wield magical staffs powered by Brain Power (BP), and descend into crystalline caves and nightmarish dimensions.
 
 **Core Pillars:**
-- **Dark Fantasy World** - Explore surreal biomes: serene purple meadows, bioluminescent dark forests, toxic poison pits, crystalline caverns, and fleshy void dimensions
+- **Dark Fantasy World** - Explore surreal biomes: serene blue meadows, bioluminescent dark forests, toxic swamps, crystalline caverns, and hellfire dimensions
 - **Brain-Powered Magic** - Harness BP (Brain Power) alongside traditional HP and Stamina to cast spells, summon shields, and wield elemental weapons
 - **Otherworldly Creatures** - Face ethereal dandelion bombers, rock trolls, gahnomes, and horrors from the void
 - **Open Source & Moddable** - Fully transparent, community-driven development with clean, documented code
 - **Responsive Multiplayer** - Client-side prediction for instant, satisfying co-op gameplay
 - **Trust-Based Networking** - Designed for cooperative play with friends, not paranoid anti-cheat
 - **Cross-Platform** - Linux, Windows, and Mac support via Godot Engine
+
+---
+
+## Visual Style
+
+Hamberg uses a striking **4-color palette** inspired by Hollow Knight's limited color approach. Every visual element in the game is rendered using shades derived from these four base colors:
+
+| Color | Hex | Semantic Role |
+|-------|-----|---------------|
+| **Blue** | `#0014ff` | Environment base: terrain, sky, trees, rocks, grass |
+| **Yellow** | `#ffeb00` | Highlights, loot, interactive elements, golden accents, enemies |
+| **Pink** | `#ff0093` | Magic, special effects, rare/dangerous items, spells |
+| **Green** | `#00ff6c` | Nature, healing, growth, health bars, friendly indicators |
+
+Each color has a full white-to-black spectrum (bright, medium, dark variants). The world is predominantly **blue**, with the other three colors used as meaningful accents:
+
+- **Valley**: Bright blue terrain with green grass shimmer
+- **Dark Forest**: Deep navy with pink bioluminescent glow
+- **Swamp**: Murky blue-green with green moss accents
+- **Mountain**: Pale ice blue
+- **Desert**: Blue with yellow sandy tint
+- **Wizardland**: Pink-tinted blue (magical)
+- **Hell**: Deep blue-black with pink fire glow
+
+The mycelium network that spreads across terrain features blue tendrils with spark nodes that alternate between yellow, pink, and green. Dawn and dusk skies blend pink and yellow hues against the dominant blue.
 
 ---
 

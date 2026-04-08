@@ -42,7 +42,7 @@ radius = 0.101
 height = 0.173
 
 [sub_resource type="StandardMaterial3D" id="Material_eyes"]
-albedo_color = Color(1.0, 0.79, 0.0, 1)
+albedo_color = Color(1.0, 0.0, 0.576, 1)
 
 [sub_resource type="SphereMesh" id="SphereMesh_eio23"]
 radius = 0.009

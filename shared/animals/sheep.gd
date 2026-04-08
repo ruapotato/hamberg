@@ -56,19 +56,19 @@ func _setup_body() -> void:
 
 	var scale_factor: float = 0.85
 
-	# Sheep materials
+	# Sheep materials - pale blue-white wool, GREEN face
 	var wool_mat = StandardMaterial3D.new()
-	wool_mat.albedo_color = Color(0.95, 0.95, 0.9, 1)  # Off-white wool
+	wool_mat.albedo_color = Color(0.8, 0.85, 0.95, 1)  # Pale blue-white wool
 
 	var skin_mat = StandardMaterial3D.new()
-	skin_mat.albedo_color = Color(0.2, 0.18, 0.15, 1)  # Dark brown/black face
+	skin_mat.albedo_color = Color(0.1, 0.35, 0.25, 1)  # GREEN face
 
 	var eye_mat = StandardMaterial3D.new()
-	eye_mat.albedo_color = Color(0.1, 0.08, 0.05, 1)  # Dark eyes
+	eye_mat.albedo_color = Color(0.05, 0.15, 0.1, 1)  # Dark green eyes
 
-	# Horn material - ivory/cream colored with slight gold tint
+	# Horn material - ivory with blue tint
 	var horn_mat = StandardMaterial3D.new()
-	horn_mat.albedo_color = Color(0.95, 0.9, 0.75, 1)  # Ivory with gold tint
+	horn_mat.albedo_color = Color(0.85, 0.88, 0.95, 1)  # Blue-ivory
 	horn_mat.metallic = 0.1
 	horn_mat.roughness = 0.6
 

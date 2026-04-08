@@ -151,25 +151,25 @@ const FORAGEABLE_DROPS: Dictionary = {
 	"stump": {"wood": 1},
 }
 
-# Biome rock colors - Hollow Knight blue world
+# Biome rock colors - 4-color palette
 const BIOME_ROCK_COLORS: Dictionary = {
-	"valley": Color(0.2, 0.25, 0.45),        # Blue-gray
-	"meadow": Color(0.25, 0.3, 0.5),         # Light blue-gray
-	"dark_forest": Color(0.1, 0.12, 0.25),   # Very dark blue
-	"swamp": Color(0.12, 0.1, 0.3),          # Dark murky blue-purple
-	"mountain": Color(0.5, 0.55, 0.72),      # Cool blue-gray (icy)
-	"desert": Color(0.35, 0.35, 0.6),        # Muted blue-gray
-	"wizardland": Color(0.2, 0.2, 0.65),     # Deep blue crystal
-	"hell": Color(0.08, 0.05, 0.18),         # Near-black blue
+	"valley": Color(0.18, 0.28, 0.42),       # Blue-gray + GREEN flecks
+	"meadow": Color(0.22, 0.32, 0.48),       # Light blue-gray
+	"dark_forest": Color(0.12, 0.08, 0.3),   # Deep blue + PINK crystal
+	"swamp": Color(0.1, 0.2, 0.28),          # Blue-green
+	"mountain": Color(0.5, 0.55, 0.72),      # Pale blue
+	"desert": Color(0.4, 0.38, 0.55),        # Blue + YELLOW sand
+	"wizardland": Color(0.25, 0.12, 0.6),    # PINK-blue crystal
+	"hell": Color(0.15, 0.03, 0.2),          # Dark blue + PINK
 }
 
-# Biome grass colors - Hollow Knight blue world
+# Biome grass colors - 4-color palette
 const BIOME_GRASS_COLORS: Dictionary = {
-	"valley": Color(0.3, 0.45, 0.9),         # Bright blue
-	"meadow": Color(0.35, 0.5, 0.85),        # Light blue
-	"dark_forest": Color(0.08, 0.12, 0.35),  # Deep navy
-	"swamp": Color(0.2, 0.18, 0.45),         # Murky blue-purple
-	"wizardland": Color(0.3, 0.3, 0.95),     # Bright vibrant blue
+	"valley": Color(0.25, 0.45, 0.85),       # Blue + GREEN shimmer
+	"meadow": Color(0.3, 0.5, 0.8),          # Light blue
+	"dark_forest": Color(0.1, 0.08, 0.35),   # Deep navy + PINK glow
+	"swamp": Color(0.1, 0.28, 0.35),         # Blue-green (blue + GREEN)
+	"wizardland": Color(0.35, 0.2, 0.9),     # PINK-tinted blue
 }
 
 

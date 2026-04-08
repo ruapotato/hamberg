@@ -64,9 +64,9 @@ func _setup_body() -> void:
 	body_mat.emission_energy_multiplier = 0.6
 
 	var cap_mat = StandardMaterial3D.new()
-	cap_mat.albedo_color = Color(0.1, 0.15, 0.3, 1)  # Deep purple-blue cap
+	cap_mat.albedo_color = Color(0.6, 0.05, 0.35, 1)  # PINK cap
 	cap_mat.emission_enabled = true
-	cap_mat.emission = Color(0.2, 0.1, 0.6, 1)  # Purple glow
+	cap_mat.emission = Color(1.0, 0.0, 0.576, 1)  # PINK glow
 	cap_mat.emission_energy_multiplier = 1.2
 
 	var tendril_mat = StandardMaterial3D.new()
@@ -223,11 +223,11 @@ func _setup_body() -> void:
 	right_upper.rotation.z = -0.3
 	right_arm.add_child(right_upper)
 
-	# Glowing spore spots on body
+	# GREEN glowing spore spots on body
 	var spore_mat = StandardMaterial3D.new()
-	spore_mat.albedo_color = Color(0.1, 0.3, 0.2, 1)
+	spore_mat.albedo_color = Color(0.0, 0.4, 0.2, 1)
 	spore_mat.emission_enabled = true
-	spore_mat.emission = Color(0.0, 0.8, 0.4, 1)  # Bright green glow
+	spore_mat.emission = Color(0.0, 1.0, 0.424, 1)  # GREEN #00ff6c glow
 	spore_mat.emission_energy_multiplier = 1.5
 
 	var spot_mesh = SphereMesh.new()

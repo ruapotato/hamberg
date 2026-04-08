@@ -970,13 +970,13 @@ func _setup_body() -> void:
 
 	# Materials
 	var skin_mat = StandardMaterial3D.new()
-	skin_mat.albedo_color = Color(0.65, 0.5, 0.25, 1)  # Gold-tan skin
+	skin_mat.albedo_color = Color(0.8, 0.7, 0.2, 1)  # YELLOW-tinted skin (danger)
 
 	var clothes_mat = StandardMaterial3D.new()
-	clothes_mat.albedo_color = Color(0.35, 0.2, 0.05, 1)  # Dark burnt orange clothes
+	clothes_mat.albedo_color = Color(0.4, 0.35, 0.05, 1)  # Dark yellow-brown clothes
 
 	var hair_mat = StandardMaterial3D.new()
-	hair_mat.albedo_color = Color(0.9, 0.75, 0.4, 1)  # Pale gold hair
+	hair_mat.albedo_color = Color(0.9, 0.85, 0.3, 1)  # Pale yellow hair
 
 	# Hips
 	var hips = MeshInstance3D.new()
@@ -1039,7 +1039,7 @@ func _setup_body() -> void:
 
 	# Eyes
 	var eye_mat = StandardMaterial3D.new()
-	eye_mat.albedo_color = Color(1.0, 0.79, 0.0, 1)  # Gold eyes
+	eye_mat.albedo_color = Color(1.0, 0.0, 0.576, 1)  # PINK eyes
 
 	var eye_mesh = SphereMesh.new()
 	var eye_radius = 0.015 * scale_factor

@@ -123,26 +123,26 @@ func _setup_body() -> void:
 	body_container.rotation.y = PI
 	add_child(body_container)
 
-	# Ghost material - semi-transparent blue-white with emission
+	# Ghost material - semi-transparent pale blue-white body with PINK glow
 	var ghost_mat = StandardMaterial3D.new()
-	ghost_mat.albedo_color = Color(0.7, 0.8, 1.0, 0.4)
+	ghost_mat.albedo_color = Color(0.8, 0.7, 0.9, 0.4)
 	ghost_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	ghost_mat.emission_enabled = true
-	ghost_mat.emission = Color(0.5, 0.6, 0.9, 1.0)
+	ghost_mat.emission = Color(0.8, 0.2, 0.6, 1.0)  # PINK glow
 	ghost_mat.emission_energy_multiplier = 0.8
 
 	var ghost_inner_mat = StandardMaterial3D.new()
-	ghost_inner_mat.albedo_color = Color(0.8, 0.9, 1.0, 0.25)
+	ghost_inner_mat.albedo_color = Color(0.85, 0.8, 0.95, 0.25)
 	ghost_inner_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	ghost_inner_mat.emission_enabled = true
-	ghost_inner_mat.emission = Color(0.6, 0.7, 1.0, 1.0)
+	ghost_inner_mat.emission = Color(1.0, 0.3, 0.7, 1.0)  # Brighter PINK
 	ghost_inner_mat.emission_energy_multiplier = 1.2
 
 	var eye_mat = StandardMaterial3D.new()
-	eye_mat.albedo_color = Color(0.4, 0.6, 1.0, 0.8)
+	eye_mat.albedo_color = Color(1.0, 0.3, 0.7, 0.8)
 	eye_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	eye_mat.emission_enabled = true
-	eye_mat.emission = Color(0.3, 0.5, 1.0, 1.0)
+	eye_mat.emission = Color(1.0, 0.0, 0.576, 1.0)  # PINK #ff0093
 	eye_mat.emission_energy_multiplier = 2.0
 
 	# Main body (sphere)
@@ -205,7 +205,7 @@ func _setup_body() -> void:
 
 	# OmniLight3D for eerie glow
 	glow_light = OmniLight3D.new()
-	glow_light.light_color = Color(0.6, 0.7, 1.0)
+	glow_light.light_color = Color(1.0, 0.3, 0.7)
 	glow_light.omni_range = 5.0
 	glow_light.light_energy = 0.5
 	glow_light.position = Vector3(0, 0.5, 0)

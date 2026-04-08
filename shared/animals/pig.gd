@@ -59,19 +59,19 @@ func _setup_body() -> void:
 
 	var scale_factor: float = 0.8
 
-	# Pig materials - pink
+	# Pig materials - PINK body with blue accents
 	var skin_mat = StandardMaterial3D.new()
-	skin_mat.albedo_color = Color(0.95, 0.75, 0.7, 1)  # Pink
+	skin_mat.albedo_color = Color(1.0, 0.4, 0.7, 1)  # PINK body
 
 	var nose_mat = StandardMaterial3D.new()
-	nose_mat.albedo_color = Color(0.9, 0.6, 0.55, 1)  # Darker pink nose
+	nose_mat.albedo_color = Color(0.8, 0.2, 0.5, 1)  # Darker pink nose
 
 	var eye_mat = StandardMaterial3D.new()
-	eye_mat.albedo_color = Color(0.1, 0.05, 0.0, 1)  # Dark eyes
+	eye_mat.albedo_color = Color(0.1, 0.15, 0.4, 1)  # Blue-dark eyes
 
-	# Wing material - pure white/blank for whimsy
+	# Wing material - pale blue for whimsy
 	var wing_mat = StandardMaterial3D.new()
-	wing_mat.albedo_color = Color(1.0, 1.0, 1.0, 1.0)  # Pure white
+	wing_mat.albedo_color = Color(0.7, 0.75, 0.95, 1.0)  # Pale blue wings
 	wing_mat.metallic = 0.0
 	wing_mat.roughness = 0.8
 
