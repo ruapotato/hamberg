@@ -614,6 +614,8 @@ func _apply_movement(input_data: Dictionary, delta: float) -> void:
 			# Mark double jump as used if we jumped in the air
 			if can_double_jump:
 				has_used_double_jump = true
+				if is_local_player:
+					SoundManager.play_sound_varied("powerup", global_position, 0.0, 0.15)
 				print("[Player] Used double jump (Pig Armor set bonus)")
 
 	# Movement speed (sprint drains stamina, blocking reduces speed)

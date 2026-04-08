@@ -32,6 +32,7 @@ func _ready() -> void:
 	# Then override with pig-specific values
 	enemy_name = "Flying Pig"
 	max_health = 60.0  # Small but tough, takes 3 axe hits
+	health = max_health
 	move_speed = ground_move_speed  # Normal ground speed
 	strafe_speed = 2.0
 	loot_table = {"raw_pork": 3, "pig_leather": 2}

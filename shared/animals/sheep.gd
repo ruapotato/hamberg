@@ -26,6 +26,7 @@ func _ready() -> void:
 	# Then override with sheep-specific values
 	enemy_name = "Unicorn Sheep"
 	max_health = 80.0  # Tanky wool, takes 4 axe hits
+	health = max_health
 	move_speed = 2.8
 	strafe_speed = 2.2
 	loot_table = {"raw_mutton": 2}

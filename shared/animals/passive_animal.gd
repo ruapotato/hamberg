@@ -233,10 +233,9 @@ func _get_idle_sound() -> String:
 func _get_hurt_sound() -> String:
 	return ""
 
-## Override to return animal-specific death sound name
-## Falls back to generic "enemy_death" if not overridden
-func _get_death_sound() -> String:
-	return "enemy_death"
+## Death sound — subclasses (deer, pig, sheep) override this
+## Falls through to enemy.gd base which returns "gahnome_death"
+## Subclass overrides return "deer_death", "pig_death", "sheep_death"
 
 ## Override combat decision - passive animals never attack
 func _make_combat_decision(_distance: float) -> void:

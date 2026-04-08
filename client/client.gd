@@ -1758,7 +1758,7 @@ func receive_food_sync(food_data: Array) -> void:
 
 		# Play healing sound if bandage just started
 		if player_food.is_bandage_active() and not was_bandage_active:
-			SoundManager.play_sound_varied("eat", local_player.global_position)
+			SoundManager.play_sound("bandage_heal", local_player.global_position)
 
 		print("[Client] Updated local player food buffs")
 
