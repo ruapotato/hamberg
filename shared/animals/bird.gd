@@ -51,8 +51,8 @@ func _ready() -> void:
 	fly_direction = Vector3(cos(angle), 0, sin(angle))
 	fly_direction_timer = randf_range(FLY_DIRECTION_CHANGE_MIN, FLY_DIRECTION_CHANGE_MAX)
 
-	# Birdsong interval — less frequent, only when perched
-	_idle_sound_interval = 12.0
+	# Birds rarely chirp individually — background birdsong comes from biome ambient
+	_idle_sound_interval = 45.0
 
 	# Store initial spawn Y for height reference (set after position is assigned by spawner)
 	# We'll capture it on first physics frame
@@ -68,12 +68,12 @@ func _get_death_sound() -> String:
 
 ## Override idle to fly with direction changes and occasional landing
 func _update_idle(delta: float) -> void:
-	# Play idle sounds only when perched (positioned, not ambient)
+	# Rare individual chirp when perched — most birdsong comes from biome ambient
 	_idle_sound_timer -= delta
 	if _idle_sound_timer <= 0:
-		_idle_sound_timer = _idle_sound_interval + randf_range(-1.0, 4.0)
+		_idle_sound_timer = _idle_sound_interval + randf_range(0.0, 20.0)
 		if is_perched:
-			SoundManager.play_sound_varied("birds_ambient", global_position, -6.0, 0.2)
+			SoundManager.play_sound_varied("birds_ambient", global_position, -10.0, 0.3)
 
 	# Check for nearby players if skittish
 	if is_skittish and is_host:
