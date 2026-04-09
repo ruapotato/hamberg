@@ -67,26 +67,13 @@ func _create_visual() -> void:
 	sprite.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
 	sprite.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 
-	# Try to get texture from TextureGenerator
+	# Load the same icon used by inventory slots
 	var tex: Texture2D = null
-	var tex_gen: Node = get_node_or_null("/root/TextureGenerator")
-	if tex_gen and tex_gen.has_method("get_item_icon"):
-		tex = tex_gen.get_item_icon(item_name)
+	var icon_path: String = "res://images/icons/%s.png" % item_name
+	if ResourceLoader.exists(icon_path):
+		tex = load(icon_path)
 
-	# Fallback: try loading from environment textures for natural resources
-	if not tex:
-		var env_paths: Dictionary = {
-			"wood": "res://assets/textures/environment/oak_tree_front.png",
-			"stone": "res://assets/textures/environment/rock.png",
-			"plant_fiber": "res://assets/textures/environment/grass.png",
-			"resin": "res://assets/textures/environment/oak_tree_front.png",
-			"bone": "res://assets/textures/environment/rock.png",
-		}
-		var path: String = env_paths.get(item_name, "")
-		if path != "" and ResourceLoader.exists(path):
-			tex = load(path)
-
-	# Final fallback: colored square
+	# Fallback: colored square
 	if not tex:
 		var img := Image.create(16, 16, false, Image.FORMAT_RGBA8)
 		var color: Color = _get_item_color()
