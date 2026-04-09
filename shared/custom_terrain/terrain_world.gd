@@ -1181,8 +1181,8 @@ func get_biome_generator():
 func _extend_chunk_bounds_for_caves(chunk) -> void:
 	if biome_generator == null:
 		return
-	# Default: cover top 2 cave levels (15, 40). Deeper levels extended on demand.
-	chunk.min_surface_y = mini(chunk.min_surface_y, chunk.min_surface_y - 50)
+	# Default: first cave level only (depth 15 + margin). Deeper on demand.
+	chunk.min_surface_y = mini(chunk.min_surface_y, chunk.min_surface_y - 25)
 	chunk.min_surface_y = maxi(chunk.min_surface_y, -128)
 
 ## Dynamically extend cave depth when a player goes underground
@@ -1193,12 +1193,12 @@ func _extend_caves_for_underground_player(player: Node3D) -> void:
 	var surface_h: float = get_terrain_height_at(Vector2(pos.x, pos.z))
 	var depth_below: float = surface_h - pos.y
 
-	# Only extend if player is significantly underground (below default 50-unit range)
-	if depth_below < 40.0:
+	# Only extend if player is below the default 25-unit range
+	if depth_below < 15.0:
 		return
 
 	# Extend chunks in a small radius around the player to cover their depth + margin
-	var needed_depth: int = int(depth_below) + 20  # 20 units of margin
+	var needed_depth: int = int(depth_below) + 15  # 15 units of margin ahead
 	var chunk_coords := ChunkDataClass.world_to_chunk_coords(pos)
 
 	for dx in range(-2, 3):

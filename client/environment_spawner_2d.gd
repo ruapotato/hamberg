@@ -46,6 +46,9 @@ var active_grass: Dictionary = {}
 var active_decor: Dictionary = {}
 var active_forageables: Dictionary = {}
 
+# Underground detection — hide surface objects when player is in caves
+var _was_underground: bool = false
+
 # Destroyed object tracking (synced from server)
 var destroyed_object_ids: Dictionary = {}  # tree_id/bush_id -> true
 
@@ -205,6 +208,13 @@ func _process(_delta: float) -> void:
 			_spawn_environment_around(player.global_position)
 			return
 		return
+
+	# Hide all surface objects when player is underground (saves rendering)
+	var surface_h: float = _get_terrain_height(player.global_position.x, player.global_position.z)
+	var is_underground: bool = player.global_position.y < surface_h - 5.0
+	if is_underground != _was_underground:
+		_was_underground = is_underground
+		visible = not is_underground
 
 	# Check if player moved far enough to respawn
 	var dist_from_center = player.global_position.distance_to(last_spawn_center)

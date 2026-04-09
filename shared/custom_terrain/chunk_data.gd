@@ -170,10 +170,10 @@ func fill_from_heights(heights: PackedFloat32Array) -> void:
 		if h + 2 > max_surface_y:
 			max_surface_y = h + 2
 
-	# Extend bounds for caves — only cover top 2 cave levels (15, 40) by default
-	# Deeper caves (70, 100) are extended dynamically when player goes underground
+	# Extend bounds for first cave level only (depth 15 + margin)
+	# Deeper caves extend dynamically when player goes underground
 	if biome_generator != null:
-		min_surface_y = mini(min_surface_y, min_surface_y - 50)
+		min_surface_y = mini(min_surface_y, min_surface_y - 25)
 		min_surface_y = maxi(min_surface_y, -128)
 
 	is_dirty = true
