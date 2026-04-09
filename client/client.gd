@@ -378,7 +378,7 @@ func _style_connection_ui() -> void:
 	const DARK_BG := Color(0.0, 0.01, 0.1, 1.0)
 	const PANEL_BG := Color(0.04, 0.04, 0.15, 0.95)
 
-	# Background
+	# Background (must not block input)
 	var bg: ColorRect = connection_ui.get_node_or_null("Background")
 	if not bg:
 		bg = ColorRect.new()
@@ -386,9 +386,11 @@ func _style_connection_ui() -> void:
 		bg.anchors_preset = Control.PRESET_FULL_RECT
 		bg.anchor_right = 1.0
 		bg.anchor_bottom = 1.0
+		bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		connection_ui.add_child(bg)
 		connection_ui.move_child(bg, 0)
 	bg.color = DARK_BG
+	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 	# Panel style
 	var panel: PanelContainer = connection_ui.get_node_or_null("Panel")
@@ -462,7 +464,6 @@ func _style_connection_ui() -> void:
 		connect_button.add_theme_color_override("font_hover_color", GOLD)
 		connect_button.add_theme_font_size_override("font_size", 16)
 		connect_button.mouse_entered.connect(func(): SoundManager.play_ui_sound("ui_hover"))
-		connect_button.pressed.connect(func(): SoundManager.play_ui_sound("ui_click"))
 
 	# Status label
 	if status_label:
