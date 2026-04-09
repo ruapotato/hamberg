@@ -75,6 +75,7 @@ var _day_count: int = 1
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_to_group("task_menu")
 
 	anchors_preset = PRESET_FULL_RECT
 	anchor_right = 1.0
@@ -124,7 +125,7 @@ func _ready() -> void:
 
 	# Title
 	_title_label = Label.new()
-	_title_label.text = "JOURNAL (J to close)"
+	_title_label.text = "JOURNAL"
 	_title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_title_label.add_theme_color_override("font_color", Color(1.0, 0.85, 0.4))
 	_title_label.add_theme_font_size_override("font_size", 18)
@@ -197,11 +198,8 @@ func _ready() -> void:
 	_update_hint()
 
 
-func _unhandled_input(event: InputEvent) -> void:
-	if event is InputEventKey and event.pressed and not event.echo:
-		if event.keycode == KEY_J:
-			toggle_full_view()
-			get_viewport().set_input_as_handled()
+func _unhandled_input(_event: InputEvent) -> void:
+	pass  # Journal now accessed via pause menu
 
 
 ## Toggle the full skill tree panel visibility. Can be called externally.
@@ -225,32 +223,37 @@ func check_tasks() -> void:
 	if not player_ref or not is_instance_valid(player_ref):
 		return
 
+	# Don't play sounds while game is still loading
+	var play_sounds: bool = player_ref.is_game_loaded if "is_game_loaded" in player_ref else true
+
 	var inventory = player_ref.get_node_or_null("Inventory")
 
 	# Check Phase 1 tasks
 	for task in PHASE1_TASKS:
-		var task_id = task["id"]
+		var task_id: String = task["id"]
 		if completed_tasks.get(task_id, false):
 			continue
 		if _check_task(task_id, inventory):
 			completed_tasks[task_id] = true
-			SoundManager.play_ui_sound("quest_complete")
+			if play_sounds:
+				SoundManager.play_ui_sound("quest_complete")
 			print("[TaskMenu] Task completed: %s" % task["description"])
 
 	# Check path tasks (only if Phase 1 complete)
-	# Play level_up when Phase 1 is newly completed
 	if _is_phase1_complete() and not completed_tasks.get("_phase1_milestone", false):
 		completed_tasks["_phase1_milestone"] = true
-		SoundManager.play_ui_sound("level_up")
+		if play_sounds:
+			SoundManager.play_ui_sound("level_up")
 	if _is_phase1_complete():
 		for path in PATHS:
 			for task in path["tasks"]:
-				var task_id = task["id"]
+				var task_id: String = task["id"]
 				if completed_tasks.get(task_id, false):
 					continue
 				if _check_task(task_id, inventory):
 					completed_tasks[task_id] = true
-					SoundManager.play_ui_sound("quest_complete")
+					if play_sounds:
+						SoundManager.play_ui_sound("quest_complete")
 					print("[TaskMenu] Task completed: %s" % task["short"])
 
 	_update_display()
@@ -346,9 +349,9 @@ func _update_hint() -> void:
 			if not completed_tasks.get(task["id"], false):
 				var hint: String = task.get("hint", "")
 				if hint:
-					_hint_label.text = ">> %s: %s — %s  [J]" % [path["name"], task["short"], hint]
+					_hint_label.text = ">> %s: %s — %s" % [path["name"], task["short"], hint]
 				else:
-					_hint_label.text = ">> %s: %s  [J]" % [path["name"], task["short"]]
+					_hint_label.text = ">> %s: %s" % [path["name"], task["short"]]
 				return
 	_hint_label.text = "All tasks complete!"
 

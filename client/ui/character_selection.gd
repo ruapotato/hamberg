@@ -13,6 +13,7 @@ var selected_index: int = 0  # For controller navigation
 
 func _ready() -> void:
 	create_button.pressed.connect(_on_create_button_pressed)
+	create_button.mouse_entered.connect(func(): SoundManager.play_ui_sound("ui_hover"))
 
 	# Create character button scene programmatically
 	character_button_scene = _create_character_button_scene()
@@ -75,34 +76,37 @@ func _create_character_button(char_data: Dictionary) -> Button:
 	var button_text = "%s\nLast played: %s" % [character_name, time_str]
 	button.text = button_text
 
-	# Connect button press
+	# Connect button press and hover sounds
 	button.pressed.connect(_on_character_button_pressed.bind(character_id, character_name))
+	button.mouse_entered.connect(func(): SoundManager.play_ui_sound("ui_hover"))
 
 	return button
 
 func _on_character_button_pressed(character_id: String, character_name: String) -> void:
 	print("[CharacterSelection] Selected character: %s (%s)" % [character_name, character_id])
+	SoundManager.play_ui_sound("ui_confirm")
 	character_selected.emit(character_id, character_name, false)
 	visible = false
 
 func _on_create_button_pressed() -> void:
-	var new_name = name_input.text.strip_edges()
+	var new_name: String = name_input.text.strip_edges()
 
 	if new_name.is_empty():
 		status_label.text = "Please enter a character name"
 		status_label.modulate = Color.RED
+		SoundManager.play_ui_sound("ui_cancel")
 		return
 
 	if new_name.length() > 20:
 		status_label.text = "Name too long (max 20 characters)"
 		status_label.modulate = Color.RED
+		SoundManager.play_ui_sound("ui_cancel")
 		return
 
 	print("[CharacterSelection] Creating new character: %s" % new_name)
+	SoundManager.play_ui_sound("ui_confirm")
 
-	# Generate a temporary character_id (will be replaced by server)
-	var temp_id = "temp_" + str(Time.get_ticks_msec())
-
+	var temp_id: String = "temp_" + str(Time.get_ticks_msec())
 	character_selected.emit(temp_id, new_name, true)
 	visible = false
 

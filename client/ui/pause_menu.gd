@@ -9,6 +9,7 @@ signal quit_pressed
 @onready var resume_button: Button = $Panel/VBox/ResumeButton
 @onready var save_button: Button = $Panel/VBox/SaveButton
 @onready var graphics_button: Button = $Panel/VBox/GraphicsButton
+@onready var journal_button: Button = $Panel/VBox/JournalButton
 @onready var quit_button: Button = $Panel/VBox/QuitButton
 @onready var status_label: Label = $Panel/VBox/StatusLabel
 
@@ -35,6 +36,7 @@ func _ready() -> void:
 	resume_button.pressed.connect(_on_resume_pressed)
 	save_button.pressed.connect(_on_save_pressed)
 	graphics_button.pressed.connect(_on_graphics_pressed)
+	journal_button.pressed.connect(_on_journal_pressed)
 	quit_button.pressed.connect(_on_quit_pressed)
 	back_button.pressed.connect(_on_back_pressed)
 
@@ -44,10 +46,10 @@ func _ready() -> void:
 	fog_check.toggled.connect(_on_fog_toggled)
 
 	# Build button array for D-pad navigation
-	buttons = [resume_button, save_button, graphics_button, quit_button]
+	buttons = [resume_button, save_button, graphics_button, journal_button, quit_button]
 
 	# Hook up UI sounds to all buttons
-	for btn in [resume_button, save_button, graphics_button, quit_button, back_button]:
+	for btn in [resume_button, save_button, graphics_button, journal_button, quit_button, back_button]:
 		btn.pressed.connect(func(): SoundManager.play_ui_sound("ui_click"))
 		btn.mouse_entered.connect(func(): SoundManager.play_ui_sound("ui_hover"))
 
@@ -91,6 +93,18 @@ func _on_save_pressed() -> void:
 	await get_tree().create_timer(2.0).timeout
 	if is_instance_valid(status_label):
 		status_label.text = ""
+
+func _on_journal_pressed() -> void:
+	SoundManager.play_ui_sound("ui_click")
+	# Find the task menu and toggle it
+	var task_menu: Node = get_tree().root.find_child("TaskMenu", true, false)
+	if not task_menu:
+		# Try finding it as a child of the client's UI
+		for node in get_tree().get_nodes_in_group("task_menu"):
+			task_menu = node
+			break
+	if task_menu and task_menu.has_method("toggle_full_view"):
+		task_menu.toggle_full_view()
 
 func _on_graphics_pressed() -> void:
 	SoundManager.play_ui_sound("ui_click")

@@ -291,11 +291,13 @@ func _on_recipe_button_pressed(recipe: Dictionary) -> void:
 	SoundManager.play_ui_sound("ui_confirm")
 
 	# Attempt to craft on server (server-authoritative)
-	var recipe_name = recipe.get("output_item", "")
+	var recipe_name: String = recipe.get("output_item", "")
 	NetworkManager.rpc_request_craft.rpc_id(1, recipe_name)
 
-	# Close menu after crafting
-	hide_menu()
+	# Refresh the menu after a short delay (wait for server to update inventory)
+	await get_tree().create_timer(0.15).timeout
+	if is_open:
+		_populate_recipe_list()
 
 ## Show the crafting menu
 func show_menu() -> void:
