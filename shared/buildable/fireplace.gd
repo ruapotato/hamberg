@@ -21,6 +21,8 @@ const PROXIMITY_CHECK_INTERVAL: float = 0.5  # Check every 0.5 seconds
 var _fire_crackle_player: AudioStreamPlayer3D = null
 
 func _ready() -> void:
+	is_crafting_station = true
+	station_type = "fireplace"
 	super._ready()
 	add_to_group("fireplace")
 	# Get fire particles reference
