@@ -1357,11 +1357,11 @@ func _update_biome_ambient(biome_name: String) -> void:
 		"forest":
 			SoundManager.play_ambient("birds_ambient")
 		"dark_forest":
-			SoundManager.play_ambient("whispering", -6.0)
+			SoundManager.play_ambient("wind_ambient", -8.0)
 		"swamp":
 			SoundManager.play_ambient("crickets_ambient")
 		"crystal_cave":
-			SoundManager.play_ambient("whispering", -6.0)
+			SoundManager.play_ambient("wind_ambient", -10.0)
 		_:
 			SoundManager.stop_ambient()
 
@@ -1385,15 +1385,19 @@ func _update_ambient_oneshots(delta: float) -> void:
 
 	match current_biome:
 		"dark_forest":
-			# Occasional creepy sounds in the dark forest
-			if randf() < 0.3:
-				SoundManager.play_sound("creepy_laugh", pos + offset, -10.0)
+			# Rare creepy sounds in the dark forest
+			if randf() < 0.12:
+				SoundManager.play_sound("creepy_laugh", pos + offset, -12.0)
+			elif randf() < 0.08:
+				SoundManager.play_sound("whispering", pos + offset, -10.0)
+		"crystal_cave":
+			# Rare eerie sounds underground
+			if randf() < 0.10:
+				SoundManager.play_sound("whispering", pos + offset, -12.0)
 		"swamp":
-			# Wind gusts in the swamp
 			if randf() < 0.25:
 				SoundManager.play_sound("wind_gust", pos + offset, -8.0)
 		"valley", "meadow":
-			# Occasional wind gusts
 			if randf() < 0.15:
 				SoundManager.play_sound("wind_gust", pos + offset, -12.0)
 
