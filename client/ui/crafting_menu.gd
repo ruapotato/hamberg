@@ -67,6 +67,36 @@ func _get_combined_inventory():
 	var nearby_chests = _get_nearby_chests()
 	return CombinedInventory.new(player_inventory, nearby_chests)
 
+## Detect all crafting stations near the player
+func _get_nearby_stations() -> Array:
+	var stations: Array = []
+	if not local_player or not is_instance_valid(local_player):
+		return ["workbench"]
+
+	var player_pos: Vector3 = local_player.global_position
+	for node in local_player.get_tree().get_nodes_in_group("crafting_stations"):
+		if is_instance_valid(node) and node.has_method("is_position_in_range"):
+			if node.is_position_in_range(player_pos):
+				var st: String = node.get("station_type")
+				if st and not stations.has(st):
+					stations.append(st)
+
+	# Also check for fireplaces/cooking stations in buildables group
+	for node in local_player.get_tree().get_nodes_in_group("buildables"):
+		if not is_instance_valid(node):
+			continue
+		var dist: float = player_pos.distance_to(node.global_position)
+		if dist > 20.0:
+			continue
+		var node_name: String = node.name.to_lower()
+		if "fireplace" in node_name or "fire_pit" in node_name or "cooking" in node_name:
+			if not stations.has("fireplace"):
+				stations.append("fireplace")
+
+	if stations.is_empty():
+		stations.append("workbench")
+	return stations
+
 ## Populate the recipe list with discovered recipes
 func _populate_recipe_list() -> void:
 	if not recipe_list:
@@ -172,7 +202,7 @@ func _create_recipe_button(recipe: Dictionary) -> Control:
 
 	# Check if player can craft this (using combined inventory)
 	var can_craft = false
-	if combined_inventory and CraftingRecipes.can_craft(recipe, combined_inventory, ["workbench"]):
+	if combined_inventory and CraftingRecipes.can_craft(recipe, combined_inventory, _get_nearby_stations()):
 		can_craft = true
 		button.disabled = false
 	else:

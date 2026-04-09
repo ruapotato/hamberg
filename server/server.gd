@@ -1599,9 +1599,8 @@ func handle_craft_request(peer_id: int, recipe_name: String) -> void:
 	# Create combined inventory (player + nearby chests)
 	var combined_inventory = CombinedInventory.new(player_inventory, nearby_chests)
 
-	# TODO: Get actual nearby stations from player
-	# For now, allow all crafting (no station restrictions)
-	var stations = ["workbench"]
+	# Detect nearby crafting stations
+	var stations: Array = _get_nearby_stations(player.global_position)
 
 	print("[Server] Craft attempt: %s with %d nearby chests" % [recipe_name, nearby_chests.size()])
 
@@ -2141,6 +2140,24 @@ func _get_nearby_chests(position: Vector3, radius: float) -> Array:
 					nearby_chests.append(wrapper)
 
 	return nearby_chests
+
+## Get all crafting station types near a position
+func _get_nearby_stations(position: Vector3) -> Array:
+	var stations: Array = []
+	for buildable_id in placed_buildables:
+		var data: Dictionary = placed_buildables[buildable_id]
+		var pos_arr: Array = data.position
+		var bpos := Vector3(pos_arr[0], pos_arr[1], pos_arr[2])
+		if position.distance_to(bpos) > 20.0:
+			continue
+		var piece: String = data.piece_name
+		if piece == "workbench" and not stations.has("workbench"):
+			stations.append("workbench")
+		elif (piece == "fireplace" or piece == "fire_pit" or piece == "cooking_station") and not stations.has("fireplace"):
+			stations.append("fireplace")
+	if stations.is_empty():
+		stations.append("workbench")
+	return stations
 
 ## Handle player opening a chest
 func handle_open_chest(peer_id: int, chest_network_id: String) -> void:
