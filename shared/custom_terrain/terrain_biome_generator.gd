@@ -156,7 +156,7 @@ func _init(seed_value: int = 42) -> void:
 	cave_noise = FastNoiseLite.new()
 	cave_noise.seed = world_seed + 999
 	cave_noise.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
-	cave_noise.frequency = 0.03
+	cave_noise.frequency = 0.015  # Lower frequency = larger cave features
 	cave_noise.fractal_type = FastNoiseLite.FRACTAL_FBM
 	cave_noise.fractal_octaves = 2
 
@@ -164,7 +164,7 @@ func _init(seed_value: int = 42) -> void:
 	cave_size_noise = FastNoiseLite.new()
 	cave_size_noise.seed = world_seed + 1000
 	cave_size_noise.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
-	cave_size_noise.frequency = 0.03
+	cave_size_noise.frequency = 0.015
 	cave_size_noise.fractal_type = FastNoiseLite.FRACTAL_FBM
 	cave_size_noise.fractal_octaves = 2
 
@@ -752,7 +752,7 @@ func get_fast_cave_carving(world_pos: Vector3, surface_height: float) -> float:
 	var thickness: float = cave_y_noise.get_noise_2d(world_pos.x * 0.5, world_pos.z * 0.5)
 	# Base threshold: how close to zero both noises need to be to form a cave
 	# Lower = wider tunnels, higher = thinner tunnels
-	var threshold: float = 0.07 + thickness * 0.03  # Range 0.04 to 0.10
+	var threshold: float = 0.14 + thickness * 0.04  # Range 0.10 to 0.18 — wide enough for player
 
 	# Combined distance from zero for both channels
 	var cave_value: float = n1 * n1 + n2 * n2
