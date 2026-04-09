@@ -1193,21 +1193,25 @@ func _extend_caves_for_underground_player(player: Node3D) -> void:
 	var surface_h: float = get_terrain_height_at(Vector2(pos.x, pos.z))
 	var depth_below: float = surface_h - pos.y
 
-	# Only extend if player is below the default 25-unit range
-	if depth_below < 15.0:
+	# Only extend if player is underground at all
+	if depth_below < 5.0:
 		return
 
-	# Extend chunks in a small radius around the player to cover their depth + margin
-	var needed_depth: int = int(depth_below) + 15  # 15 units of margin ahead
+	# Extend to player's current depth + 30 units below (so they can see ahead/below)
+	var needed_depth: int = int(depth_below) + 30
+	needed_depth = mini(needed_depth, 120)  # Cap at max cave depth
 	var chunk_coords := ChunkDataClass.world_to_chunk_coords(pos)
 
-	for dx in range(-2, 3):
-		for dz in range(-2, 3):
+	for dx in range(-3, 4):
+		for dz in range(-3, 4):
 			var key := ChunkDataClass.make_key(chunk_coords.x + dx, chunk_coords.y + dz)
 			if not chunks.has(key):
 				continue
 			var chunk = chunks[key]
-			var target_min: int = int(surface_h) - needed_depth
+			# Use each chunk's own surface height for accurate depth calc
+			var chunk_surface: float = chunk.get_height(
+				ChunkDataClass.CHUNK_SIZE_XZ / 2, ChunkDataClass.CHUNK_SIZE_XZ / 2)
+			var target_min: int = int(chunk_surface) - needed_depth
 			target_min = maxi(target_min, -128)
 			if chunk.min_surface_y > target_min:
 				chunk.min_surface_y = target_min

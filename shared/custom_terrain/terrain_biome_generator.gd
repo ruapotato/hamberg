@@ -775,66 +775,86 @@ func get_fast_cave_carving(world_pos: Vector3, surface_height: float) -> float:
 
 	return best_carve
 
-## Get carving for a single tunnel level
+## Get carving for a single tunnel level — organic winding tunnels
 func _get_tunnel_level_carving(
 	world_pos: Vector3, surface_height: float, level_depth: float,
 	grid_spacing: float, base_radius: float, radius_var: float, y_var: float
 ) -> float:
 	# Quick Y check for this level
 	var level_y: float = surface_height - level_depth
-	var max_radius: float = base_radius + radius_var
+	var max_radius: float = base_radius + radius_var + 4.0  # Extra for chambers
 	if absf(world_pos.y - level_y) > max_radius + y_var + 2.0:
 		return 0.0
 
-	# Find which tunnel segments we're near
-	var z_in_grid: float = fmod(absf(world_pos.z), grid_spacing)
-	var dist_to_x_tunnel: float = minf(z_in_grid, grid_spacing - z_in_grid)
+	var best_carve: float = 0.0
 
-	var x_in_grid: float = fmod(absf(world_pos.x), grid_spacing)
-	var dist_to_z_tunnel: float = minf(x_in_grid, grid_spacing - x_in_grid)
+	# Winding tunnels: offset the grid center with noise so tunnels aren't straight
+	# Each tunnel's center position wanders based on position along its length
+	var level_seed: float = level_depth * 7.0  # Unique per level
 
-	# Determine which tunnel we're closest to (X-aligned or Z-aligned)
-	var in_x_tunnel: bool = dist_to_x_tunnel < dist_to_z_tunnel
+	# Find nearest X-aligned tunnel (runs along X axis, at grid-snapped Z)
+	var tunnel_z_base: float = round(world_pos.z / grid_spacing) * grid_spacing
+	# Wander the Z position based on X (makes tunnel curve side to side)
+	var wander_z: float = cave_y_noise.get_noise_2d(world_pos.x * 0.08, tunnel_z_base + level_seed) * 8.0
+	var actual_tunnel_z: float = tunnel_z_base + wander_z
+	var dist_to_x_tunnel: float = absf(world_pos.z - actual_tunnel_z)
 
-	# Get tunnel center position for noise sampling
-	var tunnel_sample_pos: Vector2
-	var horiz_dist: float
-	if in_x_tunnel:
-		var tunnel_z: float = round(world_pos.z / grid_spacing) * grid_spacing
-		tunnel_sample_pos = Vector2(world_pos.x, tunnel_z + level_depth * 7.0)  # Offset by depth for variation
-		horiz_dist = dist_to_x_tunnel
-	else:
-		var tunnel_x: float = round(world_pos.x / grid_spacing) * grid_spacing
-		tunnel_sample_pos = Vector2(tunnel_x + level_depth * 7.0, world_pos.z)
-		horiz_dist = dist_to_z_tunnel
+	# Vary radius along tunnel length
+	var x_sample := Vector2(world_pos.x * 0.1, actual_tunnel_z + level_seed)
+	var size_noise_x: float = cave_size_noise.get_noise_2d(x_sample.x, x_sample.y)
+	var tunnel_radius_x: float = base_radius + size_noise_x * radius_var
 
-	# Vary tunnel radius along its length
-	var size_noise: float = cave_size_noise.get_noise_2d(tunnel_sample_pos.x, tunnel_sample_pos.y)
-	var tunnel_radius: float = base_radius + size_noise * radius_var
+	if dist_to_x_tunnel < tunnel_radius_x + 1.0:
+		var y_offset: float = cave_y_noise.get_noise_2d(world_pos.x * 0.05, tunnel_z_base + level_seed * 2.0) * y_var
+		var tunnel_y: float = level_y + y_offset
+		var y_dist: float = absf(world_pos.y - tunnel_y)
+		if y_dist < tunnel_radius_x + 1.0:
+			var cyl_dist: float = sqrt(dist_to_x_tunnel * dist_to_x_tunnel + y_dist * y_dist)
+			if cyl_dist < tunnel_radius_x:
+				best_carve = maxf(best_carve, 1.0 - cyl_dist / tunnel_radius_x)
 
-	# Early exit if too far horizontally
-	if horiz_dist > tunnel_radius + 1.0:
-		return 0.0
+	# Find nearest Z-aligned tunnel (runs along Z axis, at grid-snapped X)
+	var tunnel_x_base: float = round(world_pos.x / grid_spacing) * grid_spacing
+	# Wander the X position based on Z
+	var wander_x: float = cave_y_noise.get_noise_2d(tunnel_x_base + level_seed, world_pos.z * 0.08) * 8.0
+	var actual_tunnel_x: float = tunnel_x_base + wander_x
+	var dist_to_z_tunnel: float = absf(world_pos.x - actual_tunnel_x)
 
-	# Gentle vertical undulation within this level
-	var y_offset: float = cave_y_noise.get_noise_2d(tunnel_sample_pos.x, tunnel_sample_pos.y) * y_var
-	var tunnel_y: float = level_y + y_offset
+	var z_sample := Vector2(actual_tunnel_x + level_seed, world_pos.z * 0.1)
+	var size_noise_z: float = cave_size_noise.get_noise_2d(z_sample.x, z_sample.y)
+	var tunnel_radius_z: float = base_radius + size_noise_z * radius_var
 
-	# Vertical distance to tunnel center
-	var y_dist: float = absf(world_pos.y - tunnel_y)
+	if dist_to_z_tunnel < tunnel_radius_z + 1.0:
+		var y_offset: float = cave_y_noise.get_noise_2d(tunnel_x_base + level_seed * 2.0, world_pos.z * 0.05) * y_var
+		var tunnel_y: float = level_y + y_offset
+		var y_dist: float = absf(world_pos.y - tunnel_y)
+		if y_dist < tunnel_radius_z + 1.0:
+			var cyl_dist: float = sqrt(dist_to_z_tunnel * dist_to_z_tunnel + y_dist * y_dist)
+			if cyl_dist < tunnel_radius_z:
+				best_carve = maxf(best_carve, 1.0 - cyl_dist / tunnel_radius_z)
 
-	# Early exit if too far vertically
-	if y_dist > tunnel_radius + 1.0:
-		return 0.0
+	# Chambers at intersections — larger open areas where tunnels cross
+	var chamber_x: float = round(world_pos.x / grid_spacing) * grid_spacing
+	var chamber_z: float = round(world_pos.z / grid_spacing) * grid_spacing
+	var chamber_noise: float = cave_size_noise.get_noise_2d(chamber_x * 0.05 + level_seed, chamber_z * 0.05)
+	if chamber_noise > -0.2:  # ~60% of intersections get chambers
+		var chamber_radius: float = base_radius + radius_var + chamber_noise * 6.0
+		var dx: float = world_pos.x - chamber_x
+		var dz: float = world_pos.z - chamber_z
+		var chamber_horiz: float = sqrt(dx * dx + dz * dz)
+		if chamber_horiz < chamber_radius:
+			var y_offset: float = cave_y_noise.get_noise_2d(chamber_x + level_seed, chamber_z + level_seed) * y_var
+			var chamber_y_dist: float = absf(world_pos.y - level_y - y_offset)
+			var chamber_h: float = chamber_radius * 0.7  # Chambers are wider than tall
+			if chamber_y_dist < chamber_h:
+				var sphere_dist: float = sqrt(
+					(chamber_horiz / chamber_radius) * (chamber_horiz / chamber_radius) +
+					(chamber_y_dist / chamber_h) * (chamber_y_dist / chamber_h)
+				)
+				if sphere_dist < 1.0:
+					best_carve = maxf(best_carve, 1.0 - sphere_dist)
 
-	# Cylindrical distance
-	var cylinder_dist: float = sqrt(horiz_dist * horiz_dist + y_dist * y_dist)
-
-	if cylinder_dist > tunnel_radius:
-		return 0.0
-
-	# Smooth carving with falloff at edges
-	return 1.0 - (cylinder_dist / tunnel_radius)
+	return best_carve
 
 ## Check if a position should have crystal formations (for rendering)
 ## Returns crystal intensity 0.0 to 1.0
