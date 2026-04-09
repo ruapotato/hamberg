@@ -10,10 +10,10 @@ extends Node
 ## - Server handles health/damage (authoritative)
 
 # Spawn parameters (default/valley)
-const SPAWN_CHECK_INTERVAL: float = 10.0  # Check for spawns every 10 seconds
+const SPAWN_CHECK_INTERVAL: float = 7.0  # Check for spawns every 7 seconds
 const MIN_SPAWN_DISTANCE: float = 40.0    # Minimum distance from player (far away)
 const MAX_SPAWN_DISTANCE: float = 60.0    # Maximum distance from player (far away)
-const MAX_ENEMIES_PER_PLAYER: int = 3     # Max enemies per player in the area
+const MAX_ENEMIES_PER_PLAYER: int = 5     # Max enemies per player in the area
 const BEHIND_PLAYER_BIAS: float = 0.7     # 70% chance to spawn behind player
 
 # Dark forest spawn parameters (closer and more frequent!)
@@ -56,6 +56,7 @@ const DEER_SCENE = preload("res://shared/animals/deer.tscn")
 const PIG_SCENE = preload("res://shared/animals/pig.tscn")
 const SHEEP_SCENE = preload("res://shared/animals/sheep.tscn")
 const BIRD_SCENE = preload("res://shared/animals/bird.tscn")
+const SKY_CUTTLEFISH_SCENE = preload("res://shared/animals/sky_cuttlefish.tscn")
 
 # Ghost scene (nighttime enemy)
 const GHOST_SCENE = preload("res://shared/enemies/ghost.tscn")
@@ -85,6 +86,13 @@ const GHOST_SPAWN_MIN_DISTANCE: float = 15.0
 const GHOST_SPAWN_MAX_DISTANCE: float = 30.0
 var ghost_spawn_timer: float = 0.0
 const GHOST_SPAWN_CHECK_INTERVAL: float = 8.0
+
+# Sky cuttlefish spawn parameters (rare ambient creature)
+const MAX_CUTTLEFISH_PER_PLAYER: int = 1
+const CUTTLEFISH_SPAWN_CHECK_INTERVAL: float = 420.0  # Every 7 minutes
+const CUTTLEFISH_SPAWN_MIN_DISTANCE: float = 60.0
+const CUTTLEFISH_SPAWN_MAX_DISTANCE: float = 120.0
+var cuttlefish_spawn_timer: float = 300.0  # Start at 5 min so first one appears after ~2 min
 
 # Night raid parameters
 const RAID_SPAWN_INTERVAL: float = 8.0  # Spawn raid wave every 8 seconds at night
@@ -222,6 +230,12 @@ func _process(delta: float) -> void:
 			animal_spawn_timer = 0.0
 			_check_animal_spawns()
 			_check_bird_spawns()  # Birds spawn during daytime in all biomes
+
+	# Sky cuttlefish spawning (rare ambient creature, spawns day or night)
+	cuttlefish_spawn_timer += delta
+	if cuttlefish_spawn_timer >= CUTTLEFISH_SPAWN_CHECK_INTERVAL:
+		cuttlefish_spawn_timer = 0.0
+		_check_cuttlefish_spawns()
 
 	# Despawn birds at nightfall
 	if is_night and not was_night_last_frame:
@@ -950,6 +964,70 @@ func _spawn_bird_near_player(player: Node, peer_id: int = 0) -> void:
 
 	print("[EnemySpawner] Spawning Bird at %s (altitude)" % spawn_position)
 	_spawn_enemy(BIRD_SCENE, spawn_position, peer_id)
+
+# ============================================================================
+# SKY CUTTLEFISH SPAWNING (rare ambient creature)
+# ============================================================================
+
+## Check if we need to spawn sky cuttlefish near players
+func _check_cuttlefish_spawns() -> void:
+	if not server_node or not "spawned_players" in server_node:
+		return
+
+	var players = server_node.spawned_players
+
+	for peer_id in players:
+		var player = players[peer_id]
+		if not player or not is_instance_valid(player):
+			continue
+
+		# Count cuttlefish near this player
+		var nearby_cuttlefish = _count_nearby_cuttlefish(player.global_position)
+
+		if nearby_cuttlefish < MAX_CUTTLEFISH_PER_PLAYER:
+			_spawn_cuttlefish_near_player(player, peer_id)
+
+## Count sky cuttlefish near a position
+func _count_nearby_cuttlefish(position: Vector3) -> int:
+	var count = 0
+	for enemy in spawned_enemies:
+		if enemy and is_instance_valid(enemy) and "enemy_name" in enemy:
+			if enemy.enemy_name == "SkyCuttlefish":
+				var distance = enemy.global_position.distance_to(position)
+				if distance <= 200.0:  # Large range since they fly high
+					count += 1
+	return count
+
+## Spawn a sky cuttlefish near a player at very high altitude
+func _spawn_cuttlefish_near_player(player: Node, peer_id: int = 0) -> void:
+	if player.global_position.y < -50 or player.global_position.y > 500:
+		return
+
+	var terrain_world = null
+	if server_node and server_node.has_node("World/TerrainWorld"):
+		terrain_world = server_node.get_node("World/TerrainWorld")
+
+	# Random angle around player, at large distance
+	var angle = randf() * TAU
+	var distance = randf_range(CUTTLEFISH_SPAWN_MIN_DISTANCE, CUTTLEFISH_SPAWN_MAX_DISTANCE)
+
+	var spawn_offset = Vector3(
+		cos(angle) * distance,
+		0,
+		sin(angle) * distance
+	)
+
+	var spawn_position = player.global_position + spawn_offset
+
+	# Get terrain height and add very high altitude
+	if terrain_world and terrain_world.has_method("get_terrain_height_at"):
+		var terrain_height = terrain_world.get_terrain_height_at(Vector2(spawn_position.x, spawn_position.z))
+		spawn_position.y = terrain_height + randf_range(60.0, 80.0)
+	else:
+		spawn_position.y = player.global_position.y + randf_range(60.0, 80.0)
+
+	print("[EnemySpawner] Spawning SkyCuttlefish at %s (high altitude)" % spawn_position)
+	_spawn_enemy(SKY_CUTTLEFISH_SCENE, spawn_position, peer_id)
 
 ## Despawn all birds at nightfall
 func _despawn_birds_at_night() -> void:

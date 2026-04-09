@@ -16,8 +16,15 @@ const FLY_DIRECTION_CHANGE_MIN: float = 3.0
 const FLY_DIRECTION_CHANGE_MAX: float = 8.0
 const FLY_SPEED: float = 2.0
 const FLY_FLEE_SPEED: float = 8.0
-const FLY_MIN_HEIGHT: float = 5.0
-const FLY_MAX_HEIGHT: float = 15.0
+const FLY_MIN_HEIGHT: float = 3.0
+const FLY_MAX_HEIGHT: float = 12.0
+
+# Landing behavior
+var is_perched: bool = false
+var perch_timer: float = 0.0
+const PERCH_CHANCE: float = 0.15  # 15% chance to land when changing direction
+const PERCH_MIN_TIME: float = 4.0
+const PERCH_MAX_TIME: float = 12.0
 
 func _ready() -> void:
 	# Call parent ready first to set defaults
@@ -44,8 +51,8 @@ func _ready() -> void:
 	fly_direction = Vector3(cos(angle), 0, sin(angle))
 	fly_direction_timer = randf_range(FLY_DIRECTION_CHANGE_MIN, FLY_DIRECTION_CHANGE_MAX)
 
-	# Faster idle sound interval for birds (birdsong)
-	_idle_sound_interval = 5.0
+	# Birdsong interval — less frequent, only when perched
+	_idle_sound_interval = 12.0
 
 	# Store initial spawn Y for height reference (set after position is assigned by spawner)
 	# We'll capture it on first physics frame
@@ -59,36 +66,48 @@ func _get_idle_sound() -> String:
 func _get_death_sound() -> String:
 	return "flapping"
 
-## Override idle to fly in the air with random direction changes
+## Override idle to fly with direction changes and occasional landing
 func _update_idle(delta: float) -> void:
-	# Play idle sounds (birdsong)
+	# Play idle sounds only when perched (positioned, not ambient)
 	_idle_sound_timer -= delta
 	if _idle_sound_timer <= 0:
-		_idle_sound_timer = _idle_sound_interval + randf_range(-1.0, 2.0)
-		var idle_sound := _get_idle_sound()
-		if idle_sound != "":
-			var players = EnemyAI._get_cached_players(get_tree())
-			var player_nearby := false
-			for p in players:
-				if is_instance_valid(p) and global_position.distance_to(p.global_position) < 30.0:
-					player_nearby = true
-					break
-			if player_nearby:
-				SoundManager.play_sound_varied(idle_sound, global_position, -4.0, 0.15)
+		_idle_sound_timer = _idle_sound_interval + randf_range(-1.0, 4.0)
+		if is_perched:
+			SoundManager.play_sound_varied("birds_ambient", global_position, -6.0, 0.2)
 
 	# Check for nearby players if skittish
 	if is_skittish and is_host:
 		var nearby_player = _detect_nearby_player()
 		if nearby_player:
+			is_perched = false
 			_start_fleeing_from(nearby_player)
 			return
+
+	# Perched: sit still on ground
+	if is_perched:
+		velocity = Vector3.ZERO
+		perch_timer -= delta
+		if perch_timer <= 0:
+			is_perched = false
+			fly_height = randf_range(FLY_MIN_HEIGHT, FLY_MAX_HEIGHT)
+			var angle: float = randf() * TAU
+			fly_direction = Vector3(cos(angle), 0, sin(angle))
+			fly_direction_timer = randf_range(FLY_DIRECTION_CHANGE_MIN, FLY_DIRECTION_CHANGE_MAX)
+		ai_state = AIState.IDLE
+		return
 
 	# Direction change timer
 	fly_direction_timer -= delta
 	if fly_direction_timer <= 0:
 		fly_direction_timer = randf_range(FLY_DIRECTION_CHANGE_MIN, FLY_DIRECTION_CHANGE_MAX)
-		var angle = randf() * TAU
-		fly_direction = Vector3(cos(angle), 0, sin(angle))
+		# Chance to land
+		if randf() < PERCH_CHANCE:
+			is_perched = true
+			perch_timer = randf_range(PERCH_MIN_TIME, PERCH_MAX_TIME)
+			fly_height = 0.5  # Drop to ground level
+		else:
+			var angle: float = randf() * TAU
+			fly_direction = Vector3(cos(angle), 0, sin(angle))
 
 	# Move in fly direction
 	velocity.x = fly_direction.x * FLY_SPEED

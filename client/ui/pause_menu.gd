@@ -46,6 +46,11 @@ func _ready() -> void:
 	# Build button array for D-pad navigation
 	buttons = [resume_button, save_button, graphics_button, quit_button]
 
+	# Hook up UI sounds to all buttons
+	for btn in [resume_button, save_button, graphics_button, quit_button, back_button]:
+		btn.pressed.connect(func(): SoundManager.play_ui_sound("ui_click"))
+		btn.mouse_entered.connect(func(): SoundManager.play_ui_sound("ui_hover"))
+
 	# Load saved settings
 	_load_settings()
 

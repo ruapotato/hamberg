@@ -65,6 +65,13 @@ var decor_textures: Dictionary = {}  # name -> ImageTexture
 # Grid-based spawning
 const GRID_SIZE: float = 8.0
 
+# Noise-based density variation for natural clustering
+var tree_grove_noise: FastNoiseLite = null      # Large-scale tree groves
+var bush_cluster_noise: FastNoiseLite = null     # Separate bush clustering
+var rock_cluster_noise: FastNoiseLite = null     # Rock outcrop clustering
+var grass_density_noise: FastNoiseLite = null    # Grass density variation
+var micro_variation_noise: FastNoiseLite = null  # High-frequency gaps within clusters
+
 # Tree collision
 const TREE_COLLISION_LAYER: int = 1
 
@@ -188,6 +195,9 @@ func _ready() -> void:
 		terrain_world = terrain_nodes[0]
 		print("[EnvironmentSpawner2D] Found terrain world")
 
+	# Initialize noise for natural density variation
+	_init_density_noise()
+
 	# Generate textures
 	_generate_textures()
 
@@ -196,6 +206,56 @@ func _ready() -> void:
 
 	print("[EnvironmentSpawner2D] Ready")
 	emit_signal("environment_ready")
+
+
+func _init_density_noise() -> void:
+	var base_seed: int = 42
+	if terrain_world and "world_seed" in terrain_world:
+		base_seed = terrain_world.world_seed
+
+	# Large-scale tree groves (low frequency = big clusters)
+	tree_grove_noise = FastNoiseLite.new()
+	tree_grove_noise.seed = base_seed + 1000
+	tree_grove_noise.noise_type = FastNoiseLite.TYPE_SIMPLEX
+	tree_grove_noise.frequency = 0.012
+
+	# Separate bush clustering (offset seed so bushes don't overlap trees)
+	bush_cluster_noise = FastNoiseLite.new()
+	bush_cluster_noise.seed = base_seed + 2000
+	bush_cluster_noise.noise_type = FastNoiseLite.TYPE_SIMPLEX
+	bush_cluster_noise.frequency = 0.018
+
+	# Rock outcrop clustering
+	rock_cluster_noise = FastNoiseLite.new()
+	rock_cluster_noise.seed = base_seed + 3000
+	rock_cluster_noise.noise_type = FastNoiseLite.TYPE_SIMPLEX
+	rock_cluster_noise.frequency = 0.015
+
+	# Grass density (will also factor in tree proximity)
+	grass_density_noise = FastNoiseLite.new()
+	grass_density_noise.seed = base_seed + 4000
+	grass_density_noise.noise_type = FastNoiseLite.TYPE_SIMPLEX
+	grass_density_noise.frequency = 0.02
+
+	# High-frequency micro-variation (small gaps within clusters)
+	micro_variation_noise = FastNoiseLite.new()
+	micro_variation_noise.seed = base_seed + 5000
+	micro_variation_noise.noise_type = FastNoiseLite.TYPE_SIMPLEX
+	micro_variation_noise.frequency = 0.05
+
+
+## Sample a noise layer at world position and return a density multiplier in [0.0, 2.0].
+## Combines the given noise with the micro-variation layer for natural gaps.
+func _get_density_multiplier(noise: FastNoiseLite, world_x: float, world_z: float) -> float:
+	# Primary noise: -1..1 -> remap to 0..2
+	var primary: float = noise.get_noise_2d(world_x, world_z)
+	primary = clampf((primary + 1.0), 0.0, 2.0)
+
+	# Micro-variation: -1..1 -> 0.3..1.0 (never fully kills density, just thins)
+	var micro: float = micro_variation_noise.get_noise_2d(world_x, world_z)
+	micro = clampf(0.65 + micro * 0.35, 0.3, 1.0)
+
+	return primary * micro
 
 
 func _process(_delta: float) -> void:
@@ -448,12 +508,12 @@ func _create_bush_body() -> StaticBody3D:
 	body.collision_layer = TREE_COLLISION_LAYER
 	body.collision_mask = 0
 
-	# Small box collision for bush
+	# Box collision covering full bush sprite
 	var collision = CollisionShape3D.new()
 	var box = BoxShape3D.new()
-	box.size = Vector3(0.6, 0.5, 0.6)
+	box.size = Vector3(1.2, 1.2, 1.2)
 	collision.shape = box
-	collision.position = Vector3(0, 0.25, 0)
+	collision.position = Vector3(0, 0.6, 0)
 	body.add_child(collision)
 
 	# Billboard Sprite3D
@@ -475,12 +535,12 @@ func _create_rock_body() -> StaticBody3D:
 	body.collision_layer = TREE_COLLISION_LAYER
 	body.collision_mask = 0
 
-	# Small sphere collision for rock
+	# Box collision covering full rock sprite
 	var collision = CollisionShape3D.new()
-	var sphere = SphereShape3D.new()
-	sphere.radius = 0.35
-	collision.shape = sphere
-	collision.position = Vector3(0, 0.2, 0)
+	var box = BoxShape3D.new()
+	box.size = Vector3(1.0, 0.8, 1.0)
+	collision.shape = box
+	collision.position = Vector3(0, 0.4, 0)
 	body.add_child(collision)
 
 	# Billboard Sprite3D
@@ -539,12 +599,12 @@ func _create_grass_body() -> StaticBody3D:
 	body.collision_layer = TREE_COLLISION_LAYER
 	body.collision_mask = 0
 
-	# Small box collision for grass
+	# Box collision covering grass sprite
 	var collision = CollisionShape3D.new()
 	var box = BoxShape3D.new()
-	box.size = Vector3(0.3, 0.3, 0.3)
+	box.size = Vector3(0.8, 0.8, 0.8)
 	collision.shape = box
-	collision.position = Vector3(0, 0.15, 0)
+	collision.position = Vector3(0, 0.4, 0)
 	body.add_child(collision)
 
 	# Billboard Sprite3D
@@ -632,8 +692,22 @@ func _spawn_environment_around(center: Vector3) -> void:
 		var biome = _get_biome_at(cell_world_x, cell_world_z)
 		var biome_density_mult = BIOME_TREE_DENSITY.get(biome, 1.0)
 
+		# Noise-based density multipliers per cell (sampled at cell center)
+		var tree_density_mult = _get_density_multiplier(tree_grove_noise, cell_world_x, cell_world_z)
+		var bush_density_mult = _get_density_multiplier(bush_cluster_noise, cell_world_x, cell_world_z)
+		var rock_density_mult = _get_density_multiplier(rock_cluster_noise, cell_world_x, cell_world_z)
+		var grass_noise_mult = _get_density_multiplier(grass_density_noise, cell_world_x, cell_world_z)
+
+		# Rocks cluster more on higher terrain (slope/hill factor)
+		var cell_height = _get_terrain_height(cell_world_x, cell_world_z)
+		var height_factor = clampf(cell_height / 40.0, 0.0, 1.0)  # Higher = more rocks
+		rock_density_mult *= (0.5 + height_factor * 1.5)
+
+		# Grass is denser where trees are (forest floor)
+		grass_noise_mult *= (0.5 + tree_density_mult * 0.5)
+
 		# Spawn trees with minimum spacing to avoid stacking
-		var num_trees = int(cell_area * tree_density * biome_density_mult * (0.5 + rng.randf()))
+		var num_trees = int(cell_area * tree_density * biome_density_mult * tree_density_mult * (0.5 + rng.randf()))
 		var cell_tree_positions: Array[Vector2] = []
 		var min_tree_spacing: float = 2.5  # Minimum distance between trees in a cell
 		var tree_idx_in_cell: int = 0
@@ -689,7 +763,7 @@ func _spawn_environment_around(center: Vector3) -> void:
 			tree_idx += 1
 
 		# Spawn rocks (interactable, persistent)
-		var num_rocks = int(cell_area * rock_density * (0.5 + rng.randf()))
+		var num_rocks = int(cell_area * rock_density * rock_density_mult * (0.5 + rng.randf()))
 		var rock_idx_in_cell: int = 0
 		for _r in range(num_rocks):
 			if rock_idx >= max_rocks:
@@ -728,7 +802,7 @@ func _spawn_environment_around(center: Vector3) -> void:
 
 		# Spawn bushes (interactable, only in biomes with bushes)
 		if BIOME_HAS_BUSHES.get(biome, false):
-			var num_bushes = int(cell_area * bush_density * (0.5 + rng.randf()))
+			var num_bushes = int(cell_area * bush_density * bush_density_mult * (0.5 + rng.randf()))
 			var bush_idx_in_cell: int = 0
 			for _b in range(num_bushes):
 				if bush_idx >= max_bushes:
@@ -767,7 +841,7 @@ func _spawn_environment_around(center: Vector3) -> void:
 
 		# Spawn grass (only near player, only in biomes with grass)
 		if dist < spawn_radius * 0.5 and BIOME_HAS_GRASS.get(biome, true):
-			var num_grass = int(cell_area * grass_density * (0.5 + rng.randf()))
+			var num_grass = int(cell_area * grass_density * grass_noise_mult * (0.5 + rng.randf()))
 			var grass_idx_in_cell: int = 0
 			for _g in range(num_grass):
 				if grass_idx >= max_grass:
