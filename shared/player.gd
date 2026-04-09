@@ -352,8 +352,11 @@ func _physics_process(delta: float) -> void:
 	# CLIENT: Predict movement locally
 	var input_data := _gather_input()
 
+	# Block all combat/tool actions when a UI menu is open (mouse is visible)
+	var ui_open: bool = Input.mouse_mode == Input.MOUSE_MODE_VISIBLE
+
 	# Handle terrain modification input (pickaxe, hoe)
-	if input_data.get("attack", false) or input_data.get("secondary_action", false) or input_data.get("middle_mouse", false):
+	if not ui_open and (input_data.get("attack", false) or input_data.get("secondary_action", false) or input_data.get("middle_mouse", false)):
 		var handled_terrain_action = _handle_terrain_modification_input(input_data)
 		# Only process combat if terrain modification wasn't handled
 		if not handled_terrain_action:
@@ -366,7 +369,7 @@ func _physics_process(delta: float) -> void:
 				_handle_attack()
 				attack_cooldown = ATTACK_COOLDOWN_TIME
 	# Handle special attack input when no other input (can't attack while stunned, blocking, or exhausted)
-	elif input_data.get("special_attack", false) and attack_cooldown <= 0 and not is_stunned and not is_blocking and not is_exhausted:
+	elif not ui_open and input_data.get("special_attack", false) and attack_cooldown <= 0 and not is_stunned and not is_blocking and not is_exhausted:
 		_handle_special_attack()
 		attack_cooldown = ATTACK_COOLDOWN_TIME
 

@@ -200,16 +200,37 @@ func _create_recipe_button(recipe: Dictionary) -> Control:
 	# Get combined inventory (player + nearby chests) for crafting check
 	var combined_inventory = _get_combined_inventory()
 
-	# Check if player can craft this (using combined inventory)
-	var can_craft = false
-	if combined_inventory and CraftingRecipes.can_craft(recipe, combined_inventory, _get_nearby_stations()):
+	# Check if player can craft this
+	var nearby_st: Array = _get_nearby_stations()
+	var can_craft: bool = false
+	var reason: String = ""
+	if combined_inventory and CraftingRecipes.can_craft(recipe, combined_inventory, nearby_st):
 		can_craft = true
 		button.disabled = false
 	else:
 		button.disabled = true
+		button.focus_mode = Control.FOCUS_NONE
+		button.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		# Figure out why
+		var required_station: String = recipe.get("crafting_station", "")
+		if not required_station.is_empty() and not nearby_st.has(required_station):
+			reason = "Needs %s nearby" % required_station
+		else:
+			# Missing materials
+			var missing: Array = []
+			for mat_name in requirements:
+				var need: int = requirements[mat_name]
+				var have: int = 0
+				if combined_inventory and combined_inventory.has_method("get_item_count"):
+					have = combined_inventory.get_item_count(mat_name)
+				if have < need:
+					missing.append(mat_name.replace("_", " "))
+			if missing.size() > 0:
+				reason = "Missing: %s" % ", ".join(missing)
 
-	# Connect button
-	button.pressed.connect(_on_recipe_button_pressed.bind(recipe))
+	# Connect button (only if craftable)
+	if can_craft:
+		button.pressed.connect(_on_recipe_button_pressed.bind(recipe))
 	button.mouse_entered.connect(_on_recipe_mouse_entered.bind(recipe_name))
 	button.mouse_exited.connect(_on_recipe_mouse_exited)
 
@@ -253,6 +274,14 @@ func _create_recipe_button(recipe: Dictionary) -> Control:
 		req_hbox.add_child(amt_label)
 
 	container.add_child(req_hbox)
+
+	# Show reason why it can't be crafted
+	if not can_craft and reason != "":
+		var reason_label := Label.new()
+		reason_label.text = reason
+		reason_label.add_theme_font_size_override("font_size", 10)
+		reason_label.add_theme_color_override("font_color", Color(0.9, 0.4, 0.2))
+		container.add_child(reason_label)
 
 	return container
 
