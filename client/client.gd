@@ -369,93 +369,27 @@ func auto_connect_to_address(address_port: String) -> void:
 	print("[Client] Auto-connecting to %s:%s" % [ip_input.text, port_input.text])
 	_on_connect_button_pressed()
 
-## Style the connection screen with game palette
+## Style the connection screen with game palette (colors only, no stylebox overrides)
 func _style_connection_ui() -> void:
 	if not connection_ui:
 		return
-	const BLUE := Color("#0014ff")
-	const GOLD := Color("#ffeb00")
-	const DARK_BG := Color(0.0, 0.01, 0.1, 1.0)
-	const PANEL_BG := Color(0.04, 0.04, 0.15, 0.95)
-
-	# Set connection UI background color directly (it's a full-screen Control)
-	connection_ui.mouse_filter = Control.MOUSE_FILTER_IGNORE
-
-	# Panel style
-	var panel: PanelContainer = connection_ui.get_node_or_null("Panel")
-	if panel:
-		panel.mouse_filter = Control.MOUSE_FILTER_PASS
-		var style := StyleBoxFlat.new()
-		style.bg_color = PANEL_BG
-		style.corner_radius_top_left = 16
-		style.corner_radius_top_right = 16
-		style.corner_radius_bottom_left = 16
-		style.corner_radius_bottom_right = 16
-		style.border_width_left = 2
-		style.border_width_top = 2
-		style.border_width_right = 2
-		style.border_width_bottom = 2
-		style.border_color = Color(BLUE, 0.5)
-		style.shadow_color = Color(BLUE, 0.1)
-		style.shadow_size = 10
-		panel.add_theme_stylebox_override("panel", style)
 
 	# Title
 	var title: Label = connection_ui.get_node_or_null("Panel/VBox/TitleLabel")
 	if title:
 		title.text = "HAMBERG"
 		title.add_theme_font_size_override("font_size", 42)
-		title.add_theme_color_override("font_color", GOLD)
+		title.add_theme_color_override("font_color", Color("#ffeb00"))
 
-	# Input fields
-	var input_style := StyleBoxFlat.new()
-	input_style.bg_color = Color(0.02, 0.02, 0.08, 1.0)
-	input_style.corner_radius_top_left = 6
-	input_style.corner_radius_top_right = 6
-	input_style.corner_radius_bottom_left = 6
-	input_style.corner_radius_bottom_right = 6
-	input_style.border_width_left = 2
-	input_style.border_width_top = 2
-	input_style.border_width_right = 2
-	input_style.border_width_bottom = 2
-	input_style.border_color = Color(BLUE, 0.5)
-	input_style.content_margin_left = 8
-	input_style.content_margin_right = 8
-
+	# Font colors only — don't override styleboxes (breaks interactivity)
 	if ip_input:
-		ip_input.add_theme_stylebox_override("normal", input_style)
 		ip_input.add_theme_color_override("font_color", Color.WHITE)
-		ip_input.add_theme_color_override("caret_color", GOLD)
 	if port_input:
-		port_input.add_theme_stylebox_override("normal", input_style)
 		port_input.add_theme_color_override("font_color", Color.WHITE)
-		port_input.add_theme_color_override("caret_color", GOLD)
-
-	# Connect button
 	if connect_button:
-		var btn_normal := StyleBoxFlat.new()
-		btn_normal.bg_color = Color(BLUE, 0.25)
-		btn_normal.corner_radius_top_left = 8
-		btn_normal.corner_radius_top_right = 8
-		btn_normal.corner_radius_bottom_left = 8
-		btn_normal.corner_radius_bottom_right = 8
-		btn_normal.border_width_left = 2
-		btn_normal.border_width_top = 2
-		btn_normal.border_width_right = 2
-		btn_normal.border_width_bottom = 2
-		btn_normal.border_color = Color(BLUE, 0.6)
-		var btn_hover: StyleBoxFlat = btn_normal.duplicate()
-		btn_hover.bg_color = Color(BLUE, 0.4)
-		btn_hover.border_color = GOLD
-		connect_button.add_theme_stylebox_override("normal", btn_normal)
-		connect_button.add_theme_stylebox_override("hover", btn_hover)
-		connect_button.add_theme_stylebox_override("pressed", btn_hover)
 		connect_button.add_theme_color_override("font_color", Color.WHITE)
-		connect_button.add_theme_color_override("font_hover_color", GOLD)
+		connect_button.add_theme_color_override("font_hover_color", Color("#ffeb00"))
 		connect_button.add_theme_font_size_override("font_size", 16)
-		connect_button.mouse_entered.connect(func(): SoundManager.play_ui_sound("ui_hover"))
-
-	# Status label
 	if status_label:
 		status_label.add_theme_color_override("font_color", Color(0.6, 0.7, 1.0))
 
