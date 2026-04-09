@@ -32,10 +32,6 @@ var is_modified: bool = false
 var min_surface_y: int = 256
 var max_surface_y: int = -256
 
-# Player Y position for render window clamping (updated by terrain_world)
-var render_y_center: float = 999.0  # 999 = not set, use full range
-const RENDER_Y_WINDOW: int = 35  # Render ±35 units around player Y
-
 # Reference to biome generator for cave calculations (optional)
 var biome_generator = null  # TerrainBiomeGenerator instance
 
@@ -174,10 +170,11 @@ func fill_from_heights(heights: PackedFloat32Array) -> void:
 		if h + 2 > max_surface_y:
 			max_surface_y = h + 2
 
-	# Extend bounds for full cave depth — the render Y window handles
-	# only meshing what's near the player, so we can afford the full range
+	# Extend bounds for first cave level (depth ~20). Deeper caves extend
+	# dynamically via _extend_caves_for_underground_player when player descends.
+	# This keeps initial chunk generation fast while never cutting caves mid-way.
 	if biome_generator != null:
-		min_surface_y = mini(min_surface_y, min_surface_y - 120)
+		min_surface_y = mini(min_surface_y, min_surface_y - 25)
 		min_surface_y = maxi(min_surface_y, -128)
 
 	is_dirty = true
@@ -188,23 +185,9 @@ func fill_from_heights(heights: PackedFloat32Array) -> void:
 func get_world_origin() -> Vector3:
 	return Vector3(chunk_x * CHUNK_SIZE_XZ, 0, chunk_z * CHUNK_SIZE_XZ)
 
-## Get the Y range that needs mesh generation, clamped to player render window
+## Get the Y range that needs mesh generation
 func get_surface_y_range() -> Vector2i:
-	var full_min: int = max(min_surface_y - 4, -128)
-	var full_max: int = min(max_surface_y + 4, 127)
-
-	# If player Y is set, clamp to a window around them
-	if render_y_center < 900.0:
-		var center: int = int(render_y_center)
-		var window_min: int = center - RENDER_Y_WINDOW
-		var window_max: int = center + RENDER_Y_WINDOW
-		# Always include the surface area (max_surface_y) so terrain doesn't vanish
-		full_min = max(full_min, window_min)
-		full_max = min(max(full_max, max_surface_y + 4), window_max)
-		# But never go above the actual max
-		full_max = min(full_max, max_surface_y + 4)
-
-	return Vector2i(full_min, full_max)
+	return Vector2i(max(min_surface_y - 4, -128), min(max_surface_y + 4, 127))
 
 ## Serialize chunk data for saving
 func serialize() -> Dictionary:

@@ -37,7 +37,7 @@ var is_initialized: bool = false
 
 # Player tracking for chunk loading
 var tracked_players: Dictionary = {}  # peer_id -> Node3D
-var _last_render_y: Dictionary = {}  # peer_id -> float (last Y used for render window)
+var _last_cave_y: Dictionary = {}  # peer_id -> float (last Y used for cave extension)
 
 # Performance optimization: Only check LOD when player moves to new chunk
 var last_lod_check_chunks: Dictionary = {}  # peer_id -> Vector2i (last chunk coords)
@@ -352,8 +352,6 @@ func _process(delta: float) -> void:
 			_update_chunks_around_position(player.global_position)
 			_update_biome_texture_for_player(player.global_position)
 			_extend_caves_for_underground_player(player)
-			# Update render Y window when player moves vertically
-			_update_render_y_for_player(peer_id, player)
 
 	# PERFORMANCE: Only check LOD updates periodically and when players move to new chunks
 	lod_check_timer += delta
@@ -1185,32 +1183,6 @@ func _extend_chunk_bounds_for_caves(chunk) -> void:
 	# Default: first cave level only (depth 15 + margin). Deeper on demand.
 	chunk.min_surface_y = mini(chunk.min_surface_y, chunk.min_surface_y - 25)
 	chunk.min_surface_y = maxi(chunk.min_surface_y, -128)
-
-## Update render Y window on nearby chunks when player moves vertically
-func _update_render_y_for_player(peer_id: int, player: Node3D) -> void:
-	var player_y: float = player.global_position.y
-	var last_y: float = _last_render_y.get(peer_id, 999.0)
-
-	# Only update if player moved >10 units vertically
-	if absf(player_y - last_y) < 10.0 and last_y < 900.0:
-		return
-
-	_last_render_y[peer_id] = player_y
-
-	# Set render_y_center on all loaded chunks and mark dirty if it changed significantly
-	var chunk_coords := ChunkDataClass.world_to_chunk_coords(player.global_position)
-	for dx in range(-view_distance, view_distance + 1):
-		for dz in range(-view_distance, view_distance + 1):
-			if dx * dx + dz * dz > view_distance * view_distance:
-				continue
-			var key := ChunkDataClass.make_key(chunk_coords.x + dx, chunk_coords.y + dz)
-			if chunks.has(key):
-				var chunk = chunks[key]
-				var old_center: float = chunk.render_y_center
-				chunk.render_y_center = player_y
-				# Only re-mesh if the window actually shifted enough to matter
-				if absf(old_center - player_y) > 10.0 or old_center > 900.0:
-					chunk.is_dirty = true
 
 ## Dynamically extend cave depth when a player goes underground
 func _extend_caves_for_underground_player(player: Node3D) -> void:
