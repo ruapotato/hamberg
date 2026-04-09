@@ -268,6 +268,10 @@ func _ready() -> void:
 	ip_input.text = "127.0.0.1"
 	port_input.text = str(NetworkManager.DEFAULT_PORT)
 
+	# Style the connection UI and loading screen
+	_style_connection_ui()
+	_style_loading_screen()
+
 func _process(_delta: float) -> void:
 	# Handle connection UI controller input (when visible)
 	if connection_ui and connection_ui.visible:
@@ -364,6 +368,158 @@ func auto_connect_to_address(address_port: String) -> void:
 
 	print("[Client] Auto-connecting to %s:%s" % [ip_input.text, port_input.text])
 	_on_connect_button_pressed()
+
+## Style the connection screen with game palette
+func _style_connection_ui() -> void:
+	if not connection_ui:
+		return
+	const BLUE := Color("#0014ff")
+	const GOLD := Color("#ffeb00")
+	const DARK_BG := Color(0.0, 0.01, 0.1, 1.0)
+	const PANEL_BG := Color(0.04, 0.04, 0.15, 0.95)
+
+	# Background
+	var bg: ColorRect = connection_ui.get_node_or_null("Background")
+	if not bg:
+		bg = ColorRect.new()
+		bg.name = "Background"
+		bg.anchors_preset = Control.PRESET_FULL_RECT
+		bg.anchor_right = 1.0
+		bg.anchor_bottom = 1.0
+		connection_ui.add_child(bg)
+		connection_ui.move_child(bg, 0)
+	bg.color = DARK_BG
+
+	# Panel style
+	var panel: PanelContainer = connection_ui.get_node_or_null("Panel")
+	if panel:
+		var style := StyleBoxFlat.new()
+		style.bg_color = PANEL_BG
+		style.corner_radius_top_left = 16
+		style.corner_radius_top_right = 16
+		style.corner_radius_bottom_left = 16
+		style.corner_radius_bottom_right = 16
+		style.border_width_left = 2
+		style.border_width_top = 2
+		style.border_width_right = 2
+		style.border_width_bottom = 2
+		style.border_color = Color(BLUE, 0.5)
+		style.shadow_color = Color(BLUE, 0.1)
+		style.shadow_size = 10
+		panel.add_theme_stylebox_override("panel", style)
+
+	# Title
+	var title: Label = connection_ui.get_node_or_null("Panel/VBox/TitleLabel")
+	if title:
+		title.text = "HAMBERG"
+		title.add_theme_font_size_override("font_size", 42)
+		title.add_theme_color_override("font_color", GOLD)
+
+	# Input fields
+	var input_style := StyleBoxFlat.new()
+	input_style.bg_color = Color(0.02, 0.02, 0.08, 1.0)
+	input_style.corner_radius_top_left = 6
+	input_style.corner_radius_top_right = 6
+	input_style.corner_radius_bottom_left = 6
+	input_style.corner_radius_bottom_right = 6
+	input_style.border_width_left = 2
+	input_style.border_width_top = 2
+	input_style.border_width_right = 2
+	input_style.border_width_bottom = 2
+	input_style.border_color = Color(BLUE, 0.5)
+	input_style.content_margin_left = 8
+	input_style.content_margin_right = 8
+
+	if ip_input:
+		ip_input.add_theme_stylebox_override("normal", input_style)
+		ip_input.add_theme_color_override("font_color", Color.WHITE)
+		ip_input.add_theme_color_override("caret_color", GOLD)
+	if port_input:
+		port_input.add_theme_stylebox_override("normal", input_style)
+		port_input.add_theme_color_override("font_color", Color.WHITE)
+		port_input.add_theme_color_override("caret_color", GOLD)
+
+	# Connect button
+	if connect_button:
+		var btn_normal := StyleBoxFlat.new()
+		btn_normal.bg_color = Color(BLUE, 0.25)
+		btn_normal.corner_radius_top_left = 8
+		btn_normal.corner_radius_top_right = 8
+		btn_normal.corner_radius_bottom_left = 8
+		btn_normal.corner_radius_bottom_right = 8
+		btn_normal.border_width_left = 2
+		btn_normal.border_width_top = 2
+		btn_normal.border_width_right = 2
+		btn_normal.border_width_bottom = 2
+		btn_normal.border_color = Color(BLUE, 0.6)
+		var btn_hover: StyleBoxFlat = btn_normal.duplicate()
+		btn_hover.bg_color = Color(BLUE, 0.4)
+		btn_hover.border_color = GOLD
+		connect_button.add_theme_stylebox_override("normal", btn_normal)
+		connect_button.add_theme_stylebox_override("hover", btn_hover)
+		connect_button.add_theme_stylebox_override("pressed", btn_hover)
+		connect_button.add_theme_color_override("font_color", Color.WHITE)
+		connect_button.add_theme_color_override("font_hover_color", GOLD)
+		connect_button.add_theme_font_size_override("font_size", 16)
+		connect_button.mouse_entered.connect(func(): SoundManager.play_ui_sound("ui_hover"))
+		connect_button.pressed.connect(func(): SoundManager.play_ui_sound("ui_click"))
+
+	# Status label
+	if status_label:
+		status_label.add_theme_color_override("font_color", Color(0.6, 0.7, 1.0))
+
+## Style the loading screen with game palette
+func _style_loading_screen() -> void:
+	if not loading_screen_ui:
+		return
+	const GOLD := Color("#ffeb00")
+	const BLUE := Color("#0014ff")
+	const DARK_BG := Color(0.0, 0.01, 0.1, 1.0)
+
+	# Background
+	var bg: ColorRect = loading_screen_ui.get_node_or_null("Background")
+	if bg:
+		bg.color = DARK_BG
+
+	# Title
+	var title: Label = loading_screen_ui.get_node_or_null("VBoxContainer/Title")
+	if title:
+		title.text = "HAMBERG"
+		title.add_theme_font_size_override("font_size", 36)
+		title.add_theme_color_override("font_color", GOLD)
+
+	# Status label
+	var status: Label = loading_screen_ui.get_node_or_null("VBoxContainer/StatusLabel")
+	if status:
+		status.add_theme_color_override("font_color", Color(0.7, 0.8, 1.0))
+
+	# Progress bar
+	var progress: ProgressBar = loading_screen_ui.get_node_or_null("VBoxContainer/ProgressBar")
+	if progress:
+		var bar_bg := StyleBoxFlat.new()
+		bar_bg.bg_color = Color(0.05, 0.05, 0.15)
+		bar_bg.corner_radius_top_left = 4
+		bar_bg.corner_radius_top_right = 4
+		bar_bg.corner_radius_bottom_left = 4
+		bar_bg.corner_radius_bottom_right = 4
+		progress.add_theme_stylebox_override("background", bar_bg)
+		var bar_fill := StyleBoxFlat.new()
+		bar_fill.bg_color = Color(BLUE, 0.8)
+		bar_fill.corner_radius_top_left = 4
+		bar_fill.corner_radius_top_right = 4
+		bar_fill.corner_radius_bottom_left = 4
+		bar_fill.corner_radius_bottom_right = 4
+		progress.add_theme_stylebox_override("fill", bar_fill)
+
+	# Hide debug hint
+	var debug_hint: Label = loading_screen_ui.get_node_or_null("VBoxContainer/DebugHint")
+	if debug_hint:
+		debug_hint.visible = false
+
+	# Detail label
+	var detail: Label = loading_screen_ui.get_node_or_null("VBoxContainer/DetailLabel")
+	if detail:
+		detail.add_theme_color_override("font_color", Color(0.5, 0.6, 0.8))
 
 func _on_connect_button_pressed() -> void:
 	var address := ip_input.text
