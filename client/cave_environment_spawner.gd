@@ -189,7 +189,7 @@ func _spawn_cave_objects(center: Vector3) -> void:
 	if not terrain_world:
 		return
 
-	var biome_gen: Node = null
+	var biome_gen: RefCounted = null
 	if terrain_world.has_method("get_biome_generator"):
 		biome_gen = terrain_world.get_biome_generator()
 	if not biome_gen:

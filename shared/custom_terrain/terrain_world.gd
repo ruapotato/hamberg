@@ -351,6 +351,8 @@ func _process(delta: float) -> void:
 			_update_chunks_around_position(player.global_position)
 			# Update dynamic biome texture (client only)
 			_update_biome_texture_for_player(player.global_position)
+			# Extend cave depth for nearby chunks when player is underground
+			_extend_caves_for_underground_player(player)
 
 	# PERFORMANCE: Only check LOD updates periodically and when players move to new chunks
 	lod_check_timer += delta
@@ -1179,10 +1181,37 @@ func get_biome_generator():
 func _extend_chunk_bounds_for_caves(chunk) -> void:
 	if biome_generator == null:
 		return
-	# Caves generate everywhere (get_fast_cave_carving has no zone check),
-	# so always extend bounds to cover all 4 cave levels (depths 15, 40, 70, 100)
-	chunk.min_surface_y = mini(chunk.min_surface_y, chunk.min_surface_y - 110)
+	# Default: cover top 2 cave levels (15, 40). Deeper levels extended on demand.
+	chunk.min_surface_y = mini(chunk.min_surface_y, chunk.min_surface_y - 50)
 	chunk.min_surface_y = maxi(chunk.min_surface_y, -128)
+
+## Dynamically extend cave depth when a player goes underground
+func _extend_caves_for_underground_player(player: Node3D) -> void:
+	if not biome_generator:
+		return
+	var pos: Vector3 = player.global_position
+	var surface_h: float = get_terrain_height_at(Vector2(pos.x, pos.z))
+	var depth_below: float = surface_h - pos.y
+
+	# Only extend if player is significantly underground (below default 50-unit range)
+	if depth_below < 40.0:
+		return
+
+	# Extend chunks in a small radius around the player to cover their depth + margin
+	var needed_depth: int = int(depth_below) + 20  # 20 units of margin
+	var chunk_coords := ChunkDataClass.world_to_chunk_coords(pos)
+
+	for dx in range(-2, 3):
+		for dz in range(-2, 3):
+			var key := ChunkDataClass.make_key(chunk_coords.x + dx, chunk_coords.y + dz)
+			if not chunks.has(key):
+				continue
+			var chunk = chunks[key]
+			var target_min: int = int(surface_h) - needed_depth
+			target_min = maxi(target_min, -128)
+			if chunk.min_surface_y > target_min:
+				chunk.min_surface_y = target_min
+				chunk.is_dirty = true
 
 ## Find surface position (for spawning)
 func find_surface_position(xz_pos: Vector2, search_start_y: float = 100.0, search_range: float = 200.0) -> Vector3:

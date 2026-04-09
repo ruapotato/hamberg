@@ -311,6 +311,16 @@ func _physics_process(delta: float) -> void:
 	if not is_game_loaded:
 		return
 
+	# Safety: teleport player back to surface if they fall through the world
+	if global_position.y < -120.0:
+		var surface_y: float = 10.0
+		var tw: TerrainWorld = get_tree().root.find_child("TerrainWorld", true, false)
+		if tw:
+			surface_y = tw.get_terrain_height_at(Vector2(global_position.x, global_position.z)) + 2.0
+		global_position.y = surface_y
+		velocity = Vector3.ZERO
+		print("[Player] Fell through world — teleported back to surface at y=%.1f" % surface_y)
+
 	# Update attack cooldown
 	if attack_cooldown > 0:
 		attack_cooldown -= delta
