@@ -16,7 +16,7 @@ var pickup_requested: bool = false  # Prevents duplicate pickup requests
 var overlap_check_done: bool = false  # Whether we've checked for overlapping bodies
 
 # Visual
-var mesh_instance: MeshInstance3D
+var sprite: Sprite3D = null
 
 func _ready() -> void:
 	spawn_time = Time.get_ticks_msec() / 1000.0
@@ -26,13 +26,11 @@ func _ready() -> void:
 	collision_layer = 4  # Item layer
 	collision_mask = 2   # Player layer
 
-	# Create visual mesh
-	_create_mesh()
+	# Create visual
+	_create_visual()
 
 	# Connect pickup signal
 	body_entered.connect(_on_body_entered)
-
-	print("[ResourceItem] Spawned %d x %s" % [amount, item_name])
 
 func _process(delta: float) -> void:
 	# Skip all processing if pickup already requested
@@ -50,12 +48,9 @@ func _process(delta: float) -> void:
 
 	# Bob up and down
 	var time = Time.get_ticks_msec() / 1000.0 + bob_offset
-	var bob = sin(time * 2.0) * 0.05  # Reduced bob amount
-	if mesh_instance:
-		mesh_instance.position.y = 0.3 + bob  # Lower base height
-
-	# Rotate slowly
-	rotation.y += delta * 1.0
+	var bob = sin(time * 2.0) * 0.08
+	if sprite:
+		sprite.position.y = 0.4 + bob
 
 	# Check lifetime
 	var current_time = Time.get_ticks_msec() / 1000.0
@@ -63,46 +58,64 @@ func _process(delta: float) -> void:
 		print("[ResourceItem] %s despawned (lifetime expired)" % item_name)
 		queue_free()
 
-func _create_mesh() -> void:
-	mesh_instance = MeshInstance3D.new()
-	add_child(mesh_instance)
+func _create_visual() -> void:
+	# Billboard sprite using the item's inventory icon
+	sprite = Sprite3D.new()
+	sprite.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	sprite.pixel_size = 0.008  # Small world-space size
+	sprite.alpha_cut = SpriteBase3D.ALPHA_CUT_OPAQUE_PREPASS
+	sprite.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
+	sprite.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 
-	# Create mesh based on item type
-	match item_name:
-		"wood":
-			var mesh = CylinderMesh.new()
-			mesh.top_radius = 0.05
-			mesh.bottom_radius = 0.05
-			mesh.height = 0.3
-			mesh_instance.mesh = mesh
+	# Try to get texture from TextureGenerator
+	var tex: Texture2D = null
+	var tex_gen: Node = get_node_or_null("/root/TextureGenerator")
+	if tex_gen and tex_gen.has_method("get_item_icon"):
+		tex = tex_gen.get_item_icon(item_name)
 
-			var mat = StandardMaterial3D.new()
-			mat.albedo_color = Color(0.6, 0.4, 0.2)
-			mesh_instance.material_override = mat
+	# Fallback: try loading from environment textures for natural resources
+	if not tex:
+		var env_paths: Dictionary = {
+			"wood": "res://assets/textures/environment/oak_tree_front.png",
+			"stone": "res://assets/textures/environment/rock.png",
+			"plant_fiber": "res://assets/textures/environment/grass.png",
+			"resin": "res://assets/textures/environment/oak_tree_front.png",
+			"bone": "res://assets/textures/environment/rock.png",
+		}
+		var path: String = env_paths.get(item_name, "")
+		if path != "" and ResourceLoader.exists(path):
+			tex = load(path)
 
-		"stone":
-			var mesh = SphereMesh.new()
-			mesh.radius = 0.15
-			mesh_instance.mesh = mesh
+	# Final fallback: colored square
+	if not tex:
+		var img := Image.create(16, 16, false, Image.FORMAT_RGBA8)
+		var color: Color = _get_item_color()
+		img.fill(color)
+		tex = ImageTexture.create_from_image(img)
 
-			var mat = StandardMaterial3D.new()
-			mat.albedo_color = Color(0.5, 0.5, 0.55)
-			mesh_instance.material_override = mat
+	sprite.texture = tex
+	sprite.position.y = 0.4
+	add_child(sprite)
 
-		_:
-			# Default cube
-			var mesh = BoxMesh.new()
-			mesh.size = Vector3(0.2, 0.2, 0.2)
-			mesh_instance.mesh = mesh
-
-	mesh_instance.position.y = 0.3  # Start at lower height
-
-	# Add collision shape
-	var collision_shape = CollisionShape3D.new()
-	var shape = SphereShape3D.new()
-	shape.radius = 0.5  # Larger pickup radius
+	# Collision shape for pickup
+	var collision_shape := CollisionShape3D.new()
+	var shape := SphereShape3D.new()
+	shape.radius = 0.5
 	collision_shape.shape = shape
 	add_child(collision_shape)
+
+func _get_item_color() -> Color:
+	match item_name:
+		"wood", "resin": return Color(0.5, 0.3, 0.1)
+		"stone", "iron", "copper": return Color(0.5, 0.5, 0.55)
+		"bone", "rotten_flesh": return Color(0.8, 0.8, 0.7)
+		"glowing_spore", "fungal_essence", "plant_fiber": return Color(0.0, 1.0, 0.42)
+		"ember_core": return Color(1.0, 0.3, 0.0)
+		"ectoplasm": return Color(0.7, 0.9, 1.0)
+		"shadow_shard": return Color(0.3, 0.0, 0.4)
+		"spore_heart": return Color(0.0, 0.8, 0.34)
+		"crystal_shard": return Color(1.0, 0.0, 0.58)
+		_: return Color(0.8, 0.8, 0.8)
 
 func _on_body_entered(body: Node3D) -> void:
 	# Prevent duplicate pickup requests
