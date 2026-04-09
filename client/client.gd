@@ -1353,9 +1353,9 @@ func _update_terrain_color(biome_name: String) -> void:
 func _update_biome_ambient(biome_name: String) -> void:
 	match biome_name:
 		"valley", "meadow":
-			SoundManager.play_ambient("birds_ambient")
+			SoundManager.play_ambient("wind_ambient", -12.0)
 		"forest":
-			SoundManager.play_ambient("birds_ambient")
+			SoundManager.play_ambient("wind_ambient", -10.0)
 		"dark_forest":
 			SoundManager.play_ambient("wind_ambient", -8.0)
 		"swamp":
@@ -1406,7 +1406,7 @@ func _update_ambient_oneshots(delta: float) -> void:
 		SoundManager.play_ambient("rain_ambient")
 	elif current_biome in ["valley", "meadow", "forest"]:
 		# Restore biome ambient if rain stopped
-		SoundManager.play_ambient("birds_ambient")
+		SoundManager.play_ambient("wind_ambient", -12.0)
 
 # ============================================================================
 # ITEM DISCOVERY
