@@ -76,9 +76,9 @@ const MAX_ANIMALS_PER_PLAYER: int = 6  # More animals for a lively world
 var animal_spawn_timer: float = 0.0
 
 # Bird spawn parameters (ambient flying wildlife - daytime only)
-const MAX_BIRDS_PER_PLAYER: int = 4
-const BIRD_SPAWN_MIN_DISTANCE: float = 10.0
-const BIRD_SPAWN_MAX_DISTANCE: float = 30.0
+const MAX_BIRDS_PER_PLAYER: int = 8
+const BIRD_SPAWN_MIN_DISTANCE: float = 8.0
+const BIRD_SPAWN_MAX_DISTANCE: float = 40.0
 
 # Ghost spawn parameters (nighttime enemies)
 const MAX_GHOSTS_PER_PLAYER: int = 3
@@ -955,12 +955,12 @@ func _spawn_bird_near_player(player: Node, peer_id: int = 0) -> void:
 
 	var spawn_position = player.global_position + spawn_offset
 
-	# Get terrain height and add altitude for flying
+	# Spawn on the ground (birds start perched)
 	if terrain_world and terrain_world.has_method("get_terrain_height_at"):
-		var terrain_height = terrain_world.get_terrain_height_at(Vector2(spawn_position.x, spawn_position.z))
-		spawn_position.y = terrain_height + randf_range(5.0, 15.0)  # Fly high above terrain
+		var terrain_height: float = terrain_world.get_terrain_height_at(Vector2(spawn_position.x, spawn_position.z))
+		spawn_position.y = terrain_height + 0.5
 	else:
-		spawn_position.y = player.global_position.y + randf_range(5.0, 15.0)
+		spawn_position.y = player.global_position.y + 0.5
 
 	print("[EnemySpawner] Spawning Bird at %s (altitude)" % spawn_position)
 	_spawn_enemy(BIRD_SCENE, spawn_position, peer_id)
