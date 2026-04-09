@@ -20,11 +20,11 @@ const FLY_MIN_HEIGHT: float = 3.0
 const FLY_MAX_HEIGHT: float = 12.0
 
 # Landing behavior
-var is_perched: bool = false
+var is_perched: bool = true  # Start perched on the ground
 var perch_timer: float = 0.0
-const PERCH_CHANCE: float = 0.15  # 15% chance to land when changing direction
-const PERCH_MIN_TIME: float = 4.0
-const PERCH_MAX_TIME: float = 12.0
+const PERCH_CHANCE: float = 0.50  # 50% chance to land when changing direction
+const PERCH_MIN_TIME: float = 8.0
+const PERCH_MAX_TIME: float = 25.0
 
 func _ready() -> void:
 	# Call parent ready first to set defaults
@@ -41,12 +41,14 @@ func _ready() -> void:
 
 	# Birds are very skittish - flee when players get close
 	is_skittish = true
-	flee_detection_range = 15.0  # Birds are very alert
+	flee_detection_range = 10.0  # Spook when player walks near
 
-	# Randomize fly height
-	fly_height = randf_range(FLY_MIN_HEIGHT, FLY_MAX_HEIGHT)
+	# Start perched on the ground
+	is_perched = true
+	fly_height = 0.5
+	perch_timer = randf_range(PERCH_MIN_TIME, PERCH_MAX_TIME)
 
-	# Pick initial random direction
+	# Pick initial random direction (for when they take off)
 	var angle = randf() * TAU
 	fly_direction = Vector3(cos(angle), 0, sin(angle))
 	fly_direction_timer = randf_range(FLY_DIRECTION_CHANGE_MIN, FLY_DIRECTION_CHANGE_MAX)

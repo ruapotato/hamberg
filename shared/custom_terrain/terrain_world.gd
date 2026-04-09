@@ -1076,7 +1076,6 @@ func flatten_square(world_position: Vector3, target_height: float) -> int:
 	var center_z := int(floor(world_position.z))
 	# target_height is the interpolated voxel surface (e.g., 4.5 means solid at 4, air at 5)
 	var target_y := int(floor(target_height))
-	print("[Terrain FLATTEN] target_height=%.3f → target_y=%d (surface will be at %d.5)" % [target_height, target_y, target_y])
 
 	# Flatten a 4x4 area to target_y
 	# Solid at target_y and below, air above — surface renders between target_y and target_y+1

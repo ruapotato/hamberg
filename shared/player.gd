@@ -3461,7 +3461,7 @@ func get_gold() -> int:
 ## Take damage (with blocking/parry support and armor reduction)
 ## damage_type: WeaponData.DamageType enum (-1 = physical/untyped)
 func take_damage(damage: float, attacker_id: int = -1, knockback_dir: Vector3 = Vector3.ZERO, damage_type: int = -1) -> void:
-	if is_dead:
+	if is_dead or not is_game_loaded:
 		return
 
 	# God mode: ignore damage but still play hit effects for debugging
