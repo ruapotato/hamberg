@@ -1316,7 +1316,7 @@ func _update_biome_music(delta: float) -> void:
 	var xz_pos = Vector2(player_pos.x, player_pos.z)
 
 	# Get biome at player position
-	var biome = terrain_world.get_biome_at(xz_pos)
+	var biome = terrain_world.get_biome_at(xz_pos, player_pos.y)
 
 	# Update music if biome changed
 	if biome != current_biome:
@@ -1341,6 +1341,7 @@ func _update_terrain_color(biome_name: String) -> void:
 		"desert": biome_index = 4
 		"wizardland": biome_index = 5
 		"hell": biome_index = 6
+		"crystal_cave": biome_index = 1  # Use dark forest colors underground
 
 	# Update shader parameter
 	var material = terrain_world.terrain_material
@@ -1359,6 +1360,8 @@ func _update_biome_ambient(biome_name: String) -> void:
 			SoundManager.play_ambient("whispering", -6.0)
 		"swamp":
 			SoundManager.play_ambient("crickets_ambient")
+		"crystal_cave":
+			SoundManager.play_ambient("whispering", -6.0)
 		_:
 			SoundManager.stop_ambient()
 

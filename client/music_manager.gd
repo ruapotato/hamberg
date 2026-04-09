@@ -53,6 +53,11 @@ var biome_music := {
 		"res://audio/music/Hell1.wav",
 		"res://audio/music/Hell2.wav",
 	],
+	"crystal_cave": [
+		"res://audio/music/DarkForest1.wav",
+		"res://audio/music/DarkForest2.wav",
+		"res://audio/music/SpookyStarlit.wav",
+	],
 }
 
 # Special music (overrides biome music when active)

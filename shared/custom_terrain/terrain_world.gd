@@ -1166,9 +1166,14 @@ func get_terrain_height_at(xz_pos: Vector2) -> float:
 		return biome_generator.get_height_at_position(xz_pos)
 	return 0.0
 
-## Get biome at XZ position
-func get_biome_at(xz_pos: Vector2) -> String:
+## Get biome at XZ position, with optional Y for underground detection
+func get_biome_at(xz_pos: Vector2, world_y: float = 999.0) -> String:
 	if biome_generator:
+		# Check if underground — override to crystal_cave biome
+		if world_y < 900.0:
+			var surface_h: float = biome_generator.get_height_at_position(xz_pos)
+			if world_y < surface_h - 5.0:
+				return "crystal_cave"
 		return biome_generator.get_biome_at_position(xz_pos)
 	return "valley"
 
